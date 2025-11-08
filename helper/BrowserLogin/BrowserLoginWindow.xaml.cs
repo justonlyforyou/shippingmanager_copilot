@@ -59,8 +59,10 @@ namespace BrowserLogin
         {
             try
             {
-                // Initialize WebView2
-                await BrowserView.EnsureCoreWebView2Async();
+                // Initialize WebView2 with custom user data folder (use TEMP to avoid polluting repo)
+                var userDataFolder = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "BrowserLogin_WebView2");
+                var env = await CoreWebView2Environment.CreateAsync(userDataFolder: userDataFolder);
+                await BrowserView.EnsureCoreWebView2Async(env);
 
                 // Configure WebView2
                 BrowserView.CoreWebView2.Settings.UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";

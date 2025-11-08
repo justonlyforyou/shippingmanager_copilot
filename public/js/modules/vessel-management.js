@@ -52,6 +52,33 @@ import {
 } from './api.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { getCurrentBunkerState, updateCurrentCash, updateCurrentFuel, updateCurrentCO2 } from './bunker-management.js';
+
+/**
+ * Load cart from localStorage (user-specific)
+ */
+function loadCartFromStorage() {
+  try {
+    const storageKey = window.USER_STORAGE_PREFIX ? `vesselCart_${window.USER_STORAGE_PREFIX}` : 'vesselCart';
+    const stored = localStorage.getItem(storageKey);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    console.error('[Vessel Cart] Failed to load from storage:', error);
+    return [];
+  }
+}
+
+/**
+ * Save cart to localStorage (user-specific)
+ */
+function saveCartToStorage() {
+  try {
+    const storageKey = window.USER_STORAGE_PREFIX ? `vesselCart_${window.USER_STORAGE_PREFIX}` : 'vesselCart';
+    localStorage.setItem(storageKey, JSON.stringify(selectedVessels));
+  } catch (error) {
+    console.error('[Vessel Cart] Failed to save to storage:', error);
+  }
+}
+
 /**
  * Array of all vessels available for purchase.
  * Populated from API and filtered by type/engine for display.
@@ -75,9 +102,10 @@ let selectedEngineType = null;
 /**
  * Array of selected vessels for bulk purchase.
  * Each item contains vessel object and quantity.
+ * Persisted in localStorage to survive page reloads.
  * @type {Array<{vessel: Object, quantity: number}>}
  */
-let selectedVessels = [];
+let selectedVessels = loadCartFromStorage();
 
 /**
  * Cache for last known vessel counts to prevent flickering during updates
@@ -625,6 +653,9 @@ export async function loadAcquirableVessels() {
 
     // Initialize filters from checkboxes (should all be checked by default)
     window.applyVesselFilters();
+
+    // Restore cart badge from localStorage
+    updateCartBadge();
   } catch (error) {
     console.error('Error loading vessels:', error);
     document.getElementById('vesselCatalogFeed').innerHTML = `
@@ -1131,13 +1162,14 @@ function toggleVesselSelection(vessel, quantity) {
   const index = selectedVessels.findIndex(v => v.vessel.id === vessel.id);
 
   if (index > -1) {
-    // Set quantity directly (not add to existing)
-    selectedVessels[index].quantity = quantity;
+    // Add to existing quantity
+    selectedVessels[index].quantity += quantity;
   } else {
     // Add new item to cart
     selectedVessels.push({ vessel, quantity });
   }
 
+  saveCartToStorage();
   updateCartBadge();
   displayVessels();
 }
@@ -1161,6 +1193,7 @@ function updateCartBadge() {
 
 function removeFromCart(vesselId) {
   selectedVessels = selectedVessels.filter(v => v.vessel.id !== vesselId);
+  saveCartToStorage();
   updateCartBadge();
   displayVessels();
 }
@@ -1169,6 +1202,7 @@ function updateCartItemQuantity(vesselId, newQuantity) {
   const index = selectedVessels.findIndex(v => v.vessel.id === vesselId);
   if (index > -1 && newQuantity > 0) {
     selectedVessels[index].quantity = newQuantity;
+    saveCartToStorage();
     updateCartBadge();
   }
 }
@@ -1595,6 +1629,7 @@ export async function purchaseBulk() {
   }
 
   selectedVessels = [];
+  saveCartToStorage(); // Clear cart from localStorage
   const selectedCountEl = document.getElementById('selectedCount');
   if (selectedCountEl) selectedCountEl.textContent = '0';
 
@@ -2145,9 +2180,15 @@ function createVesselCard(vessel) {
     preloadVesselImage(vessel.type);
   }
 
+  // Check if user has unlocked this vessel type
+  // Container is ALWAYS unlocked (everyone has it by default)
+  // Tanker is locked until company_type includes "tanker"
+  const userCompanyType = window.USER_COMPANY_TYPE;
+  const isVesselTypeLocked = vessel.capacity_type === 'tanker' && (!userCompanyType || !userCompanyType.includes('tanker'));
+
   // Check if anchor slots are available
   const availableSlots = getAvailableAnchorSlots();
-  const canPurchase = availableSlots > 0;
+  const canPurchase = availableSlots > 0 && !isVesselTypeLocked;
 
   const capacityDisplay = getCapacityDisplay(vessel);
   const co2Class = getCO2EfficiencyClass(vessel.co2_factor);
@@ -2170,6 +2211,7 @@ function createVesselCard(vessel) {
     <div class="vessel-image-container">
       <img src="${imageUrl}" alt="${vessel.name}" class="vessel-image" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>⛴️</text></svg>'">
       ${vessel.only_for_credits ? '<div class="vessel-credits-overlay">$</div>' : ''}
+      ${isVesselTypeLocked ? '<div class="vessel-locked-overlay"><div class="vessel-locked-banner">🔒 Locked</div><div class="vessel-locked-text">Unlock ' + vessel.capacity_type + ' vessels first</div></div>' : ''}
     </div>
     <div class="vessel-content">
       <div class="vessel-header">
@@ -2197,12 +2239,12 @@ function createVesselCard(vessel) {
         ${additionalAttrs}
       </div>
       <div class="vessel-actions">
-        <input type="number" class="vessel-quantity-input" data-vessel-id="${vessel.id}" value="${isSelected ? selectedItem.quantity : 1}" min="1" max="99" ${!canPurchase ? 'disabled' : ''} />
+        <input type="number" class="vessel-quantity-input" data-vessel-id="${vessel.id}" value="1" min="1" max="99" ${!canPurchase ? 'disabled' : ''} />
         <div class="vessel-action-buttons">
-          <button class="vessel-select-btn" data-vessel-id="${vessel.id}" ${!canPurchase ? 'disabled title="Not enough anchor slots"' : ''}>
+          <button class="vessel-select-btn" data-vessel-id="${vessel.id}" ${!canPurchase ? 'disabled title="' + (isVesselTypeLocked ? 'Vessel type locked' : 'Not enough anchor slots') + '"' : ''}>
             Add to Cart
           </button>
-          <button class="vessel-buy-btn" data-vessel-id="${vessel.id}" ${!canPurchase ? 'disabled title="Not enough anchor slots"' : ''}>
+          <button class="vessel-buy-btn" data-vessel-id="${vessel.id}" ${!canPurchase ? 'disabled title="' + (isVesselTypeLocked ? 'Vessel type locked' : 'Not enough anchor slots') + '"' : ''}>
             Buy Now
           </button>
         </div>
@@ -2214,6 +2256,7 @@ function createVesselCard(vessel) {
     const quantityInput = card.querySelector('.vessel-quantity-input');
     const quantity = parseInt(quantityInput.value) || 1;
     toggleVesselSelection(vessel, quantity);
+    quantityInput.value = 1; // Reset to 1 after adding to cart
   });
   card.querySelector('.vessel-buy-btn').addEventListener('click', () => {
     const quantityInput = card.querySelector('.vessel-quantity-input');

@@ -62,6 +62,9 @@ class SessionSelectorDialog:
         self.root.grab_set()
         self.root.focus_force()
 
+        # Always on top - set AFTER grab_set to avoid conflicts
+        self.root.attributes('-topmost', True)
+
     def center_window(self):
         """Center window on screen."""
         self.root.update_idletasks()
@@ -433,11 +436,13 @@ class SessionSelectorDialog:
 
     def select_session(self, user_id):
         """Select a session and close dialog."""
+        print(f"[SessionSelector] User selected session: {user_id}", file=sys.stderr)
         self.selected_user_id.set(user_id)
         self.highlight_selection()
 
         # Close immediately after selection
         self.result = {"action": "use_session", "user_id": user_id}
+        print(f"[SessionSelector] Result set to: {self.result}", file=sys.stderr)
         self.root.quit()
         self.root.destroy()
 
@@ -472,13 +477,17 @@ class SessionSelectorDialog:
 
     def cancel(self):
         """Cancel and exit."""
+        print("[SessionSelector] User cancelled", file=sys.stderr)
         self.result = None
+        print(f"[SessionSelector] Result set to None", file=sys.stderr)
         self.root.quit()
         self.root.destroy()
 
     def show(self):
         """Show dialog and return result."""
+        print("[SessionSelector] Starting mainloop", file=sys.stderr)
         self.root.mainloop()
+        print(f"[SessionSelector] Mainloop ended, returning result: {self.result}", file=sys.stderr)
         return self.result
 
 if __name__ == "__main__":
@@ -511,12 +520,17 @@ if __name__ == "__main__":
         dialog = SessionSelectorDialog(sessions if sessions else [], expired_sessions, show_action_buttons)
         result = dialog.show()
 
+        print(f"[SessionSelector __main__] Got result from show(): {result}", file=sys.stderr)
+
         if result:
             # Print result as JSON for Python to capture
-            print(json.dumps(result))
+            json_output = json.dumps(result)
+            print(f"[SessionSelector __main__] Outputting JSON to stdout: {json_output}", file=sys.stderr)
+            print(json_output)
             sys.exit(0)
         else:
             # User cancelled
+            print("[SessionSelector __main__] No result, exiting with code 1", file=sys.stderr)
             sys.exit(1)
 
     except KeyboardInterrupt:

@@ -18,6 +18,7 @@ const express = require('express');
 const { apiCall, getUserId } = require('../utils/api');
 const { broadcastToUser } = require('../websocket');
 const logger = require('../utils/logger');
+const { saveSettings } = require('../settings-schema');
 
 const router = express.Router();
 
@@ -104,16 +105,24 @@ router.post('/anchor/purchase', express.json(), async (req, res) => {
         const settingsData = await apiCall('/user/get-user-settings', 'POST', {});
         const anchorNextBuild = settingsData.data?.anchor_next_build;
 
+        // Store pending anchor points count in settings (both RAM and disk)
+        const state = require('../state');
+        const settings = state.getSettings(userId);
+        settings.pendingAnchorPoints = amount;
+        settings.anchorNextBuild = anchorNextBuild;
+        state.updateSettings(userId, settings);
+        await saveSettings(userId, settings);
+
         if (anchorNextBuild) {
           // Broadcast timer to all connected clients
           broadcastToUser(userId, 'anchor_purchase_timer', {
-            anchor_next_build: anchorNextBuild
+            anchor_next_build: anchorNextBuild,
+            pending_amount: amount
           });
         }
 
         // Fetch updated bunker/user data to broadcast header updates
         const gameData = await apiCall('/game/index', 'POST', {});
-        const state = require('../state');
 
         // Update bunker state with fresh data
         if (gameData.data?.bunker) {
@@ -139,15 +148,15 @@ router.post('/anchor/purchase', express.json(), async (req, res) => {
         // Broadcast anchor update to update header (Total/Free/Pending)
         if (gameData.data?.anchor_points !== undefined) {
           const maxAnchorPoints = gameData.data.user_settings.anchor_points;
-          const allVessels = gameData.data.user_vessels || [];
+          const allVessels = gameData.data.user_vessels;
           const deliveredVessels = allVessels.filter(v => v.status !== 'pending').length;
           const pendingVessels = allVessels.filter(v => v.status === 'pending').length;
           const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
 
-          // Calculate pending anchor points based on anchor_next_build timestamp
+          // Use stored pending amount from settings
           const anchorNextBuild = gameData.data.user_settings?.anchor_next_build || null;
           const now = Math.floor(Date.now() / 1000);
-          const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? 1 : 0;
+          const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? amount : 0;
 
           broadcastToUser(userId, 'anchor_update', {
             anchor: {
@@ -158,11 +167,7 @@ router.post('/anchor/purchase', express.json(), async (req, res) => {
           });
         }
 
-        // Broadcast success notification
-        broadcastToUser(userId, 'user_action_notification', {
-          type: 'success',
-          message: `⚓ <strong>Anchor Points Purchased!</strong><br><br>Amount: ${amount} point${amount > 1 ? 's' : ''}`
-        });
+        // Success notification handled by frontend (anchor-purchase.js)
 
       } catch (error) {
         logger.error('[Anchor] Failed to fetch updates for broadcast:', error);
@@ -261,10 +266,7 @@ router.post('/anchor-point/purchase', express.json(), async (req, res) => {
 
       // Broadcast success notification
       if (userId) {
-        broadcastToUser(userId, 'user_action_notification', {
-          type: 'success',
-          message: `⚓ <strong>Anchor Points Purchased!</strong><br><br>Amount: ${amount} point${amount > 1 ? 's' : ''}<br>Price: $${price.toLocaleString()}/point<br>Total Cost: $${totalCost.toLocaleString()}`
-        });
+        // Success notification handled by frontend (anchor-purchase.js)
 
         // Update bunker cash (no API return for updated user data, so we estimate)
         broadcastToUser(userId, 'bunker_update', {

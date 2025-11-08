@@ -619,8 +619,8 @@ function loadCache() {
     if (data.bunker) {
       const { fuel, co2, cash, maxFuel, maxCO2 } = data.bunker;
 
-      // Load capacity values from cache if available
-      if (maxFuel !== undefined && maxCO2 !== undefined) {
+      // Load capacity values from cache if available (only if valid > 0)
+      if (maxFuel !== undefined && maxFuel > 0 && maxCO2 !== undefined && maxCO2 > 0) {
         import('./modules/bunker-management.js').then(module => {
           module.setCapacityFromBunkerUpdate(maxFuel, maxCO2);
         });
@@ -631,12 +631,13 @@ function loadCache() {
       const fuelDisplay = document.getElementById('fuelDisplay');
       const fuelFill = document.getElementById('fuelFill');
       const fuelBtn = document.getElementById('fuelBtn');
-      if (fuelDisplay && fuel !== undefined && maxFuel !== undefined && maxFuel > 0) {
-        fuelDisplay.innerHTML = `${Math.floor(fuel).toLocaleString('en-US')} <b>t</b> <b>/</b> ${Math.floor(maxFuel).toLocaleString('en-US')} <b>t</b>`;
+      if (fuelDisplay && fuel !== undefined && maxFuel !== undefined && (maxFuel > 0 || fuel <= 0)) {
+        const maxFuelText = maxFuel > 0 ? Math.floor(maxFuel).toLocaleString('en-US') : '--';
+        fuelDisplay.innerHTML = `${Math.floor(fuel).toLocaleString('en-US')} <b>t</b> <b>/</b> ${maxFuelText} <b>t</b>`;
 
         // Update fill bar and button styling with CSS classes
         if (fuelFill && fuelBtn) {
-          const fuelPercent = Math.min(100, Math.max(0, (fuel / maxFuel) * 100));
+          const fuelPercent = maxFuel > 0 ? Math.min(100, Math.max(0, (fuel / maxFuel) * 100)) : 0;
           fuelFill.style.width = `${fuelPercent}%`;
 
           // Determine fill level class based on tank percentage
@@ -690,13 +691,14 @@ function loadCache() {
       const co2Display = document.getElementById('co2Display');
       const co2Fill = document.getElementById('co2Fill');
       const co2Btn = document.getElementById('co2Btn');
-      if (co2Display && co2 !== undefined && maxCO2 !== undefined && maxCO2 > 0) {
+      if (co2Display && co2 !== undefined && maxCO2 !== undefined && (maxCO2 > 0 || co2 < 0)) {
         const co2Value = co2 < 0 ? `-${Math.floor(Math.abs(co2)).toLocaleString('en-US')}` : Math.floor(co2).toLocaleString('en-US');
-        co2Display.innerHTML = `${co2Value} <b>t</b> <b>/</b> ${Math.floor(maxCO2).toLocaleString('en-US')} <b>t</b>`;
+        const maxCO2Text = maxCO2 > 0 ? Math.floor(maxCO2).toLocaleString('en-US') : '--';
+        co2Display.innerHTML = `${co2Value} <b>t</b> <b>/</b> ${maxCO2Text} <b>t</b>`;
 
         // Update fill bar and button styling with CSS classes
         if (co2Fill && co2Btn) {
-          const co2Percent = Math.min(100, Math.max(0, (co2 / maxCO2) * 100));
+          const co2Percent = maxCO2 > 0 ? Math.min(100, Math.max(0, (co2 / maxCO2) * 100)) : 0;
           co2Fill.style.width = `${co2Percent}%`;
 
           // Determine fill level class based on tank percentage
@@ -1715,7 +1717,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const value = String(settings.minFuelThreshold);
     document.getElementById('minFuelThreshold').value = formatNumberWithSeparator(value);
   }
-  if (document.getElementById('minVesselUtilization')) document.getElementById('minVesselUtilization').value = settings.minVesselUtilization;
+  // Min cargo utilization (now in General Settings)
+  if (document.getElementById('minCargoUtilization')) {
+    document.getElementById('minCargoUtilization').value = settings.minCargoUtilization || '';
+  }
+  // Harbor fee warning threshold (now in General Settings)
+  if (document.getElementById('harborFeeWarningThreshold')) {
+    document.getElementById('harborFeeWarningThreshold').value = settings.harborFeeWarningThreshold || '';
+  }
   if (document.getElementById('autoVesselSpeed')) document.getElementById('autoVesselSpeed').value = settings.autoVesselSpeed;
 
   // Auto-Repair
@@ -1852,6 +1861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
   }
+  if (document.getElementById('dailyForecastEnabled')) document.getElementById('dailyForecastEnabled').checked = settings.chatbotDailyForecastEnabled || false;
   if (document.getElementById('dailyForecastTime') && settings.chatbotDailyForecastTime !== undefined) document.getElementById('dailyForecastTime').value = settings.chatbotDailyForecastTime;
   if (document.getElementById('enableAllianceCommands')) {
     document.getElementById('enableAllianceCommands').checked = settings.chatbotAllianceCommandsEnabled !== false; // Default to true
@@ -2540,11 +2550,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveSettings(settings);
   });
 
-  // Minimum vessel utilization percentage for auto-depart (only used when not using route defaults)
-  document.getElementById('minVesselUtilization').addEventListener('change', function() {
-    settings.minVesselUtilization = parseInt(this.value);
-    saveSettings(settings);
-  });
+  // Min cargo utilization (moved to General Settings - applies to manual + auto depart)
+  const minCargoUtilizationSelect = document.getElementById('minCargoUtilization');
+  if (minCargoUtilizationSelect) {
+    minCargoUtilizationSelect.addEventListener('change', function() {
+      settings.minCargoUtilization = this.value === '' ? null : parseInt(this.value);
+      saveSettings(settings);
+    });
+  }
+
+  // Harbor fee warning threshold (in General Settings)
+  const harborFeeWarningThresholdSelect = document.getElementById('harborFeeWarningThreshold');
+  if (harborFeeWarningThresholdSelect) {
+    harborFeeWarningThresholdSelect.addEventListener('change', function() {
+      settings.harborFeeWarningThreshold = this.value === '' ? null : parseInt(this.value);
+      saveSettings(settings);
+    });
+  }
 
   // Vessel speed as percentage of max_speed (only used when not using route defaults)
   document.getElementById('autoVesselSpeed').addEventListener('change', function() {
@@ -2603,6 +2625,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           dailyForecastTime.closest('div').classList.add('checkbox-container-disabled');
         }
       }
+      saveSettings(settings);
+    });
+  }
+
+  // Daily forecast enabled
+  const dailyForecastEnabledCheckbox = document.getElementById('dailyForecastEnabled');
+  if (dailyForecastEnabledCheckbox) {
+    dailyForecastEnabledCheckbox.addEventListener('change', function() {
+      settings.chatbotDailyForecastEnabled = this.checked;
       saveSettings(settings);
     });
   }

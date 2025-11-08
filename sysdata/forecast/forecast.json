@@ -1732,6 +1732,18 @@
         "co2_price_per_ton": 17
       },
       {
+        "start_time": "22:00:00",
+        "end_time": "22:29:59",
+        "fuel_price_per_ton": 400,
+        "co2_price_per_ton": 12
+      },
+      {
+        "start_time": "22:30:00",
+        "end_time": "22:59:59",
+        "fuel_price_per_ton": 660,
+        "co2_price_per_ton": 18
+      },
+      {
         "start_time": "23:00:00",
         "end_time": "23:29:59",
         "fuel_price_per_ton": 790,

@@ -50,6 +50,10 @@ const SETTINGS_FILE = getSettingsFilePath(); // Legacy default
  * @constant {Object}
  */
 const SETTINGS_SCHEMA = {
+  // General Settings
+  harborFeeWarningThreshold: 50,  // Warning when harbor fee > X% of gross income (10, 20, 30, 40, 50, 60, 70, 80, 90, 99)
+  minCargoUtilization: 80,  // Minimum cargo utilization percentage (applies to manual + auto depart)
+
   // Alert Thresholds
   fuelThreshold: 400,
   co2Threshold: 6,
@@ -71,7 +75,7 @@ const SETTINGS_SCHEMA = {
   autoDepartAll: false,
   autoDepartUseRouteDefaults: true,
   minFuelThreshold: 100,
-  minVesselUtilization: 75,
+  minVesselUtilization: 75,  // DEPRECATED - moved to General Settings as minCargoUtilization
   autoVesselSpeed: 50,
 
   // Auto-Repair
@@ -93,6 +97,7 @@ const SETTINGS_SCHEMA = {
   autoAnchorPointEnabled: false,
   autoAnchorPointAmount: 1,  // Amount to purchase: 1 or 10
   autoAnchorPointMinCash: 20000000,  // Minimum cash balance before purchasing anchor points
+  pendingAnchorPoints: 0,  // Number of anchor points currently under construction (runtime state, persisted for display)
 
   // Auto-Negotiate Hijacking
   autoNegotiateHijacking: false,

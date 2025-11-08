@@ -1,27 +1,14 @@
 /**
- * @fileoverview Autopilot Service
+ * @fileoverview Autopilot Service - Main Orchestrator
  *
  * Centralized autopilot logic running on the backend.
- * Replaces frontend autopilot to prevent race conditions in multi-tab scenarios.
+ * Coordinates all pilot modules and manages shared state.
  *
  * Key Features:
  * - Price updates at fixed times (:01 and :31 every hour)
- * - Auto-rebuy fuel/CO2 with no cooldowns
- * - Intelligent auto-depart with port demand checking
- * - Auto bulk repair
- * - Auto campaign renewal
- * - Price alert detection and broadcasting
- *
- * Important Design Decisions:
- * - NO COOLDOWNS on auto-rebuy (if price good and space available → buy immediately)
- * - Auto-rebuy triggered by: (1) 5-minute timer AND (2) after every auto-depart
- * - Fixed schedule for auto-depart (5, 15, or 30 minute intervals)
- * - All actions broadcast to WebSocket clients for UI updates
- *
- * Single User Design:
- * - One Steam account per server instance
- * - But code structured to support multiple users (future-proofing)
- * - getAllUserIds() returns all active users
+ * - Orchestrates 8 specialized pilot modules
+ * - Badge updates (repair count, campaigns, hijacking)
+ * - Main event loop coordination
  *
  * @module server/autopilot
  */
@@ -34,34 +21,37 @@ const { getUserId, apiCall } = require('./utils/api');
 const logger = require('./utils/logger');
 const path = require('path');
 const fs = require('fs');
-const os = require('os');
 
-// Debug mode - controlled by server/config.js
+// Import pilot modules
+const { autoRebuyFuel } = require('./autopilot/pilot_barrel_boss');
+const { autoRebuyCO2 } = require('./autopilot/pilot_atmosphere_broker');
+const { departVessels, autoDepartVessels, calculateRemainingDemand, getTotalCapacity } = require('./autopilot/pilot_cargo_marshal');
+const { autoRepairVessels } = require('./autopilot/pilot_yard_foreman');
+const { autoCampaignRenewal } = require('./autopilot/pilot_reputation_chief');
+const { autoCoop } = require('./autopilot/pilot_fair_hand');
+const { autoAnchorPointPurchase } = require('./autopilot/pilot_harbormaster');
+const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
+
 const DEBUG_MODE = config.DEBUG_MODE;
 
-// WebSocket broadcasting functions (will be injected by websocket.js)
+// WebSocket broadcasting function (injected by websocket.js)
 let broadcastToUser = null;
 
 /**
  * Injects WebSocket broadcasting function.
  * Called by websocket.js during initialization.
- *
- * @param {Function} broadcastFn - Function to broadcast events to user
  */
 function setBroadcastFunction(broadcastFn) {
   broadcastToUser = broadcastFn;
   logger.log('[Autopilot] Broadcast function set:', broadcastFn ? 'OK' : 'NULL');
 }
 
-// Global pause state for all autopilot functions
-// NOTE: This is initialized from settings on startup - see initializeAutopilotState()
+// Global pause state
 let autopilotPaused = false;
 
 /**
  * Initializes autopilot pause state from persistent settings.
  * Called once during server startup in scheduler.js
- *
- * @param {number} userId - User ID
  */
 function initializeAutopilotState(userId) {
   const settings = state.getSettings(userId);
@@ -80,31 +70,20 @@ async function pauseAutopilot() {
   autopilotPaused = true;
   logger.log('[Autopilot] PAUSED - All autopilot functions suspended');
 
-  // Save pause state to settings (persistent)
   try {
-    const { getUserId } = require('./utils/api');
     const userId = getUserId();
     if (userId) {
       const settings = state.getSettings(userId);
       settings.autopilotPaused = true;
 
-      // Write to file
       const { getSettingsFilePath } = require('./settings-schema');
-      const fs = require('fs').promises;
+      const fsPromises = require('fs').promises;
       const settingsFile = getSettingsFilePath(userId);
-      await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+      await fsPromises.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
       logger.log('[Autopilot] Pause state saved to settings');
     }
   } catch (error) {
     logger.error('[Autopilot] Failed to save pause state:', error);
-  }
-
-  // Broadcast to ALL connected clients, not just the triggering user
-  // This ensures all open browser tabs/devices see the pause state
-  if (broadcastToUser) {
-    // Note: broadcastToUser actually broadcasts to ALL in single-user mode
-    // but we use null as userId to make it clear we want ALL clients
-    broadcastToUser(null, 'autopilot_status', { paused: true });
   }
 }
 
@@ -115,1453 +94,118 @@ async function resumeAutopilot() {
   autopilotPaused = false;
   logger.log('[Autopilot] RESUMED - All autopilot functions active');
 
-  // Save resume state to settings (persistent)
   try {
-    const { getUserId } = require('./utils/api');
     const userId = getUserId();
     if (userId) {
       const settings = state.getSettings(userId);
       settings.autopilotPaused = false;
 
-      // Write to file
       const { getSettingsFilePath } = require('./settings-schema');
-      const fs = require('fs').promises;
+      const fsPromises = require('fs').promises;
       const settingsFile = getSettingsFilePath(userId);
-      await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+      await fsPromises.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
       logger.log('[Autopilot] Resume state saved to settings');
     }
   } catch (error) {
     logger.error('[Autopilot] Failed to save resume state:', error);
   }
-
-  // Broadcast to ALL connected clients, not just the triggering user
-  // This ensures all open browser tabs/devices see the resume state
-  if (broadcastToUser) {
-    // Note: broadcastToUser actually broadcasts to ALL in single-user mode
-    // but we use null as userId to make it clear we want ALL clients
-    broadcastToUser(null, 'autopilot_status', { paused: false });
-  }
 }
 
 /**
- * Gets current autopilot pause status
+ * Returns current autopilot pause state
  */
 function isAutopilotPaused() {
   return autopilotPaused;
 }
 
 // ============================================================================
-// Price Updates
+// Price Updates & Alerts
 // ============================================================================
 
 /**
- * Updates market prices for all users.
- * Called by scheduler at :01 and :31 every hour.
- *
- * Fetches current prices from game API, stores in state, and broadcasts to clients.
- * After updating prices, triggers price alert checks.
+ * Updates fuel and CO2 prices from API and broadcasts to all users.
+ * Called by scheduler at :01 and :31 every hour (twice per hour).
  */
 async function updatePrices() {
-  const userId = getUserId();
-  if (!userId) {
-    logger.log('[Autopilot] No user ID available, skipping price update');
-    return;
-  }
-
   try {
-    logger.log('[Autopilot] Fetching price update from game API');
     const prices = await gameapi.fetchPrices();
 
-    // Update state with discount info
+    const userId = getUserId();
+    if (!userId) return;
+
+    // Update state with individual price values
     state.updatePrices(userId, prices.fuel, prices.co2, prices.eventDiscount, prices.regularFuel, prices.regularCO2);
 
-    if (prices.eventDiscount) {
-      logger.log(`[Autopilot] EVENT ACTIVE: ${prices.eventDiscount.percentage}% off ${prices.eventDiscount.type}`);
-      logger.log(`[Autopilot] Price update: Fuel=$${prices.fuel}/t (regular: $${prices.regularFuel}/t), CO2=$${prices.co2}/t (regular: $${prices.regularCO2}/t)`);
-    } else {
-      logger.log(`[Autopilot] Price update: Fuel=$${prices.fuel}/t, CO2=$${prices.co2}/t`);
-    }
-
-    // Also fetch and broadcast bunker state (fuel, CO2, cash levels)
-    const bunker = await gameapi.fetchBunkerState();
-    state.updateBunkerState(userId, bunker);
-
-    // Broadcast prices and bunker state to all connected clients
     if (broadcastToUser) {
-      // CRITICAL: Only broadcast prices if BOTH fuel AND co2 are valid (> 0)
-      // DO NOT broadcast if either is 0, undefined, or null - clients will keep cached value
-      if (prices.fuel > 0 && prices.co2 > 0) {
-        broadcastToUser(userId, 'price_update', {
-          fuel: prices.fuel,
-          co2: prices.co2,
-          eventDiscount: prices.eventDiscount,
-          regularFuel: prices.regularFuel,
-          regularCO2: prices.regularCO2,
-          timestamp: Date.now()
-        });
-        logger.log('[Autopilot] ✓ Prices broadcasted');
-      } else {
-        logger.warn(`[Autopilot] ✗ Prices NOT broadcasted - invalid values: fuel=${prices.fuel}, co2=${prices.co2}`);
-      }
-
-      broadcastToUser(userId, 'bunker_update', {
-        fuel: bunker.fuel,
-        co2: bunker.co2,
-        cash: bunker.cash,
-        maxFuel: bunker.maxFuel,
-        maxCO2: bunker.maxCO2
-      });
+      broadcastToUser(userId, 'prices_update', prices);
     }
 
-    // After price update, check if alerts should be sent
-    await checkPriceAlerts();
+    await checkPriceAlerts(userId, prices);
 
   } catch (error) {
-    logger.error('[Autopilot] Failed to update prices:', error.message);
+    logger.error('[Prices] Failed to update prices:', error.message);
   }
 }
 
 /**
- * Checks if price alerts should be sent to users.
- * Only sends alert if price is different from last alert.
- *
- * Called after every price update (2x per hour at :01 and :31).
+ * Checks if current prices trigger user-configured alerts.
  */
-async function checkPriceAlerts() {
-  const userId = getUserId();
-  if (!userId) return;
-
+async function checkPriceAlerts(userId, prices) {
   const settings = state.getSettings(userId);
-  const prices = state.getPrices(userId);
+  if (!settings.enablePriceAlerts) return;
 
-  // Skip if prices not loaded yet (both must be > 0)
-  if (!prices || prices.fuel <= 0 || prices.co2 <= 0) {
-    return;
-  }
+  const alerts = [];
 
-  // Check fuel alert
   if (prices.fuel <= settings.fuelThreshold) {
-    const lastAlert = state.getLastFuelAlert(userId);
-
-    // Only send alert if price is different from last alert
-    if (lastAlert !== prices.fuel) {
-      state.setLastFuelAlert(userId, prices.fuel);
-
-      logger.log(`[Autopilot] Fuel price alert: $${prices.fuel}/t (threshold: $${settings.fuelThreshold}/t)`);
-
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'price_alert', {
-          type: 'fuel',
-          price: prices.fuel,
-          threshold: settings.fuelThreshold
-        });
-      }
-    }
+    alerts.push({
+      type: 'fuel',
+      price: prices.fuel,
+      threshold: settings.fuelThreshold
+    });
   }
 
-  // Check CO2 alert
   if (prices.co2 <= settings.co2Threshold) {
-    const lastAlert = state.getLastCO2Alert(userId);
+    alerts.push({
+      type: 'co2',
+      price: prices.co2,
+      threshold: settings.co2Threshold
+    });
+  }
 
-    // Only send alert if price is different from last alert
-    if (lastAlert !== prices.co2) {
-      state.setLastCO2Alert(userId, prices.co2);
-
-      logger.log(`[Autopilot] CO2 price alert: $${prices.co2}/t (threshold: $${settings.co2Threshold}/t)`);
-
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'price_alert', {
-          type: 'co2',
-          price: prices.co2,
-          threshold: settings.co2Threshold
-        });
-      }
-    }
+  if (alerts.length > 0 && broadcastToUser) {
+    broadcastToUser(userId, 'price_alerts', alerts);
   }
 }
 
 // ============================================================================
-// Auto-Rebuy Fuel/CO2
+// Auto-Rebuy Orchestration
 // ============================================================================
 
 /**
- * Checks and executes auto-rebuy for fuel and CO2 for all active users.
- * Called by scheduler every 5 minutes AND triggered after every successful auto-depart.
- *
- * Decision Logic:
- * - NO COOLDOWNS: If conditions are met, purchases immediately
- * - Respects autopilot pause state (skips if paused)
- * - Checks individual enable flags for fuel and CO2
- * - Each resource has independent thresholds and min cash settings
- *
- * Design Philosophy:
- * - Removed artificial cooldowns to allow immediate rebuy when needed
- * - Dual trigger: timer-based (every 5 min) + event-based (after departures)
- * - This ensures bunker never runs empty during heavy departure cycles
- *
- * @async
- * @returns {Promise<void>}
- */
-/**
- * Auto-rebuy both fuel and CO2.
- * Convenience function that calls both autoRebuyFuel() and autoRebuyCO2().
- * Each function has its own pause/settings checks, so this just orchestrates both.
- *
- * @async
- * @returns {Promise<void>}
+ * Wrapper to rebuy both fuel and CO2.
+ * Called after vessel departures and in main loop.
  */
 async function autoRebuyAll() {
-  if (DEBUG_MODE) {
-    logger.log('[Auto-Rebuy All] Checking fuel and CO2 auto-rebuy');
-  }
-
-  // OPTIMIZATION: Fetch bunker state once and pass to both functions
-  // This eliminates duplicate /game/index calls (was 2, now 1)
-  const bunker = await gameapi.fetchBunkerState();
-
-  // Pass bunker state to both functions to avoid refetching
-  await autoRebuyFuel(bunker);
-  await autoRebuyCO2(bunker);
-}
-
-/**
- * Auto-rebuy fuel for a single user with intelligent threshold checking.
- * NO COOLDOWN - purchases whenever price is good and space available.
- *
- * Decision Logic:
- * 1. Fetches current bunker state and prices
- * 2. Checks if price <= threshold (uses alert threshold or custom)
- * 3. Verifies cash balance >= minimum cash requirement
- * 4. Calculates available space and affordable amount
- * 5. Purchases fuel up to bunker capacity or cash limit
- * 6. Broadcasts purchase event and updated bunker state
- *
- * Threshold Selection:
- * - If autoRebuyFuelUseAlert=true: uses fuelThreshold (alert threshold)
- * - If autoRebuyFuelUseAlert=false: uses autoRebuyFuelThreshold (custom)
- *
- * Safety Features:
- * - Respects minimum cash balance (won't buy if cash < minCash)
- * - Uses Math.ceil to always fill bunker completely
- * - Updates state immediately to prevent duplicate purchases
- *
- * API Interactions:
- * - Calls gameapi.fetchBunkerState() for current levels
- * - Calls gameapi.purchaseFuel() to execute purchase
- * - Broadcasts 'fuel_purchased' and 'bunker_update' events
- *
- * @async
- * @param {number} userId - User ID for state management
- * @returns {Promise<void>}
- */
-async function autoRebuyFuel(bunkerState = null) {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Rebuy Fuel] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
   const userId = getUserId();
   if (!userId) return;
 
-  // Check settings
-  const settings = state.getSettings(userId);
-  if (!settings.autoRebuyFuel) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Rebuy Fuel] Feature disabled in settings');
-    }
-    return;
-  }
-
   try {
-    // Get current state (use provided state or fetch fresh)
-    const bunker = bunkerState || await gameapi.fetchBunkerState();
-    state.updateBunkerState(userId, bunker);
-
-    // Broadcast bunker state to all clients
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'bunker_update', {
-        fuel: bunker.fuel,
-        co2: bunker.co2,
-        cash: bunker.cash,
-        maxFuel: bunker.maxFuel,
-        maxCO2: bunker.maxCO2
-      });
-    }
-
-    const prices = state.getPrices(userId);
-
-    logger.debug(`[Auto-Rebuy Fuel] Check: Enabled=${settings.autoRebuyFuel}, Price=${prices.fuel}, Bunker=${bunker.fuel.toFixed(1)}/${bunker.maxFuel}t`);
-
-    // Check if prices have been fetched yet
-    if (!prices.fuel || prices.fuel === 0) {
-      logger.debug('[Auto-Rebuy Fuel] No price data available yet');
-      return;
-    }
-
-    // Determine threshold (use custom or alert threshold)
-    const threshold = settings.autoRebuyFuelUseAlert
-      ? settings.fuelThreshold
-      : settings.autoRebuyFuelThreshold;
-
-    logger.debug(`[Auto-Rebuy Fuel] Threshold check: Price $${prices.fuel}/t vs Threshold $${threshold}/t (UseAlert=${settings.autoRebuyFuelUseAlert})`);
-
-    // Check if price is at or below threshold
-    if (prices.fuel > threshold) {
-      logger.debug(`[Auto-Rebuy Fuel] Price too high: $${prices.fuel}/t > $${threshold}/t threshold`);
-      return;
-    }
-
-    // Check if bunker has space
-    const availableSpace = bunker.maxFuel - bunker.fuel;
-    if (availableSpace < 0.5) {
-      if (DEBUG_MODE) {
-        logger.log('[Auto-Rebuy Fuel] Bunker full');
-      }
-      return; // Bunker full
-    }
-
-    // Fill to max capacity - use Math.ceil to always buy enough to fill completely
-    const amountNeeded = Math.ceil(availableSpace);
-
-    // Calculate how much we can buy while keeping minCash reserve
-    const minCash = settings.autoRebuyFuelMinCash;
-    if (minCash === undefined || minCash === null) {
-      logger.error('[Auto-Rebuy Fuel] ERROR: autoRebuyFuelMinCash setting is missing!');
-      return;
-    }
-    const cashAvailable = Math.max(0, bunker.cash - minCash);
-    const maxAffordable = Math.floor(cashAvailable / prices.fuel);
-
-    // Buy as much as we can (limited by space or money)
-    const amountToBuy = Math.min(amountNeeded, maxAffordable);
-
-    logger.debug(`[Auto-Rebuy Fuel] Calculations: Space=${availableSpace.toFixed(1)}t, Cash=$${bunker.cash.toLocaleString()}, MinCash=$${minCash.toLocaleString()}, Available=$${cashAvailable.toLocaleString()}, MaxAffordable=${maxAffordable}t, ToBuy=${amountToBuy}t`);
-
-    if (amountToBuy <= 0) {
-      logger.log(`[Auto-Rebuy Fuel] Cannot buy: Not enough cash after keeping minimum reserve`);
-      return;
-    }
-
-    const totalCost = amountToBuy * prices.fuel;
-    const cashAfterPurchase = bunker.cash - totalCost;
-    logger.debug(`[Auto-Rebuy Fuel] Purchasing ${amountToBuy}t @ $${prices.fuel}/t = $${totalCost.toLocaleString()} (Cash after: $${cashAfterPurchase.toLocaleString()})`);
-    logger.debug(`[Auto-Rebuy Fuel] Current bunker state BEFORE purchase: Cash=$${bunker.cash.toLocaleString()}, Fuel=${bunker.fuel.toFixed(1)}t/${bunker.maxFuel}t`);
-
-    // Purchase fuel - pass the price so cost can be calculated
-    const result = await gameapi.purchaseFuel(amountToBuy, prices.fuel);
-
-    logger.debug(`[Auto-Rebuy Fuel] Purchase successful, API returned: newTotal=${result.newTotal.toFixed(1)}t, cost=$${result.cost.toLocaleString()}`);
-
-    // Update bunker state
-    bunker.fuel = result.newTotal;
-    bunker.cash -= result.cost;
-    state.updateBunkerState(userId, bunker);
-
-    // Broadcast success
-    if (broadcastToUser) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Rebuy Fuel] Broadcasting fuel_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-      }
-      broadcastToUser(userId, 'fuel_purchased', {
-        amount: amountToBuy,
-        price: prices.fuel,
-        newTotal: result.newTotal,
-        cost: result.cost
-      });
-
-      // Broadcast updated bunker state (fuel AND cash changed)
-      broadcastToUser(userId, 'bunker_update', {
-        fuel: bunker.fuel,
-        co2: bunker.co2,
-        cash: bunker.cash,
-        maxFuel: bunker.maxFuel,
-        maxCO2: bunker.maxCO2
-      });
-    }
-
-    logger.log(`[Auto-Rebuy Fuel] Purchased ${amountToBuy}t @ $${prices.fuel}/t (New total: ${result.newTotal.toFixed(1)}t)`);
-
-  } catch (error) {
-    logger.error('[Auto-Rebuy Fuel] Error:', error.message);
-  }
-}
-
-/**
- * Auto-rebuy CO2 for a single user with intelligent threshold checking.
- * NO COOLDOWN - purchases whenever price is good and space available.
- *
- * Decision Logic:
- * 1. Fetches current bunker state and prices
- * 2. Checks if price <= threshold (uses alert threshold or custom)
- * 3. Verifies cash balance >= minimum cash requirement
- * 4. Calculates available space and affordable amount
- * 5. Purchases CO2 up to bunker capacity or cash limit
- * 6. Broadcasts purchase event and updated bunker state
- *
- * Threshold Selection:
- * - If autoRebuyCO2UseAlert=true: uses co2Threshold (alert threshold)
- * - If autoRebuyCO2UseAlert=false: uses autoRebuyCO2Threshold (custom)
- *
- * Safety Features:
- * - Respects minimum cash balance (won't buy if cash < minCash)
- * - Uses Math.ceil to always fill bunker completely
- * - Updates state immediately to prevent duplicate purchases
- *
- * API Interactions:
- * - Calls gameapi.fetchBunkerState() for current levels
- * - Calls gameapi.purchaseCO2() to execute purchase
- * - Broadcasts 'co2_purchased' and 'bunker_update' events
- *
- * @async
- * @param {number} userId - User ID for state management
- * @returns {Promise<void>}
- */
-async function autoRebuyCO2(bunkerState = null) {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Rebuy CO2] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  const userId = getUserId();
-  if (!userId) return;
-
-  // Check settings
-  const settings = state.getSettings(userId);
-  if (!settings.autoRebuyCO2) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Rebuy CO2] Feature disabled in settings');
-    }
-    return;
-  }
-
-  try {
-    // Get current state (use provided state or fetch fresh)
-    const bunker = bunkerState || await gameapi.fetchBunkerState();
-    state.updateBunkerState(userId, bunker);
-
-    // Broadcast bunker state to all clients
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'bunker_update', {
-        fuel: bunker.fuel,
-        co2: bunker.co2,
-        cash: bunker.cash,
-        maxFuel: bunker.maxFuel,
-        maxCO2: bunker.maxCO2
-      });
-    }
-
-    const prices = state.getPrices(userId);
-
-    logger.debug(`[Auto-Rebuy CO2] Check: Enabled=${settings.autoRebuyCO2}, Price=${prices.co2}, Bunker=${bunker.co2.toFixed(1)}/${bunker.maxCO2}t`);
-
-    // Check if prices have been fetched yet
-    if (!prices.co2 || prices.co2 === 0) {
-      logger.debug('[Auto-Rebuy CO2] No price data available yet');
-      return;
-    }
-
-    // Determine threshold (use custom or alert threshold)
-    const threshold = settings.autoRebuyCO2UseAlert
-      ? settings.co2Threshold
-      : settings.autoRebuyCO2Threshold;
-
-    logger.debug(`[Auto-Rebuy CO2] Threshold check: Price $${prices.co2}/t vs Threshold $${threshold}/t (UseAlert=${settings.autoRebuyCO2UseAlert})`);
-
-    // Check if price is at or below threshold
-    if (prices.co2 > threshold) {
-      logger.debug(`[Auto-Rebuy CO2] Price too high: $${prices.co2}/t > $${threshold}/t threshold`);
-      return;
-    }
-
-    // Check if bunker has space
-    const availableSpace = bunker.maxCO2 - bunker.co2;
-    if (availableSpace < 0.5) {
-      if (DEBUG_MODE) {
-        logger.log('[Auto-Rebuy CO2] Bunker full');
-      }
-      return; // Bunker full
-    }
-
-    // Fill to max capacity - use Math.ceil to always buy enough to fill completely
-    const amountNeeded = Math.ceil(availableSpace);
-
-    // Calculate how much we can buy while keeping minCash reserve
-    const minCash = settings.autoRebuyCO2MinCash;
-    if (minCash === undefined || minCash === null) {
-      logger.error('[Auto-Rebuy CO2] ERROR: autoRebuyCO2MinCash setting is missing!');
-      return;
-    }
-    const cashAvailable = Math.max(0, bunker.cash - minCash);
-    const maxAffordable = Math.floor(cashAvailable / prices.co2);
-
-    // Buy as much as we can (limited by space or money)
-    const amountToBuy = Math.min(amountNeeded, maxAffordable);
-
-    logger.debug(`[Auto-Rebuy CO2] Calculations: Space=${availableSpace.toFixed(1)}t, Cash=$${bunker.cash.toLocaleString()}, MinCash=$${minCash.toLocaleString()}, Available=$${cashAvailable.toLocaleString()}, MaxAffordable=${maxAffordable}t, ToBuy=${amountToBuy}t`);
-
-    if (amountToBuy <= 0) {
-      logger.log(`[Auto-Rebuy CO2] Cannot buy: Not enough cash after keeping minimum reserve`);
-      return;
-    }
-
-    const totalCost = amountToBuy * prices.co2;
-    const cashAfterPurchase = bunker.cash - totalCost;
-    logger.debug(`[Auto-Rebuy CO2] Purchasing ${amountToBuy}t @ $${prices.co2}/t = $${totalCost.toLocaleString()} (Cash after: $${cashAfterPurchase.toLocaleString()})`);
-
-    // Purchase CO2 - pass the price so cost can be calculated
-    const result = await gameapi.purchaseCO2(amountToBuy, prices.co2);
-
-    // Update bunker state
-    bunker.co2 = result.newTotal;
-    bunker.cash -= result.cost;
-    state.updateBunkerState(userId, bunker);
-
-    // Broadcast success
-    if (broadcastToUser) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Rebuy CO2] Broadcasting co2_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-      }
-      broadcastToUser(userId, 'co2_purchased', {
-        amount: amountToBuy,
-        price: prices.co2,
-        newTotal: result.newTotal,
-        cost: result.cost
-      });
-
-      // Broadcast updated bunker state (CO2 AND cash changed)
-      broadcastToUser(userId, 'bunker_update', {
-        fuel: bunker.fuel,
-        co2: bunker.co2,
-        cash: bunker.cash,
-        maxFuel: bunker.maxFuel,
-        maxCO2: bunker.maxCO2
-      });
-    }
-
-    logger.log(`[Auto-Rebuy CO2] Purchased ${amountToBuy}t @ $${prices.co2}/t (New total: ${result.newTotal.toFixed(1)}t)`);
-
-  } catch (error) {
-    logger.error('[Auto-Rebuy CO2] Error:', error.message);
-  }
-}
-
-// ============================================================================
-// Auto-Depart Vessels
-// ============================================================================
-
-/**
- * Universal vessel departure function with intelligent demand-based routing.
- * Works with any list of vessel IDs or all vessels if vesselIds=null.
- * Used by BOTH autopilot and manual departure operations.
- *
- * Core Algorithm:
- * 1. Fetch current bunker state and check minimum fuel threshold
- * 2. Fetch ALL vessels and filter by status='port' and not parked
- * 3. If vesselIds provided, filter to only those IDs
- * 4. Group vessels by destination+type for efficient processing
- * 5. For each group, sort by capacity (largest first)
- * 6. For EACH vessel individually:
- *    a. Fetch FRESH port data to avoid race conditions
- *    b. Calculate remaining demand at destination
- *    c. Fetch FRESH vessel list to get current en-route capacity
- *    d. Calculate effective demand (remaining - en-route)
- *    e. Check price-per-TEU using auto-price API (CRITICAL $0 check)
- *    f. Verify minimum utilization threshold
- *    g. Depart vessel if all checks pass
- *    h. Track success/failure with detailed reasons
- * 7. Send batch notifications every 20 vessels
- * 8. Trigger auto-rebuy after each successful batch
- * 9. Update bunker state after all departures
- *
- * Race Condition Prevention:
- * - Fetches FRESH port data BEFORE EACH departure (not once at start)
- * - Fetches FRESH vessel list to calculate actual en-route capacity
- * - This prevents $0 revenue when vessels arrive during the loop
- * - Handles "vessel already departed" errors gracefully (skip, don't fail)
- *
- * Critical $0 Revenue Protection:
- * - Calls fetchAutoPrice() for EVERY vessel BEFORE departure
- * - Blocks departure if price-per-TEU is $0 at destination
- * - This happens when port has NO cargo price configured
- * - If API fails, BLOCKS departure to prevent potential losses
- * - Rationale: Better to skip a trip than waste fuel/CO2/harbor fees for $0
- *
- * CO2 Quirk Handling:
- * - Game API returns "error" for low CO2 but STILL sends vessel
- * - We detect CO2 errors and skip notification (vessel already en-route)
- * - No stats available for these vessels (API doesn't return them)
- * - CO2 can go negative in game (it's not a real blocker)
- *
- * Negative Income Detection:
- * - If vessel departs with negative net income (harbor fee > revenue)
- * - Logs critical error and adds to FAILED vessels (not success)
- * - This happens due to race conditions despite demand checks
- * - Indicates low cargo loaded (utilization check may have race condition)
- *
- * Batch Processing:
- * - Processes vessels in chunks of 20 (CHUNK_SIZE constant)
- * - Sends combined notification after each chunk
- * - Triggers auto-rebuy after successful batches
- * - Prevents overwhelming frontend with hundreds of individual notifications
- *
- * Vessel Filtering:
- * - Skips vessels with no route assigned
- * - Skips vessels with active delivery contracts (delivery_price > 0)
- * - Skips parked vessels (is_parked = true)
- * - Only processes vessels with status='port'
- *
- * Speed & Guards:
- * - If autoDepartUseRouteDefaults=true: uses vessel's saved route_speed/route_guards
- * - If autoDepartUseRouteDefaults=false: uses autoVesselSpeed setting (% of max_speed)
- * - Guards always use route_guards (no separate setting)
- *
- * Utilization Checking:
- * - Calculates cargo to load: min(effectiveDemand, vesselCapacity)
- * - Utilization rate = cargoToLoad / vesselCapacity
- * - Skips if utilization < minVesselUtilization setting
- * - This prevents sending large vessels for small cargo (unprofitable)
- *
- * API Interactions:
- * - gameapi.fetchBunkerState() - Check fuel levels
- * - gameapi.fetchVessels() - Get vessel list (called multiple times for fresh data)
- * - gameapi.fetchAssignedPorts() - Get port demand (called BEFORE EACH depart)
- * - gameapi.fetchAutoPrice(vesselId, routeId) - Check destination prices
- * - gameapi.departVessel(vesselId, speed, guards) - Execute departure
- *
- * Broadcasting Events:
- * - 'vessel_count_update' - Initial count of vessels in each status
- * - 'vessels_depart_complete' - Batch completion with succeeded/failed vessels
- * - 'bunker_update' - Updated fuel/CO2/cash after departures
- * - 'notification' - Error notifications (e.g., insufficient fuel)
- *
- * @async
- * @param {number} userId - User ID for state management
- * @param {Array<number>|null} vesselIds - Array of vessel IDs to depart, or null for all vessels
- * @returns {Promise<Object>} Result object: { success: boolean, reason?: string, error?: string }
- */
-async function departVessels(userId, vesselIds = null) {
-  try {
-    const settings = state.getSettings(userId);
-
-    // Get current bunker state
     const bunker = await gameapi.fetchBunkerState();
-    state.updateBunkerState(userId, bunker);
 
-    // Check if fuel is too low (use minFuelThreshold setting)
-    if (bunker.fuel < settings.minFuelThreshold) {
-      logger.log(`[Depart] Skipping - insufficient fuel (${bunker.fuel.toFixed(1)}t < ${settings.minFuelThreshold}t minimum)`);
-
-      // Notify user about insufficient fuel
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'notification', {
-          type: 'error',
-          message: `<p><strong>Harbor master</strong></p><p>Cannot depart vessels - insufficient fuel!<br>Current: ${bunker.fuel.toFixed(1)}t | Required minimum: ${settings.minFuelThreshold}t</p>`
-        });
-      }
-      return { success: false, reason: 'insufficient_fuel' };
-    }
-
-    // Fetch vessels ONCE at the start
-    const allVessels = await gameapi.fetchVessels();
-    // NOTE: We will fetch port data BEFORE EACH DEPART to avoid race conditions
-
-    // Filter vessels: either specific IDs or all in harbor
-    let harbourVessels;
-    if (vesselIds && vesselIds.length > 0) {
-      // Filter by specific vessel IDs
-      const vesselIdSet = new Set(vesselIds);
-      harbourVessels = allVessels.filter(v =>
-        vesselIdSet.has(v.id) &&
-        v.status === 'port' &&
-        !v.is_parked
-      );
-      if (DEBUG_MODE) {
-        logger.log(`[Depart] Filtering ${vesselIds.length} requested vessels, found ${harbourVessels.length} in harbor`);
-      }
-    } else {
-      // Depart ALL vessels in harbor
-      harbourVessels = allVessels.filter(v => v.status === 'port' && !v.is_parked);
-    }
-
-    if (DEBUG_MODE) {
-      logger.log(`[Depart] Found ${harbourVessels.length} vessels to process (total: ${allVessels.length})`);
-    }
-
-    // Broadcast vessel count to all clients (use consistent format)
-    if (broadcastToUser) {
-      const readyToDepart = allVessels.filter(v => v.status === 'port').length;
-      const atAnchor = allVessels.filter(v => v.status === 'anchor').length;
-      const pending = allVessels.filter(v => v.status === 'pending').length;
-
-      broadcastToUser(userId, 'vessel_count_update', {
-        readyToDepart,
-        atAnchor,
-        pending
-      });
-    }
-
-    if (harbourVessels.length === 0) {
-      if (DEBUG_MODE) {
-        logger.log('[Depart] No vessels to depart, skipping');
-      }
-      return { success: true, reason: 'no_vessels' };
-    }
-
-    // Notify frontend that autopilot departure has started (locks depart button)
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'autopilot_depart_start', {
-        vesselCount: harbourVessels.length
-      });
-    }
-
-    // Track departed and failed vessels
-    const departedVessels = [];
-    const failedVessels = [];
-    const CHUNK_SIZE = 20;
-    let processedCount = 0;
-
-    // Helper function to send notifications for current batch
-    async function sendBatchNotifications() {
-      // Send combined notification if there are any vessels (departed or failed)
-      if (departedVessels.length > 0 || failedVessels.length > 0) {
-        const totalIncome = departedVessels.reduce((sum, v) => sum + v.income, 0);
-        const totalHarborFee = departedVessels.reduce((sum, v) => sum + v.harborFee, 0);
-        const totalNetIncome = departedVessels.reduce((sum, v) => sum + v.netIncome, 0);
-        const totalFuelUsed = departedVessels.reduce((sum, v) => sum + v.fuelUsed, 0);
-        const totalCO2Used = departedVessels.reduce((sum, v) => sum + v.co2Used, 0);
-
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] Batch: ${departedVessels.length} departed, ${failedVessels.length} failed - Net: $${totalNetIncome.toLocaleString()}`);
-        }
-
-        if (broadcastToUser) {
-          const bunkerState = await gameapi.fetchBunkerState();
-
-          // Send combined event with both succeeded and failed vessels
-          broadcastToUser(userId, 'vessels_depart_complete', {
-            succeeded: {
-              count: departedVessels.length,
-              vessels: departedVessels.slice(),
-              totalIncome: totalIncome,
-              totalHarborFee: totalHarborFee,
-              totalNetIncome: totalNetIncome,
-              totalFuelUsed: totalFuelUsed,
-              totalCO2Used: totalCO2Used
-            },
-            failed: {
-              count: failedVessels.length,
-              vessels: failedVessels.slice()
-            },
-            bunker: {
-              fuel: bunkerState.fuel,
-              co2: bunkerState.co2
-            }
-          });
-        }
-
-        // Trigger auto-rebuy after each successful batch (if enabled)
-        if (departedVessels.length > 0) {
-          if (DEBUG_MODE) {
-            logger.log(`[Depart] Triggering auto-rebuy after ${departedVessels.length} vessels departed in this batch`);
-          }
-          await autoRebuyAll();
-        }
-
-        departedVessels.length = 0; // Clear array for next batch
-        failedVessels.length = 0; // Clear array for next batch
-      }
-    }
-
-    // Group vessels by destination and type
-    const vesselsByDestinationAndType = {};
-
-    for (const vessel of harbourVessels) {
-      if (!vessel.route_destination) {
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] Skipping ${vessel.name}: no route destination`);
-        }
-        failedVessels.push({
-          name: vessel.name,
-          destination: 'Unknown',
-          reason: 'No route assigned'
-        });
-        continue;
-      }
-      if (vessel.delivery_price !== null && vessel.delivery_price > 0) {
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] Skipping ${vessel.name}: delivery contract active ($${vessel.delivery_price})`);
-        }
-        failedVessels.push({
-          name: vessel.name,
-          destination: vessel.route_destination || 'Unknown',
-          reason: 'Delivery contract active'
-        });
-        continue;
-      }
-
-      const destination = vessel.route_destination;
-      const type = vessel.capacity_type;
-      const key = `${destination}_${type}`;
-
-      if (!vesselsByDestinationAndType[key]) {
-        vesselsByDestinationAndType[key] = [];
-      }
-      vesselsByDestinationAndType[key].push(vessel);
-    }
-
-    if (DEBUG_MODE) {
-      logger.log(`[Depart] Grouped vessels into ${Object.keys(vesselsByDestinationAndType).length} destination+type groups`);
-    }
-
-    // Process each destination+type group
-    for (const key in vesselsByDestinationAndType) {
-      const vessels = vesselsByDestinationAndType[key];
-      const firstVessel = vessels[0];
-      const vesselType = firstVessel.capacity_type;
-
-      if (DEBUG_MODE) {
-        logger.log(`[Depart] Processing group: ${key} (${vessels.length} vessels)`);
-      }
-
-      // Determine next destination
-      let destination;
-      if (firstVessel.route_destination === firstVessel.current_port_code) {
-        destination = firstVessel.route_origin;
-      } else if (firstVessel.route_origin === firstVessel.current_port_code) {
-        destination = firstVessel.route_destination;
-      } else {
-        destination = firstVessel.route_destination;
-      }
-
-      if (DEBUG_MODE) {
-        logger.log(`[Depart] Destination: ${destination}`);
-      }
-
-      // Sort vessels by capacity (largest first)
-      const sortedVessels = vessels.sort((a, b) => getTotalCapacity(b) - getTotalCapacity(a));
-
-      // Process each vessel individually with FRESH port data
-      for (const vessel of sortedVessels) {
-        const vesselCapacity = getTotalCapacity(vessel);
-
-        // CRITICAL: Fetch FRESH port data BEFORE EACH depart to avoid race conditions
-        // This prevents $0 revenue when vessels arrive at destination during the depart loop
-        const freshPorts = await gameapi.fetchAssignedPorts();
-        const port = freshPorts.find(p => p.code === destination);
-
-        if (!port) {
-          failedVessels.push({
-            name: vessel.name,
-            destination: destination,
-            reason: 'Port not in assigned ports'
-          });
-          continue;
-        }
-
-        // Calculate CURRENT remaining demand with fresh data
-        const remainingDemand = calculateRemainingDemand(port, vesselType);
-
-        // SIMPLIFIED DEMAND CHECK:
-        // Demand is reduced as soon as a ship departs (by the game API).
-        // We don't need to calculate vessels en-route - just check if demand > 0.
-        // If demand exists when we depart, we get paid. If not, we don't.
-
-        /* OLD COMPLEX LOGIC (commented out):
-        // Find vessels CURRENTLY en-route (some may have arrived since we started)
-        const currentVessels = await gameapi.fetchVessels();
-        const vesselsEnroute = currentVessels.filter(v =>
-          v.status === 'enroute' &&
-          v.route_destination === destination &&
-          v.capacity_type === vesselType
-        );
-
-        // Calculate capacity en-route
-        const capacityEnroute = vesselsEnroute.reduce((sum, v) => sum + getTotalCapacity(v), 0);
-
-        // Effective demand with FRESH data
-        const effectiveDemand = Math.max(0, remainingDemand - capacityEnroute);
-
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] ${vessel.name}: Fresh demand check - Remaining: ${remainingDemand}, En-route: ${capacityEnroute}, Effective: ${effectiveDemand}`);
-        }
-        */
-
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] ${vessel.name}: Demand check - Remaining: ${remainingDemand}`);
-        }
-
-        // Skip if no demand
-        if (remainingDemand <= 0) {
-          failedVessels.push({
-            name: vessel.name,
-            destination: destination,
-            reason: `No demand at destination`
-          });
-          continue;
-        }
-
-        // CRITICAL: Check if price-per-TEU is 0 at destination using auto-price API
-        // This happens when the destination port has NO cargo price configured
-        // Sending vessels would result in $0 revenue and wasted fuel/CO2
-        try {
-          if (vessel.route_id) {
-            const autoPriceData = await gameapi.fetchAutoPrice(vessel.id, vessel.route_id);
-
-            // Check if the auto-price returns 0 or null for prices
-            // API returns: dry, ref, fuel, crude_oil (not price_dry, etc.)
-            const dryPrice = autoPriceData?.data?.dry || 0;
-            const refPrice = autoPriceData?.data?.ref || 0;
-            const fuelPrice = autoPriceData?.data?.fuel || 0;
-            const crudePrice = autoPriceData?.data?.crude_oil || 0;
-
-            // For container vessels, check dry and ref prices
-            // For tankers, check fuel and crude prices
-            const hasValidPrice = vesselType === 'container'
-              ? (dryPrice > 0 || refPrice > 0)
-              : (fuelPrice > 0 || crudePrice > 0);
-
-            if (!hasValidPrice) {
-              logger.log(`[Depart] ⚠️ ${vessel.name}: Price per TEU is $0 at ${destination} - BLOCKING departure to avoid losses`);
-              failedVessels.push({
-                name: vessel.name,
-                destination: destination,
-                reason: `CRITICAL: Price per TEU is $0 at destination - would result in losses`
-              });
-              continue;
-            }
-
-            if (DEBUG_MODE) {
-              logger.log(`[Depart] ${vessel.name}: Price check OK - Dry: $${dryPrice}, Ref: $${refPrice}, Fuel: $${fuelPrice}, Crude: $${crudePrice}`);
-            }
-          }
-        } catch (error) {
-          // CRITICAL: If auto-price API fails, we MUST block departure!
-          // We cannot risk sending vessels without knowing if destination price is $0
-          // This would waste fuel, CO2, and harbor fees for zero or negative income
-          logger.error(`[Depart] ${vessel.name}: Failed to fetch auto-price - BLOCKING departure to avoid potential losses`);
-          logger.error(`[Depart] Error details: ${error.message}`);
-          failedVessels.push({
-            name: vessel.name,
-            destination: destination,
-            reason: `Cannot verify destination price (API error: ${error.message}) - blocking to prevent potential losses`
-          });
-          continue;
-        }
-
-        // Check utilization (use full remaining demand, not effective)
-        const cargoToLoad = Math.min(remainingDemand, vesselCapacity);
-        const utilizationRate = vesselCapacity > 0 ? cargoToLoad / vesselCapacity : 0;
-        const minUtilization = settings.minVesselUtilization / 100;
-
-        if (utilizationRate < minUtilization) {
-          failedVessels.push({
-            name: vessel.name,
-            destination: destination,
-            reason: `Utilization too low (${(utilizationRate * 100).toFixed(0)}% < ${(minUtilization * 100).toFixed(0)}%)`
-          });
-          continue;
-        }
-
-        // Determine speed and guards
-        let speed, guards;
-
-        if (settings.autoDepartUseRouteDefaults) {
-          speed = vessel.route_speed || vessel.max_speed;
-          guards = vessel.route_guards || 0;
-        } else {
-          const speedPercent = settings.autoVesselSpeed;
-          speed = Math.round(vessel.max_speed * (speedPercent / 100));
-          guards = vessel.route_guards || 0;
-        }
-
-        try {
-          if (DEBUG_MODE) {
-            logger.log(`[Depart] Attempting to depart vessel: name="${vessel.name}", id=${vessel.id}, status="${vessel.status}"`);
-          }
-          const result = await gameapi.departVessel(vessel.id, speed, guards);
-
-          // Check if departure failed
-          if (result.success === false) {
-            // SPECIAL CASE: Vessel already departed (race condition from batch processing)
-            if (result.error === 'Vessel not found or status invalid') {
-              logger.log(`[Depart] Vessel ${vessel.name} was already departed (race condition - ignoring)`);
-              // Skip this vessel completely - it's already gone
-              continue;
-            }
-
-            // SPECIAL CASE: CO2 "errors" are not real errors - CO2 can go negative
-            // The game API returns an error but still sends the vessel
-            // However, we don't get the actual income/fuel values back, so we SKIP showing it
-            if (result.errorMessage && (result.errorMessage.toLowerCase().includes('co2') ||
-                                       result.errorMessage.toLowerCase().includes('emission'))) {
-              logger.log(`[Depart] ${vessel.name} departed with CO2 warning - vessel sent but no stats available, skipping notification`);
-              // DO NOT add to departedVessels - we don't have real values
-              // DO NOT add to failedVessels - vessel was actually sent
-              // Just continue silently (demand will be recalculated fresh for next vessel)
-              continue;
-            }
-
-            logger.log(`[Depart] Failed to depart ${vessel.name}: "${result.errorMessage}"`);
-
-            // Try to extract more detailed error information
-            let detailedReason = result.errorMessage;
-            if (result.apiResponse && result.apiResponse.message) {
-              detailedReason = result.apiResponse.message;
-            }
-
-            // Check for specific error types
-            const lowerReason = detailedReason.toLowerCase();
-
-            // Fuel shortage - show only required amount (available is in bunker box above)
-            if (lowerReason.includes('fuel') || lowerReason.includes('bunker')) {
-              // Try to get required fuel from vessel route data
-              const requiredFuel = vessel.route_fuel_required || vessel.fuel_required;
-              if (requiredFuel) {
-                detailedReason = `No fuel (${requiredFuel.toFixed(1)}t)`;
-              } else {
-                detailedReason = 'No fuel';
-              }
-            }
-            // Demand shortage
-            else if (lowerReason.includes('demand') || (remainingDemand <= 0 && lowerReason.includes('failed'))) {
-              detailedReason = `No demand at ${destination} (${remainingDemand.toFixed(1)}t remaining demand, vessel capacity ${vesselCapacity.toFixed(1)}t)`;
-            }
-            // Generic "failed to depart" - just use the original message
-            // We don't actually know why it failed, so don't guess
-            else if (lowerReason === 'failed to depart vessel') {
-              detailedReason = result.errorMessage || 'Failed to depart vessel';
-            }
-
-            failedVessels.push({
-              name: vessel.name,
-              destination: destination,
-              reason: detailedReason
-            });
-            continue;
-          }
-
-          // Check if departure was successful but silent failure (shouldn't happen with new error handling)
-          if (result.income === 0 && result.fuelUsed === 0) {
-            continue; // Failed silently (insufficient fuel) - CO2 never blocks departure
-          }
-
-          // Check for $0 revenue or NEGATIVE net income departures
-          // This happens when vessel departed but demand was exhausted between check and depart
-          // The vessel is already en-route (can't be stopped), but we should warn the user
-          if (result.income === 0 && result.harborFee === 0) {
-            logger.log(`[Depart] WARNING: ${vessel.name} departed with $0 revenue - demand exhausted during batch, skipping statistics`);
-            // Don't add to departedVessels OR failedVessels - just ignore it
-            // The vessel is en-route but we won't count it in statistics
-            continue;
-          }
-
-          // Check if vessel departed with NEGATIVE net income (known game bug)
-          // This is a known bug in the game API - harbor fee calculation is incorrect
-          // The vessel WAS successfully sent, so we count it as success (not failure)
-          const hasFeeCalculationBug = result.netIncome < 0;
-
-          // Successfully departed (even if fee calculation is buggy)
-          departedVessels.push({
-            name: result.vesselName,
-            destination: result.destination,
-            capacity: vesselCapacity,
-            utilization: utilizationRate,
-            cargoLoaded: cargoToLoad,
-            speed: result.speed,
-            guards: result.guards,
-            income: result.income,
-            harborFee: result.harborFee,
-            netIncome: result.netIncome,
-            hasFeeCalculationBug: hasFeeCalculationBug,  // Mark for UI display
-            fuelUsed: result.fuelUsed,
-            co2Used: result.co2Used
-          });
-
-          // Note: effectiveDemand will be recalculated fresh for next vessel
-
-        } catch (error) {
-          logger.error(`[Depart] Failed to depart ${vessel.name}:`, error.message);
-          failedVessels.push({
-            name: vessel.name,
-            destination: destination,
-            reason: error.message || 'Unknown error'
-          });
-        }
-
-        // Check if we've processed a chunk of vessels
-        processedCount++;
-        if (processedCount % CHUNK_SIZE === 0) {
-          await sendBatchNotifications();
-        }
-      }
-    }
-
-    // Send final batch for any remaining vessels (less than CHUNK_SIZE)
-    if (departedVessels.length > 0 || failedVessels.length > 0) {
-      await sendBatchNotifications();
-    }
-
-    // Trigger rebuy and update data after departures
-    if (processedCount > 0) {
-      // Auto-rebuy after vessels departed
-      await autoRebuyAll();
-
-      // Update all data (SKIP if locked)
-      await tryUpdateAllData();
-    }
-
-    return { success: true };
+    await autoRebuyFuel(bunker, autopilotPaused, broadcastToUser);
+    await autoRebuyCO2(bunker, autopilotPaused, broadcastToUser);
 
   } catch (error) {
-    logger.error('[Depart] Error:', error.message);
-    return { success: false, reason: 'error', error: error.message };
-  }
-}
-
-/**
- * Intelligent auto-depart wrapper for autopilot system.
- * Calls departVessels() with null vesselIds to depart ALL vessels in harbor.
- *
- * Why This Exists:
- * - Separates autopilot-specific logic from universal depart function
- * - Checks autoDepartAll setting before calling universal function
- * - Provides consistent entry point for autopilot scheduler
- * - Allows different triggering logic for manual vs automatic departures
- *
- * @async
- * @returns {Promise<void>}
- */
-async function autoDepartVessels() {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Depart] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  const userId = getUserId();
-  if (!userId) return;
-
-  const settings = state.getSettings(userId);
-
-  if (!settings.autoDepartAll) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Depart] Feature disabled in settings');
-    }
-    return;
-  }
-
-  if (DEBUG_MODE) {
-    logger.log(`[Auto-Depart] Checking... ${settings.autoDepartAll ? 'ENABLED' : 'DISABLED'}`);
-  }
-
-  // Call universal depart function with all vessels (vesselIds = null)
-  await departVessels(userId, null);
-}
-
-/**
- * Calculates remaining demand at a port.
- *
- * @param {Object} port - Port object
- * @param {string} vesselType - 'container' or 'tanker'
- * @returns {number} Remaining demand
- */
-function calculateRemainingDemand(port, vesselType) {
-  if (vesselType === 'container') {
-    const dryDemand = port.demand?.container?.dry || 0;
-    const dryConsumed = port.consumed?.container?.dry || 0;
-    const refDemand = port.demand?.container?.refrigerated || 0;
-    const refConsumed = port.consumed?.container?.refrigerated || 0;
-
-    return (dryDemand - dryConsumed) + (refDemand - refConsumed);
-  } else if (vesselType === 'tanker') {
-    const fuelDemand = port.demand?.tanker?.fuel || 0;
-    const fuelConsumed = port.consumed?.tanker?.fuel || 0;
-    const crudeDemand = port.demand?.tanker?.crude_oil || 0;
-    const crudeConsumed = port.consumed?.tanker?.crude_oil || 0;
-
-    return (fuelDemand - fuelConsumed) + (crudeDemand - crudeConsumed);
-  }
-
-  return 0;
-}
-
-/**
- * Calculates total capacity of a vessel.
- *
- * @param {Object} vessel - Vessel object
- * @returns {number} Total capacity
- */
-function getTotalCapacity(vessel) {
-  if (vessel.capacity_type === 'container') {
-    return (vessel.capacity_max?.dry || 0) + (vessel.capacity_max?.refrigerated || 0);
-  } else if (vessel.capacity_type === 'tanker') {
-    return (vessel.capacity_max?.fuel || 0) + (vessel.capacity_max?.crude_oil || 0);
-  }
-  return 0;
-}
-
-// ============================================================================
-// Auto Bulk Repair
-// ============================================================================
-
-
-/**
- * Auto repair vessels for a single user based on wear threshold.
- *
- * Decision Logic:
- * 1. Fetches all vessels and filters by wear >= maintenanceThreshold
- * 2. Checks minimum cash balance requirement
- * 3. Fetches repair cost for all vessels needing repair
- * 4. If affordable, repairs all vessels in bulk
- * 5. Broadcasts repair notification with vessel list and costs
- *
- * API Quirk - $0 Cost Bug:
- * - Sometimes API returns totalCost=$0 even when repair is valid
- * - We attempt repair anyway as workaround for this API bug
- * - Actual cost is deducted from cash regardless of API response
- *
- * Cost Calculation:
- * - Calls gameapi.getMaintenanceCost(vesselIds) for total cost
- * - Individual vessel costs extracted from maintenance_data array
- * - Cost depends on wear level and vessel value
- *
- * Safety Features:
- * - Respects minimum cash balance (won't repair if cash < minCash)
- * - Bulk repairs all vessels in single API call (efficient)
- * - Includes detailed vessel list in notification (name, wear, cost)
- *
- * API Interactions:
- * - gameapi.fetchBunkerState() - Check cash balance
- * - gameapi.fetchVessels() - Get vessels with wear data
- * - gameapi.getMaintenanceCost(vesselIds) - Calculate repair cost
- * - gameapi.bulkRepairVessels(vesselIds) - Execute repairs
- *
- * Broadcasting:
- * - 'vessels_repaired' - Notification with count, cost, vessel details
- *
- * @async
- * @param {number} userId - User ID for state and settings
- * @returns {Promise<void>}
- */
-async function autoRepairVessels() {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Repair] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  const userId = getUserId();
-  if (!userId) return;
-
-  const settings = state.getSettings(userId);
-  if (!settings.autoBulkRepair) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Repair] Feature disabled in settings');
-    }
-    return;
-  }
-
-  try {
-    const threshold = settings.maintenanceThreshold;
-
-    const bunker = await gameapi.fetchBunkerState();
-    const vessels = await gameapi.fetchVessels();
-
-    const vesselsNeedingRepair = vessels.filter(v => v.wear >= threshold);
-
-    if (DEBUG_MODE) {
-      logger.log(`[Auto-Repair] Found ${vesselsNeedingRepair.length} vessels with wear >= ${threshold}%`);
-    }
-
-    if (vesselsNeedingRepair.length === 0) {
-      if (DEBUG_MODE) {
-        logger.log('[Auto-Repair] No vessels need repair');
-      }
-      return;
-    }
-
-    // Check minimum cash balance
-    const minCash = settings.autoBulkRepairMinCash !== undefined ? settings.autoBulkRepairMinCash : 0;
-    if (bunker.cash < minCash) {
-      logger.log(`[Auto-Repair] Cash balance $${bunker.cash.toLocaleString()} below minimum $${minCash.toLocaleString()}`);
-      return;
-    }
-
-    const vesselIds = vesselsNeedingRepair.map(v => v.id);
-    const costData = await gameapi.getMaintenanceCost(vesselIds);
-
-    if (DEBUG_MODE) {
-      logger.log(`[Auto-Repair] Repair cost: $${costData.totalCost.toLocaleString()} | Cash: $${bunker.cash.toLocaleString()}`);
-    }
-
-    if (costData.totalCost === 0) {
-      logger.log('[Auto-Repair] API returned $0 cost - attempting repair anyway (API bug workaround)');
-    }
-
-    // Always attempt repair if we have enough cash (or if cost is $0, which may be an API bug)
-    if (costData.totalCost === 0 || bunker.cash >= costData.totalCost) {
-      const result = await gameapi.bulkRepairVessels(vesselIds);
-
-      logger.log(`[Auto-Repair] Repaired ${result.count} vessels - API returned cost: $${result.totalCost.toLocaleString()}, Calculated cost: $${costData.totalCost.toLocaleString()}`);
-
-      if (broadcastToUser) {
-        if (DEBUG_MODE) {
-          logger.log(`[Auto-Repair] Broadcasting vessels_repaired event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-        }
-
-        // Build vessel list with names, wear, and costs
-        const vesselList = vesselsNeedingRepair.map(vessel => {
-          // Find cost data for this vessel
-          const costVessel = costData.vessels.find(v => v.id === vessel.id);
-          const wearMaintenance = costVessel?.maintenance_data?.find(m => m.type === 'wear');
-          const cost = wearMaintenance?.price || 0;
-
-          return {
-            id: vessel.id,
-            name: vessel.name,
-            wear: vessel.wear,
-            cost: cost
-          };
-        });
-
-        broadcastToUser(userId, 'vessels_repaired', {
-          count: result.count,
-          totalCost: costData.totalCost,
-          vessels: vesselList
-        });
-      }
-
-      // Update all data to refresh repair badge count (SKIP if locked)
-      await tryUpdateAllData();
-    } else {
-      logger.log(`[Auto-Repair] Insufficient funds: need $${costData.totalCost.toLocaleString()}, have $${bunker.cash.toLocaleString()}`);
-    }
-
-  } catch (error) {
-    logger.error('[Auto-Repair] Error:', error.message);
+    logger.error('[Auto-Rebuy All] Error:', error.message);
   }
 }
 
 // ============================================================================
-// Auto Campaign Renewal
+// Badge Updates
 // ============================================================================
 
 /**
- * Auto campaign renewal for a single user.
- * Called by central autopilot monitor when campaigns < 3.
- *
- * @param {number} userId - User ID
- * @param {Object} campaignData - Optional pre-fetched campaign data to avoid duplicate API calls
- */
-async function autoCampaignRenewal(campaignData = null) {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Campaign] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  const userId = getUserId();
-  if (!userId) return;
-
-  const settings = state.getSettings(userId);
-  if (!settings.autoCampaignRenewal) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Campaign] Feature disabled in settings');
-    }
-    return;
-  }
-
-  try {
-    const campaigns = campaignData || await gameapi.fetchCampaigns();
-
-    const activeCampaigns = campaigns.active || [];
-    const availableCampaigns = campaigns.available || [];
-
-    logger.debug(`[Auto-Campaign] Active campaigns: ${activeCampaigns.length}, Available: ${availableCampaigns.length}`);
-
-    // Check which types are active
-    const activeCampaignTypes = new Set(activeCampaigns.map(c => c.option_name));
-    logger.debug(`[Auto-Campaign] Active types: ${Array.from(activeCampaignTypes).join(', ') || 'none'}`);
-
-    // Find all types that are NOT active (need renewal)
-    const allPossibleTypes = ['reputation', 'awareness', 'green'];
-    const typesToRenew = allPossibleTypes.filter(type => !activeCampaignTypes.has(type));
-
-    logger.debug(`[Auto-Campaign] Types needing renewal: ${typesToRenew.join(', ') || 'none'}`);
-
-    if (typesToRenew.length === 0) {
-      logger.log('[Auto-Campaign] All campaign types are active, no renewal needed');
-      return;
-    }
-
-    const bunker = await gameapi.fetchBunkerState();
-    const settings = state.getSettings(userId);
-
-    // Check minimum cash balance
-    const minCash = settings.autoCampaignRenewalMinCash !== undefined ? settings.autoCampaignRenewalMinCash : 0;
-    if (bunker.cash < minCash) {
-      logger.debug(`[Auto-Campaign] Cash balance $${bunker.cash.toLocaleString()} below minimum $${minCash.toLocaleString()}`);
-      return;
-    }
-    let currentCash = bunker.cash;
-
-    const renewed = [];
-
-    for (const type of typesToRenew) {
-      // Find best affordable campaign of this type (most expensive that we can afford)
-      const campaignsOfType = availableCampaigns
-        .filter(c => c.option_name === type && c.price <= currentCash)
-        .sort((a, b) => b.price - a.price); // Most expensive first
-
-      if (campaignsOfType.length > 0) {
-        const campaign = campaignsOfType[0];
-
-        try {
-          await gameapi.activateCampaign(campaign.id);
-          renewed.push({ type, name: campaign.name, price: campaign.price, duration: campaign.duration });
-          currentCash -= campaign.price;
-          logger.debug(`[Auto-Campaign] Renewed "${campaign.name}" (${type}) - Cost: $${campaign.price.toLocaleString()}, Duration: ${campaign.duration}h`);
-        } catch (error) {
-          logger.error(`[Auto-Campaign] Failed to renew ${type}:`, error.message);
-        }
-      } else {
-        logger.debug(`[Auto-Campaign] No affordable ${type} campaigns (cash: $${currentCash.toLocaleString()})`);
-      }
-    }
-
-    if (renewed.length > 0) {
-      // Log summary
-      const summary = renewed.map(r => `${r.name} (${r.duration}h, $${r.price.toLocaleString()})`).join(', ');
-      logger.log(`[Auto-Campaign] Renewed ${renewed.length} campaign(s): ${summary}`);
-
-      if (broadcastToUser) {
-        const settings = state.getSettings(userId);
-        logger.debug(`[Auto-Campaign] Broadcasting campaigns_renewed (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-        broadcastToUser(userId, 'campaigns_renewed', {
-          campaigns: renewed
-        });
-      } else {
-        logger.error('[Auto-Campaign] broadcastToUser is NULL, cannot send notification!');
-      }
-
-      // Update all data to refresh campaign badge and cash/points (SKIP if locked)
-      await tryUpdateAllData();
-    }
-
-  } catch (error) {
-    logger.error('[Auto-Campaign] Error:', error.message);
-  }
-}
-
-// ============================================================================
-// Header Badge Updates (independent from automation features)
-// ============================================================================
-
-/**
- * Updates repair count badge for all users.
- * Called by scheduler every 60 seconds.
+ * Updates repair count badge
  */
 async function updateRepairCount() {
   const userId = getUserId();
@@ -1585,22 +229,37 @@ async function updateRepairCount() {
 }
 
 /**
- * Updates campaign status for all users.
- * Called by scheduler every 60 seconds.
+ * Updates campaign status and triggers auto-renewal if needed.
+ * EVENT-DRIVEN: Triggers auto-renewal immediately when active campaigns < 3.
  */
 async function updateCampaigns() {
+  logger.debug(`[Auto-Campaign] updateCampaigns() called`);
   const userId = getUserId();
-  if (!userId) return;
+  if (!userId) {
+    logger.debug(`[Auto-Campaign] updateCampaigns() - No userId, returning early`);
+    return;
+  }
 
   try {
     const campaigns = await gameapi.fetchCampaigns();
-    const activeCount = campaigns.active?.length || 0;
+    const activeCount = countActiveCampaignTypes(campaigns);
+
+    logger.debug(`[Auto-Campaign] updateCampaigns() - Active count: ${activeCount}, Total active: ${(campaigns.active || []).length}`);
+    logger.debug(`[Auto-Campaign] Active campaigns: ${JSON.stringify((campaigns.active || []).map(c => ({ name: c.name, type: c.option_name })))}`);
 
     if (broadcastToUser) {
       broadcastToUser(userId, 'campaign_status_update', {
         activeCount: activeCount,
-        active: campaigns.active || []
+        active: campaigns.active
       });
+    }
+
+    // EVENT-DRIVEN: Auto-renew immediately when campaigns drop below 3
+    const settings = state.getSettings(userId);
+    logger.debug(`[Auto-Campaign] autoCampaignRenewal setting: ${settings.autoCampaignRenewal}, activeCount < 3: ${activeCount < 3}`);
+    if (settings.autoCampaignRenewal && activeCount < 3) {
+      logger.log(`[Auto-Campaign] EVENT TRIGGERED: ${activeCount}/3 campaigns active, starting renewal`);
+      await autoCampaignRenewal(campaigns, autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
   } catch (error) {
     logger.error('[Header] Failed to update campaigns:', error.message);
@@ -1608,204 +267,15 @@ async function updateCampaigns() {
 }
 
 /**
- * Updates unread message count for all users.
- * Called by scheduler every 30 seconds.
+ * Updates unread message count (DISABLED - now handled by WebSocket polling)
  */
 async function updateUnreadMessages() {
   // DISABLED: Messenger polling now handled by 10-second WebSocket interval
-  // This prevents duplicate API calls and reduces load
   return;
-
-  /*
-  const userId = getUserId();
-  if (!userId) return;
-
-  try {
-    const unreadCount = await gameapi.fetchUnreadMessages();
-
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'unread_messages_update', {
-        count: unreadCount
-      });
-    }
-  } catch (error) {
-    logger.error('[Header] Failed to update unread messages:', error.message);
-  }
-  */
-}
-
-// ============================================================================
-// Auto-COOP
-// ============================================================================
-
-/**
- * Automatically sends available COOP vessels to alliance members.
- * Runs every 3 hours (0, 3, 6, 9, 12, 15, 18, 21 UTC).
- *
- * Logic:
- * - Check if COOP available
- * - Filter members who can receive (can_receive_coop === true)
- * - Sort by total_vessels DESC (largest fleets first)
- * - Send to each member until all COOP vessels distributed
- *
- * @async
- * @returns {Promise<void>}
- */
-async function autoCoop() {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-COOP] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  const userId = getUserId();
-  if (!userId) {
-    logger.log('[Auto-COOP] No user ID available, skipping');
-    return;
-  }
-
-  const settings = state.getSettings(userId);
-  if (!settings.autoCoopEnabled) {
-    logger.log('[Auto-COOP] Auto-COOP is DISABLED in settings, skipping');
-    return;
-  }
-
-  try {
-    logger.log('[Auto-COOP] ========================================');
-    logger.log('[Auto-COOP] Starting Auto-COOP distribution');
-    logger.log('[Auto-COOP] ========================================');
-
-    // Fetch COOP data with restrictions from our own API
-    const axios = require('axios');
-    const coopResponse = await axios.get('https://localhost:12345/api/coop/data', {
-      httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
-    });
-
-    const coopData = coopResponse.data;
-    const available = coopData.data?.coop?.available || 0;
-    const members = coopData.data?.members_coop || [];
-
-    if (available === 0) {
-      logger.log('[Auto-COOP] No COOP vessels available to send');
-      return;
-    }
-
-    logger.log(`[Auto-COOP] Available COOP vessels: ${available}`);
-
-    // Filter members who can receive (no restrictions)
-    const eligibleMembers = members.filter(m => m.can_receive_coop === true && m.total_vessels > 0);
-
-    if (eligibleMembers.length === 0) {
-      logger.log('[Auto-COOP] No eligible members found (all have restrictions or no vessels)');
-
-      // Notify user
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'auto_coop_no_targets', {
-          available,
-          reason: 'All members have restrictions or no vessels'
-        });
-      }
-      return;
-    }
-
-    // Sort by total_vessels DESC (largest fleets first)
-    eligibleMembers.sort((a, b) => b.total_vessels - a.total_vessels);
-
-    logger.log(`[Auto-COOP] Found ${eligibleMembers.length} eligible members`);
-
-    // Track totals
-    let totalSent = 0;
-    let totalRequested = 0;
-    const results = [];
-
-    // Send to each eligible member
-    for (const member of eligibleMembers) {
-      // Refresh COOP data to get current available count
-      const refreshResponse = await axios.get('https://localhost:12345/api/coop/data', {
-        httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
-      });
-      const currentAvailable = refreshResponse.data.data?.coop?.available || 0;
-
-      if (currentAvailable === 0) {
-        logger.log('[Auto-COOP] All COOP vessels distributed, stopping');
-        break;
-      }
-
-      const maxToSend = Math.min(currentAvailable, member.total_vessels);
-
-      logger.log(`[Auto-COOP] Sending ${maxToSend} vessels to ${member.company_name} (${member.user_id})...`);
-
-      try {
-        // Send via our own API endpoint
-        const sendResponse = await axios.post('https://localhost:12345/api/coop/send-max', {
-          user_id: member.user_id
-        }, {
-          httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
-        });
-
-        const result = sendResponse.data;
-        totalRequested += result.requested;
-        totalSent += result.departed;
-
-        results.push({
-          user_id: member.user_id,
-          company_name: member.company_name,
-          requested: result.requested,
-          departed: result.departed,
-          partial: result.partial
-        });
-
-        logger.log(`[Auto-COOP] OK Sent ${result.departed} of ${result.requested} to ${member.company_name}`);
-
-        // Small delay between sends to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-      } catch (error) {
-        logger.error(`[Auto-COOP] Failed to send to ${member.company_name}:`, error.message);
-        results.push({
-          user_id: member.user_id,
-          company_name: member.company_name,
-          error: error.message
-        });
-      }
-    }
-
-    logger.log('[Auto-COOP] ========================================');
-    logger.log(`[Auto-COOP] Distribution complete: ${totalSent}/${totalRequested} vessels sent to ${results.length} members`);
-    logger.log('[Auto-COOP] ========================================');
-
-    // Broadcast results to user
-    if (broadcastToUser) {
-      logger.log(`[Auto-COOP] Broadcasting auto_coop_complete event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-      broadcastToUser(userId, 'auto_coop_complete', {
-        totalRequested,
-        totalSent,
-        results
-      });
-    }
-
-    // Invalidate COOP cache since we changed the available count
-    if (totalSent > 0) {
-      cache.invalidateCoopCache();
-      await tryUpdateAllData();
-    }
-
-  } catch (error) {
-    // AggregateError contains multiple errors in .errors array
-    if (error.errors && Array.isArray(error.errors)) {
-      logger.error('[Auto-COOP] Error during auto-COOP (AggregateError with multiple errors):');
-      error.errors.forEach((err, index) => {
-        logger.error(`[Auto-COOP] Error ${index + 1}/${error.errors.length}:`, err);
-      });
-    } else {
-      logger.error('[Auto-COOP] Error during auto-COOP:', error);
-    }
-  }
 }
 
 /**
- * Updates vessel count for all users.
- * Called by scheduler based on headerVesselInterval setting.
+ * Updates vessel count badges
  */
 async function updateVesselCount() {
   const userId = getUserId();
@@ -1814,7 +284,7 @@ async function updateVesselCount() {
   try {
     const vessels = await gameapi.fetchVessels();
 
-    const readyToDepart = vessels.filter(v => v.status === 'port').length;
+    const readyToDepart = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
     const atAnchor = vessels.filter(v => v.status === 'anchor').length;
     const pending = vessels.filter(v => v.status === 'pending').length;
 
@@ -1830,66 +300,20 @@ async function updateVesselCount() {
   }
 }
 
-/**
- * Lock to prevent parallel execution of updateAllData
- */
+// ============================================================================
+// All Data Update (Game State)
+// ============================================================================
+
 let updateAllDataLock = false;
 
 /**
- * Cache for bunker capacity values to only broadcast when changed
- * Structure: { userId: { maxFuel: number, maxCO2: number } }
- */
-const capacityCache = new Map();
-
-/**
- * Gets cached capacity values for a user, or fetches them if not cached.
- * Used by routes to avoid sending 0 capacity when API doesn't return capacity fields.
- *
- * @param {number} userId - User ID
- * @returns {{maxFuel: number, maxCO2: number}} Capacity values in tons
- */
-function getCachedCapacity(userId) {
-  const cached = capacityCache.get(userId);
-  if (cached) {
-    return cached;
-  }
-
-  // No cache - return 0 (will be updated on next scheduler run)
-  return { maxFuel: 0, maxCO2: 0 };
-}
-
-/**
- * Wrapper for updateAllData() with lock check.
- * SKIP if already running, no queuing.
- * Used by autopilot functions to avoid duplicate API calls.
- */
-async function tryUpdateAllData() {
-  if (updateAllDataLock) {
-    logger.debug('[UpdateAll] Already running, skipping');
-    return;
-  }
-  await updateAllData();
-}
-
-/**
- * Fetches ALL game data and broadcasts to clients.
- * Called every 30s when any autopilot active, or per settings intervals.
- *
- * IMPORTANT: This function should ALWAYS run, even when autopilot is paused!
- * It only fetches and displays data, it doesn't perform any automated actions.
- * The harbor badges, vessel counts, etc. should always stay updated.
- *
- * Single API call to /game/index gets most data, then supplement with specifics.
+ * Fetches complete game state and broadcasts to all users.
+ * Updates: bunker, prices, coop, stock, anchor, events, hijacking.
  */
 async function updateAllData() {
-  // NOTE: NO CHECK for autopilotPaused here - this should always run!
-  const userId = getUserId();
-  if (!userId) return;
-
-  // Prevent parallel execution
   if (updateAllDataLock) {
     if (DEBUG_MODE) {
-      logger.log('[UpdateAll] Already running, skipping...');
+      logger.log('[UpdateAll] Skipping - already in progress (locked)');
     }
     return;
   }
@@ -1897,28 +321,28 @@ async function updateAllData() {
   updateAllDataLock = true;
 
   try {
-    if (DEBUG_MODE) {
-      logger.log('[UpdateAll] Fetching all game data...');
+    const userId = getUserId();
+    if (!userId) {
+      updateAllDataLock = false;
+      return;
     }
 
-    // OPTIMIZED: Single /game/index call gets most data at once
-    const gameIndexData = await apiCall('/game/index', 'POST', {});
+    if (DEBUG_MODE) {
+      logger.log('[UpdateAll] Starting complete data fetch...');
+    }
 
+    // Fetch all data
+    const gameIndexData = await apiCall('/game/index', 'POST', {});
     const user = gameIndexData.user;
     const gameSettings = gameIndexData.data.user_settings;
-    const vessels = gameIndexData.data.user_vessels || [];
+    const vessels = gameIndexData.data.user_vessels;
     const eventArray = gameIndexData.data.event || [];
 
     // Extract event data if available
     const eventData = eventArray.length > 0 ? eventArray[0] : null;
 
-    // Get local settings for maintenance threshold
-    const localSettings = state.getSettings(userId);
-
     // Additional API calls for data not in /game/index
-    // Use cached data when available to reduce duplicate API calls
-    const [campaigns, coopData, allianceData] = await Promise.all([
-      gameapi.fetchCampaigns(),  // Already uses campaign cache
+    const [coopData, allianceData] = await Promise.all([
       fetchCoopDataCached(),
       fetchAllianceDataCached()
     ]);
@@ -1928,89 +352,33 @@ async function updateAllData() {
       coopData.data.coop.coop_boost = allianceData.data.alliance.benefit.coop_boost;
     }
 
-    // Prices are ONLY fetched by updatePrices() scheduler at :01 and :31 each hour
-    // This eliminates 60 redundant API calls per hour (prices only change 2x/hour)
+    // Update bunker state
+    const newMaxFuel = gameSettings.max_fuel / 1000;
+    const newMaxCO2 = gameSettings.max_co2 / 1000;
 
-    // === Vessel Counts ===
-    const readyToDepart = vessels.filter(v => v.status === 'port').length;
-    const atAnchor = vessels.filter(v => v.status === 'anchor').length;
-    const pending = vessels.filter(v => v.status === 'pending').length;
-
-    const vesselCounts = { readyToDepart, atAnchor, pending };
-    state.updateVesselCounts(userId, vesselCounts);
-
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'vessel_count_update', vesselCounts);
-    }
-
-    // === Repair Count ===
-    const repairCount = vessels.filter(v => v.wear >= localSettings.maintenanceThreshold).length;
-    state.updateRepairCount(userId, repairCount);
-
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'repair_count_update', { count: repairCount });
-    }
-
-    // === Campaign Status ===
-    const activeCount = campaigns.active?.length || 0;
-    const campaignStatus = { activeCount };
-    state.updateCampaignStatus(userId, campaignStatus);
-
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'campaign_status_update', campaignStatus);
-    }
-
-    // === Messages ===
-    // NOTE: Messages are now handled by 10-second WebSocket polling interval
-    // No longer broadcast here to avoid duplicate updates
-
-    // === Bunker State (fuel, CO2, cash, points) ===
-    // Extract from /game/index response
-    if (!gameSettings || !gameSettings.max_fuel || !gameSettings.max_co2) {
-      logger.error('[UpdateAll] ERROR: user_settings or capacity fields missing from API response!');
-      logger.error('[UpdateAll] gameSettings:', gameSettings);
-    }
-
-    const newMaxFuel = (gameSettings?.max_fuel || 0) / 1000;
-    const newMaxCO2 = (gameSettings?.max_co2 || 0) / 1000;
-
-    // Check if capacity values have changed
-    const cachedCapacity = capacityCache.get(userId);
-    const capacityChanged = !cachedCapacity ||
-      cachedCapacity.maxFuel !== newMaxFuel ||
-      cachedCapacity.maxCO2 !== newMaxCO2;
-
-    if (capacityChanged) {
-      // Update cache
-      capacityCache.set(userId, { maxFuel: newMaxFuel, maxCO2: newMaxCO2 });
-      if (DEBUG_MODE) {
-        logger.log(`[UpdateAll] Capacity changed - Fuel: ${newMaxFuel}t, CO2: ${newMaxCO2}t`);
-      }
-    }
-
-    // Always update bunker state with all values (frontend needs maxFuel/maxCO2 for display)
     const bunkerUpdate = {
       fuel: user.fuel / 1000,        // Convert kg to tons
       co2: user.co2 / 1000,          // Convert kg to tons
       cash: user.cash,
       points: user.points,
-      maxFuel: newMaxFuel,           // Always send (needed for frontend display)
-      maxCO2: newMaxCO2              // Always send (needed for frontend display)
+      maxFuel: newMaxFuel,
+      maxCO2: newMaxCO2
     };
     state.updateBunkerState(userId, bunkerUpdate);
 
     if (broadcastToUser) {
-      // Use helper function that ALWAYS includes current prices to prevent race condition
       const { broadcastBunkerUpdate } = require('./websocket');
       broadcastBunkerUpdate(userId, bunkerUpdate);
+
+      // Broadcast company_type for vessel purchase restrictions
+      if (user.company_type) {
+        broadcastToUser(userId, 'company_type_update', {
+          company_type: user.company_type
+        });
+      }
     }
 
-    // === Prices ===
-    // Price updates now handled ONLY by updatePrices() scheduler at :01 and :31
-    // Prices are available from state.getPrices() for UI display
-
-    // === COOP Targets ===
-    // Only broadcast coop data if user is in an alliance
+    // Update COOP data
     if (coopData.data?.coop && allianceData.data?.alliance) {
       const coop = coopData.data.coop;
       const coopUpdate = {
@@ -2025,8 +393,7 @@ async function updateAllData() {
       }
     }
 
-    // === Stock Price & Anchor Capacity ===
-    // Extract from /game/index response (already fetched)
+    // Update stock and anchor data
     const stockValue = user.stock_value;
     const stockTrend = user.stock_trend;
     const ipo = user.ipo;
@@ -2035,10 +402,11 @@ async function updateAllData() {
     const pendingVessels = vessels.filter(v => v.status === 'pending').length;
     const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
 
-    // Calculate pending anchor points based on anchor_next_build timestamp
     const anchorNextBuild = gameSettings.anchor_next_build || null;
     const now = Math.floor(Date.now() / 1000);
-    const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? 1 : 0;
+    // Get pending count from settings (stored during purchase)
+    const settings = state.getSettings(userId);
+    const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? settings.pendingAnchorPoints : 0;
 
     const headerUpdate = {
       stock: { value: stockValue, trend: stockTrend, ipo },
@@ -2046,7 +414,7 @@ async function updateAllData() {
         available: availableCapacity,
         max: maxAnchorPoints,
         pending: pendingAnchorPoints,
-        nextBuild: anchorNextBuild  // Unix timestamp when next anchor point will be ready
+        nextBuild: anchorNextBuild
       }
     };
     state.updateHeaderData(userId, headerUpdate);
@@ -2055,8 +423,7 @@ async function updateAllData() {
       broadcastToUser(userId, 'header_data_update', headerUpdate);
     }
 
-    // === Event Data ===
-    // Broadcast complete event data if available
+    // Update event data
     if (DEBUG_MODE) {
       logger.log('[UpdateAll] Event data:', eventData ? `Found event: ${eventData.name}` : 'No active event');
     }
@@ -2067,11 +434,7 @@ async function updateAllData() {
       }
     }
 
-    // === Hijacking Status ===
-    // Refresh hijacking badge data
-    await refreshHijackingBadge();
-
-    // Send completion event to frontend
+    // Send completion event
     if (broadcastToUser) {
       broadcastToUser(userId, 'all_data_updated', { timestamp: Date.now() });
     }
@@ -2088,24 +451,31 @@ async function updateAllData() {
 }
 
 /**
- * Analyze vessels and determine which ones should depart based on profitability.
- * This is the CORE logic that should be used by BOTH manual and auto departure!
- *
- * @param {Array} allVessels - All user vessels
- * @param {Array} assignedPorts - All assigned ports with demand data
- * @param {Object} settings - User settings including utilization thresholds
- * @returns {Object} { toDepart: Array, toSkip: Array } with reasons
+ * Wrapper for updateAllData() that skips if locked.
+ * Used by pilots to avoid blocking when update is already in progress.
+ */
+async function tryUpdateAllData() {
+  if (updateAllDataLock) {
+    if (DEBUG_MODE) {
+      logger.log('[UpdateAll] Skipping tryUpdateAllData - locked');
+    }
+    return;
+  }
+  await updateAllData();
+}
+
+/**
+ * Analyze vessels and determine which should depart based on profitability.
+ * Shared logic used by BOTH manual and auto departure.
  */
 async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
   const harbourVessels = allVessels.filter(v => v.status === 'port' && !v.is_parked);
   const toDepart = [];
   const toSkip = [];
 
-  // Group vessels by destination and type
   const vesselsByDestinationAndType = {};
 
   for (const vessel of harbourVessels) {
-    // Skip vessels with no route
     if (!vessel.route_destination) {
       toSkip.push({
         vessel,
@@ -2114,7 +484,6 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
       continue;
     }
 
-    // Skip vessels with delivery contracts
     if (vessel.delivery_price !== null && vessel.delivery_price > 0) {
       toSkip.push({
         vessel,
@@ -2133,13 +502,11 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
     vesselsByDestinationAndType[key].push(vessel);
   }
 
-  // Process each destination+type group
   for (const key in vesselsByDestinationAndType) {
     const vessels = vesselsByDestinationAndType[key];
     const firstVessel = vessels[0];
     const vesselType = firstVessel.capacity_type;
 
-    // Determine destination
     let destination;
     if (firstVessel.route_destination === firstVessel.current_port_code) {
       destination = firstVessel.route_origin;
@@ -2147,7 +514,6 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
       destination = firstVessel.route_destination;
     }
 
-    // Find port data
     const port = assignedPorts.find(p => p.code === destination);
     if (!port) {
       vessels.forEach(v => toSkip.push({
@@ -2157,28 +523,7 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
       continue;
     }
 
-    // Calculate remaining demand
     const remainingDemand = calculateRemainingDemand(port, vesselType);
-
-    // SIMPLIFIED DEMAND CHECK:
-    // Demand is reduced as soon as a ship departs (by the game API).
-    // We don't need to calculate vessels en-route or track demand per vessel.
-    // Each vessel just checks: Is demand > 0? If yes, depart.
-
-    /* OLD COMPLEX LOGIC (commented out):
-    // Find vessels en-route
-    const vesselsEnroute = allVessels.filter(v =>
-      v.status === 'enroute' &&
-      v.route_destination === destination &&
-      v.capacity_type === vesselType
-    );
-
-    // Calculate capacity en-route
-    const capacityEnroute = vesselsEnroute.reduce((sum, v) => sum + getTotalCapacity(v), 0);
-
-    // Effective demand
-    let effectiveDemand = Math.max(0, remainingDemand - capacityEnroute);
-    */
 
     if (remainingDemand <= 0) {
       vessels.forEach(v => toSkip.push({
@@ -2188,14 +533,11 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
       continue;
     }
 
-    // Sort vessels by capacity (largest first)
     const sortedVessels = vessels.sort((a, b) => getTotalCapacity(b) - getTotalCapacity(a));
 
-    // Decide for each vessel
     for (const vessel of sortedVessels) {
       const vesselCapacity = getTotalCapacity(vessel);
 
-      // Skip if no demand at destination (simple check)
       if (remainingDemand <= 0) {
         toSkip.push({
           vessel,
@@ -2204,30 +546,25 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
         continue;
       }
 
-      // Check utilization based on full remaining demand
       const cargoToLoad = Math.min(remainingDemand, vesselCapacity);
       const utilizationRate = vesselCapacity > 0 ? cargoToLoad / vesselCapacity : 0;
-      const minUtilization = settings.minVesselUtilization / 100;
+      const minUtilization = settings.minCargoUtilization / 100;
 
       if (utilizationRate < minUtilization) {
         toSkip.push({
           vessel,
-          reason: `Low utilization (${(utilizationRate * 100).toFixed(0)}% < ${settings.minVesselUtilization}% min)`
+          reason: `Low utilization (${(utilizationRate * 100).toFixed(0)}% < ${settings.minCargoUtilization}% min)`
         });
         continue;
       }
 
-      // This vessel is profitable to send!
       toDepart.push({
         vessel,
         destination,
         cargoToLoad,
         utilizationRate,
-        remainingDemand  // Use remainingDemand instead of effectiveDemand
+        remainingDemand
       });
-
-      // NOTE: We don't reduce demand here - each vessel checks current demand independently
-      // The game API will reduce demand when the vessel actually departs
     }
   }
 
@@ -2235,264 +572,9 @@ async function analyzeVesselDepartures(allVessels, assignedPorts, settings) {
 }
 
 // ============================================================================
-// Auto-Purchase Anchor Points
+// Cached Data Helpers
 // ============================================================================
 
-/**
- * Auto-purchase anchor points respecting construction timer.
- * Checks construction timer, price threshold, and cash availability before purchase.
- *
- * Decision Logic:
- * 1. Check if anchor point is currently under construction (anchor_next_build timestamp)
- * 2. If construction active: SKIP purchase (prevents timer reset)
- * 3. Fetch current anchor point price from API
- * 4. Calculate total cost (price × autoAnchorPointAmount)
- * 5. Check cash balance >= minCash + totalCost (must stay above minimum)
- * 6. Purchase anchor points via /anchor-point/purchase-anchor-points
- * 7. Wait for construction to complete naturally (no exploit)
- * 8. Update bunker cash and broadcast notification
- *
- * Construction Timer Safety:
- * - CRITICAL: Buying while construction is active resets the timer to 0
- * - This wastes money and time (construction starts over from 0%)
- * - Only buy when anchor_next_build is null or timestamp < now
- * - Respects same timer logic as UI buttons
- *
- * Safety Features:
- * - Ensures cash stays ABOVE minimum (not just equal to)
- * - Pre-calculates remaining cash after purchase
- * - Only buys if remaining >= minCash (prevents going below minimum)
- * - Respects construction timer (prevents costly timer resets)
- *
- * Price Threshold:
- * - Currently NO price threshold check (always buys if cash available)
- * - Could add autoAnchorPointMaxPrice setting in future
- * - Price typically increases with each purchase
- *
- * API Interactions:
- * - /anchor-point/get-anchor-price - Fetch current price
- * - /anchor-point/purchase-anchor-points - Execute purchase
- *
- * Broadcasting:
- * - 'user_action_notification' - Formatted purchase confirmation
- * - 'bunker_update' - Updated cash balance
- * - 'desktop_notification' - Optional browser notification
- *
- * @async
- * @param {number} userId - User ID for state management
- * @returns {Promise<void>}
- */
-async function autoAnchorPointPurchase(userId) {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Anchor Purchase] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  if (!userId) return;
-
-  const settings = state.getSettings(userId);
-  if (!settings.autoAnchorPointEnabled) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Anchor Purchase] Feature disabled in settings');
-    }
-    return;
-  }
-
-  try {
-    // CRITICAL: Check if anchor point is currently under construction
-    // Buying while construction is active resets the timer (wastes money and time!)
-    const headerData = state.getHeaderData(userId);
-    const anchorNextBuild = headerData?.anchor?.nextBuild;
-    const now = Math.floor(Date.now() / 1000);
-
-    if (anchorNextBuild && anchorNextBuild > now) {
-      const remaining = anchorNextBuild - now;
-      const minutes = Math.floor(remaining / 60);
-      logger.debug(`[Auto-Anchor] Construction in progress - ${minutes} minutes remaining. Skipping purchase to prevent timer reset.`);
-      return;
-    }
-
-    const bunker = state.getBunkerState(userId);
-
-    // Fetch current price
-    const priceData = await apiCall('/anchor-point/get-anchor-price', 'POST', {});
-    const price = priceData.data.price;
-
-    // IMPORTANT: Game API only accepts amount: 1 or amount: 10
-    // Use configured amount from settings (defaults to 1 if not set)
-    const amount = settings.autoAnchorPointAmount !== undefined ? settings.autoAnchorPointAmount : 1;
-
-    logger.debug(`[Auto-Anchor] Checking purchase conditions - Price: $${price.toLocaleString()}/point, Amount: ${amount} point, Current Cash: $${bunker.cash.toLocaleString()}`);
-
-    // Calculate total cost
-    const totalCost = price * amount;
-
-    // Check minimum cash requirement FIRST
-    const minCash = settings.autoAnchorPointMinCash !== undefined ? settings.autoAnchorPointMinCash : 0;
-
-    // Only buy if we are ABOVE the minimum cash limit
-    if (bunker.cash <= minCash) {
-      logger.debug(`[Auto-Anchor] Skipping: Cash $${bunker.cash.toLocaleString()} is at or below minimum $${minCash.toLocaleString()}`);
-      return;
-    }
-
-    // Check if we have enough cash for the purchase
-    if (totalCost > bunker.cash) {
-      logger.log(`[Auto-Anchor] Insufficient funds: Need $${totalCost.toLocaleString()}, Have $${bunker.cash.toLocaleString()}`);
-      return;
-    }
-
-    // Calculate remaining cash after purchase
-    const remainingCash = bunker.cash - totalCost;
-
-    // Only buy if remaining cash stays above minimum
-    if (remainingCash < minCash) {
-      logger.log(`[Auto-Anchor] Skipping purchase: Would leave $${remainingCash.toLocaleString()}, need to keep minimum $${minCash.toLocaleString()}`);
-      return;
-    }
-
-    if (DEBUG_MODE) {
-      logger.log(`[Auto-Anchor] Purchasing ${amount} anchor point(s) @ $${price.toLocaleString()}/point = $${totalCost.toLocaleString()}`);
-    }
-
-    // Step 1: Purchase anchor points
-    const purchaseData = await apiCall('/anchor-point/purchase-anchor-points', 'POST', { amount });
-
-    // Check for errors
-    if (purchaseData.error) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Anchor] Purchase failed: ${purchaseData.error.error || 'Unknown error'}`);
-      }
-      return;
-    }
-
-    // Check if purchase was not successful
-    if (!purchaseData.data?.success) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Anchor] Purchase not successful (API returned success: false)`);
-      }
-      return;
-    }
-
-    // Purchase successful - anchor point will complete construction naturally
-    // No exploit used - timer will complete as designed by game
-
-    // Update bunker cash
-    bunker.cash -= totalCost;
-    state.updateBunkerState(userId, bunker);
-
-    logger.log(`[Auto-Anchor] Success! Purchased ${amount} anchor point(s) for $${totalCost.toLocaleString()}. Construction timer started.`);
-
-    // Broadcast success notification (only once per successful purchase)
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'user_action_notification', {
-        type: 'success',
-        message: `
-          <div style="font-family: monospace; font-size: 13px;">
-            <div style="text-align: center; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 8px; margin-bottom: 12px;">
-              <strong style="font-size: 14px;">⚓ Anchor Point Purchase</strong>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span>Amount:</span>
-              <span><strong>${amount} point${amount > 1 ? 's' : ''}</strong></span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-              <span>Price per point:</span>
-              <span>$${price.toLocaleString()}</span>
-            </div>
-            <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
-            <div style="display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px;">
-              <span><strong>Total:</strong></span>
-              <span style="color: #ef4444;"><strong>$${totalCost.toLocaleString()}</strong></span>
-            </div>
-            <div style="text-align: center; color: #10b981; font-size: 12px; font-style: italic;">
-              ✓ Instantly available
-            </div>
-          </div>
-        `
-      });
-
-      // Broadcast updated bunker state (cash decreased)
-        broadcastToUser(userId, 'bunker_update', {
-          fuel: bunker.fuel,
-          co2: bunker.co2,
-          cash: bunker.cash,
-          maxFuel: bunker.maxFuel,
-          maxCO2: bunker.maxCO2
-        });
-
-        // Broadcast anchor update with new pending count
-        broadcastToUser(userId, 'anchor_update', {
-          pending: amount
-        });
-
-        // Send browser notification
-        if (settings.enableDesktopNotifications && settings.notifyHarbormaster) {
-          broadcastToUser(userId, 'desktop_notification', {
-            title: '⚓ Anchorage Chief',
-            message: `Purchased ${amount} anchor point${amount > 1 ? 's' : ''} for $${totalCost.toLocaleString()}. Construction started.`,
-            type: 'success'
-          });
-        }
-      }
-
-    // Update all data (SKIP if locked)
-    await tryUpdateAllData();
-
-  } catch (error) {
-    logger.error('[Auto-Anchor] Error:', error.message);
-  }
-}
-
-/**
- * Calculate how many anchor points are currently pending construction.
- * Returns 0 if no construction in progress or construction finished.
- *
- * @param {number} userId - User ID
- * @returns {number} Number of pending anchor points
- */
-function calculatePendingAnchorPoints(userId) {
-  const settings = state.getSettings(userId);
-  const lastPurchase = settings.lastAnchorPointPurchase;
-
-  if (DEBUG_MODE) {
-    logger.log(`[DEBUG] calculatePendingAnchorPoints: lastPurchase=`, lastPurchase);
-  }
-
-  // If no purchase recorded, return 0
-  if (!lastPurchase || lastPurchase.timestamp === 0) {
-    if (DEBUG_MODE) {
-      logger.log(`[DEBUG] No purchase recorded, returning 0`);
-    }
-    return 0;
-  }
-
-  const now = Math.floor(Date.now() / 1000);
-
-  // If construction finished, return 0
-  if (now >= lastPurchase.timestamp) {
-    if (DEBUG_MODE) {
-      logger.log(`[DEBUG] Construction finished (now=${now} >= timestamp=${lastPurchase.timestamp}), returning 0`);
-    }
-    return 0;
-  }
-
-  // Construction in progress, return amount
-  if (DEBUG_MODE) {
-    logger.log(`[DEBUG] Construction in progress, returning amount=${lastPurchase.amount}`);
-  }
-  return lastPurchase.amount;
-}
-
-// =============================================================================
-// Cached Data Helpers
-// =============================================================================
-
-/**
- * Fetch COOP data with caching
- * @returns {Promise<Object>} COOP API response
- */
 async function fetchCoopDataCached() {
   const cached = cache.getCoopCache();
   if (cached) {
@@ -2504,10 +586,6 @@ async function fetchCoopDataCached() {
   return data;
 }
 
-/**
- * Fetch Alliance data with caching
- * @returns {Promise<Object>} Alliance API response
- */
 async function fetchAllianceDataCached() {
   const cached = cache.getAllianceCache();
   if (cached) {
@@ -2519,664 +597,16 @@ async function fetchAllianceDataCached() {
   return data;
 }
 
-// =============================================================================
-// Auto-Negotiate Hijacking
-// =============================================================================
-
-/**
- * Refreshes hijacking badge and header display for all users.
- * Broadcasts current case counts and hijacked vessel count to all connected clients.
- *
- * @async
- * @function refreshHijackingBadge
- * @returns {Promise<void>}
- */
-async function refreshHijackingBadge() {
-  try {
-    // Use shared cache from websocket.js to reduce duplicate API calls
-    const { getCachedMessengerChats, getCachedHijackingCase } = require('./websocket');
-    const allChats = await getCachedMessengerChats();
-
-    // Filter for hijacking cases
-    const hijackingChats = allChats.filter(chat =>
-      chat.system_chat && chat.body === 'vessel_got_hijacked'
-    );
-
-    // Fetch details for each case (using shared cache - no duplicate API calls!)
-    const casesWithDetails = await Promise.all(
-      hijackingChats.map(async (chat) => {
-        const caseId = chat.values?.case_id;
-        if (!caseId) return null;
-
-        // Use shared cache function - eliminates duplicate API calls
-        return await getCachedHijackingCase(caseId);
-      })
-    );
-
-    const cases = casesWithDetails.filter(c => c !== null);
-    const openCases = cases.filter(c => c.isOpen).length;
-    const hijackedCount = cases.filter(c => {
-      const status = c.details?.status;
-      return status === 'in_progress' || (c.isOpen && status !== 'solved');
-    }).length;
-
-    // Broadcast to current user
-    if (broadcastToUser) {
-      const userId = getUserId();
-      if (userId) {
-        broadcastToUser(userId, 'hijacking_update', {
-          openCases: openCases,
-          totalCases: cases.length,
-          hijackedCount: hijackedCount
-        });
-      }
-    }
-  } catch (error) {
-    logger.error('[Hijacking Badge Refresh] Error:', error.message);
-  }
-}
-
-/**
- * Automatically negotiates hijacked vessels for the current user.
- * Offers 1% repeatedly until price is below $20,000, then accepts.
- *
- * Algorithm:
- * 1. Get all active hijacking cases
- * 2. For each case, offer 1% of requested amount
- * 3. Wait 3 seconds for API to process
- * 4. Verify the offer was accepted and get new counter-offer
- * 5. If new price >= $20,000: repeat from step 2
- * 6. If new price < $20,000: accept and release vessel
- * 7. Retry on API errors
- *
- * Note: This function uses the global session cookie (single-user system).
- * userId parameter is kept for future multi-user support but not currently used for API calls.
- *
- * @async
- * @function autoNegotiateHijacking
- * @param {number} userId - User ID
- * @param {Object} settings - User settings
- * @returns {Promise<void>}
- */
-async function autoNegotiateHijacking() {
-  // Check if autopilot is paused
-  if (autopilotPaused) {
-    logger.log('[Auto-Negotiate Hijacking] Skipped - Autopilot is PAUSED');
-    return;
-  }
-
-  const userId = getUserId();
-  if (!userId) return;
-
-  const settings = state.getSettings(userId);
-  if (!settings.autoNegotiateHijacking) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Negotiate Hijacking] Feature disabled in settings');
-    }
-    return;
-  }
-
-  const THRESHOLD = 20000; // Stop negotiating below this amount
-  const OFFER_PERCENTAGE = 0.01; // Always offer 1%
-  const VERIFY_DELAY = 60000; // Wait 1 minute after offer before verification (pirates need time to respond)
-  const MAX_RETRIES = 3; // Retry failed API calls up to 3 times
-
-  try {
-    // Use shared cache from websocket.js to reduce duplicate API calls
-    const { getCachedMessengerChats } = require('./websocket');
-    const chats = await getCachedMessengerChats();
-
-    if (!chats || chats.length === 0) {
-      logger.debug('[Auto-Negotiate Hijacking] No messages data');
-      return;
-    }
-
-    // Find hijacking system messages - check body field directly on chat object
-    const hijackingChats = chats.filter(chat => {
-      return chat.body === 'vessel_got_hijacked';
-    });
-
-    if (hijackingChats.length === 0) {
-      logger.debug('[Auto-Negotiate Hijacking] No active hijacking cases');
-      return;
-    }
-
-    logger.debug(`[Auto-Negotiate Hijacking] Found ${hijackingChats.length} active case(s)`);
-
-    // Process each case sequentially
-    let processed = 0;
-    for (const chat of hijackingChats) {
-      const caseId = chat.values?.case_id;
-      const vesselName = chat.values?.vessel_name || 'Unknown Vessel';
-
-      if (!caseId) {
-        logger.debug('[Auto-Negotiate Hijacking] Case missing ID, skipping');
-        continue;
-      }
-
-      try {
-        await processHijackingCase(userId, caseId, vesselName, THRESHOLD, OFFER_PERCENTAGE, VERIFY_DELAY, MAX_RETRIES);
-        processed++;
-      } catch (error) {
-        logger.error(`[Auto-Negotiate Hijacking] Error processing case ${caseId}:`, error.message);
-
-        // Send failure notification
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'negotiation_failed',
-            data: { case_id: caseId }
-          });
-        }
-      }
-    }
-
-    // Update all data if cases were processed (SKIP if locked)
-    if (processed > 0) {
-      await tryUpdateAllData();
-    }
-
-  } catch (error) {
-    logger.error('[Auto-Negotiate Hijacking] Error:', error.message);
-  }
-}
-
-/**
- * Process a single hijacking case: negotiate until below threshold, then accept.
- *
- * @async
- * @function processHijackingCase
- * @param {number} userId - User ID for broadcasts
- * @param {number} caseId - Hijacking case ID
- * @param {string} vesselName - Name of hijacked vessel
- * @param {number} threshold - Price threshold to stop negotiating
- * @param {number} offerPercentage - Percentage to offer (0.01 = 1%)
- * @param {number} verifyDelay - Milliseconds to wait before verification
- * @param {number} maxRetries - Maximum retry attempts
- * @returns {Promise<void>}
- */
-async function processHijackingCase(userId, caseId, vesselName, threshold, offerPercentage, verifyDelay, maxRetries) {
-  logger.debug(`[Auto-Negotiate Hijacking] Processing case ${caseId}...`);
-
-  let negotiationRound = 0;
-  const MAX_ROUNDS = 50; // Safety limit to prevent infinite loops
-
-  while (negotiationRound < MAX_ROUNDS) {
-    negotiationRound++;
-
-    // Get current case status
-    const caseData = await getCaseWithRetry(caseId, maxRetries);
-    if (!caseData) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to get case data, aborting`);
-      return;
-    }
-
-    const requestedAmount = caseData.requested_amount;
-    const status = caseData.status;
-
-    logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId} Round ${negotiationRound}: Status="${status}", Price=$${requestedAmount}`);
-
-    // Save initial pirate demand to history (only in first round if history is empty)
-    if (negotiationRound === 1) {
-      try {
-        const { getAppDataDir } = require('./config');
-        const historyDir = path.join(
-          getAppDataDir(),
-          'ShippingManagerCoPilot',
-          'data',
-          'hijack_history'
-        );
-        const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-        // Ensure directory exists
-        if (!fs.existsSync(historyDir)) {
-          fs.mkdirSync(historyDir, { recursive: true });
-        }
-
-        // Check if history already exists
-        if (!fs.existsSync(historyPath)) {
-          // Create new history with initial pirate demand
-          const initialHistory = {
-            history: [{
-              type: 'pirate',
-              amount: requestedAmount,
-              timestamp: Date.now() / 1000
-            }],
-            autopilot_resolved: false,
-            resolved_at: null
-          };
-
-          fs.writeFileSync(historyPath, JSON.stringify(initialHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Initial pirate demand $${requestedAmount} saved to history`);
-        }
-      } catch (error) {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to save initial demand to history:`, error);
-      }
-    }
-
-    // Broadcast current price to frontend
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'hijacking_update', {
-        action: 'price_check',
-        data: {
-          case_id: caseId,
-          round: negotiationRound,
-          current_price: requestedAmount,
-          status: status
-        }
-      });
-    }
-
-    // Check if case is already resolved (paid)
-    // 'pending_payment' means ready to pay (price under threshold), NOT already paid!
-    if (status === 'solved' || status === 'paid') {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Already resolved (status="${status}"), stopping`);
-      return;
-    }
-
-    // CRITICAL: Check for $0 bug - game charges original amount if we accept at $0!
-    if (requestedAmount === 0) {
-      logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: ⚠️ CRITICAL BUG - Price is $0! Game will charge original amount if accepted!`);
-      logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Attempting to fix by submitting new offers (max 3 attempts)...`);
-
-      let fixAttempts = 0;
-      const MAX_FIX_ATTEMPTS = 3;
-
-      while (fixAttempts < MAX_FIX_ATTEMPTS) {
-        fixAttempts++;
-
-        // Submit a 1% offer to try to get pirates to respond with non-zero counter
-        const fixOfferAmount = 100; // Minimum $100 offer
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Fix attempt ${fixAttempts}/${MAX_FIX_ATTEMPTS}: Offering $${fixOfferAmount}`);
-
-        const offered = await submitOfferWithRetry(userId, caseId, fixOfferAmount, maxRetries);
-        if (!offered) {
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to submit fix offer`);
-          continue;
-        }
-
-        // Wait for API
-        await new Promise(resolve => setTimeout(resolve, verifyDelay));
-
-        // Check if price is now non-zero
-        const fixedCase = await getCaseWithRetry(caseId, maxRetries);
-        if (fixedCase && fixedCase.requested_amount > 0) {
-          logger.log(`[Auto-Negotiate Hijacking] Case ${caseId}: ✓ Bug fixed! New price: $${fixedCase.requested_amount}`);
-          break; // Continue with normal negotiation
-        }
-
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price still $0 after attempt ${fixAttempts}`);
-      }
-
-      // Re-check price after fix attempts
-      const recheckCase = await getCaseWithRetry(caseId, maxRetries);
-      if (!recheckCase || recheckCase.requested_amount === 0) {
-        logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: ❌ Unable to fix $0 bug, ABORTING to prevent charging original amount`);
-
-        // Send failure notification
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'negotiation_failed',
-            data: { case_id: caseId }
-          });
-        }
-        return;
-      }
-
-      // Price is now valid, continue to next round
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Continuing with valid price $${recheckCase.requested_amount}`);
-      continue;
-    }
-
-    // Check if we should accept
-    if (requestedAmount < threshold) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price $${requestedAmount} below threshold $${threshold}, checking cash...`);
-
-      // Check if we have enough cash to pay
-      const vesselData = await apiCall('/game/index', 'POST', {});
-      const currentCash = vesselData.user.cash;
-
-      if (currentCash < requestedAmount) {
-        logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: INSUFFICIENT FUNDS - Need $${requestedAmount}, have $${currentCash}`);
-        logger.log(`[Auto-Negotiate Hijacking] Case ${caseId}: Skipping case (vessel: ${vesselName})`);
-
-        // Broadcast insufficient funds warning
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'insufficient_funds',
-            data: {
-              case_id: caseId,
-              vessel_name: vesselName,
-              required: requestedAmount,
-              available: currentCash
-            }
-          });
-        }
-        return; // Skip this case
-      }
-
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Cash OK ($${currentCash} >= $${requestedAmount}), ACCEPTING`);
-
-      // Broadcast that we're about to accept
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'hijacking_update', {
-          action: 'accepting_price',
-          data: {
-            case_id: caseId,
-            final_price: requestedAmount,
-            threshold: threshold
-          }
-        });
-      }
-
-      const accepted = await acceptRansomWithRetry(caseId, maxRetries);
-      if (accepted) {
-        logger.log(`[Auto-Negotiate Hijacking] Case ${caseId}: ACCEPTED - Vessel released!`);
-
-        // Mark case as autopilot-resolved in history
-        try {
-          const { getAppDataDir } = require('./config');
-          const historyDir = path.join(
-            getAppDataDir(),
-            'ShippingManagerCoPilot',
-            'data',
-            'hijack_history'
-          );
-          const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-          // Ensure directory exists
-          if (!fs.existsSync(historyDir)) {
-            fs.mkdirSync(historyDir, { recursive: true });
-          }
-
-          // Load existing history if file exists, otherwise start with empty array
-          let historyData = [];
-          if (fs.existsSync(historyPath)) {
-            const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-            // Handle both old format (array) and new format (object with history property)
-            historyData = Array.isArray(existingData) ? existingData : (existingData.history || []);
-          }
-
-          // Create updated history with autopilot_resolved flag
-          const updatedHistory = {
-            history: historyData,
-            autopilot_resolved: true,
-            resolved_at: Date.now() / 1000
-          };
-
-          fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Marked as autopilot-resolved`);
-        } catch (error) {
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to mark as autopilot-resolved:`, error);
-        }
-
-        // Broadcast success to frontend with Captain Blackbeard message
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'hijacking_resolved',
-            data: {
-              case_id: caseId,
-              final_amount: requestedAmount,
-              vessel_name: vesselName,
-              success: true
-            }
-          });
-        }
-      } else {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to accept ransom`);
-      }
-      return;
-    }
-
-    // Offer 1% of current price
-    const offerAmount = Math.floor(requestedAmount * offerPercentage);
-    logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Offering $${offerAmount} (${offerPercentage * 100}% of $${requestedAmount})`);
-
-    // Broadcast offer to frontend
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'hijacking_update', {
-        action: 'offer_submitted',
-        data: {
-          case_id: caseId,
-          round: negotiationRound,
-          your_offer: offerAmount,
-          pirate_demand: requestedAmount
-        }
-      });
-    }
-
-    const offered = await submitOfferWithRetry(userId, caseId, offerAmount, maxRetries);
-    if (!offered) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to submit offer, aborting`);
-      return;
-    }
-
-    // Wait for API to process
-    logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Waiting ${verifyDelay}ms for API to process...`);
-    await new Promise(resolve => setTimeout(resolve, verifyDelay));
-
-    // Verify offer was accepted by checking if requested_amount changed
-    const verifiedCase = await getCaseWithRetry(caseId, maxRetries);
-    if (!verifiedCase) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to verify offer, aborting`);
-      return;
-    }
-
-    if (verifiedCase.requested_amount === requestedAmount) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: ⚠️ Price unchanged, API may not have processed offer yet`);
-      // Continue to next round anyway - will retry offer if needed
-    } else {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: ✓ Offer processed, new price: $${verifiedCase.requested_amount}`);
-
-      // Save pirate counter-offer to history
-      try {
-        const { getAppDataDir } = require('./config');
-        const historyDir = path.join(
-          getAppDataDir(),
-          'ShippingManagerCoPilot',
-          'data',
-          'hijack_history'
-        );
-        const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-        // Load existing history
-        let historyData = [];
-        let autopilotResolved = false;
-        let resolvedAt = null;
-        if (fs.existsSync(historyPath)) {
-          const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-          historyData = Array.isArray(existingData) ? existingData : (existingData.history || []);
-          autopilotResolved = existingData.autopilot_resolved || false;
-          resolvedAt = existingData.resolved_at || null;
-        }
-
-        // Add pirate counter-offer to history
-        historyData.push({
-          type: 'pirate',
-          amount: verifiedCase.requested_amount,
-          timestamp: Date.now() / 1000
-        });
-
-        // Save updated history
-        const updatedHistory = {
-          history: historyData,
-          autopilot_resolved: autopilotResolved,
-          resolved_at: resolvedAt
-        };
-
-        fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Pirate counter $${verifiedCase.requested_amount} saved to history`);
-      } catch (error) {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to save pirate counter to history:`, error);
-      }
-
-      // Broadcast pirate counter-offer to frontend
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'hijacking_update', {
-          action: 'pirate_counter_offer',
-          data: {
-            case_id: caseId,
-            round: negotiationRound,
-            your_offer: offerAmount,
-            pirate_counter: verifiedCase.requested_amount,
-            old_price: requestedAmount
-          }
-        });
-      }
-    }
-  }
-
-  logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: ⚠️ Reached maximum rounds (${MAX_ROUNDS}), stopping`);
-
-  // Send failure notification
-  if (broadcastToUser) {
-    broadcastToUser(null, {
-      type: 'hijacking_update',
-      action: 'negotiation_failed',
-      data: { case_id: caseId }
-    });
-  }
-}
-
-/**
- * Get hijacking case data with retry logic.
- *
- * @async
- * @function getCaseWithRetry
- * @param {number} userId - User ID
- * @param {number} caseId - Case ID
- * @param {number} maxRetries - Maximum retry attempts
- * @returns {Promise<Object|null>} Case data or null on failure
- */
-async function getCaseWithRetry(caseId, maxRetries) {
-  // Use shared cache from websocket.js instead of direct API calls
-  const { getCachedHijackingCase } = require('./websocket');
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await getCachedHijackingCase(caseId);
-      if (result && result.details) {
-        return result.details;
-      }
-      logger.debug(`[Auto-Negotiate Hijacking] Get case attempt ${attempt}/${maxRetries}: No data`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Get case attempt ${attempt}/${maxRetries}: ${error.message}`);
-    }
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between retries
-    }
-  }
-  return null;
-}
-
-/**
- * Submit negotiation offer with retry logic.
- *
- * @async
- * @function submitOfferWithRetry
- * @param {number} userId - User ID
- * @param {number} caseId - Case ID
- * @param {number} amount - Offer amount
- * @param {number} maxRetries - Maximum retry attempts
- * @returns {Promise<boolean>} True if successful
- */
-async function submitOfferWithRetry(userId, caseId, amount, maxRetries) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await apiCall('/hijacking/submit-offer', 'POST', {
-        case_id: caseId,
-        amount: amount
-      });
-      if (response) {
-        // Save bot's offer to history immediately
-        try {
-          const { getAppDataDir } = require('./config');
-          const historyDir = path.join(
-            getAppDataDir(),
-            'ShippingManagerCoPilot',
-            'data',
-            'hijack_history'
-          );
-          const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-          // Ensure directory exists
-          if (!fs.existsSync(historyDir)) {
-            fs.mkdirSync(historyDir, { recursive: true });
-          }
-
-          // Load existing history
-          let historyData = [];
-          let autopilotResolved = false;
-          let resolvedAt = null;
-          if (fs.existsSync(historyPath)) {
-            const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-            historyData = Array.isArray(existingData) ? existingData : (existingData.history || []);
-            autopilotResolved = existingData.autopilot_resolved || false;
-            resolvedAt = existingData.resolved_at || null;
-          }
-
-          // Add bot's offer to history
-          historyData.push({
-            type: 'user',
-            amount: amount,
-            timestamp: Date.now() / 1000
-          });
-
-          // Save updated history
-          const updatedHistory = {
-            history: historyData,
-            autopilot_resolved: autopilotResolved,
-            resolved_at: resolvedAt
-          };
-
-          fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Bot offer $${amount} saved to history`);
-        } catch (error) {
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to save bot offer to history:`, error);
-        }
-
-        return true;
-      }
-      logger.debug(`[Auto-Negotiate Hijacking] Submit offer attempt ${attempt}/${maxRetries}: No response`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Submit offer attempt ${attempt}/${maxRetries}: ${error.message}`);
-    }
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between retries
-    }
-  }
-  return false;
-}
-
-/**
- * Accept ransom with retry logic.
- *
- * @async
- * @function acceptRansomWithRetry
- * @param {number} userId - User ID
- * @param {number} caseId - Case ID
- * @param {number} maxRetries - Maximum retry attempts
- * @returns {Promise<boolean>} True if successful
- */
-async function acceptRansomWithRetry(caseId, maxRetries) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await apiCall('/hijacking/pay', 'POST', { case_id: caseId });
-      if (response) {
-        return true;
-      }
-      logger.debug(`[Auto-Negotiate Hijacking] Accept ransom attempt ${attempt}/${maxRetries}: No response`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Accept ransom attempt ${attempt}/${maxRetries}: ${error.message}`);
-    }
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s between retries
-    }
-  }
-  return false;
+// ============================================================================
+// Capacity Helper (for exports)
+// ============================================================================
+
+function getCachedCapacity(vessel) {
+  return getTotalCapacity(vessel);
 }
 
 // ============================================================================
-// Main Event Loop (Event-Driven Autopilot System)
+// Main Event Loop
 // ============================================================================
 
 const LOOP_INTERVAL = 60000;  // 60 seconds
@@ -3184,7 +614,7 @@ let previousPrices = null;
 
 /**
  * Main event-driven autopilot loop.
- * Runs every 60 seconds, checks game state, triggers autopilot functions based on conditions.
+ * Runs every 60 seconds, checks game state, triggers autopilot functions.
  */
 async function mainEventLoop() {
   const userId = getUserId();
@@ -3200,14 +630,13 @@ async function mainEventLoop() {
   }
 
   try {
-    // Update prices EVERY loop (60 seconds) to keep UI in sync
+    // Update prices EVERY loop (60 seconds)
     await updatePrices();
 
-    // CRITICAL: Validate that we have valid data before running ANY autopilot tasks
+    // Validate data
     const prices = state.getPrices(userId);
     const bunker = state.getBunkerState(userId);
 
-    // Skip loop if essential data is missing or invalid
     if (!prices || prices.fuel <= 0 || prices.co2 <= 0) {
       logger.warn('[Loop] Skipping - prices not loaded yet (fuel: $' + (prices?.fuel || 0) + ', co2: $' + (prices?.co2 || 0) + ')');
       setTimeout(mainEventLoop, LOOP_INTERVAL);
@@ -3220,12 +649,10 @@ async function mainEventLoop() {
       return;
     }
 
-    // Fetch vessel data to check conditions and update badges
-    // ALWAYS fetch (even when autopilot paused) to keep badges current
-    const gameData = await apiCall('/game/index', 'POST', {});
-    const vessels = gameData.data.user_vessels || [];
+    // Fetch vessel data for badges
+    const gameIndexData = await apiCall('/game/index', 'POST', {});
+    const vessels = gameIndexData.data.user_vessels;
 
-    // Count vessels for badges - ALWAYS broadcast (even when paused)
     const readyToDepart = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
     const atAnchor = vessels.filter(v => v.status === 'anchor').length;
     const pending = vessels.filter(v => v.status === 'pending').length;
@@ -3238,7 +665,7 @@ async function mainEventLoop() {
       });
     }
 
-    // === SKIP AUTOMATION IF PAUSED ===
+    // Skip automation if paused
     if (autopilotPaused) {
       if (DEBUG_MODE) {
         logger.log('[Loop] Autopilot paused, skipping automation (badge update completed)');
@@ -3247,68 +674,57 @@ async function mainEventLoop() {
       return;
     }
 
-    // Auto-rebuy runs EVERY loop (checks fuel/CO2 levels from state)
+    // Auto-rebuy runs EVERY loop
     await autoRebuyAll();
 
     // Vessels ready to depart
     if (settings.autoDepartAll && readyToDepart > 0) {
       logger.log(`[Loop] ${readyToDepart} vessel(s) ready to depart`);
-      await autoDepartVessels();
+      await autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll, tryUpdateAllData);
     }
 
     // Vessels need repair
     const needsRepair = vessels.filter(v => v.wear >= settings.maintenanceThreshold).length;
     if (settings.autoBulkRepair && needsRepair > 0) {
       logger.log(`[Loop] ${needsRepair} vessel(s) need repair`);
-      await autoRepairVessels();
-    }
-
-    // Campaigns need renewal (check from fresh data)
-    const campaigns = await gameapi.fetchCampaigns();
-    const activeCampaignCount = countActiveCampaignTypes(campaigns);
-    if (settings.autoCampaignRenewal && activeCampaignCount < 3) {
-      logger.log(`[Loop] ${activeCampaignCount}/3 campaigns active, checking renewal`);
-      await autoCampaignRenewal(campaigns);
+      await autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
 
     // COOP targets available
     if (settings.autoCoopEnabled) {
-      const coopData = await fetchCoopDataCached();  // Use cache
-      const available = coopData.data?.coop?.available || 0;
+      const coopData = await fetchCoopDataCached();
+      const available = coopData.data?.coop?.available;
       if (available > 0) {
         logger.log(`[Loop] ${available} COOP target(s) available`);
-        await autoCoop();
+        await autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData);
       }
     }
 
-    // Hijacking cases (UNRESOLVED only)
+    // Hijacking cases
     if (settings.autoNegotiateHijacking) {
-      await autoNegotiateHijacking();
+      await autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
 
-    // NOTE: We do NOT call tryUpdateAllData() here because:
-    // - Each autopilot function calls tryUpdateAllData() after completing work
-    // - This eliminates duplicate /game/index API calls
-    // - The lock prevents parallel execution, but sequential calls still happen
-    // - By removing this call, we save ~1 API call per minute
+    // Anchor point purchase
+    if (settings.autoAnchorPointEnabled) {
+      await autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser, tryUpdateAllData);
+    }
+
+    // Campaign status update and auto-renewal
+    await updateCampaigns();
 
   } catch (error) {
     logger.error('[Loop] FATAL ERROR in main event loop:', error);
     logger.error('[Loop] Stack trace:', error.stack);
-
-    // CRITICAL: Main loop crashed - this should NEVER happen
-    // Exit the application to prevent running with broken autopilot
     logger.error('[Loop] Application will exit due to fatal error in main loop');
     process.exit(1);
   }
 
-  // Schedule next loop - ALWAYS 60s
   setTimeout(mainEventLoop, LOOP_INTERVAL);
 }
 
 /**
  * Starts the main event loop.
- * Called after initial data load.
  */
 function startMainEventLoop() {
   logger.log('[Loop] Starting main event loop (60s interval)');
@@ -3317,14 +733,17 @@ function startMainEventLoop() {
 
 /**
  * Counts active campaign types (reputation, awareness, green).
- * Used by main loop to check if campaigns need renewal.
  */
 function countActiveCampaignTypes(campaigns) {
-  const active = campaigns.active || [];
+  const active = campaigns.active;
   const activeTypes = new Set(active.map(c => c.option_name));
   const requiredTypes = ['reputation', 'awareness', 'green'];
   return requiredTypes.filter(type => activeTypes.has(type)).length;
 }
+
+// ============================================================================
+// Module Exports
+// ============================================================================
 
 module.exports = {
   setBroadcastFunction,
@@ -3337,24 +756,22 @@ module.exports = {
   autoRebuyFuel,
   autoRebuyCO2,
   autoRebuyAll,
-  departVessels,  // Universal depart function (accepts vessel IDs array)
-  autoDepartVessels,  // Autopilot function (departs all vessels)
+  departVessels,
+  autoDepartVessels,
   autoRepairVessels,
   autoCoop,
   autoAnchorPointPurchase,
   autoNegotiateHijacking,
   autoCampaignRenewal,
-  refreshHijackingBadge,
   updateRepairCount,
   updateCampaigns,
   updateUnreadMessages,
   updateAllData,
-  tryUpdateAllData,  // Wrapper with lock check
+  tryUpdateAllData,
   updateVesselCount,
   getCachedCapacity,
   analyzeVesselDepartures,
   calculateRemainingDemand,
   getTotalCapacity,
-  calculatePendingAnchorPoints,
-  startMainEventLoop  // Event-driven loop
+  startMainEventLoop
 };

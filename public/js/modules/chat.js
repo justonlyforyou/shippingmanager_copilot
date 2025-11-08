@@ -696,10 +696,10 @@ export function initWebSocket() {
         handleUserActionNotification(data);
       } else if (type === 'coop_update') {
         handleCoopUpdate(data);
+      } else if (type === 'company_type_update') {
+        handleCompanyTypeUpdate(data);
       } else if (type === 'header_data_update') {
         handleHeaderDataUpdate(data);
-      } else if (type === 'anchor_update') {
-        handleAnchorUpdate(data);
       } else if (type === 'event_data_update') {
         handleEventDataUpdate(data);
       } else if (type === 'all_data_updated') {
@@ -723,7 +723,7 @@ export function initWebSocket() {
       } else if (type === 'coop_send_complete') {
         unlockCoopButtons();
       } else if (type === 'anchor_purchase_timer') {
-        showAnchorTimer(data.anchor_next_build);
+        showAnchorTimer(data.anchor_next_build, data.pending_amount);
       } else if (type === 'fuel_purchase_start') {
         lockFuelButton();
       } else if (type === 'fuel_purchase_complete') {
@@ -1105,12 +1105,13 @@ async function handleVesselsDepartComplete(data) {
 
   console.log(`[Autopilot] Depart complete: ${succeeded.count} succeeded, ${failed.count} failed`);
 
-  // Log vessel details to help debug negative netIncome
+  // Log vessel details
   if (succeeded.vessels && succeeded.vessels.length > 0) {
     succeeded.vessels.forEach(v => {
-      console.log(`[Vessel Depart] ${v.name}: income=$${v.income}, harborFee=$${v.harborFee}, netIncome=$${v.netIncome}`);
-      if (v.netIncome < 0) {
-        console.error(`[NEGATIVE NET INCOME] ${v.name}: $${v.netIncome} (income: $${v.income}, fee: $${v.harborFee})`);
+      console.log(`[Vessel Depart] ${v.name}: income=$${v.income}, harborFee=$${v.harborFee}`);
+      const profitability = v.income - v.harborFee;
+      if (profitability < 0) {
+        console.warn(`[HIGH HARBOR FEE] ${v.name}: Harbor fee exceeds income by $${Math.abs(profitability)}`);
       }
     });
   }
@@ -1121,7 +1122,7 @@ async function handleVesselsDepartComplete(data) {
 
   if (succeeded.count > 0 && failed.count === 0) {
     // All succeeded
-    headerIcon = '✅';
+    headerIcon = '';
     headerText = `🚢 Cargo Marshal`;
   } else if (succeeded.count === 0 && failed.count > 0) {
     // All failed
@@ -1136,37 +1137,59 @@ async function handleVesselsDepartComplete(data) {
   // Build success section
   let successSection = '';
   if (succeeded.count > 0) {
-    const vesselList = succeeded.vessels.map(v =>
-      `<div style="font-size: 0.8em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
-        <div>🚢 <strong>${v.name}</strong></div>
+    const settings = window.getSettings ? window.getSettings() : {};
+    const harborFeeThreshold = settings.harborFeeWarningThreshold;
+    const totalHarborFees = succeeded.vessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
+
+    // Check for high harbor fee vessels (only if threshold is set)
+    const highFeeCount = harborFeeThreshold ? succeeded.vessels.filter(v => {
+      const feePercentage = (v.harborFee / v.income) * 100;
+      return feePercentage > harborFeeThreshold;
+    }).length : 0;
+
+    const vesselList = succeeded.vessels.map(v => {
+      const feePercentage = Math.round((v.harborFee / v.income) * 100);
+      const isHighFee = harborFeeThreshold && feePercentage > harborFeeThreshold;
+      const warningIcon = isHighFee ? '⚠️' : '';
+
+      return `<div style="font-size: 0.8em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div>${warningIcon}🚢 <strong>${v.name}</strong> | 💰 $${formatNumber(v.income)}</div>
         <div style="font-size: 0.9em; color: #9ca3af; margin-top: 2px;">
-          ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%) | 💰 $${formatNumber(v.netIncome)}
+          Utilization: ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%)
         </div>
-      </div>`
-    ).join('');
+        <div style="font-size: 0.9em; color: ${isHighFee ? '#f59e0b' : '#9ca3af'}; margin-top: 2px;">
+          ${isHighFee ? '⚠️ ' : ''}Harbor fee: ${feePercentage}% ($${formatNumber(v.harborFee)})
+        </div>
+      </div>`;
+    }).join('');
+
+    const harborFeeLabel = highFeeCount > 0 ? '⚠️ Harbor Fees (total):' : 'Harbor Fees (total):';
+    const vesselDepartedLabel = highFeeCount > 0
+      ? `✅ ${succeeded.count} vessel${succeeded.count > 1 ? 's' : ''} departed (${highFeeCount} ⚠️)`
+      : `✅ ${succeeded.count} vessel${succeeded.count > 1 ? 's' : ''} departed`;
 
     successSection = `
       <div class="notification-summary-box">
-        <div style="color: #4ade80; font-weight: bold; margin-bottom: 8px;">✅ ${succeeded.count} vessel${succeeded.count > 1 ? 's' : ''} departed</div>
+        <div style="color: #4ade80; font-weight: bold; margin-bottom: 8px;">${vesselDepartedLabel}</div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <span style="color: #9ca3af;">Revenue:</span>
-          <span style="color: #4ade80; font-weight: bold;">+ $${formatNumber(succeeded.totalIncome)}</span>
+          <span style="color: #9ca3af;">Net Profit:</span>
+          <span style="color: #4ade80; font-weight: bold;">$${formatNumber(succeeded.totalIncome)}</span>
         </div>
         <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-          <span style="color: #9ca3af;">Harbor Fees:</span>
-          <span style="color: #ef4444; font-weight: bold;">- $${formatNumber(succeeded.totalHarborFee)}</span>
+          <span style="color: ${highFeeCount > 0 ? '#f59e0b' : '#9ca3af'};">${harborFeeLabel}</span>
+          <span style="color: #9ca3af;">$${formatNumber(totalHarborFees)}</span>
         </div>
-        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 8px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 1.1em;">
-          <span style="color: #fff; font-weight: bold;">Net Profit:</span>
-          <span style="color: #4ade80; font-weight: bold;">$${formatNumber(succeeded.totalNetIncome)}</span>
+        <div style="margin-top: 4px;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #9ca3af;">
+          <span>Used ⛽ Fuel:</span>
+          <span>${formatNumber(succeeded.totalFuelUsed)}t</span>
         </div>
-        <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.9em; color: #9ca3af;">
-          <div style="font-size: 0.85em; margin-bottom: 4px; opacity: 0.8;">Consumption:</div>
-          <div>⛽ ${formatNumber(succeeded.totalFuelUsed)}t Fuel</div>
-          <div style="margin-top: 2px;">💨 ${formatNumber(succeeded.totalCO2Used)}t CO2</div>
+        <div style="display: flex; justify-content: space-between; font-size: 0.9em; color: #9ca3af; margin-top: 2px;">
+          <span>Used 💨 CO2:</span>
+          <span>${formatNumber(succeeded.totalCO2Used)}t</span>
         </div>
       </div>
+      <div style="margin: 12px 0; border-top: 1px solid rgba(255,255,255,0.2);"></div>
       <div class="notification-vessel-list">
         ${vesselList}
       </div>`;
@@ -1221,6 +1244,51 @@ async function handleVesselsDepartComplete(data) {
     showSideNotification(message, notificationType, 15000);
   }
 
+  // Separate Harbor Fee Warning Notification (only if threshold is set)
+  if (succeeded.count > 0 && settings.harborFeeWarningThreshold) {
+    const harborFeeThreshold = settings.harborFeeWarningThreshold;
+    const highFeeVessels = succeeded.vessels.filter(v => {
+      const grossIncome = v.income + v.harborFee;
+      const feePercentage = (v.harborFee / grossIncome) * 100;
+      return feePercentage > harborFeeThreshold;
+    });
+
+    if (highFeeVessels.length > 0) {
+      const totalHarborFees = succeeded.vessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
+      const highFeeList = highFeeVessels.map(v => {
+        const grossIncome = v.income + v.harborFee;
+        const feePercentage = Math.round((v.harborFee / grossIncome) * 100);
+        return `<div style="font-size: 0.8em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <div>🚢 <strong>${v.name}</strong> | 💰 $${formatNumber(v.income)}</div>
+          <div style="font-size: 0.9em; color: #9ca3af; margin-top: 2px;">
+            Utilization: ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%)
+          </div>
+          <div style="font-size: 0.9em; color: #f59e0b; margin-top: 2px;">
+            ⚠️ Harbor fee: ${feePercentage}% ($${formatNumber(v.harborFee)})
+          </div>
+        </div>`;
+      }).join('');
+
+      const warningMessage = `
+        <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+          <strong style="font-size: 1.1em;">🚢 Cargo Marshal</strong>
+        </div>
+        <div class="notification-summary-box">
+          <div style="color: #f59e0b; font-weight: bold; margin-bottom: 8px;">⚠️ ${highFeeVessels.length} vessel${highFeeVessels.length > 1 ? 's' : ''} with high Harbor fee</div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: #f59e0b;">⚠️ Harbor Fees (total):</span>
+            <span style="color: #9ca3af;">$${formatNumber(totalHarborFees)}</span>
+          </div>
+        </div>
+        <div style="margin: 12px 0; border-top: 1px solid rgba(255,255,255,0.2);"></div>
+        <div class="notification-vessel-list">
+          ${highFeeList}
+        </div>`;
+
+      showSideNotification(warningMessage, 'warning', 12000);
+    }
+  }
+
   // Desktop notification
   if (settings.autoPilotNotifications && settings.enableDesktopNotifications && settings.notifyCargoMarshalDesktop && Notification.permission === 'granted') {
     let title = '';
@@ -1228,7 +1296,7 @@ async function handleVesselsDepartComplete(data) {
     if (succeeded.count > 0 && failed.count === 0) {
       // All succeeded
       title = `🚢 Cargo Marshal - ${succeeded.count} vessels departed`;
-      body = `\n💰 Net Income: $${formatNumber(succeeded.totalNetIncome)}\n⛽ Fuel Used: ${formatNumber(succeeded.totalFuelUsed)}t\n💨 CO2 Used: ${formatNumber(succeeded.totalCO2Used)}t`;
+      body = `\n💰 Net Profit: $${formatNumber(succeeded.totalIncome)}\nUsed ⛽ Fuel: ${formatNumber(succeeded.totalFuelUsed)}t\nUsed 💨 CO2: ${formatNumber(succeeded.totalCO2Used)}t`;
     } else if (succeeded.count === 0 && failed.count > 0) {
       // All failed
       title = `🚢 Cargo Marshal - No vessels departed`;
@@ -1236,7 +1304,7 @@ async function handleVesselsDepartComplete(data) {
     } else {
       // Mixed results
       title = `🚢 Cargo Marshal - ${succeeded.count} departed, ${failed.count} failed`;
-      body = `\n💰 Net Income: $${formatNumber(succeeded.totalNetIncome)}\n⛽ Fuel Used: ${formatNumber(succeeded.totalFuelUsed)}t\n💨 CO2 Used: ${formatNumber(succeeded.totalCO2Used)}t`;
+      body = `\n💰 Net Profit: $${formatNumber(succeeded.totalIncome)}\nUsed ⛽ Fuel: ${formatNumber(succeeded.totalFuelUsed)}t\nUsed 💨 CO2: ${formatNumber(succeeded.totalCO2Used)}t`;
     }
 
     await showNotification(title, {
@@ -1276,16 +1344,16 @@ async function handleAutopilotDepartStart(data) {
  * Shows detailed notification with vessel list, revenue and consumption totals.
  */
 async function handleVesselsDeparted(data) {
-  const { count, vessels, totalIncome, totalHarborFee, totalNetIncome, totalFuelUsed, totalCO2Used } = data;
+  const { count, vessels, totalIncome, totalFuelUsed, totalCO2Used } = data;
 
-  console.log(`[Autopilot] Vessels departed: ${count} vessels - Net: $${totalNetIncome.toLocaleString()}`);
+  console.log(`[Autopilot] Vessels departed: ${count} vessels - Income: $${totalIncome.toLocaleString()}`);
 
   // Create compact vessel list
   const vesselList = vessels.map(v =>
     `<div style="font-size: 0.8em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
       <div>🚢 <strong>${v.name}</strong></div>
       <div style="font-size: 0.9em; color: #9ca3af; margin-top: 2px;">
-        ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%) | 💰 $${formatNumber(v.netIncome)}
+        ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%) | 💰 $${formatNumber(v.income)}
       </div>
     </div>`
   ).join('');
@@ -1296,22 +1364,13 @@ async function handleVesselsDeparted(data) {
     </div>
     <div class="notification-summary-box">
       <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-        <span style="color: #9ca3af;">Revenue:</span>
-        <span style="color: #4ade80; font-weight: bold;">+ $${formatNumber(totalIncome)}</span>
-      </div>
-      <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-        <span style="color: #9ca3af;">Harbor Fees:</span>
-        <span style="color: #ef4444; font-weight: bold;">- $${formatNumber(totalHarborFee)}</span>
-      </div>
-      <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 8px 0;"></div>
-      <div style="display: flex; justify-content: space-between; font-size: 1.1em;">
-        <span style="color: #fff; font-weight: bold;">Total:</span>
-        <span style="color: #4ade80; font-weight: bold;">$${formatNumber(totalNetIncome)}</span>
+        <span style="color: #9ca3af;">Total Income:</span>
+        <span style="color: #4ade80; font-weight: bold;">$${formatNumber(totalIncome)}</span>
       </div>
       <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.9em; color: #9ca3af;">
         <div style="font-size: 0.85em; margin-bottom: 4px; opacity: 0.8;">Consumption:</div>
-        <div>⛽ ${formatNumber(totalFuelUsed)}t Fuel</div>
-        <div style="margin-top: 2px;">💨 ${formatNumber(totalCO2Used)}t CO2</div>
+        <div>Used ⛽ Fuel: ${formatNumber(totalFuelUsed)}t</div>
+        <div style="margin-top: 2px;">Used 💨 CO2: ${formatNumber(totalCO2Used)}t</div>
       </div>
     </div>
     <div class="notification-vessel-list">
@@ -1327,7 +1386,7 @@ async function handleVesselsDeparted(data) {
   // Desktop notification
   if (settings.autoPilotNotifications && settings.enableDesktopNotifications && settings.notifyCargoMarshalDesktop && Notification.permission === 'granted') {
     await showNotification('🚢 Cargo Marshal - Departure Complete', {
-      body: `Vessels Departed: ${count}\n\n💰 Net Income: $${formatNumber(totalNetIncome)}\n⛽ Fuel Used: ${formatNumber(totalFuelUsed)}t\n💨 CO2 Used: ${formatNumber(totalCO2Used)}t`,
+      body: `Vessels Departed: ${count}\n\n💰 Net Profit: $${formatNumber(totalIncome)}\nUsed ⛽ Fuel: ${formatNumber(totalFuelUsed)}t\nUsed 💨 CO2: ${formatNumber(totalCO2Used)}t`,
       icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>🚢</text></svg>",
       tag: 'cargo-marshal',
       silent: false
@@ -2110,6 +2169,30 @@ function handleCoopUpdate(data) {
 }
 
 /**
+ * Handles company_type updates from backend.
+ * Updates global variable for vessel purchase restrictions.
+ * Refreshes vessel catalog to show/hide locked banners.
+ */
+function handleCompanyTypeUpdate(data) {
+  const { company_type } = data;
+  window.USER_COMPANY_TYPE = company_type;
+  if (AUTOPILOT_LOG_LEVEL === 'detailed') {
+    console.log(`[Autopilot] Company type update:`, company_type);
+  }
+
+  // Show/hide tanker filter button in sell vessels dialog
+  const sellTankerBtn = document.getElementById('sellFilterTankerBtn');
+  if (sellTankerBtn && company_type && company_type.includes('tanker')) {
+    sellTankerBtn.classList.remove('hidden');
+  }
+
+  // Refresh vessel cards if catalog is open
+  if (window.refreshVesselCardsIfVisible) {
+    window.refreshVesselCardsIfVisible();
+  }
+}
+
+/**
  * Handles stock price and anchor capacity updates from backend.
  * Updates header displays for stock value/trend and anchor slots.
  */
@@ -2208,59 +2291,6 @@ function handleHeaderDataUpdate(data) {
   }
 }
 
-/**
- * Handles anchor point updates (pending count) from backend.
- * Updates pending anchor points display immediately when a purchase is made.
- */
-function handleAnchorUpdate(data) {
-  const { pending } = data;
-
-  // Update cache
-  if (pending !== undefined) {
-    updateDataCache.anchor.pending = pending;
-  }
-
-  if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Anchor update: Pending=${pending}`);
-  }
-
-  // Update anchor display with new pending count
-  const anchorSlotsDisplay = document.getElementById('anchorSlotsDisplay');
-  if (anchorSlotsDisplay && updateDataCache.anchor) {
-    const total = updateDataCache.anchor.max;
-    const free = updateDataCache.anchor.available;
-    const pendingCount = pending || 0;
-
-    // Build display string with labels
-    // Total: green if pending > 0 (anchor points on the way), red if pending = 0 (need to buy)
-    const totalColor = pendingCount > 0 ? '#4ade80' : '#ef4444';
-    let html = `Total <span style="color: ${totalColor};">${total}</span>`;
-
-    // Free slots - only show if > 0, in red
-    if (free > 0) {
-      html += ` ⚓ Free <span style="color: #ef4444;">${free}</span>`;
-    }
-
-    // Pending - only show if > 0, in orange
-    if (pendingCount > 0) {
-      html += ` ⚓ Pending <span style="color: #fbbf24;">${pendingCount}</span>`;
-    }
-
-    anchorSlotsDisplay.innerHTML = html;
-  }
-
-  // Refresh vessel purchase buttons if anchor slots changed
-  if (window.refreshVesselCardsIfVisible) {
-    window.refreshVesselCardsIfVisible();
-  }
-
-  // Save to localStorage cache for next page load
-  if (window.saveBadgeCache && updateDataCache.anchor) {
-    window.saveBadgeCache({
-      anchor: updateDataCache.anchor
-    });
-  }
-}
 
 /**
  * Handle hijacking negotiation updates from auto-negotiate autopilot.

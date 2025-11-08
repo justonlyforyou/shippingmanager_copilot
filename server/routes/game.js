@@ -38,6 +38,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const os = require('os');
 const logger = require('../utils/logger');
+const autopilot = require('../autopilot');
 
 const router = express.Router();
 
@@ -54,9 +55,10 @@ router.get('/vessel/get-vessels', async (req, res) => {
   try {
     const data = await apiCallWithRetry('/game/index', 'POST', {});
     res.json({
-      vessels: data.data.user_vessels || [],
-      experience_points: data.data.experience_points || 0,
-      levelup_experience_points: data.data.levelup_experience_points || 1
+      vessels: data.data.user_vessels,
+      experience_points: data.data.experience_points,
+      levelup_experience_points: data.data.levelup_experience_points,
+      company_type: data.user?.company_type
     });
   } catch (error) {
     logger.error('Error getting vessels:', error);
@@ -115,14 +117,17 @@ router.post('/bunker/purchase-fuel', express.json(), async (req, res) => {
   }
 
   try {
+    // Get cash BEFORE purchase to calculate actual cost
+    const state = require('../state');
+    const bunkerBefore = state.getBunkerState(userId);
+    const cashBefore = bunkerBefore ? bunkerBefore.cash : 0;
+
     // API expects amount in tons (NOT kg) - send directly
     const data = await apiCall('/bunker/purchase-fuel', 'POST', { amount });
 
     // Broadcast bunker update to all clients (manual purchase)
-    const userId = getUserId();
     if (userId && data.user) {
       // API doesn't return capacity fields - use cached values from autopilot
-      const autopilot = require('../autopilot');
       const cachedCapacity = autopilot.getCachedCapacity(userId);
       const { broadcastBunkerUpdate } = require('../websocket');
 
@@ -134,13 +139,12 @@ router.post('/bunker/purchase-fuel', express.json(), async (req, res) => {
         maxCO2: cachedCapacity.maxCO2
       });
 
-      // Broadcast notification to all clients
-      const state = require('../state');
-      const bunker = state.getBunkerState(userId);
-      const prices = state.getPrices(userId);
-      const totalCost = Math.round(amount * prices.fuel);
+      // Calculate ACTUAL cost from API response (includes discounts!)
+      const cashAfter = data.user.cash;
+      const actualCost = Math.round(cashBefore - cashAfter);
+      const actualPricePerTon = Math.round(actualCost / amount);
 
-      logger.log(`[Manual Fuel Purchase] User bought ${amount}t @ $${prices.fuel}/t = $${totalCost.toLocaleString('en-US')}`);
+      logger.log(`[Manual Fuel Purchase] User bought ${amount}t @ $${actualPricePerTon}/t = $${actualCost.toLocaleString('en-US')} (Cash: $${cashBefore.toLocaleString('en-US')} → $${cashAfter.toLocaleString('en-US')})`);
 
       broadcastToUser(userId, 'user_action_notification', {
         type: 'success',
@@ -155,12 +159,12 @@ router.post('/bunker/purchase-fuel', express.json(), async (req, res) => {
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
               <span>Price per ton:</span>
-              <span>$${prices.fuel}/t</span>
+              <span>$${actualPricePerTon}/t</span>
             </div>
             <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
             <div style="display: flex; justify-content: space-between; font-size: 15px;">
               <span><strong>Total:</strong></span>
-              <span style="color: #ef4444;"><strong>$${totalCost.toLocaleString('en-US')}</strong></span>
+              <span style="color: #ef4444;"><strong>$${actualCost.toLocaleString('en-US')}</strong></span>
             </div>
           </div>
         `
@@ -168,6 +172,9 @@ router.post('/bunker/purchase-fuel', express.json(), async (req, res) => {
 
       // Broadcast fuel purchase complete to unlock buttons
       broadcastToUser(userId, 'fuel_purchase_complete', { amount });
+
+      // Trigger immediate data update
+      await autopilot.tryUpdateAllData();
     }
 
     res.json(data);
@@ -208,14 +215,17 @@ router.post('/bunker/purchase-co2', express.json(), async (req, res) => {
   }
 
   try {
+    // Get cash BEFORE purchase to calculate actual cost
+    const state = require('../state');
+    const bunkerBefore = state.getBunkerState(userId);
+    const cashBefore = bunkerBefore ? bunkerBefore.cash : 0;
+
     // API expects amount in tons (NOT kg) - send directly
     const data = await apiCall('/bunker/purchase-co2', 'POST', { amount });
 
     // Broadcast bunker update to all clients (manual purchase)
-    const userId = getUserId();
     if (userId && data.user) {
       // API doesn't return capacity fields - use cached values from autopilot
-      const autopilot = require('../autopilot');
       const cachedCapacity = autopilot.getCachedCapacity(userId);
       const { broadcastBunkerUpdate } = require('../websocket');
 
@@ -227,13 +237,12 @@ router.post('/bunker/purchase-co2', express.json(), async (req, res) => {
         maxCO2: cachedCapacity.maxCO2
       });
 
-      // Broadcast notification to all clients
-      const state = require('../state');
-      const bunker = state.getBunkerState(userId);
-      const prices = state.getPrices(userId);
-      const totalCost = Math.round(amount * prices.co2);
+      // Calculate ACTUAL cost from API response (includes discounts!)
+      const cashAfter = data.user.cash;
+      const actualCost = Math.round(cashBefore - cashAfter);
+      const actualPricePerTon = Math.round(actualCost / amount);
 
-      logger.log(`[Manual CO2 Purchase] User bought ${amount}t @ $${prices.co2}/t = $${totalCost.toLocaleString('en-US')}`);
+      logger.log(`[Manual CO2 Purchase] User bought ${amount}t @ $${actualPricePerTon}/t = $${actualCost.toLocaleString('en-US')} (Cash: $${cashBefore.toLocaleString('en-US')} → $${cashAfter.toLocaleString('en-US')})`);
 
       broadcastToUser(userId, 'user_action_notification', {
         type: 'success',
@@ -248,12 +257,12 @@ router.post('/bunker/purchase-co2', express.json(), async (req, res) => {
             </div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
               <span>Price per ton:</span>
-              <span>$${prices.co2}/t</span>
+              <span>$${actualPricePerTon}/t</span>
             </div>
             <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
             <div style="display: flex; justify-content: space-between; font-size: 15px;">
               <span><strong>Total:</strong></span>
-              <span style="color: #ef4444;"><strong>$${totalCost.toLocaleString('en-US')}</strong></span>
+              <span style="color: #ef4444;"><strong>$${actualCost.toLocaleString('en-US')}</strong></span>
             </div>
           </div>
         `
@@ -261,6 +270,9 @@ router.post('/bunker/purchase-co2', express.json(), async (req, res) => {
 
       // Broadcast CO2 purchase complete to unlock buttons
       broadcastToUser(userId, 'co2_purchase_complete', { amount });
+
+      // Trigger immediate data update
+      await autopilot.tryUpdateAllData();
     }
 
     res.json(data);
@@ -296,7 +308,6 @@ router.post('/bunker/purchase-co2', express.json(), async (req, res) => {
 router.post('/route/depart', async (req, res) => {
   try {
     const userId = getUserId();
-    const autopilot = require('../autopilot');
 
     // Extract vessel IDs from request body (optional)
     const vesselIds = req.body?.vessel_ids || null;
@@ -314,7 +325,8 @@ router.post('/route/depart', async (req, res) => {
     // Call universal depart function
     // vesselIds = null means "depart all"
     // vesselIds = [1,2,3] means "depart these specific vessels"
-    const result = await autopilot.departVessels(userId, vesselIds);
+    const { broadcastToUser } = require('../websocket');
+    const result = await autopilot.departVessels(userId, vesselIds, broadcastToUser, autopilot.autoRebuyAll, autopilot.tryUpdateAllData);
 
     res.json(result || { success: true, message: 'Depart triggered' });
   } catch (error) {
@@ -473,7 +485,6 @@ router.post('/vessel/sell-vessels', express.json(), async (req, res) => {
           const user = gameData.data.user;
 
           // API doesn't return capacity fields - use cached values from autopilot
-          const autopilot = require('../autopilot');
           const cachedCapacity = autopilot.getCachedCapacity(userId);
 
           broadcastToUser(userId, 'bunker_update', {
@@ -651,12 +662,12 @@ router.post('/vessel/get-repair-preview', express.json(), async (req, res) => {
   try {
     // Get all vessels
     const vesselData = await apiCallWithRetry('/game/index', 'POST', {});
-    const allVessels = vesselData.data.user_vessels || [];
+    const allVessels = vesselData.data.user_vessels;
     const user = vesselData.user;
 
     // Filter vessels needing repair
     const vesselsToRepair = allVessels.filter(v => {
-      const wear = parseInt(v.wear) || 0;
+      const wear = parseInt(v.wear);
       return wear >= threshold;
     });
 
@@ -672,7 +683,7 @@ router.post('/vessel/get-repair-preview', express.json(), async (req, res) => {
     const vesselDetails = vesselsToRepair.map(vessel => {
       const costVessel = costData.vessels.find(v => v.id === vessel.id);
       const wearMaintenance = costVessel?.maintenance_data?.find(m => m.type === 'wear');
-      const cost = wearMaintenance?.price || 0;
+      const cost = wearMaintenance?.price;
       return {
         id: vessel.id,
         name: vessel.name,
@@ -708,11 +719,11 @@ router.post('/vessel/bulk-repair', express.json(), async (req, res) => {
   try {
     // Get all vessels
     const vesselData = await apiCallWithRetry('/game/index', 'POST', {});
-    const allVessels = vesselData.data.user_vessels || [];
+    const allVessels = vesselData.data.user_vessels;
 
     // Filter vessels needing repair
     const vesselsToRepair = allVessels.filter(v => {
-      const wear = parseInt(v.wear) || 0;
+      const wear = parseInt(v.wear);
       return wear >= threshold;
     });
 
@@ -736,7 +747,7 @@ router.post('/vessel/bulk-repair', express.json(), async (req, res) => {
     const vesselDetails = vesselsToRepair.map(vessel => {
       const costVessel = costData.vessels.find(v => v.id === vessel.id);
       const wearMaintenance = costVessel?.maintenance_data?.find(m => m.type === 'wear');
-      const cost = wearMaintenance?.price || 0;
+      const cost = wearMaintenance?.price;
       logger.debug(`[Bulk Repair] Vessel ${vessel.name} (ID: ${vessel.id}): wear=${vessel.wear}%, cost=$${cost}`);
       return {
         id: vessel.id,
@@ -823,7 +834,6 @@ router.post('/vessel/bulk-repair', express.json(), async (req, res) => {
 /** POST /api/check-price-alerts - Manually trigger price alert check (called on page load) */
 router.post('/check-price-alerts', async (req, res) => {
   try {
-    const autopilot = require('../autopilot');
     await autopilot.checkPriceAlerts();
     res.json({ success: true });
   } catch (error) {
@@ -836,7 +846,6 @@ router.post('/check-price-alerts', async (req, res) => {
 router.post('/autopilot/trigger-depart', async (req, res) => {
   try {
     const userId = getUserId();
-    const autopilot = require('../autopilot');
     const state = require('../state');
 
     const settings = state.getSettings(userId);
@@ -868,7 +877,6 @@ router.post('/autopilot/trigger-depart', async (req, res) => {
 router.post('/autopilot/toggle', async (req, res) => {
   try {
     const userId = getUserId();
-    const autopilot = require('../autopilot');
     const { broadcastToUser } = require('../websocket');
 
     // Toggle paused state in autopilot.js (global state)
@@ -909,8 +917,6 @@ router.post('/autopilot/toggle', async (req, res) => {
  */
 router.get('/autopilot/status', async (req, res) => {
   try {
-    const autopilot = require('../autopilot');
-
     const isPaused = autopilot.isAutopilotPaused();
 
     res.json({

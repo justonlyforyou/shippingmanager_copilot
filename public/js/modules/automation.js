@@ -647,11 +647,11 @@ async function checkAutoDepartAll(settings) {
 
             // Extract financial data from API response
             const departInfo = result.data?.depart_info || {};
+            // depart_income is already NET income (after harbor fees)
             const income = departInfo.depart_income || 0;
             const harborFee = departInfo.harbor_fee || 0;
             const fuelUsage = (departInfo.fuel_usage || 0) / 1000; // Convert to tons
             const co2Emission = (departInfo.co2_emission || 0) / 1000; // Convert to tons
-            const netIncome = income - harborFee;
 
             // Check if departure was actually successful
             // API returns $0 income when vessel couldn't depart (e.g., no fuel)
@@ -675,7 +675,6 @@ async function checkAutoDepartAll(settings) {
               guards: guards,
               income: income,
               harborFee: harborFee,
-              netIncome: netIncome,
               fuelUsage: fuelUsage,
               co2Emission: co2Emission
             });
@@ -722,8 +721,6 @@ async function checkAutoDepartAll(settings) {
     if (departedCount > 0) {
       // Calculate totals
       const totalIncome = departedVessels.reduce((sum, v) => sum + v.income, 0);
-      const totalHarborFee = departedVessels.reduce((sum, v) => sum + v.harborFee, 0);
-      const totalNetIncome = departedVessels.reduce((sum, v) => sum + v.netIncome, 0);
       const totalFuelUsage = departedVessels.reduce((sum, v) => sum + v.fuelUsage, 0);
       const totalCO2Emission = departedVessels.reduce((sum, v) => sum + v.co2Emission, 0);
 
@@ -732,7 +729,7 @@ async function checkAutoDepartAll(settings) {
         `<div style="font-size: 0.8em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
           <div>🚢 <strong>${v.name}</strong></div>
           <div style="font-size: 0.9em; color: #9ca3af; margin-top: 2px;">
-            ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%) | 💰 $${formatNumber(v.netIncome)}
+            ${formatNumber(v.cargoLoaded)}/${formatNumber(v.capacity)} TEU (${(v.utilization * 100).toFixed(0)}%) | 💰 $${formatNumber(v.income)}
           </div>
         </div>`
       ).join('');
@@ -743,17 +740,8 @@ async function checkAutoDepartAll(settings) {
         </div>
         <div style="margin: 12px 0; padding: 12px; background: rgba(0,0,0,0.2); border-radius: 6px; font-family: monospace;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: #9ca3af;">Revenue:</span>
-            <span style="color: #10b981; font-weight: bold;">+ $${formatNumber(totalIncome)}</span>
-          </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: #9ca3af;">Harbor Fees:</span>
-            <span style="color: #ef4444; font-weight: bold;">- $${formatNumber(totalHarborFee)}</span>
-          </div>
-          <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 8px 0;"></div>
-          <div style="display: flex; justify-content: space-between; font-size: 1.1em;">
-            <span style="color: #fff; font-weight: bold;">Total:</span>
-            <span style="color: #10b981; font-weight: bold;">$${formatNumber(totalNetIncome)}</span>
+            <span style="color: #9ca3af;">Total Income:</span>
+            <span style="color: #10b981; font-weight: bold;">$${formatNumber(totalIncome)}</span>
           </div>
           <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); font-size: 0.9em; color: #9ca3af;">
             <div style="font-size: 0.85em; margin-bottom: 4px; opacity: 0.8;">Consumption:</div>
@@ -773,7 +761,7 @@ async function checkAutoDepartAll(settings) {
       const desktopNotifsEnabled = settings.enableDesktopNotifications !== undefined ? settings.enableDesktopNotifications : true;
       if (desktopNotifsEnabled && Notification.permission === 'granted') {
         await showNotification(`🤖 Auto-Depart: ${departedCount} vessel${departedCount > 1 ? 's' : ''}`, {
-          body: `💰 Net: $${formatNumber(totalNetIncome)} | ⛽ ${formatNumber(totalFuelUsage)}t fuel | 💨 ${formatNumber(totalCO2Emission)}t CO2`,
+          body: `💰 Income: $${formatNumber(totalIncome)} | ⛽ ${formatNumber(totalFuelUsage)}t fuel | 💨 ${formatNumber(totalCO2Emission)}t CO2`,
           icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>🚢</text></svg>",
           tag: 'auto-depart',
           silent: false

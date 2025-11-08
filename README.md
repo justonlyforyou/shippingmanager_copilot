@@ -443,3 +443,61 @@ This software is free to use and modify, but **may not be sold commercially**. S
 ## Application Preview
 
 ![Application Demo](screenshots/demo.gif)
+
+### Startup & Overview
+
+<img src="screenshots/1_smcopilot_startup.png" width="50%">
+<img src="screenshots/1_smcopilot_startup1.png" width="50%">
+<img src="screenshots/2_smcopilot_overview_noally.png" width="50%">
+
+### Fuel & CO2 Management
+
+<img src="screenshots/3_smcopilot_purchase_fuel.png" width="50%">
+<img src="screenshots/4_smcopilot_purchase_co2.png" width="50%">
+
+### Vessel Management
+
+<img src="screenshots/5_smcopilot_buy_vessels_.png" width="50%">
+<img src="screenshots/5_smcopilot_buy_vessels_filter1.png" width="50%">
+<img src="screenshots/5_smcopilot_buy_vessels_filter2.png" width="50%">
+<img src="screenshots/5_smcopilot_buy_vessels_cart.png" width="50%">
+
+### Vessel Selling
+
+<img src="screenshots/6_smcopilot_sell_vessels_1.png" width="50%">
+<img src="screenshots/6_smcopilot_sell_vessels_2.png" width="50%">
+
+### Bulk Operations
+
+<img src="screenshots/7_smcopilot_bulk_repair.png" width="50%">
+<img src="screenshots/8_smcopilot_marketing_ampaigns.png" width="50%">
+
+### Forecast & Anchor Points
+
+<img src="screenshots/9_smcopilot_forecast.png" width="50%">
+<img src="screenshots/10_smcopilot_purchase_anchorpoints.png" width="50%">
+
+### Settings
+
+<img src="screenshots/11_1_smcopilot_settings_pricealert.png" width="50%">
+<img src="screenshots/11_2_smcopilot_settings_general.png" width="50%">
+<img src="screenshots/14_smcopilot_settings_certs.png" width="50%">
+
+### ChatBot
+
+<img src="screenshots/12_1_smcopilot_chatbot_general.png" width="50%">
+<img src="screenshots/12_2_smcopilot_chatbot_forecast.png" width="50%">
+<img src="screenshots/12_3_smcopilot_chatbot_help_command.png" width="50%">
+<img src="screenshots/12_4_smcopilot_chatbot_custom_commands.png" width="50%">
+
+### AutoPilot
+
+<img src="screenshots/13_1_smcopilot_autopilot_settings.png" width="50%">
+<img src="screenshots/13_2_smcopilot_autopilot_barrel_boss.png" width="50%">
+<img src="screenshots/13_3_smcopilot_autopilot_atmosphere_broker.png" width="50%">
+<img src="screenshots/13_4_smcopilot_autopilot_cargo_marshal.png" width="50%">
+<img src="screenshots/13_5_smcopilot_autopilot_harbormaster.png" width="50%">
+<img src="screenshots/13_6_smcopilot_autopilot_reputation_Chief.png" width="50%">
+<img src="screenshots/13_7_smcopilot_autopilot_fairhand.png" width="50%">
+<img src="screenshots/13_8_smcopilot_autopilot_captain_blackbeard.png" width="50%">
+<img src="screenshots/13_9_smcopilot_autopilot_yardforeman.png" width="50%">

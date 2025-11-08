@@ -423,12 +423,21 @@ def start_server(settings):
             server_cmd = ['node', 'app.js']
 
         # Start the server process (output goes to winston log file)
+        # In debug mode, redirect stderr to debug.log to capture early crashes
+        if settings.get('debugMode', False):
+            debug_log = DATA_ROOT / 'logs' / 'debug.log'
+            debug_log.parent.mkdir(parents=True, exist_ok=True)
+            stderr_handle = open(debug_log, 'a')  # append mode
+            print(f"[SM-CoPilot] Debug mode: stderr -> {debug_log}", file=sys.stderr)
+        else:
+            stderr_handle = subprocess.DEVNULL
+
         server_process = subprocess.Popen(
             server_cmd,
             cwd=str(PROJECT_ROOT),
             env=env,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=stderr_handle,
             stdin=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
         )
@@ -507,7 +516,7 @@ def start_server(settings):
 
     except Exception as e:
         print(f"[SM-CoPilot] Error starting server: {e}", file=sys.stderr)
-        messagebox.showerror("Server Error", f"Failed to start server:\n{e}")
+        show_topmost_messagebox(messagebox.showerror, "Server Error", f"Failed to start server:\n{e}")
         return False
     finally:
         # Always clear the starting flag
@@ -628,6 +637,34 @@ settings_window = None
 # Global reference to loading dialog
 loading_dialog = None
 
+def show_topmost_messagebox(type_func, title, message, **kwargs):
+    """
+    Show a messagebox that appears on top of all windows.
+
+    Args:
+        type_func: messagebox function (showerror, showinfo, showwarning, askyesno, etc.)
+        title: Dialog title
+        message: Dialog message
+        **kwargs: Additional arguments to pass to messagebox
+
+    Returns:
+        Result from messagebox function
+    """
+    # Create a temporary hidden root window
+    temp_root = tk.Tk()
+    temp_root.withdraw()  # Hide it
+    temp_root.attributes('-topmost', True)  # Make it topmost
+    temp_root.lift()
+    temp_root.focus_force()
+
+    try:
+        # Show messagebox with temp_root as parent
+        result = type_func(title, message, parent=temp_root, **kwargs)
+        return result
+    finally:
+        # Clean up
+        temp_root.destroy()
+
 def get_available_ips():
     """Get list of available IP addresses on the system"""
     ips = ['0.0.0.0', '127.0.0.1']  # Default options
@@ -709,6 +746,9 @@ def show_settings_dialog(error_message=None):
 
     root.title("Shipping Manager CoPilot - Settings")
     root.resizable(False, False)
+
+    # Always on top
+    root.attributes('-topmost', True)
 
     # Set window icon
     set_window_icon(root)
@@ -967,6 +1007,9 @@ def show_loading_dialog(settings, on_ready_callback):
 
     root.title("Shipping Manager CoPilot")
     root.resizable(False, False)
+
+    # Always on top
+    root.attributes('-topmost', True)
 
     # Set window icon
     set_window_icon(root)
@@ -1726,6 +1769,9 @@ def show_ready_dialog(settings):
 
     root.title("Shipping Manager CoPilot")
     root.resizable(False, False)
+
+    # Always on top
+    root.attributes('-topmost', True)
 
     # Set window icon
     set_window_icon(root)

@@ -312,7 +312,7 @@
                 <button id="sellFilterContainerBtn" class="vessel-filter-btn active" data-type="container">
                     📦 Container
                 </button>
-                <button id="sellFilterTankerBtn" class="vessel-filter-btn" data-type="tanker">
+                <button id="sellFilterTankerBtn" class="vessel-filter-btn hidden" data-type="tanker">
                     🛢️ Tanker
                 </button>
                 <button id="sellCartBtn" class="vessel-filter-btn hidden">
@@ -454,6 +454,40 @@
                                     <option value="15">15%</option>
                                     <option value="20">20%</option>
                                     <option value="25">25%</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
+                                <label for="minCargoUtilization" style="margin: 0; color: #e0e0e0; font-size: 14px;">📦 Min Cargo Utilization</label>
+                                <select id="minCargoUtilization" style="width: 100px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer;">
+                                    <option value="">Not set</option>
+                                    <option value="10">10%</option>
+                                    <option value="20">20%</option>
+                                    <option value="30">30%</option>
+                                    <option value="40">40%</option>
+                                    <option value="50">50%</option>
+                                    <option value="60">60%</option>
+                                    <option value="70">70%</option>
+                                    <option value="75">75%</option>
+                                    <option value="80">80%</option>
+                                    <option value="85">85%</option>
+                                    <option value="90">90%</option>
+                                    <option value="95">95%</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
+                                <label for="harborFeeWarningThreshold" style="margin: 0; color: #e0e0e0; font-size: 14px;">⚓ Harbor Fee Warning</label>
+                                <select id="harborFeeWarningThreshold" style="width: 100px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer;">
+                                    <option value="">Not set</option>
+                                    <option value="10">10%</option>
+                                    <option value="20">20%</option>
+                                    <option value="30">30%</option>
+                                    <option value="40">40%</option>
+                                    <option value="50">50%</option>
+                                    <option value="60">60%</option>
+                                    <option value="70">70%</option>
+                                    <option value="80">80%</option>
+                                    <option value="90">90%</option>
+                                    <option value="99">>99%</option>
                                 </select>
                             </div>
                         </div>
@@ -600,19 +634,15 @@
                                         <input type="text" id="minFuelThreshold" min="0" value="100" style="width: 100%; padding: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px;">
                                     </div>
 
-                                    <!-- Min Utilization - ALWAYS visible -->
-                                    <div style="margin-bottom: 8px;">
-                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">📦 Min Utilization (%):</label>
-                                        <select
-                                            id="minVesselUtilization"
-                                            style="width: 100%; padding: 6px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px;"
-                                        >
-                                            <option value="30">30%</option>
-                                            <option value="45" selected>45%</option>
-                                            <option value="60">60%</option>
-                                            <option value="75">75%</option>
-                                            <option value="90">90%</option>
-                                        </select>
+                                    <!-- Min Utilization Reference - Points to General Settings -->
+                                    <div style="margin-bottom: 8px; padding: 10px; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.3); border-radius: 6px;">
+                                        <div style="color: #9ca3af; font-size: 12px; margin-bottom: 4px;">📦 Min Cargo Utilization:</div>
+                                        <div style="color: #60a5fa; font-size: 13px; font-weight: 500;">
+                                            → Configured in <span style="text-decoration: underline;">General Settings</span>
+                                        </div>
+                                        <div style="color: #9ca3af; font-size: 11px; margin-top: 4px; font-style: italic;">
+                                            (Applies to both manual and autopilot departures)
+                                        </div>
                                     </div>
 
                                     <!-- Use Route Default Checkbox -->
@@ -655,22 +685,20 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">⚓ Autopilot - Harbormaster</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically purchase anchor points to maintain target level. Runs every 30 minutes.
+                                    Automatically purchase anchor points when available capacity drops below threshold. Event-driven (checks every 60 seconds).
                                 </p>
 
                                 <div id="autoAnchorPointOptions" class="autopilot-options autopilot-options-light-blue hidden">
-                                    <div style="margin-bottom: 12px;">
-                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 6px;">⚓ Purchase Amount:</label>
-                                        <div style="display: flex; gap: 8px;">
-                                            <label style="flex: 1; display: flex; align-items: center; padding: 8px; background: rgba(59, 130, 246, 0.1); border: 2px solid rgba(59, 130, 246, 0.3); border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                                                <input type="radio" name="autoAnchorAmount" value="1" id="autoAnchorAmount1" checked style="margin-right: 8px; cursor: pointer;">
-                                                <span style="color: #e0e0e0; font-size: 13px; font-weight: 600;">Buy 1</span>
-                                            </label>
-                                            <label style="flex: 1; display: flex; align-items: center; padding: 8px; background: rgba(139, 92, 246, 0.1); border: 2px solid rgba(139, 92, 246, 0.3); border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                                                <input type="radio" name="autoAnchorAmount" value="10" id="autoAnchorAmount10" style="margin-right: 8px; cursor: pointer;">
-                                                <span style="color: #e0e0e0; font-size: 13px; font-weight: 600;">Buy 10</span>
-                                            </label>
-                                        </div>
+                                    <div class="radio-group-inline">
+                                        <label class="radio-group-label">⚓ Purchase Amount:</label>
+                                        <label class="radio-option">
+                                            <input type="radio" name="autoAnchorAmount" value="1" id="autoAnchorAmount1" checked>
+                                            <span>Buy 1</span>
+                                        </label>
+                                        <label class="radio-option">
+                                            <input type="radio" name="autoAnchorAmount" value="10" id="autoAnchorAmount10">
+                                            <span>Buy 10</span>
+                                        </label>
                                     </div>
                                     <div style="margin-bottom: 8px;">
                                         <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">💰 Min Cash Reserve ($):</label>
@@ -696,7 +724,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🔧 Autopilot - Yard Foreman</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically repair all vessels as long as funds are available. Runs every 10 minutes.
+                                    Automatically repair all vessels when wear threshold is reached. Event-driven (checks every 60 seconds).
                                 </p>
                                 <p style="margin: 4px 0 0 28px; color: #6b7280; font-size: 11px; font-style: italic;">
                                     Uses the wear threshold configured in the Maintenance section below
@@ -729,7 +757,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">📊 Autopilot - Reputation Chief</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    When a campaign expires, automatically purchase the most expensive one that current funds allow. Runs every 15 minutes.
+                                    When active campaigns drop below 3, immediately purchase the most expensive one that current funds allow. Event-driven (checks every 60 seconds).
                                 </p>
 
                                 <div id="autoCampaignRenewalOptions" class="autopilot-options autopilot-options-blue">
@@ -758,7 +786,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🤝 Autopilot - Fair Hand</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically contribute to alliance COOP when available. Runs every 60 minutes.
+                                    Automatically contribute to alliance COOP when targets are available. Event-driven (checks every 60 seconds).
                                 </p>
 
                                 <div id="autoCoopOptions" class="autopilot-options autopilot-options-blue hidden">
@@ -783,7 +811,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">☠️ Autopilot - Cap'n Blackbeard</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically negotiate and accept hijacking ransoms. Runs every 20 minutes. Open cases checked every 30s, solved cases cached.
+                                    Automatically negotiate and accept hijacking ransoms with payment verification. Event-driven (checks every 60 seconds).
                                 </p>
 
                                 <div id="autoNegotiateOptions" class="autopilot-options autopilot-options-blue hidden">
@@ -885,9 +913,17 @@
                             <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
                                 <h4 style="margin: 0 0 12px 0; color: #a78bfa; font-size: 14px; font-weight: 600;">Forecast Command Settings</h4>
                                 <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <!-- Daily Forecast Toggle -->
+                                    <div style="padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 6px;">
+                                        <label style="display: flex; align-items: center; cursor: pointer;">
+                                            <input type="checkbox" id="dailyForecastEnabled" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
+                                            <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">📅 Daily Forecast (auto-post)</span>
+                                        </label>
+                                    </div>
+
                                     <!-- Daily Forecast Time -->
                                     <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 6px;">
-                                        <label for="dailyForecastTime" style="margin: 0; color: #e0e0e0; font-size: 14px;">📅 Daily Forecast Time (HH:MM):</label>
+                                        <label for="dailyForecastTime" style="margin: 0; color: #e0e0e0; font-size: 14px;">⏰ Forecast Time (HH:MM):</label>
                                         <input type="time" id="dailyForecastTime" value="18:00" style="width: 120px; padding: 6px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px;">
                                     </div>
 

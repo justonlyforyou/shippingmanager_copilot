@@ -393,10 +393,16 @@ def show_session_selector(valid_sessions, expired_sessions=None, show_action_but
                 stdout, stderr = proc.communicate()
                 result_code = -1
 
+        print(f"[get_session_windows] Subprocess result_code: {result_code}", file=sys.stderr)
+        print(f"[get_session_windows] Subprocess stdout: {repr(stdout)}", file=sys.stderr)
+        print(f"[get_session_windows] Subprocess stderr: {repr(stderr)}", file=sys.stderr)
+
         if result_code == 0 and stdout.strip():
-            return json.loads(stdout.strip())
+            parsed_result = json.loads(stdout.strip())
+            print(f"[get_session_windows] Parsed JSON result: {parsed_result}", file=sys.stderr)
+            return parsed_result
         else:
-            print("[-] User cancelled session selection", file=sys.stderr)
+            print("[-] User cancelled session selection or subprocess failed", file=sys.stderr)
             return None
 
     except Exception as e:

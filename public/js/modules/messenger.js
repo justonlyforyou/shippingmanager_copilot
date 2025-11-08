@@ -30,7 +30,7 @@
  * @requires ui-dialogs - Confirmation dialogs
  */
 
-import { escapeHtml, showSideNotification } from './utils.js';
+import { escapeHtml, showSideNotification, showNotification } from './utils.js';
 import { fetchMessengerChats, fetchMessengerMessages, sendPrivateMessage as apiSendPrivateMessage, deleteChat as apiDeleteChat, markChatAsRead as apiMarkChatAsRead, fetchContacts, searchUsers } from './api.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 
@@ -502,12 +502,14 @@ async function displaySystemMessage(chat) {
         // Load negotiation history from server
         let negotiationHistory = [];
         let resolvedAt = null;
+        let paymentVerification = null;
         try {
           const historyResponse = await fetch(`/api/hijacking/history/${chat.values.case_id}`);
           const historyData = await historyResponse.json();
           negotiationHistory = historyData.history || [];
           autopilotResolved = historyData.autopilot_resolved || false;
           resolvedAt = historyData.resolved_at || null;
+          paymentVerification = historyData.payment_verification || null;
         } catch (error) {
           console.error('Error loading hijack history:', error);
         }
@@ -560,6 +562,7 @@ async function displaySystemMessage(chat) {
         }
 
         caseDetails.offers = negotiationHistory;
+        caseDetails.payment_verification = paymentVerification;
 
         // Start polling for active (unresolved) hijacking cases
         // This ensures we get notifications when pirates respond
@@ -707,14 +710,44 @@ function formatSystemMessage(body, values, subject, caseDetails, messageTimestam
       // Case is resolved (paid) - if paid_amount is null but status is 'solved', use requested_amount
       const finalAmount = paidAmount || requestedAmount;
 
-      // Captain Blackbeard signature (always shown for resolved cases)
-      const signatureHTML = `
-        <div style="position: absolute; right: -8px; top: calc(35% + 50px); transform: translateY(-50%); text-align: right;">
-          <div style="font-family: 'Segoe Script', 'Lucida Handwriting', 'Brush Script MT', cursive; font-size: 24px; font-weight: 900; color: #8b4513; opacity: 0.7; transform: rotate(-15deg); letter-spacing: 1px;">
-            Blackbeard
+      // Check payment verification
+      const paymentVerification = caseDetails?.payment_verification;
+      let verificationHTML = '';
+
+      if (paymentVerification) {
+        if (paymentVerification.verified) {
+          // Payment verified - show Blackbeard signature
+          verificationHTML = `
+            <div style="position: absolute; right: -8px; top: calc(35% + 50px); transform: translateY(-50%); text-align: right;">
+              <div style="font-family: 'Segoe Script', 'Lucida Handwriting', 'Brush Script MT', cursive; font-size: 24px; font-weight: 900; color: #8b4513; opacity: 0.7; transform: rotate(-15deg); letter-spacing: 1px;">
+                Blackbeard
+              </div>
+            </div>
+          `;
+        } else {
+          // Payment NOT verified - show FAILED
+          verificationHTML = `
+            <div style="margin-top: 12px; padding: 10px; background: rgba(239, 68, 68, 0.2); border: 2px solid #ef4444; border-radius: 4px;">
+              <div style="color: #ef4444; font-weight: bold; font-size: 18px; text-align: center;">⚠️ PAYMENT VERIFICATION FAILED ⚠️</div>
+              <div style="margin-top: 8px; font-size: 12px; color: #fca5a5;">
+                Expected: <strong>$${paymentVerification.expected_amount.toLocaleString()}</strong><br>
+                Actually Paid: <strong>$${paymentVerification.actual_paid.toLocaleString()}</strong><br>
+                Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>
+                Cash After: $${paymentVerification.cash_after.toLocaleString()}
+              </div>
+            </div>
+          `;
+        }
+      } else {
+        // No verification data (old case) - show Blackbeard signature as before
+        verificationHTML = `
+          <div style="position: absolute; right: -8px; top: calc(35% + 50px); transform: translateY(-50%); text-align: right;">
+            <div style="font-family: 'Segoe Script', 'Lucida Handwriting', 'Brush Script MT', cursive; font-size: 24px; font-weight: 900; color: #8b4513; opacity: 0.7; transform: rotate(-15deg); letter-spacing: 1px;">
+              Blackbeard
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
 
       actionsHTML = `
         ${negotiationHistoryHTML}
@@ -723,7 +756,7 @@ function formatSystemMessage(body, values, subject, caseDetails, messageTimestam
           <div style="margin-top: 8px;">
             Final Amount Paid: <strong>$${finalAmount.toLocaleString()}</strong>
           </div>
-          ${signatureHTML}
+          ${verificationHTML}
         </div>
       `;
     } else {
@@ -1165,8 +1198,8 @@ export async function updateUnreadBadge(retryCount = 0) {
         }
 
         // Show desktop notification
-        if (window.showNotification && Notification.permission === 'granted') {
-          window.showNotification(notificationTitle, {
+        if (Notification.permission === 'granted') {
+          showNotification(notificationTitle, {
             body: notificationBody,
             icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>📬</text></svg>",
             tag: "shipping-manager-inbox",

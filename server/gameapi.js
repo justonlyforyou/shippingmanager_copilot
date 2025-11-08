@@ -245,6 +245,11 @@ async function fetchBunkerState() {
   const user = data.user;
   const settings = data.data.user_settings;
 
+  if (!user) {
+    logger.error('[GameAPI] ERROR: user object missing from API response!');
+    throw new Error('user object missing from API');
+  }
+
   if (!settings || !settings.max_fuel || !settings.max_co2) {
     logger.error('[GameAPI] ERROR: user_settings or capacity fields missing from API response!');
     throw new Error('user_settings or capacity fields missing from API');
@@ -254,7 +259,7 @@ async function fetchBunkerState() {
     fuel: user.fuel / 1000, // Convert kg to tons
     co2: user.co2 / 1000,
     cash: user.cash,
-    points: user.points || 0,
+    points: user.points,
     maxFuel: settings.max_fuel / 1000,
     maxCO2: settings.max_co2 / 1000
   };
@@ -404,7 +409,7 @@ async function purchaseCO2(amount, pricePerTon = null, userId = null) {
  */
 async function fetchVessels() {
   const data = await apiCall('/game/index', 'POST', {});
-  return data.data.user_vessels || [];
+  return data.data.user_vessels;
 }
 
 /**
@@ -413,8 +418,8 @@ async function fetchVessels() {
  *
  * CRITICAL API BEHAVIORS:
  * - Vessel must have assigned route (route_id) and valid price-per-TEU (> 0)
- * - API returns income BEFORE harbor fees (must calculate netIncome ourselves)
- * - Negative netIncome is possible if harbor fees > income (full port scenario)
+ * - API returns depart_income as NET income (after harbor fees already deducted)
+ * - Harbor fee calculation bug exists at some ports (fee > income, resulting in negative profit)
  * - API error "Vessel not found or status invalid" = vessel already departed (race condition)
  *
  * Error Handling Strategy:
@@ -471,10 +476,13 @@ async function departVessel(vesselId, speed, guards = 0) {
   const departInfo = data.data.depart_info;
   const vesselData = data.data.user_vessels?.[0];
 
-  const netIncome = departInfo.depart_income - departInfo.harbor_fee;
+  // depart_income is already NET income (after harbor fees)
+  // Do NOT subtract harbor_fee again - that would be double-deduction
+  const income = departInfo.depart_income;
 
-  // Track negative netIncome bugs (known game bug with incorrect harbor fees)
-  if (netIncome < 0) {
+  // Track high harbor fee issues (for profitability warnings)
+  const profitCheck = departInfo.depart_income - departInfo.harbor_fee;
+  if (profitCheck < 0) {
     const destination = vesselData?.route_destination || 'UNKNOWN';
 
     // Load known bugs list
@@ -492,12 +500,12 @@ async function departVessel(vesselId, speed, guards = 0) {
 
     if (!isKnownBug) {
       // NEW BUG - Log full details and save to file
-      logger.error(`[gameapi.departVessel] NEGATIVE netIncome detected (NEW HARBOR)!`);
+      logger.error(`[gameapi.departVessel] HIGH HARBOR FEE detected (NEW HARBOR)!`);
       logger.error(`  Vessel: ${vesselData?.name} (ID: ${vesselId})`);
       logger.error(`  Destination: ${destination}`);
       logger.error(`  Income: $${departInfo.depart_income}`);
       logger.error(`  Harbor Fee: $${departInfo.harbor_fee}`);
-      logger.error(`  Net Income: $${netIncome}`);
+      logger.error(`  Profitability: $${profitCheck}`);
 
       // Save full raw response to file for game developers
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
@@ -520,7 +528,7 @@ async function departVessel(vesselId, speed, guards = 0) {
         vessel_id: vesselId,
         income: departInfo.depart_income,
         harbor_fee: departInfo.harbor_fee,
-        net_income: netIncome,
+        profitability: profitCheck,
         response_file: filepath
       };
 
@@ -532,22 +540,40 @@ async function departVessel(vesselId, speed, guards = 0) {
       }
     } else {
       // Known bug - just debug log
-      logger.debug(`[gameapi.departVessel] Negative netIncome at known buggy harbor: ${destination} (Income: $${departInfo.depart_income}, Fee: $${departInfo.harbor_fee}, Net: $${netIncome})`);
+      logger.debug(`[gameapi.departVessel] High harbor fee at known harbor: ${destination} (Income: $${departInfo.depart_income}, Fee: $${departInfo.harbor_fee}, Profit: $${profitCheck})`);
     }
   }
+
+  // Calculate actual cargo loaded from depart_info
+  const teuDry = departInfo.teu_dry || 0;
+  const teuRefer = departInfo.teu_refrigerated || 0;
+  const fuelCargo = departInfo.fuel || 0;
+  const crudeCargo = departInfo.crude_oil || 0;
+
+  // Total cargo depends on vessel type
+  const totalCargo = teuDry + teuRefer + fuelCargo + crudeCargo;
+
+  // LOG DEPART_INFO FOR EVERY VESSEL
+  logger.debug(`[Depart API Response] Vessel: ${vesselData?.name} (ID: ${vesselId})`);
+  logger.debug(`[Depart API Response] depart_info: ${JSON.stringify(departInfo, null, 2)}`);
 
   return {
     success: true,
     vesselId: vesselId,
     vesselName: vesselData?.name,
     destination: vesselData?.route_destination,
-    income: departInfo.depart_income,
+    income: income,
     harborFee: departInfo.harbor_fee,
-    netIncome: netIncome,
     fuelUsed: departInfo.fuel_usage / 1000, // kg to tons
     co2Used: departInfo.co2_emission / 1000, // kg to tons,
     speed: speed,
-    guards: guards
+    guards: guards,
+    // Actual cargo loaded (from API response)
+    cargoLoaded: totalCargo,
+    teuDry: teuDry,
+    teuRefrigerated: teuRefer,
+    fuelCargo: fuelCargo,
+    crudeCargo: crudeCargo
   };
 }
 
@@ -559,7 +585,7 @@ async function departVessel(vesselId, speed, guards = 0) {
  */
 async function fetchAssignedPorts() {
   const data = await apiCall('/port/get-assigned-ports', 'POST', {});
-  return data.data.ports || [];
+  return data.data.ports;
 }
 
 /**
@@ -574,8 +600,8 @@ async function fetchCampaigns() {
     // Check cache first
     const cached = cache.getCampaignCache();
     if (cached) {
-      const available = cached.data.marketing_campaigns || [];
-      const active = cached.data.active_campaigns || [];
+      const available = cached.data.marketing_campaigns;
+      const active = cached.data.active_campaigns;
 
       if (DEBUG_MODE) {
         logger.log(`[GameAPI] Campaigns from cache - Active: ${active.length}, Available: ${available.length}`);
@@ -593,8 +619,8 @@ async function fetchCampaigns() {
     // Store in cache
     cache.setCampaignCache(data);
 
-    const available = data.data.marketing_campaigns || [];
-    const active = data.data.active_campaigns || [];
+    const available = data.data.marketing_campaigns;
+    const active = data.data.active_campaigns;
 
     if (DEBUG_MODE) {
       logger.log(`[GameAPI] Fetched campaigns from API - Active: ${active.length}, Available: ${available.length}`);
@@ -676,14 +702,14 @@ async function getMaintenanceCost(vesselIds) {
       return { totalCost: 0, vessels: [] };
     }
 
-    const vessels = data.data?.vessels || [];
+    const vessels = data.data?.vessels;
 
     // Calculate total cost from individual vessel maintenance_data (API doesn't provide total_cost)
     let totalCost = 0;
     vessels.forEach(vessel => {
       const wearMaintenance = vessel.maintenance_data?.find(m => m.type === 'wear');
       if (wearMaintenance) {
-        totalCost += wearMaintenance.price || 0;
+        totalCost += wearMaintenance.price;
       }
     });
 
@@ -736,7 +762,7 @@ async function bulkRepairVessels(vesselIds) {
     return { success: false, count: 0, totalCost: 0 };
   }
 
-  const totalCost = data.data?.total_cost || 0;
+  const totalCost = data.data?.total_cost;
   if (DEBUG_MODE) {
     logger.log(`[GameAPI] Repaired ${vesselIds.length} vessels - API returned cost: $${totalCost}`);
   }
@@ -756,7 +782,7 @@ async function bulkRepairVessels(vesselIds) {
  */
 async function fetchRepairCount() {
   const data = await apiCall('/game/index', 'POST', {});
-  const vessels = data.data.user_vessels || [];
+  const vessels = data.data.user_vessels;
   return vessels.filter(v => v.wear > 0).length;
 }
 

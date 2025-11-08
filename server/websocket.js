@@ -252,7 +252,7 @@ async function getCachedMessengerChats() {
   try {
     const { apiCall } = require('./utils/api');
     const data = await apiCall('/messenger/get-chats', 'POST', {});
-    const chats = data?.data || [];
+    const chats = data?.data;
 
     // Update cache
     messengerChatsCache = {
@@ -287,7 +287,6 @@ async function getCachedMessengerChats() {
  *
  * This eliminates duplicate /hijacking/get-case calls from:
  * - performHijackingRefresh() (60s interval)
- * - refreshHijackingBadge() (via scheduler)
  * - autoNegotiateHijacking() (via autopilot)
  *
  * @param {number} caseId - Hijacking case ID
@@ -1072,7 +1071,7 @@ async function performMessengerRefresh() {
           chat_id: chat.id
         });
 
-        const messages = messagesData?.data?.chat?.messages || messagesData?.data?.messages || [];
+        const messages = messagesData?.data?.chat?.messages || messagesData?.data?.messages;
 
         // Find the latest message from the sender (not from us)
         const senderMessages = messages.filter(msg => msg.is_mine === false).reverse();

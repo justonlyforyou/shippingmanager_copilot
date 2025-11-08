@@ -206,8 +206,7 @@ router.get('/messenger/get-chats', async (req, res) => {
     // Unified 90s timeout for messenger chats (can be very slow with many messages)
     const data = await apiCall('/messenger/get-chats', 'POST', {});
 
-    // Handle case where data.data might be undefined or null
-    const chats = data?.data || [];
+    const chats = data?.data;
 
     res.json({
       chats: chats,
@@ -274,7 +273,7 @@ router.post('/messenger/get-messages', express.json(), async (req, res) => {
   try {
     const data = await apiCall('/messenger/get-chat', 'POST', { chat_id });
 
-    const messages = data?.data?.chat?.messages || data?.data?.messages || [];
+    const messages = data?.data?.chat?.messages || data?.data?.messages;
 
     res.json({
       messages: messages,
@@ -538,9 +537,10 @@ router.get('/hijacking/history/:caseId', (req, res) => {
         res.json({ history: data, autopilot_resolved: false });
       } else {
         res.json({
-          history: data.history || [],
-          autopilot_resolved: data.autopilot_resolved || false,
-          resolved_at: data.resolved_at || null
+          history: data.history,
+          autopilot_resolved: data.autopilot_resolved,
+          resolved_at: data.resolved_at,
+          payment_verification: data.payment_verification
         });
       }
     } else {
@@ -691,19 +691,91 @@ router.post('/hijacking/submit-offer', express.json(), async (req, res) => {
  *     status: string,         // Case status after payment
  *     ...
  *   },
- *   user: {...}  // Updated user data (cash deducted, reputation may change)
+ *   user: {...},  // Updated user data (cash deducted, reputation may change)
+ *   payment_verification: {
+ *     verified: boolean,
+ *     expected_amount: number,
+ *     actual_paid: number,
+ *     cash_before: number,
+ *     cash_after: number
+ *   }
  * }
  */
 router.post('/hijacking/pay', express.json(), async (req, res) => {
   const { case_id } = req.body;
+  const userId = getUserId();
 
   if (!case_id || !Number.isInteger(case_id)) {
     return res.status(400).json({ error: 'Valid case_id required' });
   }
 
   try {
+    // Get case data BEFORE payment to capture cash and expected amount
+    const caseBeforePay = await apiCall('/hijacking/get-case', 'POST', { case_id });
+    const cashBefore = caseBeforePay?.user?.cash;
+    const expectedAmount = caseBeforePay?.data?.requested_amount;
+
+    // Execute payment
     const data = await apiCall('/hijacking/pay', 'POST', { case_id });
-    res.json(data);
+
+    // Get case data AFTER payment to capture new cash
+    const caseAfterPay = await apiCall('/hijacking/get-case', 'POST', { case_id });
+    const cashAfter = caseAfterPay?.user?.cash;
+    const actualPaid = cashBefore - cashAfter;
+    const verified = actualPaid === expectedAmount;
+
+    logger.log(`[Hijacking Payment] Case ${case_id}: Payment verification - Expected: $${expectedAmount}, Actual: $${actualPaid}, Verified: ${verified}`);
+
+    // Save verification data to history
+    try {
+      const historyDir = path.join(DATA_DIR, 'hijack_history');
+      const historyPath = path.join(historyDir, `${userId}-${case_id}.json`);
+
+      if (!fs.existsSync(historyDir)) {
+        fs.mkdirSync(historyDir, { recursive: true });
+      }
+
+      // Load existing history
+      let historyData = [];
+      let autopilotResolved = false;
+      let resolvedAt = null;
+      if (fs.existsSync(historyPath)) {
+        const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+        historyData = Array.isArray(existingData) ? existingData : existingData.history;
+        autopilotResolved = existingData.autopilot_resolved;
+        resolvedAt = existingData.resolved_at;
+      }
+
+      // Update history with payment verification (manual payment)
+      const updatedHistory = {
+        history: historyData,
+        autopilot_resolved: autopilotResolved,
+        resolved_at: resolvedAt || Date.now() / 1000,
+        payment_verification: {
+          verified: verified,
+          expected_amount: expectedAmount,
+          actual_paid: actualPaid,
+          cash_before: cashBefore,
+          cash_after: cashAfter
+        }
+      };
+
+      fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
+    } catch (error) {
+      logger.error(`[Hijacking Payment] Case ${case_id}: Failed to save verification:`, error);
+    }
+
+    // Return response with verification data
+    res.json({
+      ...data,
+      payment_verification: {
+        verified: verified,
+        expected_amount: expectedAmount,
+        actual_paid: actualPaid,
+        cash_before: cashBefore,
+        cash_after: cashAfter
+      }
+    });
   } catch (error) {
     logger.error('Error paying hijacking ransom:', error);
     res.status(500).json({ error: error.message });
@@ -763,7 +835,7 @@ router.get('/hijacking/get-cases', async (req, res) => {
   try {
     // Get all messenger chats
     const chatsData = await apiCall('/messenger/get-chats', 'POST', {});
-    const allChats = chatsData?.data || [];
+    const allChats = chatsData?.data;
 
     // Filter for hijacking cases only
     const hijackingChats = allChats.filter(chat =>

@@ -2029,6 +2029,34 @@ button:active {
     text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 0 40px rgba(0,0,0,0.8);
 }
 
+.vessel-locked-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.vessel-locked-banner {
+    font-size: 36px;
+    font-weight: 700;
+    color: #fbbf24;
+    text-shadow: 0 0 20px rgba(0,0,0,0.8);
+}
+
+.vessel-locked-text {
+    font-size: 14px;
+    color: #d1d5db;
+    text-align: center;
+    padding: 0 16px;
+}
+
 /* Efficiency color coding for CO2 factor */
 .vessel-spec-co2-efficient {
     color: #4ade80 !important; /* Green: factor < 1.0 */
@@ -4193,5 +4221,37 @@ button:active {
     background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
     transform: translateY(-1px);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* Radio Group Inline Styles */
+.radio-group-inline {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.radio-group-label {
+    color: #9ca3af;
+    font-size: 12px;
+    margin: 0;
+}
+
+.radio-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    margin: 0;
+}
+
+.radio-option input[type="radio"] {
+    cursor: pointer;
+    margin: 0;
+}
+
+.radio-option span {
+    color: #e0e0e0;
+    font-size: 13px;
 }
 

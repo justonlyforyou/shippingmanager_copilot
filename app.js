@@ -1,3 +1,27 @@
+// Emergency crash handler - catches uncaught exceptions BEFORE Winston logger is initialized
+// In debug mode, this writes to stderr which is redirected to debug.log by start.py
+// In normal mode, it tries to use Winston logger if available, otherwise writes to stderr
+process.on('uncaughtException', (err) => {
+  const timestamp = new Date().toISOString();
+  const errorMsg = `[${timestamp}] UNCAUGHT EXCEPTION:\n${err.stack}\n`;
+
+  // Try to write to Winston logger if it's already loaded
+  try {
+    if (global.logger) {
+      global.logger.error('UNCAUGHT EXCEPTION:', err);
+    }
+  } catch (e) {
+    // Logger not available yet
+  }
+
+  // Fallback: console.error writes to stderr
+  // In debug mode: stderr -> debug.log (via start.py)
+  // In normal mode: stderr -> DEVNULL (but Winston logger should have caught it above)
+  console.error(errorMsg);
+
+  process.exit(1);
+});
+
 /**
  * @fileoverview Main application entry point for Shipping Manager CoPilot.
  * This is a standalone HTTPS web server that provides a workaround for the in-game chat bug
@@ -36,6 +60,7 @@ require('dotenv').config();
 
 // Server modules
 const logger = require('./server/utils/logger');
+global.logger = logger;  // Make logger available to uncaught exception handler
 const config = require('./server/config');
 const { setupMiddleware } = require('./server/middleware');
 const { initializeAlliance } = require('./server/utils/api');

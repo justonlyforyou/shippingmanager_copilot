@@ -85,16 +85,13 @@ function initScheduler() {
       autopilot.initializeAutopilotState(userId);
 
       // Load all initial data
-      logger.log('[Scheduler] Step 1/4: Loading all game data...');
+      logger.log('[Scheduler] Step 1/3: Loading all game data...');
       await autopilot.updateAllData();
 
-      logger.log('[Scheduler] Step 2/4: Loading current prices...');
+      logger.log('[Scheduler] Step 2/3: Loading current prices...');
       await autopilot.updatePrices();
 
-      logger.log('[Scheduler] Step 3/4: Loading hijacking badge...');
-      await autopilot.refreshHijackingBadge();
-
-      logger.log('[Scheduler] Step 4/4: Checking price alerts...');
+      logger.log('[Scheduler] Step 3/3: Checking price alerts...');
       await autopilot.checkPriceAlerts();
 
       logger.log('[Scheduler] INITIAL DATA LOADED - UI READY');

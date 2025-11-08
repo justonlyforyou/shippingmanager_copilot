@@ -7,6 +7,7 @@ import { showSideNotification } from './utils.js';
 
 // Module-level variables for timer synchronization across tabs
 let moduleNextBuild = null;
+let modulePendingAmount = 1;
 let moduleTimerInterval = null;
 
 export async function showAnchorPurchaseDialog() {
@@ -47,11 +48,28 @@ export async function showAnchorPurchaseDialog() {
     pricePerPoint = data.price;
     userCash = data.cash;
     nextBuild = data.anchor_next_build;
+    const buildDuration = data.duration || 0; // Build time in seconds for 1 anchor point
     moduleNextBuild = nextBuild;  // Update module variable
 
     // Check if timer is active
     const now = Math.floor(Date.now() / 1000);
     timerActive = nextBuild && nextBuild > now;
+
+    // Format build time
+    const formatBuildTime = (seconds) => {
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      if (hours > 0 && minutes > 0) {
+        return `${hours}h ${minutes}m`;
+      } else if (hours > 0) {
+        return `${hours}h`;
+      } else {
+        return `${minutes}m`;
+      }
+    };
+
+    const buildTime1 = formatBuildTime(buildDuration);
+    const buildTime10 = formatBuildTime(buildDuration * 10);
 
     // Render purchase form with relative positioning for overlay
       feed.innerHTML = `
@@ -69,20 +87,26 @@ export async function showAnchorPurchaseDialog() {
               <span style="color: #9ca3af; font-size: 14px;">Price per ⚓:</span>
               <span style="color: #f3f4f6; font-size: 16px; font-weight: 600;">$${pricePerPoint.toLocaleString()}</span>
             </div>
-            <div style="padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
-              <p style="margin: 0 0 8px 0; color: #9ca3af; font-size: 14px;">Amount:</p>
-              <div style="display: flex; gap: 8px;">
-                <button id="anchorBuy1Btn" data-amount="1" style="flex: 1; padding: 10px; background: rgba(59, 130, 246, 0.2); border: 2px solid #3b82f6; border-radius: 6px; color: #3b82f6; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                  Buy 1
-                </button>
-                <button id="anchorBuy10Btn" data-amount="10" style="flex: 1; padding: 10px; background: rgba(139, 92, 246, 0.2); border: 2px solid #8b5cf6; border-radius: 6px; color: #8b5cf6; font-size: 16px; font-weight: 700; cursor: pointer; transition: all 0.2s;">
-                  Buy 10
-                </button>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
+              <span style="color: #9ca3af; font-size: 14px;">Amount:</span>
+              <div style="display: flex; gap: 16px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #f3f4f6; font-size: 14px;">
+                  <input type="radio" name="anchorAmount" id="anchorBuy1Radio" value="1" style="cursor: pointer; width: 16px; height: 16px;">
+                  <span>1</span>
+                </label>
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; color: #f3f4f6; font-size: 14px;">
+                  <input type="radio" name="anchorAmount" id="anchorBuy10Radio" value="10" style="cursor: pointer; width: 16px; height: 16px;">
+                  <span>10</span>
+                </label>
               </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0 4px 0;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0 4px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.05);">
               <span style="color: #e0e0e0; font-size: 15px; font-weight: 600;">Total:</span>
               <div id="anchorTotalCost" style="font-size: 20px; font-weight: 700;">$0</div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0 4px 0;">
+              <span style="color: #e0e0e0; font-size: 15px; font-weight: 600;">Build Time:</span>
+              <div id="anchorBuildTime" style="font-size: 16px; font-weight: 600; color: #fbbf24;">-</div>
             </div>
           </div>
           <div style="display: flex; gap: 12px;">
@@ -98,7 +122,7 @@ export async function showAnchorPurchaseDialog() {
                   <span style="font-size: 36px;">⏳</span>
                 </div>
                 <p style="margin: 0 0 8px 0; color: #fbbf24; font-size: 16px; font-weight: 600;">
-                  Anchor Point Under Construction
+                  ${modulePendingAmount} Anchor Point${modulePendingAmount > 1 ? 's' : ''} Under Construction
                 </p>
                 <div id="anchorTimerDisplay" style="font-size: 24px; font-weight: 700; color: #fcd34d; font-family: 'Courier New', monospace; margin-bottom: 8px;">
                   --:--:--
@@ -113,8 +137,8 @@ export async function showAnchorPurchaseDialog() {
       `;
 
       // Setup event listeners
-      const buy1Btn = document.getElementById('anchorBuy1Btn');
-      const buy10Btn = document.getElementById('anchorBuy10Btn');
+      const buy1Radio = document.getElementById('anchorBuy1Radio');
+      const buy10Radio = document.getElementById('anchorBuy10Radio');
       const totalCostDiv = document.getElementById('anchorTotalCost');
       const cancelBtn = document.getElementById('anchorCancelBtn');
 
@@ -183,65 +207,52 @@ export async function showAnchorPurchaseDialog() {
         }
       }
 
-      // Disable buy buttons if timer is active
+      // Initialize purchase button as disabled (no selection yet)
+      updatePurchaseButton();
+
+      // Disable radio buttons if timer is active
       if (timerActive) {
-        buy1Btn.disabled = true;
-        buy1Btn.classList.add('disabled');
-        buy10Btn.disabled = true;
-        buy10Btn.classList.add('disabled');
+        buy1Radio.disabled = true;
+        buy10Radio.disabled = true;
       }
 
-      function selectAmount(amount, clickedBtn, otherBtn) {
-        selectedAmount = amount;
-        const totalCost = amount * pricePerPoint;
-
-        // Update visual selection
-        if (clickedBtn.id === 'anchorBuy1Btn') {
-          clickedBtn.classList.add('anchor-buy-selected-blue');
-          clickedBtn.classList.remove('anchor-buy-unselected-blue');
+      function updateAmountSelection() {
+        if (buy1Radio.checked) {
+          selectedAmount = 1;
+        } else if (buy10Radio.checked) {
+          selectedAmount = 10;
         } else {
-          clickedBtn.classList.add('anchor-buy-selected-purple');
-          clickedBtn.classList.remove('anchor-buy-unselected-purple');
+          selectedAmount = null;
         }
 
-        // Reset other button
-        if (otherBtn.id === 'anchorBuy1Btn') {
-          otherBtn.classList.add('anchor-buy-unselected-blue');
-          otherBtn.classList.remove('anchor-buy-selected-blue');
-        } else {
-          otherBtn.classList.add('anchor-buy-unselected-purple');
-          otherBtn.classList.remove('anchor-buy-selected-purple');
-        }
+        if (selectedAmount) {
+          const totalCost = selectedAmount * pricePerPoint;
+          const totalBuildTime = buildDuration * selectedAmount;
 
-        // Update total cost and check affordability
-        const now = Math.floor(Date.now() / 1000);
-        const timerStillActive = nextBuild && nextBuild > now;
+          // Update build time display
+          const buildTimeDiv = document.getElementById('anchorBuildTime');
+          if (buildTimeDiv) {
+            buildTimeDiv.textContent = formatBuildTime(totalBuildTime);
+          }
 
-        if (totalCost > userCash) {
-          totalCostDiv.classList.add('text-danger');
-          totalCostDiv.classList.remove('text-success');
-        } else {
-          totalCostDiv.classList.add('text-success');
-          totalCostDiv.classList.remove('text-danger');
+          // Update total cost and check affordability
+          if (totalCost > userCash) {
+            totalCostDiv.classList.add('text-danger');
+            totalCostDiv.classList.remove('text-success');
+          } else {
+            totalCostDiv.classList.add('text-success');
+            totalCostDiv.classList.remove('text-danger');
+          }
+          totalCostDiv.textContent = `$${totalCost.toLocaleString()}`;
         }
-        totalCostDiv.textContent = `$${totalCost.toLocaleString()}`;
 
         // Update purchase button state
         updatePurchaseButton();
       }
 
-      // Buy button click handlers
-      buy1Btn.addEventListener('click', () => {
-        if (!timerActive && !buy1Btn.disabled) {
-          selectAmount(1, buy1Btn, buy10Btn);
-        }
-      });
-
-      buy10Btn.addEventListener('click', () => {
-        if (!timerActive && !buy10Btn.disabled) {
-          selectAmount(10, buy10Btn, buy1Btn);
-        }
-      });
+      // Radio button change handlers
+      buy1Radio.addEventListener('change', updateAmountSelection);
+      buy10Radio.addEventListener('change', updateAmountSelection);
 
       // Countdown timer update function
       if (timerActive) {
@@ -401,16 +412,17 @@ export async function showAnchorPurchaseDialog() {
  * @param {number} anchorNextBuild - Unix timestamp when anchor timer completes
  * @global
  */
-export function showAnchorTimer(anchorNextBuild) {
+export function showAnchorTimer(anchorNextBuild, pendingAmount = 1) {
   if (!anchorNextBuild) {
     console.warn('[Anchor Timer] No timestamp provided');
     return;
   }
 
-  // Update module variable
+  // Update module variables
   moduleNextBuild = anchorNextBuild;
+  modulePendingAmount = pendingAmount;
 
-  console.log('[Anchor Timer] Timer broadcast received, timestamp:', anchorNextBuild);
+  console.log('[Anchor Timer] Timer broadcast received, timestamp:', anchorNextBuild, 'amount:', pendingAmount);
 
   // If dialog is currently open, trigger a refresh to show the timer
   const overlay = document.getElementById('anchorPurchaseOverlay');

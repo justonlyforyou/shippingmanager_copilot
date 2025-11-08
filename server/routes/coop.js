@@ -79,8 +79,8 @@ router.get('/coop/data', async (req, res) => {
       coopData.data.coop.coop_boost = allianceData.data.alliance.benefit.coop_boost;
     }
 
-    const allianceContacts = contactData.data?.alliance_contacts || [];
-    const settings = memberSettings.data || [];
+    const allianceContacts = contactData.data?.alliance_contacts;
+    const settings = memberSettings.data;
 
     // Create a map of user_id -> company_name
     const companyNameMap = {};
@@ -102,7 +102,7 @@ router.get('/coop/data', async (req, res) => {
     // Add company_name and restrictions to each member in coop data
     if (coopData.data?.members_coop) {
       coopData.data.members_coop = coopData.data.members_coop.map(member => {
-        const userSettings = settingsMap[member.user_id] || {};
+        const userSettings = settingsMap[member.user_id];
         const restrictions = [];
 
         // Check for no vessels
@@ -190,14 +190,14 @@ router.post('/coop/send-max', async (req, res) => {
 
     // Fetch current coop data to get available vessels and member info
     const coopData = await apiCall('/coop/get-coop-data', 'POST', {});
-    const available = coopData.data?.coop?.available || 0;
+    const available = coopData.data?.coop?.available;
 
     if (available === 0) {
       return res.status(400).json({ error: 'No coop vessels available to send' });
     }
 
     // Find target member to check their vessel count
-    const members = coopData.data?.members_coop || [];
+    const members = coopData.data?.members_coop;
     const targetMember = members.find(m => m.user_id === user_id);
 
     if (!targetMember) {
@@ -257,7 +257,7 @@ router.post('/coop/send-max', async (req, res) => {
       });
     }
 
-    const departed = result.data?.vessels_departed || 0;
+    const departed = result.data?.vessels_departed;
 
     // Broadcast coop send complete to unlock buttons
     if (userId) {

@@ -59,6 +59,9 @@ class LoginDialog:
         self.root.grab_set()
         self.root.focus_force()
 
+        # Always on top - set AFTER grab_set to avoid conflicts
+        self.root.attributes('-topmost', True)
+
     def center_window(self):
         """Center window on screen."""
         self.root.update_idletasks()

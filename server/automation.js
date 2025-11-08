@@ -87,7 +87,7 @@ async function runAutoRepair() {
 
     // Filter vessels that need repair (wear > 0 and not being delivered)
     const vesselsToRepair = vessels.filter(v => {
-      const wear = parseInt(v.wear) || 0;
+      const wear = parseInt(v.wear);
       const isDelivery = v.delivery_price !== null && v.delivery_price > 0;
       return wear > 0 && !isDelivery;
     });
@@ -110,12 +110,12 @@ async function runAutoRepair() {
         const wearMaintenance = vessel.maintenance_data?.find(m => m.type === 'wear');
         if (wearMaintenance) {
           const vesselInfo = vesselsToRepair.find(v => v.id === vessel.id);
-          const wear = parseInt(vesselInfo?.wear) || 0;
-          totalCost += wearMaintenance.price || 0;
+          const wear = parseInt(vesselInfo?.wear);
+          totalCost += wearMaintenance.price;
           repairDetails.push({
             name: vesselInfo?.name || `Vessel ${vessel.id}`,
             wear: wear,
-            cost: wearMaintenance.price || 0
+            cost: wearMaintenance.price
           });
         }
       });
@@ -123,7 +123,7 @@ async function runAutoRepair() {
 
     // Check if we have enough cash
     const userSettings = await apiCall('/user/get-user-settings', 'POST', {});
-    const currentCash = userSettings.user?.cash || 0;
+    const currentCash = userSettings.user?.cash;
 
     if (totalCost > currentCash) {
       return;

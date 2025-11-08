@@ -51,7 +51,6 @@ helper/installer/bin/
 helper/installer/obj/
 helper/installer/Resources/app-payload.zip
 *.exe
-settings.json
 
 # BrowserLogin Build artifacts
 helper/BrowserLogin/bin/

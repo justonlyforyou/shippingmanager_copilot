@@ -93,12 +93,12 @@ export function showConfirmDialog(options) {
           }
 
           // Add custom className to value span (for price color coding)
-          const valueClass = detail.className ? ` class="${detail.className}"` : '';
+          const valueClass = detail.className ? ` ${detail.className}` : '';
 
           return `
             <div class="confirm-dialog-detail-row${rowClass}">
               <span class="label">${escapeHtml(detail.label)}</span>
-              <span class="value"${valueClass}>${escapeHtml(detail.value)}</span>
+              <span class="value${valueClass}">${escapeHtml(detail.value)}</span>
             </div>
           `;
         }).join('')}

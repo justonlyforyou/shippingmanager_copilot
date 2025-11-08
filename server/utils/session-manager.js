@@ -92,7 +92,7 @@ async function getAvailableSessions() {
                     cookie: session.cookie,
                     companyName: session.company_name || 'Unknown',
                     loginMethod: session.login_method || 'unknown',
-                    timestamp: session.timestamp || 0
+                    timestamp: session.timestamp
                 });
             }
         } catch (error) {
