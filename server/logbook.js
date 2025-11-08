@@ -18,7 +18,7 @@ const { v4: uuidv4 } = require('uuid');
 const logger = require('./utils/logger');
 
 // Configuration
-const { getLogDir } = require('./utils/paths');
+const { getLogDir } = require('./config');
 const LOG_DIR = path.join(getLogDir(), 'autopilot');
 const LOG_FILE_NAME = 'autopilot-log.json';
 const WRITE_INTERVAL = 30000; // 30 seconds
