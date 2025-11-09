@@ -89,18 +89,12 @@ let lastCampaignsCount = null;
  * @param {number} attempt - Current attempt number (1-5)
  */
 async function retryFetchPrices(targetTimeSlot, attempt) {
-  if (attempt > 5) {
-    if (window.DEBUG_MODE) {
-      console.error('[Bunker Management] ❌ Failed to fetch prices after 5 attempts - time slot still not available:', targetTimeSlot);
-    }
+  // During events, API returns invalid data - no point retrying
+  if (attempt > 1) {
     return;
   }
 
   try {
-    if (window.DEBUG_MODE) {
-      console.log(`[Bunker Management] 🔄 Retry attempt ${attempt}/5 - fetching prices for time slot: ${targetTimeSlot}`);
-    }
-
     const response = await fetch('/api/bunker/get-prices');
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -113,34 +107,16 @@ async function retryFetchPrices(targetTimeSlot, attempt) {
       // Success! Update prices
       fuelPrice = priceData.fuel_price;
       co2Price = priceData.co2_price;
-      if (window.DEBUG_MODE) {
-        console.log(`[Bunker Management] ✅ Retry successful on attempt ${attempt} - prices updated:`, {
-          timeSlot: targetTimeSlot,
-          fuel: fuelPrice,
-          co2: co2Price
-        });
-      }
 
       // Trigger a UI update
       const settings = window.getSettings ? window.getSettings() : { fuelThreshold: 400, co2Threshold: 7 };
       await updateBunkerStatus(settings);
     } else {
-      // Time slot still not available, retry again
-      if (window.DEBUG_MODE) {
-        console.log(`[Bunker Management] ⏳ Attempt ${attempt} - time slot still not available, retrying in 2s...`);
-      }
-      setTimeout(() => {
-        retryFetchPrices(targetTimeSlot, attempt + 1);
-      }, 2000);
+      // API returned invalid data (likely during event)
+      console.log(`[Bunker Management] Price data unavailable for time slot ${targetTimeSlot} (event active?)`);
     }
   } catch (error) {
-    if (window.DEBUG_MODE) {
-      console.error(`[Bunker Management] ❌ Retry attempt ${attempt} failed:`, error.message);
-    }
-    // Retry on error
-    setTimeout(() => {
-      retryFetchPrices(targetTimeSlot, attempt + 1);
-    }, 2000);
+    console.log(`[Bunker Management] Failed to fetch prices: ${error.message}`);
   }
 }
 

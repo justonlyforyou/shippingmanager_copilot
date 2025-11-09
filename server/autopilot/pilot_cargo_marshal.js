@@ -154,6 +154,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     // Separate arrays for logbook (not cleared after batches)
     const allDepartedVessels = [];
     const allWarningVessels = [];
+    const allHighFeeVessels = [];
 
     const CHUNK_SIZE = 20;
     let processedCount = 0;
@@ -443,8 +444,27 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             continue;
           }
 
-          // Check for negative net income bug
+          // Check for negative net income (harbor fees too high)
           const hasFeeCalculationBug = result.netIncome < 0;
+
+          // Track vessels with excessive harbor fees (using settings threshold OR negative income)
+          const settings = state.getSettings(userId);
+          const harborFeeThreshold = settings.harborFeeWarningThreshold || 50; // Default 50%
+          const feePercentage = result.income > 0 ? (result.harborFee / result.income) * 100 : 0;
+          const isHighFee = feePercentage > harborFeeThreshold || hasFeeCalculationBug;
+
+          if (isHighFee) {
+            const highFeeData = {
+              name: result.vesselName,
+              destination: result.destination,
+              income: result.income,
+              harborFee: result.harborFee,
+              netIncome: result.netIncome,
+              feePercentage: Math.round(feePercentage),
+              reason: hasFeeCalculationBug ? 'Harbor fee exceeds income' : `Harbor fee ${Math.round(feePercentage)}% (threshold: ${harborFeeThreshold}%)`
+            };
+            allHighFeeVessels.push(highFeeData);
+          }
 
           // Calculate actual utilization from API response
           const actualCargoLoaded = result.cargoLoaded;
@@ -513,8 +533,10 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       departedCount: allDepartedVessels.length,
       failedCount: failedVessels.length,
       warningCount: allWarningVessels.length,
+      highFeeCount: allHighFeeVessels.length,
       departedVessels: allDepartedVessels.slice(),
       warningVessels: allWarningVessels.slice(),
+      highFeeVessels: allHighFeeVessels.slice(),
       totalRevenue,
       totalFuelUsed,
       totalCO2Used,
@@ -593,6 +615,22 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
         {
           vesselCount: result.warningCount,
           warningVessels: result.warningVessels
+        }
+      );
+    }
+
+    // Log warnings if any vessels had excessive harbor fees
+    if (result.success && result.highFeeCount > 0) {
+      const totalHarborFees = result.highFeeVessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
+      await logAutopilotAction(
+        userId,
+        'Auto-Depart',
+        'WARNING',
+        `${result.highFeeCount} vessel${result.highFeeCount > 1 ? 's' : ''} with excessive harbor fees | $${totalHarborFees.toLocaleString()} fees`,
+        {
+          vesselCount: result.highFeeCount,
+          totalHarborFees: totalHarborFees,
+          highFeeVessels: result.highFeeVessels
         }
       );
     }

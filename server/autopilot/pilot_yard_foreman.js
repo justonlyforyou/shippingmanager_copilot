@@ -156,6 +156,10 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
 
       // Update all data to refresh repair badge count
       await tryUpdateAllData();
+
+      // Force immediate repair count update (in case tryUpdateAllData was skipped due to lock)
+      const { updateRepairCount } = require('../autopilot');
+      await updateRepairCount();
     } else {
       logger.log(`[Auto-Repair] Insufficient funds: need $${costData.totalCost.toLocaleString()}, have $${bunker.cash.toLocaleString()}`);
     }

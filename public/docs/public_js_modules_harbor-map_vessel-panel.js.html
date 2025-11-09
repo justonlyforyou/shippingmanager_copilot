@@ -1,0 +1,1027 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>public/js/modules/harbor-map/vessel-panel.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Dark theme matching app style - carefully scoped to not break layout */
+        html, body {
+            background-color: #1a1a1a !important;
+            color: #e0e0e0 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            overflow-x: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* Custom scrollbar styling for all browsers */
+        * {
+            scrollbar-width: thin !important;
+            scrollbar-color: #404040 #1a1a1a !important;
+        }
+
+        /* Webkit browsers (Chrome, Safari, Edge) */
+        *::-webkit-scrollbar {
+            width: 6px !important;
+            height: 6px !important;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: #1a1a1a !important;
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background-color: #404040 !important;
+            border-radius: 3px !important;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background-color: #505050 !important;
+        }
+
+        /* Navigation sidebar - remove padding and white borders */
+        nav {
+            background-color: #242424 !important;
+            border-right: 1px solid #404040 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow-x: hidden !important;
+        }
+        nav h2, nav h3 {
+            color: #e0e0e0 !important;
+            border-bottom: 1px solid #404040 !important;
+            padding: 10px 15px !important;
+            margin: 0 !important;
+            background-color: #242424 !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
+        nav h3 {
+            font-size: 13px !important;
+        }
+        nav ul {
+            padding: 0 !important;
+            margin: 0 !important;
+            background-color: #242424 !important;
+        }
+        nav ul li {
+            list-style: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #242424 !important;
+        }
+        nav ul li a {
+            color: #c9d1d9 !important;
+            display: block !important;
+            padding: 8px 15px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            background-color: #242424 !important;
+            margin: 0 !important;
+            border: none !important;
+            font-size: 14px !important;
+        }
+        nav ul li a:hover {
+            color: #60a5fa !important;
+            background-color: rgba(96, 165, 250, 0.1) !important;
+        }
+        /* Module links (direct children of nav > ul > li) */
+        nav > ul > li > a {
+            color: #60a5fa !important;
+            font-weight: 600 !important;
+            padding: 10px 15px !important;
+            font-size: 14px !important;
+            border-left: 3px solid #60a5fa !important;
+            padding-left: 12px !important;
+        }
+        nav > ul > li > a:hover {
+            background-color: rgba(96, 165, 250, 0.15) !important;
+        }
+        /* Sub-items (methods/functions) indented */
+        nav ul.methods {
+            padding-left: 15px !important;
+        }
+        nav ul.methods li a {
+            color: #9ca3af !important;
+            font-size: 13px !important;
+            padding: 6px 15px !important;
+            font-weight: 400 !important;
+        }
+        nav ul.methods li a:hover {
+            color: #c9d1d9 !important;
+        }
+        nav > h2:first-child {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            padding: 12px 15px !important;
+        }
+
+        /* Main content area - dark background */
+        #main {
+            background-color: #1a1a1a !important;
+            padding: 20px !important;
+        }
+
+        /* Article and sections - ensure dark background */
+        article, section, .container-overview, .description {
+            background-color: #1a1a1a !important;
+        }
+
+        /* Images - style demo images */
+        img {
+            max-width: 100% !important;
+            height: auto !important;
+            border: 1px solid #404040 !important;
+            border-radius: 8px !important;
+            margin: 20px 0 !important;
+        }
+
+        /* Links */
+        a {
+            color: #60a5fa !important;
+            text-decoration: none !important;
+        }
+        a:hover {
+            color: #93c5fd !important;
+            text-decoration: underline !important;
+        }
+
+        /* Headings */
+        h1, h2, h3, h4, h5, h6 {
+            color: #e0e0e0 !important;
+            border-bottom-color: #404040 !important;
+            background-color: transparent !important;
+        }
+        h4.name {
+            background-color: #2a2a2a !important;
+            border: 1px solid #404040 !important;
+        }
+
+        /* Code blocks */
+        pre {
+            background-color: #0d1117 !important;
+            border: 1px solid #404040 !important;
+        }
+        pre code {
+            background-color: transparent !important;
+        }
+        code {
+            background-color: #2a2a2a !important;
+            color: #e0e0e0 !important;
+            padding: 2px 6px !important;
+            border-radius: 3px !important;
+        }
+
+        /* Tables */
+        table {
+            border-color: #404040 !important;
+            background-color: #1a1a1a !important;
+        }
+        table thead tr {
+            background-color: #242424 !important;
+        }
+        table tbody tr {
+            background-color: #1a1a1a !important;
+        }
+        table tbody tr:nth-child(even) {
+            background-color: #1f1f1f !important;
+        }
+        table td, table th {
+            border-color: #404040 !important;
+            color: #e0e0e0 !important;
+            background-color: transparent !important;
+        }
+        .params .name, .props .name {
+            color: #10b981 !important;
+            font-family: 'Courier New', monospace !important;
+        }
+
+        /* Descriptions and details */
+        .description, .details, dt, dd, p, ul, ol, dl {
+            color: #e0e0e0 !important;
+            background-color: transparent !important;
+        }
+
+        /* Types */
+        .type-signature {
+            color: #a78bfa !important;
+        }
+
+        /* Source links */
+        .details .details-item-container {
+            border-left-color: #404040 !important;
+        }
+
+        /* Breadcrumbs */
+        .page-title {
+            color: #e0e0e0 !important;
+        }
+
+        /* Search */
+        #nav-search {
+            background-color: #2a2a2a !important;
+            border: 1px solid #404040 !important;
+            color: #e0e0e0 !important;
+        }
+
+        /* Mobile nav trigger */
+        .navicon-button {
+            background-color: #2a2a2a !important;
+        }
+
+        /* Footer */
+        footer {
+            background-color: #1a1a1a !important;
+            color: #9ca3af !important;
+            border-top: 1px solid #404040 !important;
+            text-align: center !important;
+            padding: 20px !important;
+        }
+
+        /* Remove horizontal scrollbar and white borders */
+        * {
+            box-sizing: border-box !important;
+        }
+    </style>
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">README</a></h2><h3>Tutorials</h3><ul><li><a href="tutorial-build-guide.html">Build Guide</a></li><li><a href="tutorial-installation-guide.html">Installation Guide</a></li></ul><h3>Classes</h3><ul><li><a href="module-server_chatbot-ChatBot.html">ChatBot</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot-ChatBot.html#executeCommand">executeCommand</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#findCustomCommand">findCustomCommand</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#generateForecastText">generateForecastText</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#getDefaultChatBotObject">getDefaultChatBotObject</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#handleForecastCommand">handleForecastCommand</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#handleHelpCommand">handleHelpCommand</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#initialize">initialize</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#isCommandAllowedInChannel">isCommandAllowedInChannel</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#isOnCooldown">isOnCooldown</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#loadSettings">loadSettings</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#mapChatBotObjectToFlatSettings">mapChatBotObjectToFlatSettings</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#mapSettingsToChatBotObject">mapSettingsToChatBotObject</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#processAllianceMessage">processAllianceMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#processPrivateMessage">processPrivateMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#resolveCommandName">resolveCommandName</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#scheduleDailyForecast">scheduleDailyForecast</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#sendAllianceMessage">sendAllianceMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#sendDailyForecast">sendDailyForecast</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#sendErrorMessage">sendErrorMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#sendPrivateMessage">sendPrivateMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#sendResponse">sendResponse</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#setupScheduledTasks">setupScheduledTasks</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#updateCooldown">updateCooldown</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#updateSettings">updateSettings</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#validateCommandArguments">validateCommandArguments</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#validateForecastArguments">validateForecastArguments</a></li></ul></li></ul><h3>Modules</h3><ul><li><a href="module-api.html">api</a><ul class='methods'><li data-type='method'><a href="module-api.html#.activateCampaign">activateCampaign</a></li><li data-type='method'><a href="module-api.html#.deleteAllLogs">deleteAllLogs</a></li><li data-type='method'><a href="module-api.html#.deleteChat">deleteChat</a></li><li data-type='method'><a href="module-api.html#.departAllVessels">departAllVessels</a></li><li data-type='method'><a href="module-api.html#.departVessel">departVessel</a></li><li data-type='method'><a href="module-api.html#.departVessels">departVessels</a></li><li data-type='method'><a href="module-api.html#.doWearMaintenanceBulk">doWearMaintenanceBulk</a></li><li data-type='method'><a href="module-api.html#.downloadLogbookExport">downloadLogbookExport</a></li><li data-type='method'><a href="module-api.html#.fetchAcquirableVessels">fetchAcquirableVessels</a></li><li data-type='method'><a href="module-api.html#.fetchAllianceMembers">fetchAllianceMembers</a></li><li data-type='method'><a href="module-api.html#.fetchAssignedPorts">fetchAssignedPorts</a></li><li data-type='method'><a href="module-api.html#.fetchBunkerPrices">fetchBunkerPrices</a></li><li data-type='method'><a href="module-api.html#.fetchCampaigns">fetchCampaigns</a></li><li data-type='method'><a href="module-api.html#.fetchChat">fetchChat</a></li><li data-type='method'><a href="module-api.html#.fetchContacts">fetchContacts</a></li><li data-type='method'><a href="module-api.html#.fetchLogbookEntries">fetchLogbookEntries</a></li><li data-type='method'><a href="module-api.html#.fetchLogbookFileSize">fetchLogbookFileSize</a></li><li data-type='method'><a href="module-api.html#.fetchMessengerChats">fetchMessengerChats</a></li><li data-type='method'><a href="module-api.html#.fetchMessengerMessages">fetchMessengerMessages</a></li><li data-type='method'><a href="module-api.html#.fetchUserCompany">fetchUserCompany</a></li><li data-type='method'><a href="module-api.html#.fetchUserSettings">fetchUserSettings</a></li><li data-type='method'><a href="module-api.html#.fetchVessels">fetchVessels</a></li><li data-type='method'><a href="module-api.html#.getCompanyNameCached">getCompanyNameCached</a></li><li data-type='method'><a href="module-api.html#.getMaintenanceCost">getMaintenanceCost</a></li><li data-type='method'><a href="module-api.html#.markChatAsRead">markChatAsRead</a></li><li data-type='method'><a href="module-api.html#.purchaseCO2">purchaseCO2</a></li><li data-type='method'><a href="module-api.html#.purchaseFuel">purchaseFuel</a></li><li data-type='method'><a href="module-api.html#.purchaseVessel">purchaseVessel</a></li><li data-type='method'><a href="module-api.html#.searchUsers">searchUsers</a></li><li data-type='method'><a href="module-api.html#.sendChatMessage">sendChatMessage</a></li><li data-type='method'><a href="module-api.html#.sendPrivateMessage">sendPrivateMessage</a></li></ul></li><li><a href="module-app.html">app</a></li><li><a href="module-automation.html">automation</a><ul class='methods'><li data-type='method'><a href="module-automation.html#.initAutomation">initAutomation</a></li><li data-type='method'><a href="module-automation.html#.runAutomationChecks">runAutomationChecks</a></li><li data-type='method'><a href="module-automation.html#.triggerAutoRebuyChecks">triggerAutoRebuyChecks</a></li><li data-type='method'><a href="module-automation.html#~calculateRemainingDemand">calculateRemainingDemand</a></li><li data-type='method'><a href="module-automation.html#~checkAutoCampaignRenewal">checkAutoCampaignRenewal</a></li><li data-type='method'><a href="module-automation.html#~checkAutoDepartAll">checkAutoDepartAll</a></li><li data-type='method'><a href="module-automation.html#~checkAutoRebuyCO2">checkAutoRebuyCO2</a></li><li data-type='method'><a href="module-automation.html#~checkAutoRebuyFuel">checkAutoRebuyFuel</a></li><li data-type='method'><a href="module-automation.html#~getTotalCapacity">getTotalCapacity</a></li><li data-type='method'><a href="module-automation.html#~performAutoRebuyCO2">performAutoRebuyCO2</a></li><li data-type='method'><a href="module-automation.html#~performAutoRebuyFuel">performAutoRebuyFuel</a></li><li data-type='method'><a href="module-automation.html#~sendAutoPilotFeedback">sendAutoPilotFeedback</a></li><li data-type='method'><a href="module-automation.html#~showCenterAlert">showCenterAlert</a></li><li data-type='method'><a href="module-automation.html#~updateAutoDepartLabel">updateAutoDepartLabel</a></li></ul></li><li><a href="module-bunker-management.html">bunker-management</a><ul class='methods'><li data-type='method'><a href="module-bunker-management.html#.buyMaxCO2">buyMaxCO2</a></li><li data-type='method'><a href="module-bunker-management.html#.buyMaxFuel">buyMaxFuel</a></li><li data-type='method'><a href="module-bunker-management.html#.getCurrentBunkerState">getCurrentBunkerState</a></li><li data-type='method'><a href="module-bunker-management.html#.setCapacityFromBunkerUpdate">setCapacityFromBunkerUpdate</a></li><li data-type='method'><a href="module-bunker-management.html#.updateBunkerStatus">updateBunkerStatus</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCampaignsStatus">updateCampaignsStatus</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCurrentCO2">updateCurrentCO2</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCurrentCash">updateCurrentCash</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCurrentFuel">updateCurrentFuel</a></li><li data-type='method'><a href="module-bunker-management.html#~retryFetchPrices">retryFetchPrices</a></li></ul></li><li><a href="module-chat.html">chat</a><ul class='methods'><li data-type='method'><a href="module-chat.html#.displayMessages">displayMessages</a></li><li data-type='method'><a href="module-chat.html#.handleMessageInput">handleMessageInput</a></li><li data-type='method'><a href="module-chat.html#.initWebSocket">initWebSocket</a></li><li data-type='method'><a href="module-chat.html#.loadAllianceMembers">loadAllianceMembers</a></li><li data-type='method'><a href="module-chat.html#.loadMessages">loadMessages</a></li><li data-type='method'><a href="module-chat.html#.parseMessageWithMentions">parseMessageWithMentions</a></li><li data-type='method'><a href="module-chat.html#.sendMessage">sendMessage</a></li><li data-type='method'><a href="module-chat.html#.setChatScrollListener">setChatScrollListener</a></li><li data-type='method'><a href="module-chat.html#~attemptReconnect">attemptReconnect</a></li><li data-type='method'><a href="module-chat.html#~displaySuggestions">displaySuggestions</a></li><li data-type='method'><a href="module-chat.html#~formatLocalTime">formatLocalTime</a></li><li data-type='method'><a href="module-chat.html#~handleAutoCoopComplete">handleAutoCoopComplete</a></li><li data-type='method'><a href="module-chat.html#~handleAutoCoopNoTargets">handleAutoCoopNoTargets</a></li><li data-type='method'><a href="module-chat.html#~handleAutopilotDepartStart">handleAutopilotDepartStart</a></li><li data-type='method'><a href="module-chat.html#~handleBackendAutoRepairComplete">handleBackendAutoRepairComplete</a></li><li data-type='method'><a href="module-chat.html#~handleBunkerUpdate">handleBunkerUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleCO2Purchased">handleCO2Purchased</a></li><li data-type='method'><a href="module-chat.html#~handleCampaignStatusUpdate">handleCampaignStatusUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleCampaignsRenewed">handleCampaignsRenewed</a></li><li data-type='method'><a href="module-chat.html#~handleCompanyTypeUpdate">handleCompanyTypeUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleCoopUpdate">handleCoopUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleFuelPurchased">handleFuelPurchased</a></li><li data-type='method'><a href="module-chat.html#~handleGenericNotification">handleGenericNotification</a></li><li data-type='method'><a href="module-chat.html#~handleHeaderDataUpdate">handleHeaderDataUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleHijackingUpdate">handleHijackingUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleMentionAutocomplete">handleMentionAutocomplete</a></li><li data-type='method'><a href="module-chat.html#~handleMessengerUpdate">handleMessengerUpdate</a></li><li data-type='method'><a href="module-chat.html#~handlePriceAlert">handlePriceAlert</a></li><li data-type='method'><a href="module-chat.html#~handlePriceUpdate">handlePriceUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleRepairCountUpdate">handleRepairCountUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleUnreadMessagesUpdate">handleUnreadMessagesUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleUserActionNotification">handleUserActionNotification</a></li><li data-type='method'><a href="module-chat.html#~handleVesselCountUpdate">handleVesselCountUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsDepartComplete">handleVesselsDepartComplete</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsDeparted">handleVesselsDeparted</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsFailed">handleVesselsFailed</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsRepaired">handleVesselsRepaired</a></li><li data-type='method'><a href="module-chat.html#~hideMemberSuggestions">hideMemberSuggestions</a></li><li data-type='method'><a href="module-chat.html#~insertMention">insertMention</a></li><li data-type='method'><a href="module-chat.html#~registerUsernameClickEvents">registerUsernameClickEvents</a></li></ul></li><li><a href="module-coop.html">coop</a><ul class='methods'><li data-type='method'><a href="module-coop.html#.closeCoopOverlay">closeCoopOverlay</a></li><li data-type='method'><a href="module-coop.html#.fetchCoopData">fetchCoopData</a></li><li data-type='method'><a href="module-coop.html#.sendCoopMax">sendCoopMax</a></li><li data-type='method'><a href="module-coop.html#.showCoopOverlay">showCoopOverlay</a></li><li data-type='method'><a href="module-coop.html#.updateCoopBadge">updateCoopBadge</a></li><li data-type='method'><a href="module-coop.html#~renderMemberCard">renderMemberCard</a></li></ul></li><li><a href="module-desktop-notification-templates.html">desktop-notification-templates</a><ul class='methods'><li data-type='method'><a href="module-desktop-notification-templates.html#.createDesktopNotification">createDesktopNotification</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.getDefaultEmoji">getDefaultEmoji</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.getNotificationTypes">getNotificationTypes</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.isValidNotificationType">isValidNotificationType</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifyAlert">notifyAlert</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifyError">notifyError</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifySuccess">notifySuccess</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifyWarning">notifyWarning</a></li></ul></li><li><a href="module-event-info.html">event-info</a><ul class='methods'><li data-type='method'><a href="module-event-info.html#.initEventInfo">initEventInfo</a></li><li data-type='method'><a href="module-event-info.html#.openEventModal">openEventModal</a></li><li data-type='method'><a href="module-event-info.html#.updateEventData">updateEventData</a></li><li data-type='method'><a href="module-event-info.html#~startEventTimer">startEventTimer</a></li></ul></li><li><a href="module-forecast-calendar.html">forecast-calendar</a><ul class='methods'><li data-type='method'><a href="module-forecast-calendar.html#.initForecastCalendar">initForecastCalendar</a></li><li data-type='method'><a href="module-forecast-calendar.html#.updateEventDiscount">updateEventDiscount</a></li><li data-type='method'><a href="module-forecast-calendar.html#~createTableHTML">createTableHTML</a></li><li data-type='method'><a href="module-forecast-calendar.html#~formatDate">formatDate</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getBrowserTimezone">getBrowserTimezone</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getCo2Class">getCo2Class</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getCurrentVisibleDay">getCurrentVisibleDay</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getFuelClass">getFuelClass</a></li><li data-type='method'><a href="module-forecast-calendar.html#~isEventActiveAtTime">isEventActiveAtTime</a></li><li data-type='method'><a href="module-forecast-calendar.html#~isEventActiveOnDay">isEventActiveOnDay</a></li><li data-type='method'><a href="module-forecast-calendar.html#~loadForecastData">loadForecastData</a></li><li data-type='method'><a href="module-forecast-calendar.html#~preloadMonth">preloadMonth</a></li><li data-type='method'><a href="module-forecast-calendar.html#~renderBook">renderBook</a></li><li data-type='method'><a href="module-forecast-calendar.html#~updateEventBadge">updateEventBadge</a></li></ul></li><li><a href="module-harbor-map-aggregator.html">harbor-map-aggregator</a><ul class='methods'><li data-type='method'><a href="module-harbor-map-aggregator.html#~aggregateReachablePorts">aggregateReachablePorts</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~aggregateVesselData">aggregateVesselData</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~categorizeVesselsByPort">categorizeVesselsByPort</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~extractPortsFromGameIndex">extractPortsFromGameIndex</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~extractVesselsFromGameIndex">extractVesselsFromGameIndex</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~filterAssignedPorts">filterAssignedPorts</a></li></ul></li><li><a href="module-harbor-map-calculator.html">harbor-map-calculator</a><ul class='methods'><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateCargoUtilization">calculateCargoUtilization</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateDemandLevel">calculateDemandLevel</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateETA">calculateETA</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateVesselPosition">calculateVesselPosition</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~formatCargoCapacity">formatCargoCapacity</a></li></ul></li><li><a href="module-harbor-map-init.html">harbor-map-init</a><ul class='methods'><li data-type='method'><a href="module-harbor-map-init.html#.closeHarborMap">closeHarborMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.initHarborMap">initHarborMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.openHarborMap">openHarborMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.preloadHarborMapData">preloadHarborMapData</a></li><li data-type='method'><a href="module-harbor-map-init.html#.refreshHarborMapIfOpen">refreshHarborMapIfOpen</a></li><li data-type='method'><a href="module-harbor-map-init.html#.reloadMap">reloadMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.startHarborMapAutoUpdate">startHarborMapAutoUpdate</a></li><li data-type='method'><a href="module-harbor-map-init.html#.stopHarborMapAutoUpdate">stopHarborMapAutoUpdate</a></li><li data-type='method'><a href="module-harbor-map-init.html#~departVesselWrapper">departVesselWrapper</a></li><li data-type='method'><a href="module-harbor-map-init.html#~getVesselByIdWrapper">getVesselByIdWrapper</a></li><li data-type='method'><a href="module-harbor-map-init.html#~selectVesselFromMap">selectVesselFromMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#~sellVesselFromPanelWrapper">sellVesselFromPanelWrapper</a></li><li data-type='method'><a href="module-harbor-map-init.html#~updateVesselMarkerWrapper">updateVesselMarkerWrapper</a></li></ul></li><li><a href="module-harbor-map_api-client.html">harbor-map/api-client</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_api-client.html#.clearHarborMapCache">clearHarborMapCache</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.exportVesselHistory">exportVesselHistory</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchHarborMapOverview">fetchHarborMapOverview</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchPortDetails">fetchPortDetails</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchVesselHistory">fetchVesselHistory</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchVesselReachablePorts">fetchVesselReachablePorts</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.getCachedOverview">getCachedOverview</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.prefetchHarborMapData">prefetchHarborMapData</a></li></ul></li><li><a href="module-harbor-map_map-controller.html">harbor-map/map-controller</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_map-controller.html#.clearRoute">clearRoute</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.deselectAll">deselectAll</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.drawRoute">drawRoute</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.getSelectedPortCode">getSelectedPortCode</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.getVesselById">getVesselById</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.initMap">initMap</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.loadOverview">loadOverview</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.renderPorts">renderPorts</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.renderVessels">renderVessels</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.selectPort">selectPort</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.selectVessel">selectVessel</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.setPortFilter">setPortFilter</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.updateVesselMarker">updateVesselMarker</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.updateWeatherDataSetting">updateWeatherDataSetting</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~addCustomControls">addCustomControls</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~applyMapTheme">applyMapTheme</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~calculateHeading">calculateHeading</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~changeTileLayer">changeTileLayer</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~createVesselIcon">createVesselIcon</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~getVesselType">getVesselType</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~hideRouteVesselsPanel">hideRouteVesselsPanel</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~setRouteFilter">setRouteFilter</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~showRouteVesselsPanel">showRouteVesselsPanel</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~showWeatherInfo">showWeatherInfo</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~toggleWeatherLayer">toggleWeatherLayer</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~updateRouteDropdown">updateRouteDropdown</a></li></ul></li><li><a href="module-harbor-map_panel-drag.html">harbor-map/panel-drag</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_panel-drag.html#.initializePanelDrag">initializePanelDrag</a></li></ul></li><li><a href="module-harbor-map_port-panel.html">harbor-map/port-panel</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_port-panel.html#.closePortPanel">closePortPanel</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#.hidePortPanel">hidePortPanel</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#.selectVesselFromPort">selectVesselFromPort</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#.showPortPanel">showPortPanel</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#~renderDemandSection">renderDemandSection</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#~renderVesselList">renderVesselList</a></li></ul></li><li><a href="module-harbor-map_route-vessels-panel.html">harbor-map/route-vessels-panel</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.closeRoutePanel">closeRoutePanel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.hideRoutePanel">hideRoutePanel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.selectRouteVessel">selectRouteVessel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.showRoutePanel">showRoutePanel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#~storeVessels">storeVessels</a></li></ul></li><li><a href="module-harbor-map_vessel-panel.html">harbor-map/vessel-panel</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.closeVesselPanel">closeVesselPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.departVessel">departVessel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.exportHistoryFormat">exportHistoryFormat</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.hideVesselPanel">hideVesselPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.sellVesselFromPanel">sellVesselFromPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.showVesselPanel">showVesselPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.toggleExportMenu">toggleExportMenu</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~closeExportMenuOnClickOutside">closeExportMenuOnClickOutside</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~loadVesselHistory">loadVesselHistory</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~renderHistoryPage">renderHistoryPage</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~setupInfiniteScroll">setupInfiniteScroll</a></li></ul></li><li><a href="module-logbook.html">logbook</a><ul class='methods'><li data-type='method'><a href="module-logbook.html#.deleteAllLogsConfirmed">deleteAllLogsConfirmed</a></li><li data-type='method'><a href="module-logbook.html#.getLogFileSize">getLogFileSize</a></li><li data-type='method'><a href="module-logbook.html#.initLogbook">initLogbook</a></li><li data-type='method'><a href="module-logbook.html#.prependLogEntry">prependLogEntry</a></li><li data-type='method'><a href="module-logbook.html#~exportLogs">exportLogs</a></li><li data-type='method'><a href="module-logbook.html#~formatDetails">formatDetails</a></li><li data-type='method'><a href="module-logbook.html#~formatTimestamp">formatTimestamp</a></li><li data-type='method'><a href="module-logbook.html#~loadLogs">loadLogs</a></li><li data-type='method'><a href="module-logbook.html#~renderDetailsRow">renderDetailsRow</a></li><li data-type='method'><a href="module-logbook.html#~renderLogTable">renderLogTable</a></li><li data-type='method'><a href="module-logbook.html#~searchInObject">searchInObject</a></li><li data-type='method'><a href="module-logbook.html#~toggleExpanded">toggleExpanded</a></li><li data-type='method'><a href="module-logbook.html#~updateAutopilotFilter">updateAutopilotFilter</a></li></ul></li><li><a href="module-messenger.html">messenger</a><ul class='methods'><li data-type='method'><a href="module-messenger.html#.closeAllChats">closeAllChats</a></li><li data-type='method'><a href="module-messenger.html#.closeChatSelection">closeChatSelection</a></li><li data-type='method'><a href="module-messenger.html#.openMessenger">openMessenger</a></li><li data-type='method'><a href="module-messenger.html#.openNewChat">openNewChat</a></li><li data-type='method'><a href="module-messenger.html#.showAllChats">showAllChats</a></li><li data-type='method'><a href="module-messenger.html#.updateUnreadBadge">updateUnreadBadge</a></li><li data-type='method'><a href="module-messenger.html#~formatTimestamp">formatTimestamp</a></li><li data-type='method'><a href="module-messenger.html#~loadPrivateMessages">loadPrivateMessages</a></li><li data-type='method'><a href="module-messenger.html#~startHijackingPolling">startHijackingPolling</a></li><li data-type='method'><a href="module-messenger.html#~stopHijackingPolling">stopHijackingPolling</a></li></ul></li><li><a href="module-public_js_modules_hijacking.html">public/js/modules/hijacking</a><ul class='methods'><li data-type='method'><a href="module-public_js_modules_hijacking.html#.closeHijackingInbox">closeHijackingInbox</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#.openHijackingInbox">openHijackingInbox</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#.updateHijackedVesselsDisplay">updateHijackedVesselsDisplay</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#.updateHijackingBadge">updateHijackingBadge</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~deleteCase">deleteCase</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~escapeHtml">escapeHtml</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~formatTimestamp">formatTimestamp</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~openCaseDetails">openCaseDetails</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~refreshHijackingBadge">refreshHijackingBadge</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~renderCaseList">renderCaseList</a></li></ul></li><li><a href="module-server_automation.html">server/automation</a><ul class='methods'><li data-type='method'><a href="module-server_automation.html#~getRandomInterval">getRandomInterval</a></li><li data-type='method'><a href="module-server_automation.html#~initialize">initialize</a></li><li data-type='method'><a href="module-server_automation.html#~loadSettings">loadSettings</a></li><li data-type='method'><a href="module-server_automation.html#~parseInterval">parseInterval</a></li><li data-type='method'><a href="module-server_automation.html#~restartAutoRepair">restartAutoRepair</a></li><li data-type='method'><a href="module-server_automation.html#~runAutoRepair">runAutoRepair</a></li><li data-type='method'><a href="module-server_automation.html#~scheduleAutoRepair">scheduleAutoRepair</a></li></ul></li><li><a href="module-server_autopilot.html">server/autopilot</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot.html#~analyzeVesselDepartures">analyzeVesselDepartures</a></li><li data-type='method'><a href="module-server_autopilot.html#~autoRebuyAll">autoRebuyAll</a></li><li data-type='method'><a href="module-server_autopilot.html#~checkPriceAlerts">checkPriceAlerts</a></li><li data-type='method'><a href="module-server_autopilot.html#~countActiveCampaignTypes">countActiveCampaignTypes</a></li><li data-type='method'><a href="module-server_autopilot.html#~initializeAutopilotState">initializeAutopilotState</a></li><li data-type='method'><a href="module-server_autopilot.html#~isAutopilotPaused">isAutopilotPaused</a></li><li data-type='method'><a href="module-server_autopilot.html#~mainEventLoop">mainEventLoop</a></li><li data-type='method'><a href="module-server_autopilot.html#~pauseAutopilot">pauseAutopilot</a></li><li data-type='method'><a href="module-server_autopilot.html#~resumeAutopilot">resumeAutopilot</a></li><li data-type='method'><a href="module-server_autopilot.html#~setBroadcastFunction">setBroadcastFunction</a></li><li data-type='method'><a href="module-server_autopilot.html#~startMainEventLoop">startMainEventLoop</a></li><li data-type='method'><a href="module-server_autopilot.html#~tryUpdateAllData">tryUpdateAllData</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateAllData">updateAllData</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateCampaigns">updateCampaigns</a></li><li data-type='method'><a href="module-server_autopilot.html#~updatePrices">updatePrices</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateRepairCount">updateRepairCount</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateUnreadMessages">updateUnreadMessages</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateVesselCount">updateVesselCount</a></li></ul></li><li><a href="module-server_autopilot_pilot_atmosphere_broker.html">server/autopilot/pilot_atmosphere_broker</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_atmosphere_broker.html#~autoRebuyCO2">autoRebuyCO2</a></li></ul></li><li><a href="module-server_autopilot_pilot_barrel_boss.html">server/autopilot/pilot_barrel_boss</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_barrel_boss.html#~autoRebuyFuel">autoRebuyFuel</a></li></ul></li><li><a href="module-server_autopilot_pilot_captain_blackbeard.html">server/autopilot/pilot_captain_blackbeard</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~acceptRansomWithRetry">acceptRansomWithRetry</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~autoNegotiateHijacking">autoNegotiateHijacking</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~getCaseWithRetry">getCaseWithRetry</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~processHijackingCase">processHijackingCase</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~submitOfferWithRetry">submitOfferWithRetry</a></li></ul></li><li><a href="module-server_autopilot_pilot_cargo_marshal.html">server/autopilot/pilot_cargo_marshal</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~autoDepartVessels">autoDepartVessels</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~calculateRemainingDemand">calculateRemainingDemand</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~departVessels">departVessels</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~getTotalCapacity">getTotalCapacity</a></li></ul></li><li><a href="module-server_autopilot_pilot_fair_hand.html">server/autopilot/pilot_fair_hand</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_fair_hand.html#~autoCoop">autoCoop</a></li></ul></li><li><a href="module-server_autopilot_pilot_harbormaster.html">server/autopilot/pilot_harbormaster</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_harbormaster.html#~autoAnchorPointPurchase">autoAnchorPointPurchase</a></li></ul></li><li><a href="module-server_autopilot_pilot_reputation_chief.html">server/autopilot/pilot_reputation_chief</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_reputation_chief.html#~autoCampaignRenewal">autoCampaignRenewal</a></li></ul></li><li><a href="module-server_autopilot_pilot_yard_foreman.html">server/autopilot/pilot_yard_foreman</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_yard_foreman.html#~autoRepairVessels">autoRepairVessels</a></li></ul></li><li><a href="module-server_cache.html">server/cache</a><ul class='methods'><li data-type='method'><a href="module-server_cache.html#~clearAllCaches">clearAllCaches</a></li><li data-type='method'><a href="module-server_cache.html#~getAllianceCache">getAllianceCache</a></li><li data-type='method'><a href="module-server_cache.html#~getCampaignCache">getCampaignCache</a></li><li data-type='method'><a href="module-server_cache.html#~getCompanyCache">getCompanyCache</a></li><li data-type='method'><a href="module-server_cache.html#~getCoopCache">getCoopCache</a></li><li data-type='method'><a href="module-server_cache.html#~invalidateCampaignCache">invalidateCampaignCache</a></li><li data-type='method'><a href="module-server_cache.html#~invalidateCoopCache">invalidateCoopCache</a></li><li data-type='method'><a href="module-server_cache.html#~isCacheValid">isCacheValid</a></li><li data-type='method'><a href="module-server_cache.html#~setAllianceCache">setAllianceCache</a></li><li data-type='method'><a href="module-server_cache.html#~setCampaignCache">setCampaignCache</a></li><li data-type='method'><a href="module-server_cache.html#~setCompanyCache">setCompanyCache</a></li><li data-type='method'><a href="module-server_cache.html#~setCoopCache">setCoopCache</a></li></ul></li><li><a href="module-server_certificate.html">server/certificate</a><ul class='methods'><li data-type='method'><a href="module-server_certificate.html#~createHttpsServer">createHttpsServer</a></li><li data-type='method'><a href="module-server_certificate.html#~generateCA">generateCA</a></li><li data-type='method'><a href="module-server_certificate.html#~generateCertificate">generateCertificate</a></li><li data-type='method'><a href="module-server_certificate.html#~getNetworkIPs">getNetworkIPs</a></li><li data-type='method'><a href="module-server_certificate.html#~isCertificateInstalled">isCertificateInstalled</a></li><li data-type='method'><a href="module-server_certificate.html#~loadCertificate">loadCertificate</a></li></ul></li><li><a href="module-server_chatbot.html">server/chatbot</a></li><li><a href="module-server_config.html">server/config</a><ul class='methods'><li data-type='method'><a href="module-server_config.html#~getAppDataDir">getAppDataDir</a></li><li data-type='method'><a href="module-server_config.html#~getLocalAppDataDir">getLocalAppDataDir</a></li><li data-type='method'><a href="module-server_config.html#~getLogDir">getLogDir</a></li><li data-type='method'><a href="module-server_config.html#~getSessionCookie">getSessionCookie</a></li><li data-type='method'><a href="module-server_config.html#~getSettingsDir">getSettingsDir</a></li><li data-type='method'><a href="module-server_config.html#~loadStartupSettings">loadStartupSettings</a></li><li data-type='method'><a href="module-server_config.html#~setSessionCookie">setSessionCookie</a></li></ul></li><li><a href="module-server_gameapi.html">server/gameapi</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi.html#~activateCampaign">activateCampaign</a></li><li data-type='method'><a href="module-server_gameapi.html#~bulkRepairVessels">bulkRepairVessels</a></li><li data-type='method'><a href="module-server_gameapi.html#~departVessel">departVessel</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchAssignedPorts">fetchAssignedPorts</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchAutoPrice">fetchAutoPrice</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchBunkerState">fetchBunkerState</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchCampaigns">fetchCampaigns</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchEventData">fetchEventData</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchPrices">fetchPrices</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchRepairCount">fetchRepairCount</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchUnreadMessages">fetchUnreadMessages</a></li><li data-type='method'><a href="module-server_gameapi.html#~fetchVessels">fetchVessels</a></li><li data-type='method'><a href="module-server_gameapi.html#~getAllUserVessels">getAllUserVessels</a></li><li data-type='method'><a href="module-server_gameapi.html#~getAssignedPorts">getAssignedPorts</a></li><li data-type='method'><a href="module-server_gameapi.html#~getGameIndex">getGameIndex</a></li><li data-type='method'><a href="module-server_gameapi.html#~getMaintenanceCost">getMaintenanceCost</a></li><li data-type='method'><a href="module-server_gameapi.html#~getVesselHistory">getVesselHistory</a></li><li data-type='method'><a href="module-server_gameapi.html#~getVesselPorts">getVesselPorts</a></li><li data-type='method'><a href="module-server_gameapi.html#~purchaseCO2">purchaseCO2</a></li><li data-type='method'><a href="module-server_gameapi.html#~purchaseFuel">purchaseFuel</a></li></ul></li><li><a href="module-server_middleware_index.html">server/middleware/index</a><ul class='methods'><li data-type='method'><a href="module-server_middleware_index.html#~setupMiddleware">setupMiddleware</a></li></ul></li><li><a href="module-server_routes_alliance.html">server/routes/alliance</a><ul class='methods'><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-members">GET /api/alliance-members</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/chat">GET /api/chat</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/company-name">POST /api/company-name</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/send-message">POST /api/send-message</a></li></ul></li><li><a href="module-server_routes_anchor.html">server/routes/anchor</a></li><li><a href="module-server_routes_coop.html">server/routes/coop</a><ul class='methods'><li data-type='method'><a href="module-server_routes_coop.html#.GET/api/coop/data">GET /api/coop/data</a></li><li data-type='method'><a href="module-server_routes_coop.html#.POST/api/coop/send-max">POST /api/coop/send-max</a></li></ul></li><li><a href="module-server_routes_forecast.html">server/routes/forecast</a><ul class='methods'><li data-type='method'><a href="module-server_routes_forecast.html#~convertCESTToTimezone">convertCESTToTimezone</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~generateChatbotText">generateChatbotText</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~generateMetadata">generateMetadata</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getForecastDataPath">getForecastDataPath</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getNextDayData">getNextDayData</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getPreviousDayData">getPreviousDayData</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getServerLocalTimezone">getServerLocalTimezone</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getTimezoneOffsetHours">getTimezoneOffsetHours</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getValidTimezones">getValidTimezones</a></li></ul></li><li><a href="module-server_routes_game.html">server/routes/game</a></li><li><a href="module-server_routes_harbor-map.html">server/routes/harbor-map</a><ul class='methods'><li data-type='method'><a href="module-server_routes_harbor-map.html#~formatHistoryAsCSV">formatHistoryAsCSV</a></li><li data-type='method'><a href="module-server_routes_harbor-map.html#~formatHistoryAsTXT">formatHistoryAsTXT</a></li><li data-type='method'><a href="module-server_routes_harbor-map.html#~getGameIndexCached">getGameIndexCached</a></li></ul></li><li><a href="module-server_routes_health.html">server/routes/health</a></li><li><a href="module-server_routes_messenger.html">server/routes/messenger</a><ul class='methods'><li data-type='method'><a href="module-server_routes_messenger.html#.GET/api/contact/get-contacts">GET /api/contact/get-contacts</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.GET/api/hijacking/get-cases">GET /api/hijacking/get-cases</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.GET/api/messenger/get-chats">GET /api/messenger/get-chats</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/messenger/delete-chat">POST /api/messenger/delete-chat</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/messenger/get-messages">POST /api/messenger/get-messages</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/messenger/send-private">POST /api/messenger/send-private</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/user/search">POST /api/user/search</a></li><li data-type='method'><a href="module-server_routes_messenger.html#~migrateHijackHistory">migrateHijackHistory</a></li></ul></li><li><a href="module-server_routes_settings.html">server/routes/settings</a><ul class='methods'><li data-type='method'><a href="module-server_routes_settings.html#.GET/api/settings">GET /api/settings</a></li><li data-type='method'><a href="module-server_routes_settings.html#.POST/api/settings">POST /api/settings</a></li></ul></li><li><a href="module-server_scheduler.html">server/scheduler</a><ul class='methods'><li data-type='method'><a href="module-server_scheduler.html#~initScheduler">initScheduler</a></li><li data-type='method'><a href="module-server_scheduler.html#~isServerReady">isServerReady</a></li></ul></li><li><a href="module-server_settings-schema.html">server/settings-schema</a><ul class='methods'><li data-type='method'><a href="module-server_settings-schema.html#~getDefault">getDefault</a></li><li data-type='method'><a href="module-server_settings-schema.html#~getDefaults">getDefaults</a></li><li data-type='method'><a href="module-server_settings-schema.html#~getRequiredKeys">getRequiredKeys</a></li><li data-type='method'><a href="module-server_settings-schema.html#~getSettingsFilePath">getSettingsFilePath</a></li><li data-type='method'><a href="module-server_settings-schema.html#~initializeSettings">initializeSettings</a></li><li data-type='method'><a href="module-server_settings-schema.html#~saveSettings">saveSettings</a></li><li data-type='method'><a href="module-server_settings-schema.html#~validateSettings">validateSettings</a></li><li data-type='method'><a href="module-server_settings-schema.html#~validateValue">validateValue</a></li></ul></li><li><a href="module-server_state.html">server/state</a><ul class='methods'><li data-type='method'><a href="module-server_state.html#~getAutopilotState">getAutopilotState</a></li><li data-type='method'><a href="module-server_state.html#~getBunkerState">getBunkerState</a></li><li data-type='method'><a href="module-server_state.html#~getCampaignStatus">getCampaignStatus</a></li><li data-type='method'><a href="module-server_state.html#~getCoopData">getCoopData</a></li><li data-type='method'><a href="module-server_state.html#~getEventData">getEventData</a></li><li data-type='method'><a href="module-server_state.html#~getHeaderData">getHeaderData</a></li><li data-type='method'><a href="module-server_state.html#~getLastCO2Alert">getLastCO2Alert</a></li><li data-type='method'><a href="module-server_state.html#~getLastFuelAlert">getLastFuelAlert</a></li><li data-type='method'><a href="module-server_state.html#~getPrices">getPrices</a></li><li data-type='method'><a href="module-server_state.html#~getRepairCount">getRepairCount</a></li><li data-type='method'><a href="module-server_state.html#~getSettings">getSettings</a></li><li data-type='method'><a href="module-server_state.html#~getUserState">getUserState</a></li><li data-type='method'><a href="module-server_state.html#~getVesselCounts">getVesselCounts</a></li><li data-type='method'><a href="module-server_state.html#~isAutopilotPaused">isAutopilotPaused</a></li><li data-type='method'><a href="module-server_state.html#~setAutopilotPaused">setAutopilotPaused</a></li><li data-type='method'><a href="module-server_state.html#~setAutopilotState">setAutopilotState</a></li><li data-type='method'><a href="module-server_state.html#~setLastCO2Alert">setLastCO2Alert</a></li><li data-type='method'><a href="module-server_state.html#~setLastFuelAlert">setLastFuelAlert</a></li><li data-type='method'><a href="module-server_state.html#~updateBunkerState">updateBunkerState</a></li><li data-type='method'><a href="module-server_state.html#~updateCampaignStatus">updateCampaignStatus</a></li><li data-type='method'><a href="module-server_state.html#~updateCoopData">updateCoopData</a></li><li data-type='method'><a href="module-server_state.html#~updateEventData">updateEventData</a></li><li data-type='method'><a href="module-server_state.html#~updateHeaderData">updateHeaderData</a></li><li data-type='method'><a href="module-server_state.html#~updatePrices">updatePrices</a></li><li data-type='method'><a href="module-server_state.html#~updateRepairCount">updateRepairCount</a></li><li data-type='method'><a href="module-server_state.html#~updateSettings">updateSettings</a></li><li data-type='method'><a href="module-server_state.html#~updateVesselCounts">updateVesselCounts</a></li></ul></li><li><a href="module-server_utils_api.html">server/utils/api</a><ul class='methods'><li data-type='method'><a href="module-server_utils_api.html#~apiCall">apiCall</a></li><li data-type='method'><a href="module-server_utils_api.html#~apiCallWithRetry">apiCallWithRetry</a></li><li data-type='method'><a href="module-server_utils_api.html#~getAllianceId">getAllianceId</a></li><li data-type='method'><a href="module-server_utils_api.html#~getChatFeed">getChatFeed</a></li><li data-type='method'><a href="module-server_utils_api.html#~getCompanyName">getCompanyName</a></li><li data-type='method'><a href="module-server_utils_api.html#~getUserCompanyName">getUserCompanyName</a></li><li data-type='method'><a href="module-server_utils_api.html#~getUserId">getUserId</a></li><li data-type='method'><a href="module-server_utils_api.html#~initializeAlliance">initializeAlliance</a></li><li data-type='method'><a href="module-server_utils_api.html#~sleep">sleep</a></li></ul></li><li><a href="module-server_utils_encryption.html">server/utils/encryption</a><ul class='methods'><li data-type='method'><a href="module-server_utils_encryption.html#~decryptData">decryptData</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~deleteEncryptedData">deleteEncryptedData</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~encryptData">encryptData</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~getEncryptionInfo">getEncryptionInfo</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~getMachineKey">getMachineKey</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~isEncrypted">isEncrypted</a></li></ul></li><li><a href="module-server_utils_logger.html">server/utils/logger</a><ul class='methods'><li data-type='method'><a href="module-server_utils_logger.html#~debug">debug</a></li><li data-type='method'><a href="module-server_utils_logger.html#~error">error</a></li><li data-type='method'><a href="module-server_utils_logger.html#~isDebugMode">isDebugMode</a></li><li data-type='method'><a href="module-server_utils_logger.html#~loadLogLevel">loadLogLevel</a></li><li data-type='method'><a href="module-server_utils_logger.html#~log">log</a></li><li data-type='method'><a href="module-server_utils_logger.html#~warn">warn</a></li></ul></li><li><a href="module-server_utils_session-manager.html">server/utils/session-manager</a><ul class='methods'><li data-type='method'><a href="module-server_utils_session-manager.html#~deleteSession">deleteSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getAllUserIds">getAllUserIds</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getAvailableSessions">getAvailableSessions</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getSession">getSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getSessionsPath">getSessionsPath</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~hasSession">hasSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~loadAllSessions">loadAllSessions</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~loadSessions">loadSessions</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~migrateToEncrypted">migrateToEncrypted</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~saveSession">saveSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~saveSessions">saveSessions</a></li></ul></li><li><a href="module-server_websocket.html">server/websocket</a><ul class='methods'><li data-type='method'><a href="module-server_websocket.html#~broadcast">broadcast</a></li><li data-type='method'><a href="module-server_websocket.html#~broadcastBunkerUpdate">broadcastBunkerUpdate</a></li><li data-type='method'><a href="module-server_websocket.html#~broadcastToUser">broadcastToUser</a></li><li data-type='method'><a href="module-server_websocket.html#~getCachedHijackingCase">getCachedHijackingCase</a></li><li data-type='method'><a href="module-server_websocket.html#~getCachedMessengerChats">getCachedMessengerChats</a></li><li data-type='method'><a href="module-server_websocket.html#~getProcessedMessageIds">getProcessedMessageIds</a></li><li data-type='method'><a href="module-server_websocket.html#~getProcessedMessagesCachePath">getProcessedMessagesCachePath</a></li><li data-type='method'><a href="module-server_websocket.html#~initWebSocket">initWebSocket</a></li><li data-type='method'><a href="module-server_websocket.html#~loadProcessedMessageCache">loadProcessedMessageCache</a></li><li data-type='method'><a href="module-server_websocket.html#~performChatRefresh">performChatRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~performHijackingRefresh">performHijackingRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~performMessengerRefresh">performMessengerRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~saveProcessedMessageCache">saveProcessedMessageCache</a></li><li data-type='method'><a href="module-server_websocket.html#~startChatAutoRefresh">startChatAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~startChatAutoRefresh">startChatAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~startHijackingAutoRefresh">startHijackingAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~startMessengerAutoRefresh">startMessengerAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~stopChatAutoRefresh">stopChatAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~stopHijackingAutoRefresh">stopHijackingAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~stopMessengerAutoRefresh">stopMessengerAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~triggerImmediateChatRefresh">triggerImmediateChatRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~triggerImmediateHijackingRefresh">triggerImmediateHijackingRefresh</a></li><li data-type='method'><a href="module-server_websocket.html#~triggerImmediateMessengerRefresh">triggerImmediateMessengerRefresh</a></li></ul></li><li><a href="module-ui-dialogs.html">ui-dialogs</a><ul class='methods'><li data-type='method'><a href="module-ui-dialogs.html#.buyCampaign">buyCampaign</a></li><li data-type='method'><a href="module-ui-dialogs.html#.closeCampaignsOverlay">closeCampaignsOverlay</a></li><li data-type='method'><a href="module-ui-dialogs.html#.closeSettings">closeSettings</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showCampaignsOverlay">showCampaignsOverlay</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showConfirmDialog">showConfirmDialog</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showContactList">showContactList</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showSettings">showSettings</a></li></ul></li><li><a href="module-utils.html">utils</a><ul class='methods'><li data-type='method'><a href="module-utils.html#.escapeHtml">escapeHtml</a></li><li data-type='method'><a href="module-utils.html#.formatNumber">formatNumber</a></li><li data-type='method'><a href="module-utils.html#.registerServiceWorker">registerServiceWorker</a></li><li data-type='method'><a href="module-utils.html#.renderStars">renderStars</a></li><li data-type='method'><a href="module-utils.html#.requestNotificationPermission">requestNotificationPermission</a></li><li data-type='method'><a href="module-utils.html#.showNotification">showNotification</a></li><li data-type='method'><a href="module-utils.html#.showSideNotification">showSideNotification</a></li></ul></li><li><a href="module-vessel-management.html">vessel-management</a><ul class='methods'><li data-type='method'><a href="module-vessel-management.html#.departAllVessels">departAllVessels</a></li><li data-type='method'><a href="module-vessel-management.html#.purchaseSingleVessel">purchaseSingleVessel</a></li><li data-type='method'><a href="module-vessel-management.html#.updateVesselCount">updateVesselCount</a></li><li data-type='method'><a href="module-vessel-management.html#~createVesselCard">createVesselCard</a></li><li data-type='method'><a href="module-vessel-management.html#~displayFilteredVessels">displayFilteredVessels</a></li><li data-type='method'><a href="module-vessel-management.html#~getAvailableAnchorSlots">getAvailableAnchorSlots</a></li><li data-type='method'><a href="module-vessel-management.html#~getCO2EfficiencyClass">getCO2EfficiencyClass</a></li><li data-type='method'><a href="module-vessel-management.html#~getCapacityDisplay">getCapacityDisplay</a></li><li data-type='method'><a href="module-vessel-management.html#~getFuelEfficiencyClass">getFuelEfficiencyClass</a></li><li data-type='method'><a href="module-vessel-management.html#~loadCartFromStorage">loadCartFromStorage</a></li><li data-type='method'><a href="module-vessel-management.html#~loadMorePendingVessels">loadMorePendingVessels</a></li><li data-type='method'><a href="module-vessel-management.html#~loadMoreVessels">loadMoreVessels</a></li><li data-type='method'><a href="module-vessel-management.html#~populateDynamicFilters">populateDynamicFilters</a></li><li data-type='method'><a href="module-vessel-management.html#~preloadCommonVesselImages">preloadCommonVesselImages</a></li><li data-type='method'><a href="module-vessel-management.html#~preloadVesselImage">preloadVesselImage</a></li><li data-type='method'><a href="module-vessel-management.html#~refreshVesselCardsIfVisible">refreshVesselCardsIfVisible</a></li><li data-type='method'><a href="module-vessel-management.html#~saveCartToStorage">saveCartToStorage</a></li><li data-type='method'><a href="module-vessel-management.html#~showBulkRepairDialog">showBulkRepairDialog</a></li><li data-type='method'><a href="module-vessel-management.html#~updateCapacityDropdowns">updateCapacityDropdowns</a></li><li data-type='method'><a href="module-vessel-management.html#~vesselPassesFilters">vesselPassesFilters</a></li></ul></li><li><a href="module-vessel-selling.html">vessel-selling</a><ul class='methods'><li data-type='method'><a href="module-vessel-selling.html#.bulkSellVessels">bulkSellVessels</a></li><li data-type='method'><a href="module-vessel-selling.html#.closeSellVesselsOverlay">closeSellVesselsOverlay</a></li><li data-type='method'><a href="module-vessel-selling.html#.openSellVesselsOverlay">openSellVesselsOverlay</a></li><li data-type='method'><a href="module-vessel-selling.html#.refreshVesselsForSale">refreshVesselsForSale</a></li><li data-type='method'><a href="module-vessel-selling.html#.setSellFilter">setSellFilter</a></li><li data-type='method'><a href="module-vessel-selling.html#.showSellCart">showSellCart</a></li><li data-type='method'><a href="module-vessel-selling.html#~addVesselsToCart">addVesselsToCart</a></li><li data-type='method'><a href="module-vessel-selling.html#~displaySellVessels">displaySellVessels</a></li><li data-type='method'><a href="module-vessel-selling.html#~getCO2EfficiencyClass">getCO2EfficiencyClass</a></li><li data-type='method'><a href="module-vessel-selling.html#~getCapacityDisplay">getCapacityDisplay</a></li><li data-type='method'><a href="module-vessel-selling.html#~getFuelEfficiencyClass">getFuelEfficiencyClass</a></li><li data-type='method'><a href="module-vessel-selling.html#~groupVesselsByModel">groupVesselsByModel</a></li><li data-type='method'><a href="module-vessel-selling.html#~loadUserVesselsForSale">loadUserVesselsForSale</a></li><li data-type='method'><a href="module-vessel-selling.html#~removeVesselSelectionFromCart">removeVesselSelectionFromCart</a></li><li data-type='method'><a href="module-vessel-selling.html#~sellVessels">sellVessels</a></li><li data-type='method'><a href="module-vessel-selling.html#~toggleVesselSelection">toggleVesselSelection</a></li><li data-type='method'><a href="module-vessel-selling.html#~updateBulkSellButton">updateBulkSellButton</a></li><li data-type='method'><a href="module-vessel-selling.html#~updateSelectButtonState">updateSelectButtonState</a></li><li data-type='method'><a href="module-vessel-selling.html#~updateVesselSelectionInCart">updateVesselSelectionInCart</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#buildNav">buildNav</a></li><li><a href="global.html#deleteAllLogs">deleteAllLogs</a></li><li><a href="global.html#express">express</a></li><li><a href="global.html#flushAllToDisk">flushAllToDisk</a></li><li><a href="global.html#formatDetailsAsTXT">formatDetailsAsTXT</a></li><li><a href="global.html#formatFileSize">formatFileSize</a></li><li><a href="global.html#formatLogsAsCSV">formatLogsAsCSV</a></li><li><a href="global.html#formatLogsAsTXT">formatLogsAsTXT</a></li><li><a href="global.html#fs">fs</a></li><li><a href="global.html#getLogEntries">getLogEntries</a></li><li><a href="global.html#getLogFilePath">getLogFilePath</a></li><li><a href="global.html#getLogFileSize">getLogFileSize</a></li><li><a href="global.html#getLogsFromCache">getLogsFromCache</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#loadLogsFromDisk">loadLogsFromDisk</a></li><li><a href="global.html#lockBulkBuyButton">lockBulkBuyButton</a></li><li><a href="global.html#lockCo2Button">lockCo2Button</a></li><li><a href="global.html#lockCoopButtons">lockCoopButtons</a></li><li><a href="global.html#lockDepartButton">lockDepartButton</a></li><li><a href="global.html#lockFuelButton">lockFuelButton</a></li><li><a href="global.html#lockRepairButton">lockRepairButton</a></li><li><a href="global.html#logAutopilotAction">logAutopilotAction</a></li><li><a href="global.html#publish">publish</a></li><li><a href="global.html#searchInObject">searchInObject</a></li><li><a href="global.html#showAnchorTimer">showAnchorTimer</a></li><li><a href="global.html#shutdown">shutdown</a></li><li><a href="global.html#unlockBulkBuyButton">unlockBulkBuyButton</a></li><li><a href="global.html#unlockCo2Button">unlockCo2Button</a></li><li><a href="global.html#unlockCoopButtons">unlockCoopButtons</a></li><li><a href="global.html#unlockDepartButton">unlockDepartButton</a></li><li><a href="global.html#unlockFuelButton">unlockFuelButton</a></li><li><a href="global.html#unlockRepairButton">unlockRepairButton</a></li><li><a href="global.html#writeLogsToDisk">writeLogsToDisk</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">public/js/modules/harbor-map/vessel-panel.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Vessel Detail Panel Component
+ * Renders vessel information panel with trip history and actions
+ * ONLY renders data - NO data processing
+ *
+ * @module harbor-map/vessel-panel
+ */
+
+import { fetchVesselHistory, exportVesselHistory } from './api-client.js';
+import { deselectAll } from './map-controller.js';
+
+/**
+ * Shows vessel detail panel with vessel information
+ * Displays status, cargo, ETA, and loads trip history
+ *
+ * @param {Object} vessel - Vessel object from backend
+ * @returns {Promise&lt;void>}
+ * @example
+ * await showVesselPanel({ id: 1234, name: 'SS Example', status: 'enroute', ... });
+ */
+export async function showVesselPanel(vessel) {
+  const panel = document.getElementById('vessel-detail-panel');
+  if (!panel) return;
+
+  // Helper functions for efficiency classes
+  const getCO2Class = (factor) => {
+    if (factor &lt; 1.0) return 'vessel-spec-co2-efficient';
+    if (factor === 1.0) return 'vessel-spec-co2-standard';
+    return 'vessel-spec-co2-inefficient';
+  };
+
+  const getFuelClass = (factor) => {
+    if (factor &lt; 1.0) return 'vessel-spec-fuel-efficient';
+    if (factor === 1.0) return 'vessel-spec-fuel-standard';
+    return 'vessel-spec-fuel-inefficient';
+  };
+
+  const formatNumber = (num) => Math.floor(num).toLocaleString();
+
+  // Format port name with capital first letter
+  const formatPortName = (portCode) => {
+    if (!portCode) return 'N/A';
+    return portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  };
+
+  // Capacity display (max capacity)
+  let capacityDisplay = vessel.formattedCargo || 'N/A';
+  if (vessel.capacity_type === 'container' &amp;&amp; vessel.capacity_max) {
+    const dry = vessel.capacity_max.dry;
+    const ref = vessel.capacity_max.refrigerated;
+    const total = dry + ref;
+    capacityDisplay = `${formatNumber(total)} TEU (${formatNumber(dry)} dry / ${formatNumber(ref)} ref)`;
+  } else if (vessel.capacity_type === 'tanker' &amp;&amp; vessel.capacity_max) {
+    const fuel = vessel.capacity_max.fuel;
+    const crude = vessel.capacity_max.crude_oil;
+    const maxCapacity = Math.max(fuel, crude);
+    capacityDisplay = `${formatNumber(maxCapacity)} bbl (${formatNumber(fuel)} bbl fuel / ${formatNumber(crude)} bbl crude)`;
+  }
+
+  // Current cargo loaded (detailed breakdown)
+  // API uses 'capacity' for current loaded cargo, 'capacity_max' for maximum capacity
+  let loadedCargoDisplay = '&lt;p>&lt;strong>Loaded Cargo:&lt;/strong> N/A&lt;/p>';
+  if (vessel.capacity) {
+    if (vessel.capacity_type === 'container') {
+      const dryLoaded = vessel.capacity.dry;
+      const refLoaded = vessel.capacity.refrigerated;
+      const dryMax = vessel.capacity_max?.dry;
+      const refMax = vessel.capacity_max?.refrigerated;
+      const totalLoaded = dryLoaded + refLoaded;
+      const totalMax = dryMax + refMax;
+      const utilization = totalMax > 0 ? Math.round((totalLoaded / totalMax) * 100) : 0;
+      loadedCargoDisplay = `
+        &lt;p>&lt;strong>Loaded Cargo:&lt;/strong>&lt;/p>
+        &lt;p style="margin-left: 10px;">Total: ${formatNumber(totalLoaded)}/${formatNumber(totalMax)} TEU (${utilization}%)&lt;/p>
+        &lt;p style="margin-left: 10px;">Dry: ${formatNumber(dryLoaded)}/${formatNumber(dryMax)} TEU&lt;/p>
+        &lt;p style="margin-left: 10px;">Refrigerated: ${formatNumber(refLoaded)}/${formatNumber(refMax)} TEU&lt;/p>
+      `;
+    } else if (vessel.capacity_type === 'tanker') {
+      const fuelLoaded = vessel.capacity.fuel;
+      const crudeLoaded = vessel.capacity.crude_oil;
+      const fuelMax = vessel.capacity_max?.fuel;
+      const crudeMax = vessel.capacity_max?.crude_oil;
+      const totalLoaded = fuelLoaded + crudeLoaded;
+      const totalMax = fuelMax + crudeMax;
+      const utilization = totalMax > 0 ? Math.round((totalLoaded / totalMax) * 100) : 0;
+
+      loadedCargoDisplay = `
+        &lt;p>&lt;strong>Loaded Cargo:&lt;/strong>&lt;/p>
+        &lt;p style="margin-left: 10px;">Total: ${formatNumber(totalLoaded)}/${formatNumber(totalMax)} bbl (${utilization}%)&lt;/p>
+        &lt;p style="margin-left: 10px;">Fuel: ${formatNumber(fuelLoaded)}/${formatNumber(fuelMax)} bbl&lt;/p>
+        &lt;p style="margin-left: 10px;">Crude Oil: ${formatNumber(crudeLoaded)}/${formatNumber(crudeMax)} bbl&lt;/p>
+      `;
+    }
+  }
+
+  // Vessel image URL
+  const imageUrl = vessel.type ? `https://shippingmanager.cc/images/acquirevessels/${vessel.type}` : '';
+
+  // Render vessel full info with collapsible sections
+  panel.innerHTML = `
+    &lt;div class="panel-header">
+      &lt;h3>${vessel.name}&lt;/h3>
+      &lt;button class="close-btn" onclick="window.harborMap.closeVesselPanel()">×&lt;/button>
+    &lt;/div>
+
+    &lt;div class="panel-body">
+      ${imageUrl ? `
+        &lt;div class="vessel-image-container">
+          &lt;img src="${imageUrl}" alt="${vessel.type_name}" class="vessel-image" onerror="this.style.display='none'">
+          ${vessel.status === 'port' || vessel.status === 'anchor' ? `
+            &lt;div class="vessel-action-emojis">
+              ${vessel.status === 'port' ? `
+                &lt;span
+                  class="action-emoji"
+                  onclick="window.harborMap.departVessel(${vessel.id})"
+                  title="Depart vessel from port"
+                >🏁&lt;/span>
+              ` : ''}
+              &lt;span
+                class="action-emoji"
+                onclick="window.harborMap.sellVesselFromPanel(${vessel.id}, '${vessel.name.replace(/'/g, "\\'")}')"
+                title="Sell this vessel"
+              >💵&lt;/span>
+            &lt;/div>
+          ` : ''}
+        &lt;/div>
+      ` : ''}
+
+      &lt;div class="vessel-info-section collapsible">
+        &lt;h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+          &lt;span class="toggle-icon">▼&lt;/span> Status &amp; Current Cargo
+        &lt;/h4>
+        &lt;div class="section-content">
+          &lt;p>&lt;strong>Status:&lt;/strong> ${vessel.status}&lt;/p>
+          ${vessel.eta !== 'N/A' ? `&lt;p>&lt;strong>ETA:&lt;/strong> ${vessel.eta}&lt;/p>` : ''}
+          ${vessel.current_port_code ? `&lt;p>&lt;strong>Current Port:&lt;/strong> ${formatPortName(vessel.current_port_code)}&lt;/p>` : ''}
+          ${vessel.time_arrival &amp;&amp; vessel.time_arrival > 0 ? `&lt;p>&lt;strong>Last Arrival:&lt;/strong> ${new Date(vessel.time_arrival * 1000).toLocaleString()}&lt;/p>` : ''}
+          ${loadedCargoDisplay}
+          ${vessel.prices &amp;&amp; (vessel.prices.dry || vessel.prices.refrigerated) ? `
+            &lt;p>&lt;strong>Dry Container Rate:&lt;/strong> $${vessel.prices.dry}/TEU&lt;/p>
+            &lt;p>&lt;strong>Refrigerated Rate:&lt;/strong> $${vessel.prices.refrigerated}/TEU&lt;/p>
+          ` : ''}
+          ${vessel.prices &amp;&amp; (vessel.prices.fuel || vessel.prices.crude_oil) ? `
+            &lt;p>&lt;strong>Fuel Rate:&lt;/strong> $${vessel.prices.fuel}/bbl&lt;/p>
+            &lt;p>&lt;strong>Crude Oil Rate:&lt;/strong> $${vessel.prices.crude_oil}/bbl&lt;/p>
+          ` : ''}
+        &lt;/div>
+      &lt;/div>
+
+      &lt;div class="vessel-info-section collapsible collapsed">
+        &lt;h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+          &lt;span class="toggle-icon">▼&lt;/span> Operations &amp; Maintenance
+        &lt;/h4>
+        &lt;div class="section-content">
+          &lt;p>&lt;strong>Wear:&lt;/strong> ${vessel.wear ? parseFloat(vessel.wear).toFixed(2) : 'N/A'}%&lt;/p>
+          &lt;p>&lt;strong>Travelled Hours:&lt;/strong> ${formatNumber(vessel.travelled_hours)}h&lt;/p>
+          &lt;p>&lt;strong>Hours Until Maintenance:&lt;/strong> ${formatNumber(vessel.hours_until_check)}h&lt;/p>
+          &lt;p>&lt;strong>Service Interval:&lt;/strong> ${formatNumber(vessel.hours_between_service)}h&lt;/p>
+          ${vessel.total_distance_traveled ? `&lt;p>&lt;strong>Total Distance:&lt;/strong> ${formatNumber(vessel.total_distance_traveled)} nm&lt;/p>` : ''}
+          ${vessel.time_acquired ? `&lt;p>&lt;strong>Acquired:&lt;/strong> ${new Date(vessel.time_acquired * 1000).toLocaleDateString()}&lt;/p>` : ''}
+          ${vessel.maintenance_start_time ? `&lt;p>&lt;strong>Maintenance Start:&lt;/strong> ${new Date(vessel.maintenance_start_time * 1000).toLocaleString()}&lt;/p>` : ''}
+          ${vessel.maintenance_end_time ? `&lt;p>&lt;strong>Maintenance End:&lt;/strong> ${new Date(parseInt(vessel.maintenance_end_time) * 1000).toLocaleString()}&lt;/p>` : ''}
+          ${vessel.next_route_is_maintenance !== null ? `&lt;p>&lt;strong>Next Route Maintenance:&lt;/strong> ${vessel.next_route_is_maintenance ? 'Yes' : 'No'}&lt;/p>` : ''}
+        &lt;/div>
+      &lt;/div>
+
+      ${vessel.status === 'enroute' &amp;&amp; (vessel.route_origin || vessel.route_destination || vessel.route_name) ? `
+        &lt;div class="vessel-info-section collapsible collapsed">
+          &lt;h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+            &lt;span class="toggle-icon">▼&lt;/span> Route Details
+          &lt;/h4>
+          &lt;div class="section-content">
+            ${vessel.route_name ? `&lt;p>&lt;strong>Route Name:&lt;/strong> ${vessel.route_name}&lt;/p>` : ''}
+            ${vessel.route_origin ? `&lt;p>&lt;strong>Origin Port:&lt;/strong> ${formatPortName(vessel.route_origin)}&lt;/p>` : ''}
+            ${vessel.route_destination ? `&lt;p>&lt;strong>Destination Port:&lt;/strong> ${formatPortName(vessel.route_destination)}&lt;/p>` : ''}
+            ${vessel.route_distance ? `&lt;p>&lt;strong>Distance:&lt;/strong> ${formatNumber(vessel.route_distance)} nm&lt;/p>` : ''}
+            ${vessel.route_speed ? `&lt;p>&lt;strong>Speed:&lt;/strong> ${vessel.route_speed} kn&lt;/p>` : ''}
+            ${vessel.route_guards !== undefined &amp;&amp; vessel.route_guards >= 0 ? `&lt;p>&lt;strong>Guards:&lt;/strong> ${vessel.route_guards}&lt;/p>` : ''}
+            ${vessel.route_end_time ? `&lt;p>&lt;strong>Arrival Time:&lt;/strong> ${new Date(vessel.route_end_time * 1000).toLocaleString()}&lt;/p>` : ''}
+            ${vessel.route_dry_operation !== undefined ? `&lt;p>&lt;strong>Dry Operation:&lt;/strong> ${vessel.route_dry_operation ? 'Yes' : 'No'}&lt;/p>` : ''}
+          &lt;/div>
+        &lt;/div>
+      ` : ''}
+
+      &lt;div class="vessel-info-section collapsible collapsed">
+        &lt;h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+          &lt;span class="toggle-icon">▼&lt;/span> Vessel Specifications
+        &lt;/h4>
+        &lt;div class="section-content">
+          &lt;div class="vessel-specs">
+            &lt;div class="vessel-spec">&lt;strong>Type:&lt;/strong> ${vessel.type_name || 'N/A'}&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Capacity:&lt;/strong> ${capacityDisplay}&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Range:&lt;/strong> ${formatNumber(vessel.range)} nm&lt;/div>
+            &lt;div class="vessel-spec ${getCO2Class(vessel.co2_factor)}">&lt;strong>CO2 Factor:&lt;/strong> ${vessel.co2_factor || 'N/A'}&lt;/div>
+            &lt;div class="vessel-spec ${getFuelClass(vessel.fuel_factor)}">&lt;strong>Fuel Factor:&lt;/strong> ${vessel.fuel_factor || 'N/A'}&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Fuel Cap.:&lt;/strong> ${formatNumber(vessel.fuel_capacity)} t&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Service:&lt;/strong> ${vessel.hours_between_service || 'N/A'}h&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Engine:&lt;/strong> ${vessel.engine_type || 'N/A'} (${formatNumber(vessel.kw)} kW)&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Speed:&lt;/strong> ${vessel.max_speed || 'N/A'} kn&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Year:&lt;/strong> ${vessel.year || 'N/A'}&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>Length:&lt;/strong> ${vessel.length || 'N/A'} m&lt;/div>
+            ${vessel.width &amp;&amp; vessel.width !== 0 ? `&lt;div class="vessel-spec">&lt;strong>Width:&lt;/strong> ${vessel.width} m&lt;/div>` : ''}
+            &lt;div class="vessel-spec">&lt;strong>IMO:&lt;/strong> ${vessel.imo || 'N/A'}&lt;/div>
+            &lt;div class="vessel-spec">&lt;strong>MMSI:&lt;/strong> ${vessel.mmsi || 'N/A'}&lt;/div>
+            ${vessel.gearless ? '&lt;div class="vessel-spec vessel-spec-fullwidth vessel-spec-gearless">&lt;strong>⚙️ Gearless:&lt;/strong> own cranes&lt;/div>' : ''}
+            ${vessel.antifouling ? `&lt;div class="vessel-spec vessel-spec-fullwidth vessel-spec-antifouling">&lt;strong>🛡️ Antifouling:&lt;/strong> ${vessel.antifouling}&lt;/div>` : ''}
+            ${vessel.bulbous_bow ? '&lt;div class="vessel-spec vessel-spec-fullwidth">&lt;strong>🌊 Bulbous Bow:&lt;/strong> equipped&lt;/div>' : ''}
+            ${vessel.enhanced_thrusters ? '&lt;div class="vessel-spec vessel-spec-fullwidth">&lt;strong>🔧 Enhanced Thrusters:&lt;/strong> equipped&lt;/div>' : ''}
+            ${vessel.is_parked ? '&lt;div class="vessel-spec vessel-spec-fullwidth">&lt;strong>🅿️ Parked:&lt;/strong> vessel is parked&lt;/div>' : ''}
+            ${vessel.perks ? `&lt;div class="vessel-spec vessel-spec-fullwidth">&lt;strong>Perks:&lt;/strong> ${vessel.perks}&lt;/div>` : ''}
+          &lt;/div>
+        &lt;/div>
+      &lt;/div>
+
+
+      &lt;div class="vessel-info-section vessel-history-section collapsible collapsed">
+        &lt;h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+          &lt;span class="toggle-icon">▼&lt;/span> Trip History
+          &lt;div class="history-export-dropdown" style="margin-left: auto; position: relative;">
+            &lt;button class="history-export-btn" onclick="event.stopPropagation(); window.harborMap.toggleExportMenu()" title="Export History">💾&lt;/button>
+            &lt;div id="historyExportMenu" class="history-export-menu hidden">
+              &lt;button class="history-export-menu-item" onclick="event.stopPropagation(); window.harborMap.exportHistoryFormat('txt')">📄 TXT&lt;/button>
+              &lt;button class="history-export-menu-item" onclick="event.stopPropagation(); window.harborMap.exportHistoryFormat('csv')">📊 CSV&lt;/button>
+              &lt;button class="history-export-menu-item" onclick="event.stopPropagation(); window.harborMap.exportHistoryFormat('json')">🗂️ JSON&lt;/button>
+            &lt;/div>
+          &lt;/div>
+        &lt;/h4>
+        &lt;div class="section-content">
+          &lt;div id="vessel-history-loading">Loading history...&lt;/div>
+          &lt;div id="vessel-history-content">&lt;/div>
+        &lt;/div>
+      &lt;/div>
+    &lt;/div>
+  `;
+
+  // Show panel
+  panel.classList.add('active');
+
+  // Setup export menu close handler (like logbook)
+  setTimeout(() => {
+    document.addEventListener('click', closeExportMenuOnClickOutside);
+  }, 100);
+
+  // Setup infinite scroll for history
+  setupInfiniteScroll(panel);
+
+  // Load trip history
+  await loadVesselHistory(vessel.id);
+}
+
+/**
+ * Closes export menu when clicking outside
+ * @param {Event} e - Click event
+ */
+function closeExportMenuOnClickOutside(e) {
+  const menu = document.getElementById('historyExportMenu');
+  const exportBtn = document.querySelector('.history-export-btn');
+
+  if (menu &amp;&amp; !menu.classList.contains('hidden') &amp;&amp; exportBtn &amp;&amp; !exportBtn.contains(e.target) &amp;&amp; !menu.contains(e.target)) {
+    menu.classList.add('hidden');
+  }
+}
+
+/**
+ * Sets up infinite scroll for vessel history
+ * Automatically loads more trips when scrolling near bottom
+ * @param {HTMLElement} panel - The vessel detail panel
+ */
+function setupInfiniteScroll(panel) {
+  // Wait for history section to be rendered
+  setTimeout(() => {
+    const historySection = panel.querySelector('.vessel-history-section .section-content');
+    if (!historySection) {
+      console.warn('[Vessel Panel] History section not found for infinite scroll');
+      return;
+    }
+
+    historySection.addEventListener('scroll', () => {
+      // Check if user scrolled near bottom (within 100px)
+      const scrolledToBottom = historySection.scrollHeight - historySection.scrollTop - historySection.clientHeight &lt; 100;
+
+      if (scrolledToBottom &amp;&amp; displayedHistoryCount &lt; allHistoryData.length) {
+        console.log(`[Vessel Panel] Loading more history... (${displayedHistoryCount}/${allHistoryData.length})`);
+        renderHistoryPage();
+      }
+    });
+  }, 100);
+}
+
+/**
+ * Hides vessel detail panel
+ *
+ * @returns {void}
+ * @example
+ * hideVesselPanel();
+ */
+export function hideVesselPanel() {
+  const panel = document.getElementById('vessel-detail-panel');
+  if (!panel) return;
+
+  panel.classList.remove('active');
+}
+
+// Store current vessel ID and history data for pagination
+let currentVesselId = null;
+let allHistoryData = [];
+let displayedHistoryCount = 0;
+const HISTORY_PAGE_SIZE = 3;
+
+/**
+ * Loads and renders vessel trip history
+ * Displays past trips with origin, destination, cargo, profit
+ *
+ * @param {number} vesselId - Vessel ID
+ * @returns {Promise&lt;void>}
+ * @example
+ * await loadVesselHistory(1234);
+ */
+async function loadVesselHistory(vesselId) {
+  const loadingEl = document.getElementById('vessel-history-loading');
+  const contentEl = document.getElementById('vessel-history-content');
+
+  if (!loadingEl || !contentEl) return;
+
+  // Store vessel ID for export
+  currentVesselId = vesselId;
+
+  try {
+    const data = await fetchVesselHistory(vesselId);
+
+    // Hide loading
+    loadingEl.style.display = 'none';
+
+    // Render history
+    if (!data.history || data.history.length === 0) {
+      contentEl.innerHTML = '&lt;p class="no-data">No trip history available&lt;/p>';
+      return;
+    }
+
+    // Store full history
+    allHistoryData = data.history;
+    displayedHistoryCount = 0;
+
+    // Render first 3 trips
+    renderHistoryPage();
+
+    // Format cargo display
+    const formatCargo = (cargo) => {
+      if (!cargo) return 'N/A';
+      if (typeof cargo === 'string') return cargo;
+
+      // Container cargo
+      if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
+        const dry = cargo.dry;
+        const ref = cargo.refrigerated;
+        const total = dry + ref;
+        return `${total} TEU (${dry} dry, ${ref} ref)`;
+      }
+
+      // Tanker cargo
+      if (cargo.fuel !== undefined || cargo.crude_oil !== undefined) {
+        const fuel = cargo.fuel;
+        const crude = cargo.crude_oil;
+        return `${fuel > 0 ? fuel + ' bbl fuel' : ''}${fuel > 0 &amp;&amp; crude > 0 ? ', ' : ''}${crude > 0 ? crude + ' bbl crude' : ''}`;
+      }
+
+      return JSON.stringify(cargo);
+    };
+
+    // Format duration (seconds to human readable)
+    const formatDuration = (seconds) => {
+      if (!seconds) return 'N/A';
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      return `${hours}h ${minutes}m`;
+    };
+
+  } catch (error) {
+    loadingEl.style.display = 'none';
+    contentEl.innerHTML = '&lt;p class="error">Failed to load trip history&lt;/p>';
+    console.error('Error loading vessel history:', error);
+  }
+}
+
+/**
+ * Renders a page of history entries
+ * Shows HISTORY_PAGE_SIZE trips at a time
+ */
+function renderHistoryPage() {
+  const contentEl = document.getElementById('vessel-history-content');
+
+  if (!contentEl) return;
+
+  // Format cargo display
+  const formatCargo = (cargo) => {
+    if (!cargo) return 'N/A';
+    if (typeof cargo === 'string') return cargo;
+
+    // Container cargo
+    if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
+      const dry = cargo.dry;
+      const ref = cargo.refrigerated;
+      const total = dry + ref;
+      return `${total} TEU (${dry} dry, ${ref} ref)`;
+    }
+
+    // Tanker cargo
+    if (cargo.fuel !== undefined || cargo.crude_oil !== undefined) {
+      const fuel = cargo.fuel;
+      const crude = cargo.crude_oil;
+      return `${fuel > 0 ? fuel + ' bbl fuel' : ''}${fuel > 0 &amp;&amp; crude > 0 ? ', ' : ''}${crude > 0 ? crude + ' bbl crude' : ''}`;
+    }
+
+    return JSON.stringify(cargo);
+  };
+
+  // Format duration (seconds to human readable)
+  const formatDuration = (seconds) => {
+    if (!seconds) return 'N/A';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
+
+  // Get next page of trips
+  const nextTrips = allHistoryData.slice(displayedHistoryCount, displayedHistoryCount + HISTORY_PAGE_SIZE);
+  displayedHistoryCount += nextTrips.length;
+
+  // Format port name with capital first letter
+  const formatPortName = (portCode) => {
+    if (!portCode) return 'N/A';
+    return portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  };
+
+  // Render trips
+  const historyHtml = nextTrips.map(trip => `
+    &lt;div class="history-entry">
+      &lt;div class="history-route">
+        &lt;strong>${formatPortName(trip.origin)}&lt;/strong> → &lt;strong>${formatPortName(trip.destination)}&lt;/strong>
+      &lt;/div>
+      &lt;div class="history-details">
+        &lt;div class="history-row">
+          &lt;span>📅 ${trip.date ? new Date(trip.date).toLocaleString() : 'N/A'}&lt;/span>
+        &lt;/div>
+        &lt;div class="history-row">
+          &lt;span>📦 Cargo: ${formatCargo(trip.cargo)}&lt;/span>
+        &lt;/div>
+        &lt;div class="history-row">
+          &lt;span>💰 Income: $${trip.profit ? trip.profit.toLocaleString() : 'N/A'}&lt;/span>
+        &lt;/div>
+        &lt;div class="history-row">
+          &lt;span>⛽ Fuel: ${trip.fuel_used ? Math.round(trip.fuel_used / 1000).toLocaleString() + ' t' : 'N/A'}&lt;/span>
+          &lt;span>📏 Distance: ${trip.distance ? trip.distance.toLocaleString() + ' km' : 'N/A'}&lt;/span>
+        &lt;/div>
+        &lt;div class="history-row">
+          &lt;span>⏱️ Duration: ${formatDuration(trip.duration)}&lt;/span>
+          &lt;span>🔧 Wear: ${trip.wear ? trip.wear.toFixed(2) + '%' : 'N/A'}&lt;/span>
+        &lt;/div>
+      &lt;/div>
+    &lt;/div>
+  `).join('');
+
+  // Append to existing content (infinite scroll)
+  contentEl.innerHTML += historyHtml;
+}
+
+/**
+ * Closes vessel panel and returns to overview
+ *
+ * @returns {Promise&lt;void>}
+ * @example
+ * await closeVesselPanel();
+ */
+export async function closeVesselPanel() {
+  hideVesselPanel();
+  await deselectAll();
+}
+
+/**
+ * Departs vessel using existing depart API
+ *
+ * @param {number} vesselId - Vessel ID to depart
+ * @returns {Promise&lt;void>}
+ * @example
+ * await departVessel(1234);
+ */
+export async function departVessel(vesselId) {
+  try {
+    // Import departVessels from api module
+    const { departVessels } = await import('../api.js');
+
+    console.log(`[Vessel Panel] Departing vessel ${vesselId}...`);
+
+    const result = await departVessels([vesselId]);
+
+    if (result.success) {
+      console.log('[Vessel Panel] Vessel departed successfully');
+
+      // Update vessel count in header
+      if (window.updateVesselCount) {
+        await window.updateVesselCount();
+      }
+
+      // Wait longer for server to process the departure and update status
+      console.log('[Vessel Panel] Waiting for server to process departure...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Get updated vessel data with retry logic (fetches fresh data from server)
+      if (window.harborMap &amp;&amp; window.harborMap.getVesselById) {
+        let updatedVessel = null;
+        let attempts = 0;
+        const maxAttempts = 3;
+
+        // Retry getting vessel data until status changes or max attempts reached
+        while (attempts &lt; maxAttempts) {
+          updatedVessel = await window.harborMap.getVesselById(vesselId, true); // skipCache = true
+
+          if (updatedVessel &amp;&amp; updatedVessel.status !== 'port') {
+            console.log('[Vessel Panel] Vessel status updated to:', updatedVessel.status);
+            break;
+          }
+
+          attempts++;
+          if (attempts &lt; maxAttempts) {
+            console.log(`[Vessel Panel] Status still 'port', retrying (${attempts}/${maxAttempts})...`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Next iteration will fetch fresh data from server
+          }
+        }
+
+        if (updatedVessel) {
+          console.log('[Vessel Panel] Vessel data updated, final status:', updatedVessel.status);
+
+          // Re-select the vessel to update both panel AND marker/tooltip on map
+          if (window.harborMap &amp;&amp; window.harborMap.selectVesselFromMap) {
+            await window.harborMap.selectVesselFromMap(vesselId);
+            console.log('[Vessel Panel] Panel and map marker updated with new status');
+          }
+        } else {
+          console.warn('[Vessel Panel] Could not find vessel after departure:', vesselId);
+        }
+      }
+    } else {
+      console.error('[Vessel Panel] Departure failed:', result);
+      alert(`Failed to depart vessel: ${result.message || 'Unknown error'}`);
+    }
+  } catch (error) {
+    console.error('[Vessel Panel] Departure error:', error);
+    alert(`Error departing vessel: ${error.message}`);
+  }
+}
+
+
+/**
+ * Toggle export menu visibility
+ */
+export function toggleExportMenu() {
+  const menu = document.getElementById('historyExportMenu');
+  if (menu) {
+    menu.classList.toggle('hidden');
+  }
+}
+
+/**
+ * Export vessel history in specified format
+ * Uses backend export endpoint (like autopilot logbook)
+ *
+ * @param {string} format - 'txt', 'csv', or 'json'
+ */
+export async function exportHistoryFormat(format) {
+  const menu = document.getElementById('historyExportMenu');
+  if (menu) {
+    menu.classList.add('hidden');
+  }
+
+  if (!currentVesselId) {
+    alert('No vessel selected');
+    return;
+  }
+
+  if (!allHistoryData || allHistoryData.length === 0) {
+    alert('No history data to export');
+    return;
+  }
+
+  try {
+    console.log(`[Vessel Panel] Exporting history for vessel ${currentVesselId} as ${format}`);
+
+    // Fetch export from backend
+    const content = await exportVesselHistory(currentVesselId, format);
+
+    // Determine file extension and MIME type
+    let mimeType, extension;
+    if (format === 'txt') {
+      mimeType = 'text/plain';
+      extension = 'txt';
+    } else if (format === 'csv') {
+      mimeType = 'text/csv';
+      extension = 'csv';
+    } else if (format === 'json') {
+      mimeType = 'application/json';
+      extension = 'json';
+    }
+
+    // Trigger download
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `vessel-history-${currentVesselId}-${Date.now()}.${extension}`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    console.log(`[Vessel Panel] Export successful: ${allHistoryData.length} entries as ${format.toUpperCase()}`);
+  } catch (error) {
+    console.error('[Vessel Panel] Export failed:', error);
+    alert('Export failed. Please try again.');
+  }
+}
+
+/**
+ * Sells a vessel from the vessel panel with confirmation dialog
+ * Fetches actual sell price from API before showing confirmation
+ *
+ * @param {number} vesselId - Vessel ID to sell
+ * @param {string} vesselName - Vessel name for display
+ * @returns {Promise&lt;void>}
+ */
+export async function sellVesselFromPanel(vesselId, vesselName) {
+  try {
+    // Import dialog and utils
+    const { showConfirmDialog } = await import('../ui-dialogs.js');
+    const { showSideNotification, formatNumber } = await import('../utils.js');
+
+    // Get actual sell price from API
+    const priceResponse = await fetch(window.apiUrl('/api/vessel/get-sell-price'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vessel_id: vesselId })
+    });
+
+    if (!priceResponse.ok) {
+      const errorText = await priceResponse.text();
+      console.error('[Vessel Panel] Sell price API error:', errorText);
+      throw new Error(`Failed to get sell price: ${priceResponse.status} ${priceResponse.statusText}`);
+    }
+
+    const priceData = await priceResponse.json();
+    console.log('[Vessel Panel] Sell price response:', priceData);
+
+    if (!priceData.data?.selling_price &amp;&amp; priceData.data?.selling_price !== 0) {
+      throw new Error(`API did not return selling_price. Response: ${JSON.stringify(priceData)}`);
+    }
+
+    const sellPrice = priceData.data.selling_price;
+    const originalPrice = priceData.data.original_price;
+
+    // Show confirmation dialog with custom formatting
+    const confirmed = await showConfirmDialog({
+      title: `Vessel ${vesselName}`,
+      message: `
+        &lt;div style="text-align: center; line-height: 1.8;">
+          &lt;div style="color: #9ca3af; font-size: 14px; margin-bottom: 8px;">
+            Original Price: $${formatNumber(originalPrice)}
+          &lt;/div>
+          &lt;div style="color: #6b7280; margin-bottom: 8px;">
+            ━━━━━━━━━━━━━━━━━━━━━━
+          &lt;/div>
+          &lt;div style="color: #10b981; font-size: 16px; font-weight: 600;">
+            Sell Price: $${formatNumber(sellPrice)}
+          &lt;/div>
+        &lt;/div>
+      `,
+      confirmText: 'Sell'
+    });
+
+    if (!confirmed) return;
+
+    // Sell vessel via API
+    const response = await fetch(window.apiUrl('/api/vessel/sell-vessels'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vessel_ids: [vesselId] })
+    });
+
+    if (!response.ok) throw new Error('Failed to sell vessel');
+
+    const data = await response.json();
+
+    showSideNotification(`✅ Sold ${vesselName} for $${formatNumber(sellPrice)}`, 'success');
+
+    // Close panel and reload overview
+    await closeVesselPanel();
+
+    // Update vessel count badge
+    if (window.updateVesselCount) {
+      await window.updateVesselCount();
+    }
+  } catch (error) {
+    console.error('[Vessel Panel] Sell error:', error);
+    const errorMsg = error.message || error.toString() || 'Unknown error';
+    alert(`Error selling vessel: ${errorMsg}`);
+  }
+}
+
+// Expose functions to window for onclick handlers
+window.harborMap = window.harborMap || {};
+window.harborMap.closeVesselPanel = closeVesselPanel;
+window.harborMap.departVessel = departVessel;
+window.harborMap.sellVesselFromPanel = sellVesselFromPanel;
+window.harborMap.toggleExportMenu = toggleExportMenu;
+window.harborMap.exportHistoryFormat = exportHistoryFormat;
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation Version: 0.0.7 - ShippingManager CoPilot
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

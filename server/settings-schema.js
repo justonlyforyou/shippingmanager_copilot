@@ -53,6 +53,7 @@ const SETTINGS_SCHEMA = {
   // General Settings
   harborFeeWarningThreshold: 50,  // Warning when harbor fee > X% of gross income (10, 20, 30, 40, 50, 60, 70, 80, 90, 99)
   minCargoUtilization: 80,  // Minimum cargo utilization percentage (applies to manual + auto depart)
+  enableWeatherData: true,  // Enable weather data on map (double-click to show weather from Open-Meteo API)
 
   // Alert Thresholds
   fuelThreshold: 400,
@@ -164,7 +165,10 @@ const SETTINGS_SCHEMA = {
   chatbotHelpAliases: ['commands', 'help'],  // Alternative command words
 
   chatbotDMCommandsEnabled: false,
-  chatbotCustomCommands: []
+  chatbotCustomCommands: [],
+
+  // Campaign Data (cached from API)
+  company_type: null  // User's company type from game API (e.g., ['container', 'tanker'])
 };
 
 /**
@@ -270,6 +274,23 @@ function validateValue(key, value) {
     if (!Array.isArray(value)) {
       logger.warn(`[Settings] Invalid array for "${key}": ${value}, using default: []`);
       return defaultValue;
+    }
+    return value;
+  }
+
+  // Handle nullable fields (like company_type)
+  if (defaultValue === null) {
+    // Allow null or valid value
+    if (value === null || value === undefined) {
+      return null;
+    }
+    // For company_type, expect array of strings
+    if (key === 'company_type') {
+      if (Array.isArray(value)) {
+        return value;
+      }
+      logger.warn(`[Settings] Invalid company_type: ${value}, using default: null`);
+      return null;
     }
     return value;
   }

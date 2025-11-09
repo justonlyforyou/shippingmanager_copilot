@@ -256,6 +256,9 @@ import {
   showSellCart
 } from './modules/vessel-selling.js';
 
+// Import harbor map initialization
+import { initHarborMap, openHarborMap, preloadHarborMapData, startHarborMapAutoUpdate } from './modules/harbor-map-init.js';
+
 // =============================================================================
 // Global State and DOM Element References
 // =============================================================================
@@ -303,6 +306,7 @@ const charCount = document.getElementById('charCount');
  * @property {boolean} autoBulkRepair - Enable automatic bulk repairs
  * @property {boolean} autoCampaignRenewal - Enable automatic campaign renewal
  * @property {boolean} autoPilotNotifications - Enable AutoPilot action notifications
+ * @property {boolean} enableWeatherData - Enable weather data API calls on map
  */
 let settings = null; // Will be loaded async on DOMContentLoaded
 
@@ -475,6 +479,8 @@ function loadCache() {
       const repairBadge = document.getElementById('repairCount');
       if (repairBadge) {
         repairBadge.textContent = data.repair;
+        // Remove any color classes that might have been accidentally added
+        repairBadge.classList.remove('badge-green-bg', 'badge-orange-bg', 'badge-red-bg');
         if (data.repair > 0) {
           repairBadge.classList.remove('hidden');
         } else {
@@ -611,11 +617,33 @@ function loadCache() {
     // COOP data (alliance cooperation)
     if (data.coop) {
       const { available, cap, coop_boost } = data.coop;
+
+      // Show COOP container in header
+      const coopContainer = document.getElementById('coopContainer');
+      if (coopContainer) {
+        coopContainer.classList.remove('hidden');
+      }
+
+      // Show COOP button in action menu
+      const coopBtn = document.getElementById('coopBtn');
+      if (coopBtn) {
+        coopBtn.style.display = '';
+      }
+
+      // Show Alliance Chat button in action menu
+      const allianceChatBtn = document.getElementById('allianceChatBtn');
+      if (allianceChatBtn) {
+        allianceChatBtn.style.display = '';
+      }
+
       // Only show if cap > 0 (user in alliance)
       if (cap > 0) {
+        // Update COOP display
         updateCoopDisplay(cap, available);
       }
     }
+    // Note: We DON'T hide buttons if no coop data in cache
+    // They will be hidden by WebSocket update if user is not in alliance
 
     // Bunker status
     if (data.bunker) {
@@ -791,6 +819,12 @@ function loadCache() {
         coopBtn.style.display = '';
       }
 
+      // Show Alliance Chat button in action menu
+      const allianceChatBtn = document.getElementById('allianceChatBtn');
+      if (allianceChatBtn) {
+        allianceChatBtn.style.display = '';
+      }
+
       // Update COOP badge (green if >= 3, red if < 3)
       const coopBadge = document.getElementById('coopBadge');
       if (coopBadge) {
@@ -821,6 +855,12 @@ function loadCache() {
       }
       if (coopBtn) {
         coopBtn.style.display = 'none';
+      }
+
+      // Hide Alliance Chat button if not in alliance
+      const allianceChatBtn = document.getElementById('allianceChatBtn');
+      if (allianceChatBtn) {
+        allianceChatBtn.style.display = 'none';
       }
     }
 
@@ -930,10 +970,10 @@ function loadCache() {
       if (hijackedDisplay && hijackedCountEl && hijackedIcon && hijackedCount !== undefined) {
         if (hijackedCount > 0) {
           hijackedCountEl.textContent = hijackedCount;
-          hijackedDisplay.classList.remove('hidden');
+          hijackedDisplay.style.display = 'flex';
           hijackedIcon.classList.add('hijacked-glow');
         } else {
-          hijackedDisplay.classList.add('hidden');
+          hijackedDisplay.style.display = 'none';
           hijackedIcon.classList.remove('hijacked-glow');
         }
       }
@@ -1191,6 +1231,23 @@ window.handleSettingsUpdate = (newSettings) => {
   // Update local settings object
   settings = newSettings;
 
+  // Update company_type from cached settings
+  if (newSettings.company_type !== undefined) {
+    window.USER_COMPANY_TYPE = newSettings.company_type;
+    console.log('[Settings] Updated company_type from cache:', newSettings.company_type);
+
+    // Show/hide tanker filter button in sell vessels dialog
+    const sellTankerBtn = document.getElementById('sellFilterTankerBtn');
+    if (sellTankerBtn && newSettings.company_type && newSettings.company_type.includes('tanker')) {
+      sellTankerBtn.classList.remove('hidden');
+    }
+
+    // Refresh vessel catalog if open to update locked/unlocked banners
+    if (window.refreshVesselCatalog && typeof window.refreshVesselCatalog === 'function') {
+      window.refreshVesselCatalog();
+    }
+  }
+
   // Update all checkboxes and input fields
   const fuelThresholdInput = document.getElementById('fuelThreshold');
   const co2ThresholdInput = document.getElementById('co2Threshold');
@@ -1307,6 +1364,13 @@ window.handleSettingsUpdate = (newSettings) => {
     const notifValue = newSettings.autoPilotNotifications !== undefined ? newSettings.autoPilotNotifications : true;
     autoPilotNotificationsCheckbox.checked = notifValue;
     toggleAutoPilotAgentCheckboxes(notifValue);
+  }
+
+  // Weather data toggle
+  const enableWeatherDataCheckbox = document.getElementById('enableWeatherData');
+  if (enableWeatherDataCheckbox) {
+    const weatherValue = newSettings.enableWeatherData !== undefined ? newSettings.enableWeatherData : true;
+    enableWeatherDataCheckbox.checked = weatherValue;
   }
 
   // Update individual agent notification checkboxes (InApp + Desktop)
@@ -1630,6 +1694,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       console.log('[Debug] Debug Mode ENABLED - verbose logging active');
     }
   }
+
+  // Update UI with loaded settings (must happen after DOM is ready)
+  // This ensures all checkboxes reflect the loaded settings state
+  window.handleSettingsUpdate(settings);
 
   // CRITICAL: Set per-user storage prefix IMMEDIATELY before any cache access
   if (settings.userId) {
@@ -2119,6 +2187,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
 
+  // Open alliance chat overlay
+  document.getElementById('allianceChatBtn').addEventListener('click', () => {
+    const overlay = document.getElementById('allianceChatOverlay');
+    if (overlay) {
+      overlay.classList.remove('hidden');
+    }
+  });
+
+  // Close alliance chat overlay
+  document.getElementById('closeChatBtn').addEventListener('click', () => {
+    const overlay = document.getElementById('allianceChatOverlay');
+    if (overlay) {
+      overlay.classList.add('hidden');
+    }
+  });
+
   // Open documentation in new tab
   document.getElementById('docsBtn').addEventListener('click', () => {
     window.open('/docs/index.html', '_blank');
@@ -2157,6 +2241,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Initialize logbook module
   initLogbook();
+
+  // Initialize harbor map as main content (async to load data)
+  // DON'T await - let it load in background so header can finish loading
+  initHarborMap().catch(error => {
+    console.error('[Init] Failed to initialize harbor map:', error);
+  });
 
   // Open coop overlay
   document.getElementById('coopBtn').addEventListener('click', showCoopOverlay);
@@ -2322,6 +2412,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Use the actual setting value, default to true if undefined
   const initialNotifState = settings.autoPilotNotifications !== undefined ? settings.autoPilotNotifications : true;
   toggleAutoPilotAgentCheckboxes(initialNotifState);
+
+  // --- Weather Data Toggle ---
+  const enableWeatherDataCheckbox = document.getElementById('enableWeatherData');
+  if (enableWeatherDataCheckbox) {
+    enableWeatherDataCheckbox.addEventListener('change', async function() {
+      const wasChecked = this.checked;
+      settings.enableWeatherData = wasChecked;
+
+      console.log('[Settings] Weather Data changed to:', wasChecked);
+      await saveSettings(settings);
+      console.log('[Settings] Weather Data saved');
+
+      // Notify user that reload is required
+      showNotification('Weather data setting saved. Please reload the page (F5) for changes to take effect.', 'info', 6000);
+
+      // Update map controller (just for logging, no dynamic changes)
+      if (window.harborMap && window.harborMap.updateWeatherDataSetting) {
+        window.harborMap.updateWeatherDataSetting(wasChecked);
+      }
+    });
+  }
 
   // Individual Agent Notification toggles (InApp + Desktop)
   const agentNotificationIds = [
@@ -2837,7 +2948,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           maxlength="1000"
           class="response-textarea"></textarea>
         <div class="char-counter-container">
-          <span class="char-counter" data-command-index="${commandIndex}">0</span> / 1000 characters
+          <span class="char-counter" data-command-index="${commandIndex}">0</span> / 1000
         </div>
       </div>
 
@@ -2933,7 +3044,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             maxlength="1000"
             class="response-textarea">${escapeHtml(cmd.response || '')}</textarea>
           <div class="char-counter-container">
-            <span class="char-counter" data-command-index="${index}">${(cmd.response || '').length}</span> / 1000 characters
+            <span class="char-counter" data-command-index="${index}">${(cmd.response || '').length}</span> / 1000
           </div>
         </div>
 
@@ -3030,6 +3141,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   document.getElementById('messengerInput').addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+
+    // Update character counter
+    const charCounter = document.getElementById('messengerCharCount');
+    if (charCounter) {
+      charCounter.textContent = `${this.value.length} / 1000`;
+    }
   });
 
   // --- Notification Permission Management ---
@@ -3144,6 +3261,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('[Init] Unread badge updated!');
   }
 
+  // Map is now main content - no need to preload
+  // Auto-updates are handled by vessel-management.js via refreshHarborMapIfOpen()
+
   // Define autopilot button update function BEFORE WebSocket connects
   // This must be available when WebSocket sends initial autopilot_status event
   /**
@@ -3194,16 +3314,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const result = await response.json();
 
-      // Update UI immediately (WebSocket will confirm the state)
+      // Update UI immediately (WebSocket will send notification to all clients)
       setStorage('autopilotPaused', JSON.stringify(newPauseState));
       window.updateAutopilotButton(newPauseState);
 
-      // Show side notification
-      if (newPauseState) {
-        showSideNotification('⏸️ <strong>AutoPilot paused</strong><br>All automated functions are now on hold', 'warning', 5000, true);
-      } else {
-        showSideNotification('▶️ <strong>AutoPilot resumed</strong><br>All automated functions are now active', 'success', 5000, true);
-      }
+      // Note: Side notification will be shown via WebSocket broadcast (onAutopilotStatusUpdate)
+      // This ensures all connected clients see the notification, not just this one
 
     } catch (error) {
       console.error('[Autopilot Toggle] Error:', error);
@@ -3218,15 +3334,22 @@ document.addEventListener('DOMContentLoaded', async () => {
    * @returns {void}
    */
   window.onAutopilotStatusUpdate = function(data) {
+    // Get previous state to detect actual changes
+    const cachedPauseState = getStorage('autopilotPaused');
+    const previousPaused = cachedPauseState ? JSON.parse(cachedPauseState) : null;
+    const hasChanged = previousPaused !== null && previousPaused !== data.paused;
+
     // Also save to per-user localStorage for instant load on next page refresh
     setStorage('autopilotPaused', JSON.stringify(data.paused));
     window.updateAutopilotButton(data.paused);
 
-    // Show side notification
-    if (window.showSideNotification) {
-      const status = data.paused ? 'paused' : 'resumed';
-      const icon = data.paused ? '⏸️' : '▶️';
-      window.showSideNotification(`${icon} Autopilot ${status}`, data.paused ? 'warning' : 'success');
+    // Show side notification ONLY if state actually changed (not on initial load)
+    if (hasChanged) {
+      if (data.paused) {
+        showSideNotification('⏸️ <strong>AutoPilot paused</strong><br>All automated functions are now on hold', 'warning', 5000, true);
+      } else {
+        showSideNotification('▶️ <strong>AutoPilot resumed</strong><br>All automated functions are now active', 'success', 5000, true);
+      }
     }
   };
 

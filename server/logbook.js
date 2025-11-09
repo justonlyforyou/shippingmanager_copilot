@@ -216,7 +216,7 @@ function searchInObject(obj, searchTerm) {
  * @param {string} userId - User ID
  * @param {object} filters - Filter options
  * @param {string} filters.status - "SUCCESS", "ERROR", "WARNING", or "ALL"
- * @param {string} filters.timeRange - "today", "yesterday", "48h", "7days", "lastweek", "30days", "lastmonth", or "all"
+ * @param {string} filters.timeRange - "1h", "2h", "6h", "12h", "24h", "today", "yesterday", "48h", "7days", "lastweek", "30days", "lastmonth", or "all"
  * @param {string} filters.autopilot - Autopilot name or "ALL"
  * @param {string} filters.search - Search term (full-text search across all fields including details)
  * @returns {array} Filtered log entries
@@ -239,7 +239,17 @@ async function getLogEntries(userId, filters = {}) {
     const now = Date.now();
     let cutoff;
 
-    if (filters.timeRange === 'today') {
+    if (filters.timeRange === '1h') {
+      cutoff = now - (1 * 60 * 60 * 1000);
+    } else if (filters.timeRange === '2h') {
+      cutoff = now - (2 * 60 * 60 * 1000);
+    } else if (filters.timeRange === '6h') {
+      cutoff = now - (6 * 60 * 60 * 1000);
+    } else if (filters.timeRange === '12h') {
+      cutoff = now - (12 * 60 * 60 * 1000);
+    } else if (filters.timeRange === '24h') {
+      cutoff = now - (24 * 60 * 60 * 1000);
+    } else if (filters.timeRange === 'today') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       cutoff = today.getTime();

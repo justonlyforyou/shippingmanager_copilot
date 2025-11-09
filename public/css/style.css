@@ -49,6 +49,15 @@ body {
     max-height: 800px;
 }
 
+/* Chat Area Wrapper (contains chat-feed, input-section, and harbor map overlay) */
+.chat-area-wrapper {
+    position: relative;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
 /* Action Bar */
 .action-bar {
     background: #1f1f1f;
@@ -689,7 +698,9 @@ button:active {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    height: 30px;
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
 }
 
 .messenger-header h2 {
@@ -705,17 +716,32 @@ button:active {
     background: none;
     color: #e0e0e0;
     border: none;
-    font-size: 16px;
+    font-size: 18px;
     cursor: pointer;
     transition: color 0.2s;
     padding: 0 10px;
-    margin-top: -6px;
     line-height: 1;
     display: flex;
     align-items: center;
+    justify-content: center;
+    height: 34px;
+}
+
+.close-btn span {
+    display: inline-block;
 }
 
 .close-btn:hover {
+    color: #ef4444;
+}
+
+/* Button push to right */
+.btn-auto-left {
+    margin-left: auto;
+}
+
+/* Delete button - red color */
+.btn-delete {
     color: #ef4444;
 }
 
@@ -1078,9 +1104,39 @@ button:active {
 
 .messenger-input {
     display: flex;
+    flex-direction: column;
     padding: 15px;
     border-top: 2px solid #404040;
     gap: 10px;
+}
+
+.messenger-input-row {
+    display: flex;
+    gap: 10px;
+}
+
+.send-btn-container {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    align-items: center;
+    justify-content: center;
+}
+
+.send-btn-container .char-count {
+    text-align: center;
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+#subjectInput {
+    width: 100%;
+    background: #2a2a2a;
+    border: 1px solid #404040;
+    color: #e0e0e0;
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-family: inherit;
 }
 
 #messengerInput {
@@ -1259,7 +1315,7 @@ button:active {
     max-height: calc(100vh - 40px);
     overflow-y: auto;
     position: relative;
-    max-width: 350px;
+    max-width: 390px;
 }
 
 /* Alert notifications with megaphone icon and Got it button */
@@ -1811,7 +1867,7 @@ button:active {
     border-radius: 10px;
     box-shadow: 0 10px 40px rgba(0, 0, 0, 1);
     width: 90%;
-    max-width: 450px;
+    max-width: 490px;
     padding: 0;
     border: 2px solid #404040;
 }
@@ -1825,6 +1881,9 @@ button:active {
     padding: 20px;
     border-radius: 8px 8px 0 0;
     border-bottom: 2px solid #404040;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
 .confirm-dialog-header h3 {
@@ -1832,6 +1891,11 @@ button:active {
     font-size: 20px;
     color: #60a5fa;
     font-weight: 600;
+}
+
+.confirm-dialog-buttons {
+    display: flex;
+    gap: 10px;
 }
 
 .confirm-dialog-footer {
@@ -1855,6 +1919,13 @@ button:active {
     font-size: 15px;
     line-height: 1.6;
     color: #d1d5db;
+}
+
+.cart-separator {
+    width: 100%;
+    height: 1px;
+    background: #404040;
+    margin: 20px 0;
 }
 
 .confirm-dialog-details {
@@ -2412,15 +2483,16 @@ button:active {
 
 /* === Vessel Catalog Styles === */
 .vessel-filter-btn {
-    padding: 8px 16px;
+    padding: 4px 12px;
     background: rgba(31, 41, 55, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
     color: #9ca3af;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    line-height: 1.2;
 }
 
 .vessel-filter-btn:hover {
@@ -2687,6 +2759,26 @@ button:active {
     background: rgba(17, 24, 39, 0.8);
 }
 
+/* Vessel action emojis (depart, sell) - positioned below image, right-aligned */
+.vessel-action-emojis {
+    text-align: right;
+    margin-top: 8px;
+    padding: 0 8px 8px 8px;
+}
+
+.action-emoji {
+    cursor: pointer;
+    font-size: 20px;
+    margin-left: 12px;
+    display: inline-block;
+    transition: transform 0.2s;
+    user-select: none;
+}
+
+.action-emoji:hover {
+    transform: scale(1.2);
+}
+
 .vessel-content {
     padding: 16px;
 }
@@ -2728,9 +2820,9 @@ button:active {
 }
 
 .vessel-actions {
-    display: grid;
-    grid-template-columns: 70px 1fr;
-    gap: 10px;
+    display: grid !important;
+    grid-template-columns: 60px 1fr !important;
+    gap: 4px;
     margin-top: 12px;
     align-items: center;
 }
@@ -2738,7 +2830,7 @@ button:active {
 .vessel-quantity-input {
     width: 100%;
     height: 100%;
-    padding: 8px;
+    padding: 4px;
     background: rgba(17, 24, 39, 0.8);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 6px;
@@ -2751,19 +2843,23 @@ button:active {
 .vessel-action-buttons {
     display: flex;
     flex-direction: row;
-    gap: 8px;
+    gap: 4px;
 }
 
 .vessel-select-btn,
 .vessel-buy-btn {
     flex: 1;
-    padding: 6px 8px;
+    padding: 10px 16px;
     border: 1px solid;
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.2s;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .vessel-select-btn {
@@ -2864,7 +2960,35 @@ button:active {
     .action-buttons-group {
         width: 100%;
         order: 2;
-        justify-content: space-between;
+        display: grid;
+        grid-template-columns: repeat(16, 1fr);
+        gap: 4px;
+    }
+
+    .action-buttons-group .action-btn {
+        width: 30px;
+        height: 30px;
+        padding: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        margin: 0 auto;
+    }
+
+    /* First 8 buttons - each takes 2 columns */
+    .action-buttons-group .action-btn:nth-child(-n+8) {
+        grid-column: span 2;
+    }
+
+    /* 9th button starts at column 2 to center the row of 7 */
+    .action-buttons-group .action-btn:nth-child(9) {
+        grid-column: 2 / span 2;
+    }
+
+    /* Remaining buttons in second row - each takes 2 columns */
+    .action-buttons-group .action-btn:nth-child(n+10):nth-child(-n+15) {
+        grid-column: span 2;
     }
 
     /* Header - 2-row mobile layout */
@@ -2886,16 +3010,16 @@ button:active {
         font-size: 24px;
     }
 
-    /* CEO Level Badge - smaller on mobile */
+    /* CEO Level Badge - larger on mobile */
     #ceoLevelBadge {
-        top: -6px !important;
+        top: -4px !important;
         right: -2px !important;
-        width: 22px !important;
-        height: 22px !important;
+        width: 35px !important;
+        height: 35px !important;
     }
 
     #ceoLevelNumber {
-        font-size: 9px !important;
+        font-size: 14px !important;
         top: 55% !important;
         left: 50% !important;
     }
@@ -2922,14 +3046,12 @@ button:active {
         margin-top: 8px !important;
         width: 100% !important;
         justify-content: flex-start !important;
+        align-items: center !important;
     }
 
-    .header-info-displays > div {
-        font-size: 11px !important;
-    }
-
-    .header-info-displays span {
-        font-size: 11px !important;
+    .header-info-displays > div:not(#hijackedVesselsDisplay) {
+        display: flex !important;
+        align-items: center !important;
     }
 
     /* Chat area adjustments */
@@ -3092,6 +3214,164 @@ button:active {
     .vessel-catalog-grid {
         grid-template-columns: 1fr;
     }
+
+    /* Event banner stays in header on mobile */
+    .event-banner-label {
+        font-size: 8px;
+    }
+
+    .event-banner-name {
+        font-size: 10px;
+    }
+
+    /* Side notifications - max 80% screen width on mobile */
+    #sideNotifications {
+        max-width: 80vw;
+        right: 10px;
+    }
+
+    .side-notification {
+        max-width: 80vw;
+    }
+
+    /* Move close button 2px down on mobile and add spacing */
+    .close-btn {
+        top: 5px !important;
+        padding: 0 6px !important;
+    }
+
+    /* Messenger/Chat windows - 60px less height */
+    .messenger-window,
+    .messenger-window-narrow {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        min-height: 300px !important;
+        max-height: calc(100vh - 60px) !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Forecast window - full height */
+    .forecast-window {
+        width: 100vw !important;
+        max-width: 100vw !important;
+        min-height: 300px !important;
+        max-height: 100vh !important;
+        border-radius: 0 !important;
+        margin: 0 !important;
+    }
+
+    /* Overlay background - center windows vertically */
+    .overlay {
+        padding: 0 !important;
+        align-items: center !important;
+        overflow-y: auto !important;
+    }
+
+    /* Make header no border-radius on mobile dialogs */
+    .messenger-window .messenger-header,
+    .messenger-window-narrow .messenger-header,
+    .forecast-window .messenger-header {
+        border-radius: 0;
+        flex-shrink: 0;
+        gap: 4px;
+        height: 34px !important;
+        min-height: 34px;
+        max-height: 34px;
+    }
+
+    /* Override inline transforms on button spans */
+    .messenger-window .messenger-header button span,
+    .messenger-window-narrow .messenger-header button span,
+    .messenger-header button span {
+        transform: translateY(0) !important;
+    }
+
+    /* Make chat feed and other content areas fill remaining space and be scrollable */
+    .chat-feed,
+    .messenger-feed,
+    #logbookFeed,
+    #campaignsFeed,
+    #vesselCatalogFeed,
+    #sellVesselCatalogFeed {
+        flex: 1 1 auto !important;
+        overflow-y: auto !important;
+        min-height: 0 !important;
+    }
+
+    /* Messenger input container - fixed size, never grows */
+    .messenger-input {
+        flex: 0 0 auto !important;
+        padding: 8px !important;
+        gap: 6px !important;
+        overflow: visible !important;
+    }
+
+    /* Subject input wrapper */
+    #subjectInputWrapper {
+        flex-shrink: 0 !important;
+    }
+
+    /* Subject input field */
+    #subjectInput {
+        padding: 6px 10px !important;
+        font-size: 13px !important;
+    }
+
+    /* Messenger input row */
+    .messenger-input-row {
+        gap: 6px !important;
+    }
+
+    /* Limit textarea height on mobile */
+    #messengerInput {
+        min-height: 40px !important;
+        max-height: 50px !important;
+        resize: none !important;
+        padding: 8px 10px !important;
+        font-size: 14px !important;
+    }
+
+    /* Send button smaller on mobile */
+    #sendPrivateMessageBtn {
+        padding: 8px 12px !important;
+        font-size: 13px !important;
+        height: auto !important;
+    }
+
+    /* Zoom forecast table on mobile for better readability */
+    .forecast-table {
+        font-size: 18px;
+    }
+
+    .forecast-table thead th {
+        font-size: 17px;
+        padding: 8px 4px;
+    }
+
+    .forecast-table tbody td {
+        padding: 6px 4px;
+    }
+
+    /* Vessel filter buttons need proper sizing on mobile */
+    .vessel-filter-btn {
+        padding: 6px 4px !important;
+        font-size: 14px !important;
+        flex: 0 0 calc(80% - 4px);
+        white-space: nowrap;
+        height: auto;
+    }
+
+    .vessel-header-controls {
+        gap: 8px;
+        flex-wrap: wrap;
+    }
+
+    /* Quantity input small width on mobile */
+    .vessel-quantity-input {
+        padding: 6px 4px !important;
+        font-size: 13px !important;
+    }
 }
 
 /* Extra small screens - Below 415px */
@@ -3104,17 +3384,16 @@ button:active {
         gap: 12px !important;
     }
 
-    .action-buttons-group {
-        gap: 2px;
-    }
-
-    .action-buttons-group .action-btn {
-        padding: 1px 3px;
-    }
-
-    /* Move event banner higher on mobile */
+    /* Event banner stays in header on extra small screens */
     .event-banner-btn {
-        top: 35% !important;
+        padding: 2px 6px !important;
+        font-size: 9px !important;
+    }
+
+    /* Fix vessel buy/select buttons to maintain proper padding */
+    .vessel-select-btn,
+    .vessel-buy-btn {
+        padding: 6px 8px !important;
     }
 }
 
@@ -3523,7 +3802,7 @@ button:active {
 .page-content {
     width: 100%;
     height: 100%;
-    padding: 0 15px 15px 15px;
+    padding: 20px 15px 15px 15px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -3683,45 +3962,59 @@ button:active {
     display: flex !important;
 }
 
-/* Event Banner Button */
+/* Event Banner Container - Position in header top right */
+#eventBannerContainer {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+}
+
+/* Event Banner Button - 3-line vertical layout */
 .event-banner-btn {
-    position: absolute !important;
-    top: 50% !important;
-    right: -10px !important;
-    transform: translateY(-50%) rotate(30deg) !important;
     background: linear-gradient(135deg, rgba(16, 185, 129, 0.2) 0%, rgba(5, 150, 105, 0.3) 100%) !important;
     border: 1px solid rgba(16, 185, 129, 0.4) !important;
     color: #10b981 !important;
-    padding: 1px 4px !important;
-    border-radius: 3px !important;
-    font-size: 13px !important;
+    padding: 3px 3px !important;
+    border-radius: 4px !important;
+    font-size: 9px !important;
     font-weight: 600 !important;
     cursor: pointer !important;
     transition: all 0.3s ease !important;
     box-shadow: 0 0 15px rgba(16, 185, 129, 0.3) !important;
     animation: pulse-glow 2s ease-in-out infinite !important;
-    z-index: 10 !important;
-    line-height: 1 !important;
+    line-height: 1.2 !important;
     height: auto !important;
-    display: inline-block !important;
-    min-height: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+}
+
+.event-banner-btn:hover {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.3) 0%, rgba(5, 150, 105, 0.4) 100%) !important;
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.5) !important;
 }
 
 .event-banner-content {
     display: flex;
     flex-direction: column;
     align-items: center;
-    line-height: 1.1;
+    gap: 1px;
+    max-width: 70px;
 }
 
 .event-banner-label {
-    font-size: 10px;
+    font-size: 7px;
     color: rgba(16, 185, 129, 0.8);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
 }
 
 .event-banner-name {
     text-shadow: 0 0 8px rgba(16, 185, 129, 0.5);
-    font-size: 13px;
+    font-size: 8px;
+    font-weight: 700;
+    text-align: center;
+    word-wrap: break-word;
+    line-height: 1.2;
 }
 
 .discount-badge {
@@ -3733,7 +4026,7 @@ button:active {
     font-weight: 600;
     margin-left: 3px;
     position: relative;
-    top: 0px;
+    top: -1px;
     line-height: 1;
     vertical-align: baseline;
     display: inline-block;
@@ -4203,6 +4496,11 @@ button:active {
     white-space: nowrap;
 }
 
+.cart-item-original-price {
+    color: #9ca3af;
+    font-size: calc(1em - 3px);
+}
+
 
 /* Anchor Purchase Button States */
 #anchorPurchaseBtn.disabled {
@@ -4285,12 +4583,6 @@ button:active {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.logbook-filter-group label {
-    font-size: 12px;
-    color: #94a3b8;
-    white-space: nowrap;
 }
 
 .logbook-filter-select {
@@ -4465,6 +4757,20 @@ button:active {
     letter-spacing: 0.5px;
 }
 
+.logbook-th-status {
+    width: 40px;
+    text-align: center;
+    padding: 12px 8px !important;
+}
+
+.logbook-th-timestamp {
+    width: 100px;
+}
+
+.logbook-th-autopilot {
+    width: 140px;
+}
+
 .logbook-table tbody tr {
     transition: background 0.2s;
 }
@@ -4488,22 +4794,24 @@ button:active {
     vertical-align: top;
 }
 
+.logbook-status {
+    font-size: 18px;
+    width: 40px;
+    text-align: center;
+    padding: 12px 8px !important;
+}
+
 .logbook-timestamp {
     color: #94a3b8;
-    font-size: 12px;
-    white-space: nowrap;
-    width: 180px;
+    font-size: 11px;
+    width: 100px;
+    line-height: 1.4;
 }
 
 .logbook-autopilot {
     font-weight: 600;
     color: #60a5fa;
-    width: 150px;
-}
-
-.logbook-status {
-    font-size: 12px;
-    width: 100px;
+    width: 140px;
 }
 
 .logbook-success {
@@ -4601,4 +4909,49 @@ button:active {
 
 #deleteLogbookBtn:active {
     transform: translateY(0);
+}
+
+/* ============================================================
+   Alliance Chat Overlay Fixes
+   ============================================================ */
+
+/* Fix chat feed in overlay to work like messenger-feed */
+#allianceChatOverlay .chat-feed {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 12px;
+    min-height: 0;
+}
+
+/* Fix input section in overlay */
+#allianceChatOverlay .input-section {
+    background: #1f1f1f;
+    padding: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0 0 10px 10px;
+    flex-shrink: 0;
+}
+
+/* Mobile fix for alliance chat overlay */
+@media screen and (max-width: 768px) and (orientation: portrait) {
+    #allianceChatOverlay .messenger-window {
+        width: 95%;
+        max-width: 95%;
+        max-height: 90vh;
+        max-height: 90dvh;
+    }
+
+    #allianceChatOverlay .chat-feed {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #allianceChatOverlay .input-section {
+        flex-shrink: 0;
+    }
 }

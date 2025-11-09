@@ -36,6 +36,7 @@ import { lockRepairButton, unlockRepairButton, lockBulkBuyButton, unlockBulkBuyB
 import { lockCoopButtons, unlockCoopButtons } from './coop.js';
 import { showAnchorTimer } from './anchor-purchase.js';
 import { updateCurrentCash, updateCurrentFuel, updateCurrentCO2 } from './bunker-management.js';
+import { refreshVesselsForSale } from './vessel-selling.js';
 
 /**
  * Converts UTC timestamp string to local timezone string using browser locale.
@@ -326,7 +327,7 @@ export async function sendMessage(messageInput, charCount, sendMessageBtn, chatF
 
     messageInput.value = '';
     messageInput.style.height = 'auto';
-    charCount.textContent = '0 / 1000 characters';
+    charCount.textContent = '0 / 1000';
     showSideNotification('Message sent!', 'success');
     autoScroll = true;
 
@@ -384,7 +385,7 @@ export function handleMessageInput(messageInput, charCount) {
   messageInput.style.height = Math.min(messageInput.scrollHeight, 240) + 'px';
 
   const currentLength = messageInput.value.length;
-  charCount.textContent = `${currentLength} / 1000 characters`;
+  charCount.textContent = `${currentLength} / 1000`;
   charCount.className = 'char-count';
 
   if (currentLength > 900) {
@@ -624,8 +625,24 @@ export function initWebSocket() {
           // Account changed - reload page to get fresh DOM
           if (currentUserId && currentUserId !== newUserId) {
             console.log(`[WebSocket Reconnect] Account changed from ${currentUserId} to ${newUserId} - reloading page`);
-            window.location.reload();
+            // Force hard reload to bypass cache and get fresh data
+            window.location.reload(true);
             return;
+          }
+
+          // Even if userId is same, check if this is first reconnect after server restart
+          // Server might have restarted but with same account - still need to refresh data
+          if (reconnectAttempts === 1) {
+            console.log('[WebSocket Reconnect] First reconnect after disconnect - checking for server restart');
+            // Trigger a settings reload to ensure we have latest campaign data
+            if (window.handleSettingsUpdate) {
+              const userSettingsResponse = await fetch('/api/user/get-settings');
+              if (userSettingsResponse.ok) {
+                const userSettings = await userSettingsResponse.json();
+                // This will update campaigns, tanker-ops, etc.
+                window.handleSettingsUpdate(userSettings);
+              }
+            }
           }
         }
       } catch (error) {
@@ -1366,6 +1383,9 @@ async function handleVesselsDeparted(data) {
   if (window.updateVesselCount) {
     await window.updateVesselCount();
   }
+
+  // Refresh vessel selling overlay if open
+  await refreshVesselsForSale();
 }
 
 /**
@@ -1492,12 +1512,14 @@ async function handleCampaignsRenewed(data) {
 
   // Create list of renewed campaigns
   const campaignList = campaigns.map(c =>
-    `<div style="padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">• ${c.type}: <strong>${c.name}</strong> - $${formatNumber(c.price)}</div>`
+    `<div style="padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">• ${c.type}: <strong>${c.name}</strong> - <span style="color: #ff6b6b;">-$${formatNumber(c.price)}</span></div>`
   ).join('');
 
   const message = `
     <div style="margin-bottom: 8px;">
-      <strong>📊 Reputation Chief: ${campaigns.length} campaign${campaigns.length > 1 ? 's' : ''} renewed</strong>
+      <strong>📊 Reputation Chief</strong>
+      <br><br>
+      <strong>${campaigns.length} Campaign${campaigns.length > 1 ? 's' : ''} renewed</strong>
     </div>
     <div class="notification-vessel-list">
       ${campaignList}
@@ -1833,6 +1855,11 @@ function handleVesselCountUpdate(data) {
     }
   }
 
+  // Update Harbor Map if open (60s update cycle)
+  if (window.harborMap && window.harborMap.refreshIfOpen) {
+    window.harborMap.refreshIfOpen();
+  }
+
   // Update pending button visibility
   const pendingBtn = document.getElementById('filterPendingBtn');
   const pendingCountSpan = document.getElementById('pendingCount');
@@ -1878,6 +1905,8 @@ function handleRepairCountUpdate(data) {
   const repairBadge = document.getElementById('repairCount');
   if (repairBadge) {
     repairBadge.textContent = count;
+    // Remove any color classes that might have been accidentally added
+    repairBadge.classList.remove('badge-green-bg', 'badge-orange-bg', 'badge-red-bg');
     if (count > 0) {
       repairBadge.classList.remove('hidden');
     } else {

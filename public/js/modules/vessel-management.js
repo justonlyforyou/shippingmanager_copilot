@@ -198,6 +198,11 @@ export async function updateVesselCount() {
     lastKnownCounts.port = readyToDepart;
     lastKnownCounts.anchor = atAnchor;
 
+    // Update harbor map if open (piggyback on vessel data update)
+    if (window.harborMap && window.harborMap.refreshIfOpen) {
+      await window.harborMap.refreshIfOpen();
+    }
+
     // Update pending badge - always show current value
     const pendingBadge = document.getElementById('pendingVesselsBadge');
     const pendingBtn = document.getElementById('filterPendingBtn');
@@ -390,18 +395,15 @@ export async function updateRepairCount(settings) {
     if (vesselsNeedingRepair.length > 0) {
       countBadge.textContent = vesselsNeedingRepair.length;
       countBadge.classList.remove('hidden');
-
-      // Green if <= 3, red if > 3
-      if (vesselsNeedingRepair.length <= 3) {
-        countBadge.style.backgroundColor = '#10b981';  // Green
-      } else {
-        countBadge.style.backgroundColor = '#ef4444';  // Red
-      }
+      // Remove any color classes and inline styles - repair badge is ALWAYS red
+      countBadge.classList.remove('badge-green-bg', 'badge-orange-bg', 'badge-red-bg');
+      countBadge.style.backgroundColor = '';  // Clear inline style
 
       repairBtn.disabled = false;
       repairBtn.title = `Repair ${vesselsNeedingRepair.length} vessel${vesselsNeedingRepair.length === 1 ? '' : 's'} with ${settings.maintenanceThreshold}%+ wear`;
     } else {
       countBadge.classList.add('hidden');
+      countBadge.style.backgroundColor = '';  // Clear inline style
       repairBtn.disabled = true;
       repairBtn.title = `No vessels with ${settings.maintenanceThreshold}%+ wear`;
     }
@@ -537,8 +539,29 @@ export async function repairAllVessels(settings) {
 
   if (vesselsNeedingRepair === 0) return;
 
-  // Store original button content
-  const originalContent = repairBtn.innerHTML;
+  // Store original button state (icon + badge count, NO classes to avoid persisting wrong colors)
+  const originalBadgeCount = repairCountBadge.textContent;
+  const originalBadgeVisible = !repairCountBadge.classList.contains('hidden');
+
+  // Helper function to restore button to normal state
+  const restoreButton = () => {
+    repairBtn.disabled = false;
+    repairBtn.classList.remove('disabled', 'cursor-wait');
+    repairBtn.classList.add('btn-enabled');
+    const badge = repairBtn.querySelector('#repairCount');
+    repairBtn.innerHTML = '🔧';
+    if (badge) {
+      repairBtn.appendChild(badge);
+      badge.textContent = originalBadgeCount;
+      // Remove any color classes
+      badge.classList.remove('badge-green-bg', 'badge-orange-bg', 'badge-red-bg');
+      if (originalBadgeVisible) {
+        badge.classList.remove('hidden');
+      } else {
+        badge.classList.add('hidden');
+      }
+    }
+  };
 
   try {
     // Fetch vessel data and repair costs from backend
@@ -567,7 +590,13 @@ export async function repairAllVessels(settings) {
     // NOW show processing state (after user confirmed)
     repairBtn.disabled = true;
     repairBtn.classList.add('disabled', 'cursor-wait');
-    repairBtn.innerHTML = '⏳<span id="repairCount" class="action-badge hidden">0</span>';
+    // Only replace button icon, keep badge element intact
+    const savedBadge = repairBtn.querySelector('#repairCount');
+    repairBtn.innerHTML = '⏳';
+    if (savedBadge) {
+      repairBtn.appendChild(savedBadge);
+      savedBadge.classList.add('hidden');
+    }
 
     // Call backend which handles everything and broadcasts to all clients
     const response = await fetch(window.apiUrl('/api/vessel/bulk-repair'), {
@@ -582,10 +611,7 @@ export async function repairAllVessels(settings) {
     // No need to show notification here - all clients will receive it
 
     // Restore button appearance
-    repairBtn.disabled = false;
-    repairBtn.classList.remove('disabled');
-    repairBtn.classList.add('btn-enabled');
-    repairBtn.innerHTML = originalContent;
+    restoreButton();
 
     // Still update locally for immediate feedback
     if (window.debouncedUpdateRepairCount && window.debouncedUpdateBunkerStatus) {
@@ -598,10 +624,7 @@ export async function repairAllVessels(settings) {
     console.error('[Bulk Repair] Error:', error);
 
     // Restore button appearance on error
-    repairBtn.disabled = false;
-    repairBtn.classList.remove('disabled');
-    repairBtn.classList.add('btn-enabled');
-    repairBtn.innerHTML = originalContent;
+    restoreButton();
   }
 }
 

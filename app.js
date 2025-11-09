@@ -112,6 +112,7 @@ const forecastRoutes = require('./server/routes/forecast');
 const anchorRoutes = require('./server/routes/anchor');
 const healthRoutes = require('./server/routes/health');
 const logbookRoutes = require('./server/routes/logbook');
+const harborMapRoutes = require('./server/routes/harbor-map');
 
 // Initialize Express app
 const app = express();
@@ -153,6 +154,7 @@ app.use('/api/forecast', forecastRoutes);
 app.use('/api', anchorRoutes);
 app.use('/health', healthRoutes);
 app.use('/api/logbook', logbookRoutes);
+app.use('/api/harbor-map', harborMapRoutes);
 
 // Autopilot pause/resume endpoint
 app.post('/api/autopilot/toggle', (req, res) => {

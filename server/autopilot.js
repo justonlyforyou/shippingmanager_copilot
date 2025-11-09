@@ -192,8 +192,8 @@ async function autoRebuyAll() {
   try {
     const bunker = await gameapi.fetchBunkerState();
 
-    await autoRebuyFuel(bunker, autopilotPaused, broadcastToUser);
-    await autoRebuyCO2(bunker, autopilotPaused, broadcastToUser);
+    await autoRebuyFuel(bunker, autopilotPaused, broadcastToUser, tryUpdateAllData);
+    await autoRebuyCO2(bunker, autopilotPaused, broadcastToUser, tryUpdateAllData);
 
   } catch (error) {
     logger.error('[Auto-Rebuy All] Error:', error.message);
@@ -442,6 +442,23 @@ async function updateAllData() {
         activeCount: activeCount,
         active: campaigns.active
       });
+    }
+
+    // Update vessel counts (triggers Harbor Map refresh if open)
+    // Vessels data already fetched above from /game/index
+    const readyToDepart = vessels.filter(v => v.status === 'port').length;
+    const atAnchor = vessels.filter(v => v.status === 'anchor').length;
+    const pending = vessels.filter(v => v.status === 'pending').length;
+
+    const vesselCountUpdate = {
+      readyToDepart,
+      atAnchor,
+      pending
+    };
+    state.updateVesselCounts(userId, vesselCountUpdate);
+
+    if (broadcastToUser) {
+      broadcastToUser(userId, 'vessel_count_update', vesselCountUpdate);
     }
 
     // Send completion event

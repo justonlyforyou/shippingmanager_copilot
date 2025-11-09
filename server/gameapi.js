@@ -887,6 +887,60 @@ async function fetchEventData() {
   return event;
 }
 
+/**
+ * Fetches complete game state from /game/index
+ * Returns all vessels, ports, and game data
+ *
+ * @returns {Promise<Object>} Game index data with vessels and ports
+ */
+async function getGameIndex() {
+  return await apiCall('/game/index', 'POST', {});
+}
+
+/**
+ * Fetches all ports assigned to the user
+ * Returns ports with demand data
+ *
+ * @returns {Promise<Object>} Response with ports array
+ */
+async function getAssignedPorts() {
+  return await apiCall('/port/get-assigned-ports', 'POST', {});
+}
+
+/**
+ * Fetches reachable ports for a specific vessel
+ * Note: Response includes empty demand arrays, must aggregate with game/index
+ *
+ * @param {number} vesselId - Vessel ID to get reachable ports for
+ * @returns {Promise<Object>} Response with ports array
+ */
+async function getVesselPorts(vesselId) {
+  return await apiCall('/route/get-vessel-ports', 'POST', {
+    user_vessel_id: vesselId
+  });
+}
+
+/**
+ * Fetches trip history for a specific vessel
+ *
+ * @param {number} vesselId - Vessel ID to get history for
+ * @returns {Promise<Object>} Response with history array
+ */
+async function getVesselHistory(vesselId) {
+  return await apiCall('/vessel/get-vessel-history', 'POST', {
+    vessel_id: vesselId
+  });
+}
+
+/**
+ * Fetches all user vessels with complete data
+ *
+ * @returns {Promise<Object>} Response with vessels array
+ */
+async function getAllUserVessels() {
+  return await apiCall('/vessel/get-all-user-vessels', 'POST', {});
+}
+
 module.exports = {
   fetchPrices,
   fetchBunkerState,
@@ -902,5 +956,10 @@ module.exports = {
   fetchRepairCount,
   fetchUnreadMessages,
   fetchAutoPrice,
-  fetchEventData
+  fetchEventData,
+  getGameIndex,
+  getAssignedPorts,
+  getVesselPorts,
+  getVesselHistory,
+  getAllUserVessels
 };

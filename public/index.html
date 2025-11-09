@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>⚓ Shipping Manager - CoPilot</title>
-    <link rel="stylesheet" href="/css/style.css?v=20251031-2">
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/harbor-map.css">
 </head>
 <body>
     <!-- Price Alerts (center, with spin animation) -->
@@ -69,7 +70,7 @@
                 </div>
                 <div style="display: flex; align-items: center; gap: 2px;">
                     <span style="font-size: 15px;">⛽</span>
-                    <span id="fuelPriceDisplay" style="font-weight: 500; font-size: 13px; color: #9ca3af;"></span>
+                    <span id="fuelPriceDisplay" style="font-weight: 500; font-size: 13px; color: #9ca3af; position: relative; top: 1px;"></span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 2px;">
                     <span style="font-size: 15px;">💨</span>
@@ -149,6 +150,9 @@
                     🤝
                     <span id="coopBadge" class="action-badge hidden"></span>
                 </button>
+                <button id="allianceChatBtn" class="action-btn" title="Alliance Chat" style="display: none;">
+                    💬
+                </button>
                 <button id="contactListBtn" class="action-btn" title="View contact list">
                     👥
                 </button>
@@ -167,32 +171,65 @@
             </div>
         </div>
 
-        <div class="chat-feed" id="chatFeed">
-            <div class="empty-message">Loading chat...</div>
-        </div>
-
-        <div class="input-section">
-            <div class="input-wrapper">
-                <textarea
-                    id="messageInput"
-                    placeholder="Type... or use @ for mentions or Shift+Enter for new line"
-                    maxlength="1000"
-                    autocomplete="off"
-                ></textarea>
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <button id="sendMessageBtn">Send</button>
-                    <div class="char-count" id="charCount">0 / 1000 characters</div>
-                </div>
+        <!-- Main Harbor Map Area -->
+        <div class="chat-area-wrapper">
+            <!-- Leaflet Map Container (now main content) -->
+            <div id="harborMapCanvas" class="harbor-map-canvas" style="width: 100%; height: 100%; position: relative;">
+                <!-- Custom Controls (will be positioned by Leaflet) -->
+                <div id="mapCustomControls"></div>
             </div>
-            <div id="feedback"></div>
+
+            <!-- Vessel Detail Panel (slides in from right) -->
+            <div id="vessel-detail-panel" class="detail-panel vessel-panel">
+                <!-- Vessel info populated by vessel-panel.js -->
+            </div>
+
+            <!-- Port Detail Panel (slides in from right) -->
+            <div id="port-detail-panel" class="detail-panel port-panel">
+                <!-- Port info populated by port-panel.js -->
+            </div>
+
+            <!-- Route Vessels Panel (slides in from right) -->
+            <div id="route-vessels-panel" class="detail-panel route-panel">
+                <!-- Route vessels list populated by route-vessels-panel.js -->
+            </div>
+
+        </div> <!-- End chat-area-wrapper -->
+    </div>
+
+    <!-- Alliance Chat Overlay -->
+    <div id="allianceChatOverlay" class="overlay hidden">
+        <div class="messenger-window">
+            <div class="messenger-header">
+                <h2>💬 Alliance Chat</h2>
+                <button id="closeChatBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+            </div>
+            <div class="chat-feed" id="chatFeed">
+                <div class="empty-message">Loading chat...</div>
+            </div>
+            <div class="input-section">
+                <div class="input-wrapper">
+                    <textarea
+                        id="messageInput"
+                        placeholder="Type... or use @ for mentions or Shift+Enter for new line"
+                        maxlength="1000"
+                        autocomplete="off"
+                    ></textarea>
+                    <div class="send-btn-container">
+                        <button id="sendMessageBtn">Send</button>
+                        <div class="char-count" id="charCount">0 / 1000</div>
+                    </div>
+                </div>
+                <div id="feedback"></div>
+            </div>
         </div>
     </div>
-    
+
     <div id="allChatsOverlay" class="overlay hidden">
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>📬 All Private Conversations</h2>
-                <button id="closeAllChatsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeAllChatsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="allChatsList">
             </div>
@@ -203,7 +240,7 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>👥 Contact List</h2>
-                <button id="closeContactListBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeContactListBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="contactListFeed">
             </div>
@@ -215,12 +252,11 @@
             <div class="messenger-header">
                 <h2>📋 Autopilot Logbook</h2>
                 <span id="logbookCount" class="logbook-count"></span>
-                <button id="logbookCloseBtn" class="close-btn" style="margin-left: auto;" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="logbookCloseBtn" class="close-btn btn-auto-left" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="logbook-filters">
                 <div class="logbook-filter-row">
                     <div class="logbook-filter-group">
-                        <label for="logbookFilterStatus">Status:</label>
                         <select id="logbookFilterStatus" class="logbook-filter-select">
                             <option value="ALL">All</option>
                             <option value="SUCCESS">Success</option>
@@ -229,9 +265,13 @@
                         </select>
                     </div>
                     <div class="logbook-filter-group">
-                        <label for="logbookFilterTime">Time:</label>
                         <select id="logbookFilterTime" class="logbook-filter-select">
                             <option value="all">All Time</option>
+                            <option value="1h">Last 1 Hour</option>
+                            <option value="2h">Last 2 Hours</option>
+                            <option value="6h">Last 6 Hours</option>
+                            <option value="12h">Last 12 Hours</option>
+                            <option value="24h">Last 24 Hours</option>
                             <option value="today">Today</option>
                             <option value="yesterday">Yesterday</option>
                             <option value="48h">Last 48 Hours</option>
@@ -242,7 +282,6 @@
                         </select>
                     </div>
                     <div class="logbook-filter-group">
-                        <label for="logbookFilterAutopilot">Autopilot:</label>
                         <select id="logbookFilterAutopilot" class="logbook-filter-select">
                             <option value="ALL">All</option>
                         </select>
@@ -267,10 +306,10 @@
                 <table class="logbook-table">
                     <thead>
                         <tr>
-                            <th>Timestamp</th>
-                            <th>Autopilot</th>
-                            <th>Status</th>
-                            <th>Summary</th>
+                            <th class="logbook-th-status">Status</th>
+                            <th class="logbook-th-timestamp">Time</th>
+                            <th class="logbook-th-autopilot">Autopilot</th>
+                            <th class="logbook-th-summary">Summary</th>
                         </tr>
                     </thead>
                     <tbody id="logbookTableBody">
@@ -287,8 +326,8 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2 id="chatSelectionTitle">Select Conversation</h2>
-                <button id="backToAllChatsBtn" class="close-btn" style="margin-left: auto;" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block; transform: translateY(-2px);">←</span></button>
-                <button id="closeChatSelectionBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="backToAllChatsBtn" class="close-btn btn-auto-left" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>🔙</span></button>
+                <button id="closeChatSelectionBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="chatSelectionList">
             </div>
@@ -299,30 +338,32 @@
         <div class="messenger-window">
             <div class="messenger-header">
                 <h2 id="messengerTitle">Private Chat with ...</h2>
-                <button id="deleteChatBtn" class="close-btn" style="color: #ef4444; margin-left: auto;" onmouseover="this.querySelector('span').style.animation='shake-trash-simple 0.5s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">🗑️</span></button>
-                <button id="backToSelectionBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block; transform: translateY(-2px);">←</span></button>
-                <button id="closeMessengerBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="deleteChatBtn" class="close-btn btn-auto-left btn-delete" onmouseover="this.querySelector('span').style.animation='shake-trash-simple 0.5s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>🗑️</span></button>
+                <button id="backToSelectionBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>🔙</span></button>
+                <button id="closeMessengerBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="messengerFeed">
             </div>
-            <div class="messenger-input" style="flex-direction: column; gap: 10px;">
+            <div class="messenger-input">
                 <div id="subjectInputWrapper" class="hidden">
                     <input
                         type="text"
                         id="subjectInput"
                         placeholder="Subject..."
                         maxlength="100"
-                        style="width: 100%; background: #2a2a2a; border: 1px solid #404040; color: #e0e0e0; padding: 10px 15px; border-radius: 6px; font-family: inherit;"
                     />
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div class="messenger-input-row">
                     <textarea
                         id="messengerInput"
                         placeholder="Type message..."
                         maxlength="1000"
                         autocomplete="off"
                     ></textarea>
-                    <button id="sendPrivateMessageBtn" class="send-btn">Send</button>
+                    <div class="send-btn-container">
+                        <button id="sendPrivateMessageBtn" class="send-btn">Send</button>
+                        <div class="char-count" id="messengerCharCount">0 / 1000</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -332,7 +373,7 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>☠️ Blackbeard's Phone Booth</h2>
-                <button id="closeHijackingBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeHijackingBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="hijackingFeed">
             </div>
@@ -346,7 +387,7 @@
                 <div id="forecastEventBadge" class="hidden">
                     <span id="forecastEventText"></span>
                 </div>
-                <button id="closeForecastBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeForecastBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div id="calendarBook">
                 <!-- Calendar content will be generated by forecast-calendar.js -->
@@ -358,7 +399,7 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>🎉 Event Information</h2>
-                <button id="closeEventBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeEventBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="eventInfoContent" style="padding: 20px;">
                 <!-- Event info will be populated by event-info.js -->
@@ -370,7 +411,7 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>⚓ Purchase Anchor Points</h2>
-                <button id="closeAnchorPurchaseBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeAnchorPurchaseBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div id="anchorPurchaseFeed" style="padding: 20px; position: relative;">
                 <!-- Content will be generated by anchor-purchase.js -->
@@ -382,7 +423,7 @@
         <div class="messenger-window">
             <div class="messenger-header">
                 <h2>⛴️ Sell Vessels</h2>
-                <button id="closeSellVesselsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeSellVesselsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="vessel-header-controls">
                 <button id="sellFilterContainerBtn" class="vessel-filter-btn active" data-type="container">
@@ -405,7 +446,7 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>📊 Marketing Campaigns</h2>
-                <button id="closeCampaignsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeCampaignsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed messenger-feed-compact">
                 <div id="campaignsContent">
@@ -419,7 +460,7 @@
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
                 <h2>🤝 Alliance Cooperation</h2>
-                <button id="closeCoopBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeCoopBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" style="padding: 20px; overflow-y: auto;">
                 <div id="coopContent" style="max-width: 800px; margin: 0 auto;">
@@ -433,7 +474,7 @@
         <div class="messenger-window">
             <div class="messenger-header">
                 <h2>⚙️ Settings</h2>
-                <button id="closeSettingsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeSettingsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" style="padding: 10px; overflow-y: auto;">
                 <div style="width: 100%; margin: 0 auto;">
@@ -565,6 +606,16 @@
                                     <option value="90">90%</option>
                                     <option value="99">>99%</option>
                                 </select>
+                            </div>
+
+                            <!-- Weather Data Toggle -->
+                            <div style="padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="checkbox" id="enableWeatherData" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
+                                    <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🌤️ Enable Weather Data</span>
+                                </label>
+                                <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px;">Enable weather information on map (double-click). When disabled, no external weather API calls are made. Weather data is fetched from Open-Meteo and location names from OpenStreetMap.</p>
+                                <p style="margin: 4px 0 0 28px; color: #fbbf24; font-size: 12px; font-weight: 500;">⚠️ Page reload required for changes to take effect</p>
                             </div>
                         </div>
                     </div>
@@ -1098,7 +1149,7 @@
         <div class="messenger-window">
             <div class="messenger-header">
                 <h2 id="buyVesselsHeader">⛴️ Buy Vessels</h2>
-                <button id="closeBuyVesselsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeBuyVesselsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
 
             <div class="vessel-header-controls">
@@ -1278,7 +1329,7 @@
         <div class="messenger-window">
             <div class="messenger-header">
                 <h2>⚙️ Filter by Engine Type</h2>
-                <button id="closeEngineFilterBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span style="display: inline-block;">×</span></button>
+                <button id="closeEngineFilterBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="engineFilterList" style="padding: 20px; overflow-y: auto;">
                 <!-- Engine list will be populated by JavaScript -->
@@ -1296,6 +1347,15 @@
             <p class="connection-retry">Attempting to reconnect...</p>
         </div>
     </div>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
     <script type="module" src="/js/script.js"></script>
 </body>

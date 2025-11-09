@@ -34,6 +34,24 @@ export function closeSellVesselsOverlay() {
 }
 
 /**
+ * Refreshes the vessel list in the sell vessels overlay.
+ * Called when vessels are departed by autopilot or manually to update the UI.
+ * Only refreshes if the overlay is currently open.
+ *
+ * @returns {Promise<void>}
+ */
+export async function refreshVesselsForSale() {
+  // Only refresh if overlay is open
+  const overlay = document.getElementById('sellVesselsOverlay');
+  if (!overlay || overlay.classList.contains('hidden')) {
+    return;
+  }
+
+  console.log('[Vessel Selling] Refreshing vessels due to departure');
+  await loadUserVesselsForSale();
+}
+
+/**
  * Loads user's vessels and groups them by model
  */
 async function loadUserVesselsForSale() {
@@ -49,7 +67,7 @@ async function loadUserVesselsForSale() {
     const vessels = data.vessels || [];
 
     currentSellVessels = vessels;
-    displaySellVessels();
+    await displaySellVessels();
   } catch (error) {
     console.error('[Vessel Selling] Error loading vessels:', error);
     showSideNotification('Failed to load vessels', 'error');
@@ -90,7 +108,7 @@ function groupVesselsByModel(vessels) {
 /**
  * Displays vessels grouped by model, sorted by harbor count
  */
-function displaySellVessels() {
+async function displaySellVessels() {
   const feed = document.getElementById('sellVesselCatalogFeed');
   const filtered = currentSellVessels.filter(v => v.capacity_type === currentSellFilter);
 
@@ -134,11 +152,30 @@ function displaySellVessels() {
   }
 
   // Helper function to render a vessel card
-  const renderVesselCard = (modelKey, group, canSell) => {
+  const renderVesselCard = async (modelKey, group, canSell) => {
     const model = group.model;
     const allVessels = group.vessels;
     const harborVessels = group.harborVessels;
-    const sellPrice = Math.floor(model.price * 0.7);
+
+    // Get actual sell price from API for first harbor vessel
+    let sellPrice;
+    let originalPrice;
+    if (harborVessels.length > 0) {
+      try {
+        const priceResponse = await fetch(window.apiUrl('/api/vessel/get-sell-price'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ vessel_id: harborVessels[0].id })
+        });
+        if (priceResponse.ok) {
+          const priceData = await priceResponse.json();
+          sellPrice = priceData.data.selling_price;
+          originalPrice = priceData.data.original_price;
+        }
+      } catch (error) {
+        console.error('[Vessel Selling] Failed to get sell price:', error);
+      }
+    }
 
     const selectedItem = selectedSellVessels.find(v => v.modelKey === modelKey);
     const isSelected = !!selectedItem;
@@ -166,7 +203,7 @@ function displaySellVessels() {
       <div class="vessel-content">
         <div class="vessel-header">
           <h3 class="vessel-name">${allVessels[0].name.replace(/_\d+$/, '')}</h3>
-          <div class="vessel-price">$${formatNumber(sellPrice)}</div>
+          <div class="vessel-price">${sellPrice !== undefined ? '$' + formatNumber(sellPrice) : (harborVessels.length === 0 ? 'At Sea' : 'Price N/A')}</div>
         </div>
         <div class="vessel-specs">
           <div class="vessel-spec"><strong>Capacity:</strong> ${capacityDisplay}</div>
@@ -206,8 +243,8 @@ function displaySellVessels() {
               });
 
               return sorted.map((v, idx) => {
-                const canSelect = v.status === 'port' || v.status === 'pending';
-                const statusDisplay = v.status === 'port' ? '✓ Harbor' : v.status === 'pending' ? '✓ Delivery' : v.status === 'route' ? '🚢 En Route' : v.status;
+                const canSelect = v.status !== 'route' && v.status !== 'enroute';
+                const statusDisplay = v.status === 'port' ? '✓ Harbor' : v.status === 'pending' ? '⏳ Delivery' : v.status === 'anchor' ? '⚓ Anchored' : v.status === 'route' || v.status === 'enroute' ? '🚢 En Route' : v.status;
                 return `
                   <div class="sell-vessel-list-item">
                     <div class="sell-vessel-item-left">
@@ -227,7 +264,7 @@ function displaySellVessels() {
             <input type="number" class="vessel-quantity-input" data-model-key="${modelKey}" value="1" min="1" max="${harborVessels.length}" />
             <div class="vessel-action-buttons">
               <button class="vessel-select-btn${isSelected ? ' selected' : ''}" data-model-key="${modelKey}">
-                ${isSelected ? `In Cart (${selectedItem.quantity}x)` : 'Add to Cart'}
+                Add to Cart
               </button>
               <button class="vessel-buy-btn vessel-sell-now-btn" data-model-key="${modelKey}">
                 Sell Now
@@ -243,6 +280,27 @@ function displaySellVessels() {
       const sellBtn = card.querySelector('.vessel-buy-btn');
       const quantityInput = card.querySelector('.vessel-quantity-input');
       const checkboxes = card.querySelectorAll('.vessel-checkbox');
+
+      // Checkbox change handler - update cart when checkbox is clicked
+      checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+          const checkedBoxes = card.querySelectorAll('.vessel-checkbox:checked');
+          const selectedVesselIds = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.vesselId));
+          const quantity = selectedVesselIds.length;
+
+          // Update quantity input to match
+          if (quantityInput) {
+            quantityInput.value = quantity;
+          }
+
+          // Update cart
+          if (quantity > 0) {
+            updateVesselSelectionInCart(modelKey, quantity, allVessels[0].name.replace(/_\d+$/, ''), selectedVesselIds, sellPrice, originalPrice);
+          } else {
+            removeVesselSelectionFromCart(modelKey);
+          }
+        });
+      });
 
       // Quantity input change handler - just select checkboxes (no cart update)
       if (quantityInput) {
@@ -262,19 +320,26 @@ function displaySellVessels() {
           if (quantity > 0) {
             Array.from(checkboxes).slice(0, quantity).forEach(cb => cb.checked = true);
           }
+
+          // Trigger change event on first checkbox to update cart
+          if (checkboxes.length > 0) {
+            checkboxes[0].dispatchEvent(new Event('change'));
+          }
         });
       }
 
       if (selectBtn) {
         selectBtn.addEventListener('click', () => {
-          // Get quantity from input field
-          const quantity = parseInt(quantityInput?.value) || 1;
+          let checkedBoxes = card.querySelectorAll('.vessel-checkbox:checked');
 
-          // Auto-select checkboxes based on input quantity
-          checkboxes.forEach(cb => cb.checked = false);
-          Array.from(checkboxes).slice(0, quantity).forEach(cb => cb.checked = true);
+          // If nothing selected, auto-select from quantity input
+          if (checkedBoxes.length === 0) {
+            const quantity = parseInt(quantityInput?.value) || 1;
+            checkboxes.forEach(cb => cb.checked = false);
+            Array.from(checkboxes).slice(0, quantity).forEach(cb => cb.checked = true);
+            checkedBoxes = card.querySelectorAll('.vessel-checkbox:checked');
+          }
 
-          const checkedBoxes = card.querySelectorAll('.vessel-checkbox:checked');
           const selectedVesselIds = Array.from(checkedBoxes).map(cb => parseInt(cb.dataset.vesselId));
 
           if (selectedVesselIds.length === 0) {
@@ -282,8 +347,8 @@ function displaySellVessels() {
             return;
           }
 
-          // Add to cart (increments if already in cart)
-          addVesselsToCart(modelKey, selectedVesselIds.length, allVessels[0].name.replace(/_\d+$/, ''), selectedVesselIds, sellPrice);
+          // Update cart (replaces quantity, does not increment)
+          updateVesselSelectionInCart(modelKey, selectedVesselIds.length, allVessels[0].name.replace(/_\d+$/, ''), selectedVesselIds, sellPrice, originalPrice);
           showSideNotification(`Added ${selectedVesselIds.length}x ${allVessels[0].name.replace(/_\d+$/, '')} to cart`, 'success');
         });
       }
@@ -306,7 +371,7 @@ function displaySellVessels() {
             return;
           }
 
-          sellVessels(modelKey, selectedVesselIds.length, allVessels[0].name.replace(/_\d+$/, ''), selectedVesselIds, sellPrice);
+          sellVessels(modelKey, selectedVesselIds.length, allVessels[0].name.replace(/_\d+$/, ''), selectedVesselIds, sellPrice, originalPrice);
         });
       }
     }
@@ -323,9 +388,9 @@ function displaySellVessels() {
 
     const portGrid = document.createElement('div');
     portGrid.className = 'vessel-catalog-grid';
-    atPort.forEach(([modelKey, group]) => {
-      portGrid.appendChild(renderVesselCard(modelKey, group, true));
-    });
+    for (const [modelKey, group] of atPort) {
+      portGrid.appendChild(await renderVesselCard(modelKey, group, true));
+    }
     container.appendChild(portGrid);
   }
 
@@ -338,9 +403,9 @@ function displaySellVessels() {
 
     const seaGrid = document.createElement('div');
     seaGrid.className = 'vessel-catalog-grid';
-    atSea.forEach(([modelKey, group]) => {
-      seaGrid.appendChild(renderVesselCard(modelKey, group, false));
-    });
+    for (const [modelKey, group] of atSea) {
+      seaGrid.appendChild(await renderVesselCard(modelKey, group, false));
+    }
     container.appendChild(seaGrid);
   }
 
@@ -392,13 +457,13 @@ function getFuelEfficiencyClass(factor) {
 /**
  * Toggles vessel selection for bulk sell
  */
-function toggleVesselSelection(modelKey, quantity, modelName, vesselIds, sellPrice) {
+function toggleVesselSelection(modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice) {
   const index = selectedSellVessels.findIndex(v => v.modelKey === modelKey);
 
   if (index > -1) {
     selectedSellVessels.splice(index, 1);
   } else {
-    selectedSellVessels.push({ modelKey, quantity, modelName, vesselIds, sellPrice });
+    selectedSellVessels.push({ modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice });
   }
 
   const totalCount = selectedSellVessels.reduce((sum, item) => sum + item.quantity, 0);
@@ -421,7 +486,7 @@ function toggleVesselSelection(modelKey, quantity, modelName, vesselIds, sellPri
 /**
  * Adds vessels to cart (increments quantity if already in cart)
  */
-function addVesselsToCart(modelKey, quantity, modelName, vesselIds, sellPrice) {
+function addVesselsToCart(modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice) {
   const index = selectedSellVessels.findIndex(v => v.modelKey === modelKey);
 
   if (index > -1) {
@@ -430,7 +495,7 @@ function addVesselsToCart(modelKey, quantity, modelName, vesselIds, sellPrice) {
     selectedSellVessels[index].vesselIds = [...selectedSellVessels[index].vesselIds, ...vesselIds];
   } else {
     // Add new selection
-    selectedSellVessels.push({ modelKey, quantity, modelName, vesselIds, sellPrice });
+    selectedSellVessels.push({ modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice });
   }
 
   const totalCount = selectedSellVessels.reduce((sum, item) => sum + item.quantity, 0);
@@ -453,7 +518,7 @@ function addVesselsToCart(modelKey, quantity, modelName, vesselIds, sellPrice) {
 /**
  * Updates vessel selection in cart (replaces quantity - used by cart controls)
  */
-function updateVesselSelectionInCart(modelKey, quantity, modelName, vesselIds, sellPrice) {
+function updateVesselSelectionInCart(modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice) {
   const index = selectedSellVessels.findIndex(v => v.modelKey === modelKey);
 
   if (index > -1) {
@@ -462,7 +527,7 @@ function updateVesselSelectionInCart(modelKey, quantity, modelName, vesselIds, s
     selectedSellVessels[index].vesselIds = vesselIds;
   } else {
     // Add new selection
-    selectedSellVessels.push({ modelKey, quantity, modelName, vesselIds, sellPrice });
+    selectedSellVessels.push({ modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice });
   }
 
   const totalCount = selectedSellVessels.reduce((sum, item) => sum + item.quantity, 0);
@@ -520,10 +585,8 @@ function updateSelectButtonState(modelKey, quantity) {
       const isSelected = selectedSellVessels.find(v => v.modelKey === modelKey);
       if (isSelected) {
         selectBtn.classList.add('selected');
-        selectBtn.textContent = `Selected (${quantity}x)`;
       } else {
         selectBtn.classList.remove('selected');
-        selectBtn.textContent = 'Select';
       }
 
       // Also update all checkboxes for this model
@@ -554,19 +617,26 @@ function updateBulkSellButton() {
 /**
  * Sells vessels of a specific model
  */
-async function sellVessels(modelKey, quantity, modelName, vesselIds, sellPrice) {
+async function sellVessels(modelKey, quantity, modelName, vesselIds, sellPrice, originalPrice) {
   try {
     const totalPrice = sellPrice * quantity;
 
     const confirmed = await showConfirmDialog({
-      title: '⛴️ Sell Vessels',
-      message: `Do you want to sell ${quantity}x ${modelName}?`,
-      confirmText: 'Sell',
-      details: [
-        { label: 'Quantity', value: `${quantity}` },
-        { label: 'Price per vessel', value: `$${formatNumber(sellPrice)}` },
-        { label: 'Total', value: `$${formatNumber(totalPrice)}` }
-      ]
+      title: `Vessel ${modelName}`,
+      message: `
+        <div style="text-align: center; line-height: 1.8;">
+          <div style="color: #9ca3af; font-size: 14px; margin-bottom: 8px;">
+            Original Price: ${formatNumber(originalPrice)}
+          </div>
+          <div style="color: #6b7280; margin-bottom: 8px;">
+            ━━━━━━━━━━━━━━━━━━━━━━
+          </div>
+          <div style="color: #10b981; font-size: 16px; font-weight: 600;">
+            Sell Price: ${formatNumber(sellPrice)}
+          </div>
+        </div>
+      `,
+      confirmText: 'Sell'
     });
 
     if (!confirmed) return;
@@ -615,7 +685,10 @@ export function showSellCart() {
   const cartItemsHtml = selectedSellVessels.map(item => `
     <div class="cart-item" data-model-key="${item.modelKey}">
       <div class="cart-item-info">
-        <div class="cart-item-name">${item.modelName}</div>
+        <div class="cart-item-name">
+          ${item.modelName}
+          <span class="cart-item-original-price">(${item.originalPrice !== undefined ? '$' + formatNumber(item.originalPrice) : 'N/A'})</span>
+        </div>
         <div class="cart-item-price">$${formatNumber(item.sellPrice)}</div>
       </div>
       <div class="cart-item-controls">
@@ -636,9 +709,6 @@ export function showSellCart() {
       </div>
     </div>
     <div class="confirm-dialog-body">
-      <div class="cart-items">
-        ${cartItemsHtml}
-      </div>
       <div class="cart-summary affordable">
         <div class="summary-row">
           <span class="label">Total Items:</span>
@@ -648,6 +718,10 @@ export function showSellCart() {
           <span class="label">Total Revenue:</span>
           <span class="value">$${formatNumber(totalRevenue)}</span>
         </div>
+      </div>
+      <div class="cart-separator"></div>
+      <div class="cart-items">
+        ${cartItemsHtml}
       </div>
     </div>
   `;
@@ -817,7 +891,7 @@ export async function bulkSellVessels() {
 /**
  * Sets the current filter type
  */
-export function setSellFilter(type) {
+export async function setSellFilter(type) {
   currentSellFilter = type;
-  displaySellVessels();
+  await displaySellVessels();
 }

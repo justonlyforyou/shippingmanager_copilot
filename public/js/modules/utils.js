@@ -658,7 +658,7 @@ export function updatePageTitle(settings) {
 
     if (autoPilotActive) {
       // Create AutoPilot text and button, then re-add notification button
-      headerElement.innerHTML = `Shipping Manager - <span class="autopilot-active" id="autopilotUnit" onclick="window.toggleAutopilot()" title="Toggle AutoPilot">AutoPilot <span id="autopilotToggleBtn" class="autopilot-toggle-btn"><svg id="autopilotToggleIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg></span></span>`;
+      headerElement.innerHTML = `Shipping Manager -<span style="margin-left: -10px;"> <span class="autopilot-active" id="autopilotUnit" onclick="window.toggleAutopilot()" title="Toggle AutoPilot">AutoPilot <span id="autopilotToggleBtn" class="autopilot-toggle-btn"><svg id="autopilotToggleIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg></span></span></span>`;
 
       // Re-append notification button after innerHTML change
       if (notificationBtn) {

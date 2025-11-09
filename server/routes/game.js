@@ -50,10 +50,35 @@ const LOG_DIR = process.pkg
 
 const AUTO_DEPART_LOG = path.join(LOG_DIR, 'auto-depart.log');
 
-/** GET /api/vessel/get-vessels - Retrieves all vessels currently in harbor. Uses /game/index endpoint to get complete vessel list with status, cargo, maintenance needs, etc. */
+/** GET /api/vessel/get-vessels - Retrieves all vessels currently in harbor. Uses /game/index endpoint to get complete vessel list with status, cargo, maintenance needs, etc. Also caches company_type in local settings. */
 router.get('/vessel/get-vessels', async (req, res) => {
   try {
     const data = await apiCallWithRetry('/game/index', 'POST', {});
+
+    // Cache company_type in local settings for offline access
+    const userId = getUserId();
+    if (userId && data.user?.company_type) {
+      try {
+        const { getSettingsFilePath } = require('../settings-schema');
+        const settingsFile = getSettingsFilePath(userId);
+
+        // Read current settings
+        const settingsData = await fs.readFile(settingsFile, 'utf8');
+        const settings = JSON.parse(settingsData);
+
+        // Update company_type
+        settings.company_type = data.user.company_type;
+
+        // Write back to file
+        await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+
+        logger.debug(`[Vessel API] Cached company_type: ${JSON.stringify(data.user.company_type)}`);
+      } catch (cacheError) {
+        // Don't fail the request if caching fails
+        logger.warn('[Vessel API] Failed to cache company_type:', cacheError.message);
+      }
+    }
+
     res.json({
       vessels: data.data.user_vessels,
       experience_points: data.data.experience_points,
@@ -77,10 +102,35 @@ router.post('/user/get-company', express.json(), async (req, res) => {
   }
 });
 
-/** GET /api/user/get-settings - Retrieves user settings including anchor points (used for auto-rebuy calculations). */
+/** GET /api/user/get-settings - Retrieves user settings including anchor points (used for auto-rebuy calculations). Also caches company_type in local settings. */
 router.get('/user/get-settings', async (req, res) => {
   try {
     const data = await apiCall('/user/get-user-settings', 'GET', {});
+
+    // Cache company_type in local settings for offline access
+    const userId = getUserId();
+    if (userId && data.user?.company_type) {
+      try {
+        const { getSettingsFilePath } = require('../settings-schema');
+        const settingsFile = getSettingsFilePath(userId);
+
+        // Read current settings
+        const settingsData = await fs.readFile(settingsFile, 'utf8');
+        const settings = JSON.parse(settingsData);
+
+        // Update company_type
+        settings.company_type = data.user.company_type;
+
+        // Write back to file
+        await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+
+        logger.debug(`[User Settings] Cached company_type: ${JSON.stringify(data.user.company_type)}`);
+      } catch (cacheError) {
+        // Don't fail the request if caching fails
+        logger.warn('[User Settings] Failed to cache company_type:', cacheError.message);
+      }
+    }
+
     res.json(data);
   } catch (error) {
     logger.error('Error getting user settings:', error);
@@ -436,6 +486,26 @@ router.get('/vessel/get-all-acquirable', async (req, res) => {
   } catch (error) {
     logger.error('Error getting acquirable vessels:', error);
     res.status(500).json({ error: 'Failed to retrieve acquirable vessels' });
+  }
+});
+
+/**
+ * POST /api/vessel/get-sell-price - Gets the selling price for a vessel.
+ * Returns the selling price and original price for a user-owned vessel.
+ */
+router.post('/vessel/get-sell-price', express.json(), async (req, res) => {
+  const { vessel_id } = req.body;
+
+  if (!vessel_id) {
+    return res.status(400).json({ error: 'Missing vessel_id' });
+  }
+
+  try {
+    const data = await apiCall('/vessel/get-sell-price', 'POST', { vessel_id });
+    res.json(data);
+  } catch (error) {
+    logger.error(`[Get Sell Price] Failed for vessel ${vessel_id}:`, error.message);
+    res.status(500).json({ error: 'Failed to get sell price', message: error.message });
   }
 });
 

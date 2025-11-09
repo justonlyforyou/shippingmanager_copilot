@@ -264,9 +264,9 @@ function renderLogTable() {
 
     return `
       <tr class="logbook-row ${isExpanded ? 'expanded' : ''}" data-id="${entry.id}">
+        <td class="logbook-status ${statusClass}">${statusIcon}</td>
         <td class="logbook-timestamp">${formatTimestamp(date)}</td>
         <td class="logbook-autopilot">${escapeHtml(entry.autopilot)}</td>
-        <td class="logbook-status ${statusClass}">${statusIcon} ${entry.status}</td>
         <td class="logbook-summary">${escapeHtml(entry.summary)}</td>
       </tr>
       ${isExpanded ? renderDetailsRow(entry) : ''}
@@ -378,18 +378,21 @@ function toggleExpanded(entryId) {
 }
 
 /**
- * Formats timestamp for display
+ * Formats timestamp for display with date and time on separate lines
  */
 function formatTimestamp(date) {
-  return date.toLocaleString(undefined, {
+  const dateStr = date.toLocaleDateString(undefined, {
     year: 'numeric',
     month: 'short',
-    day: 'numeric',
+    day: 'numeric'
+  });
+  const timeStr = date.toLocaleTimeString(undefined, {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
     hour12: false
   });
+  return `${dateStr}<br>${timeStr}`;
 }
 
 /**

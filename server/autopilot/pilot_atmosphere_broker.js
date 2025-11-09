@@ -46,9 +46,10 @@ const DEBUG_MODE = config.DEBUG_MODE;
  * @param {Object|null} bunkerState - Optional pre-fetched bunker state to avoid duplicate API calls
  * @param {boolean} autopilotPaused - Autopilot pause state
  * @param {Function} broadcastToUser - WebSocket broadcast function
+ * @param {Function} tryUpdateAllData - Function to update all header data
  * @returns {Promise<void>}
  */
-async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser) {
+async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
     logger.log('[Auto-Rebuy CO2] Skipped - Autopilot is PAUSED');
@@ -187,19 +188,24 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       }
     );
 
+    // Update all header data and badges
+    await tryUpdateAllData();
+
   } catch (error) {
     logger.error('[Auto-Rebuy CO2] Error:', error.message);
 
-    // Log error to autopilot logbook
+    // Log error to autopilot logbook (exclude stack trace for expected errors)
+    const isExpectedError = error.message === 'not_enough_cash' || error.message === 'insufficient_funds';
+    const details = isExpectedError
+      ? { error: error.message }
+      : { error: error.message, stack: error.stack };
+
     await logAutopilotAction(
       userId,
       'Auto-CO2',
       'ERROR',
       `Purchase failed: ${error.message}`,
-      {
-        error: error.message,
-        stack: error.stack
-      }
+      details
     );
   }
 }
