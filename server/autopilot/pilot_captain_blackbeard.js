@@ -129,7 +129,7 @@ async function acceptRansomWithRetry(caseId, expectedAmount, cashBeforePaid, max
         const verified = (expectedCashAfter === cashAfterPaid);
         const verificationStatus = verified ? 'blackbeard' : 'failed';
 
-        logger.log(`[Auto-Negotiate Hijacking] Case ${caseId}: Payment verification - Cash Before: $${cashBeforePaid}, Requested: $${expectedAmount}, Expected Cash After: $${expectedCashAfter}, Actual Cash After: $${cashAfterPaid}, Status: ${verificationStatus}`);
+        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Payment verification - Cash Before: $${cashBeforePaid}, Requested: $${expectedAmount}, Expected Cash After: $${expectedCashAfter}, Actual Cash After: $${cashAfterPaid}, Status: ${verificationStatus}`);
 
         return {
           success: true,
@@ -237,7 +237,7 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
 
     // Check for $0 bug
     if (requestedAmount === 0) {
-      logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: ⚠️ CRITICAL BUG - Price is $0!`);
+      logger.error(`[Auto-Negotiate Hijacking] Case ${caseId}: CRITICAL BUG - Price is $0`);
       logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Attempting to fix by submitting new offers (max 3 attempts)...`);
 
       let fixAttempts = 0;
@@ -258,7 +258,7 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
 
         const fixedCase = await getCaseWithRetry(caseId, maxRetries);
         if (fixedCase && fixedCase.requested_amount > 0) {
-          logger.log(`[Auto-Negotiate Hijacking] Case ${caseId}: ✓ Bug fixed! New price: $${fixedCase.requested_amount}`);
+          logger.info(`[Auto-Negotiate Hijacking] Case ${caseId}: OK Bug fixed! New price: $${fixedCase.requested_amount}`);
           break;
         }
 
@@ -267,7 +267,7 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
 
       const recheckCase = await getCaseWithRetry(caseId, maxRetries);
       if (!recheckCase || recheckCase.requested_amount === 0) {
-        logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: ❌ Unable to fix $0 bug, ABORTING`);
+        logger.error(`[Auto-Negotiate Hijacking] Case ${caseId}: Unable to fix $0 bug, ABORTING`);
 
         if (broadcastToUser) {
           broadcastToUser(userId, 'hijacking_update', {
@@ -321,8 +321,7 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
 
       const paymentResult = await acceptRansomWithRetry(caseId, requestedAmount, cashBeforePaid, maxRetries);
       if (paymentResult && paymentResult.success) {
-        const statusEmoji = paymentResult.verification_status === 'blackbeard' ? '✅' : '❌';
-        logger.log(`[Auto-Negotiate Hijacking] Case ${caseId}: ${statusEmoji} Payment ${paymentResult.verification_status.toUpperCase()} - Vessel released!`);
+        logger.info(`[Auto-Negotiate Hijacking] Case ${caseId}: SOLVED - Vessel released`);
 
         // Mark as autopilot-resolved
         try {
@@ -436,9 +435,9 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
     const priceChanged = (newRequestedAmount !== requestedAmount);
 
     if (priceChanged) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: ✓ Offer processed, new price: $${newRequestedAmount}`);
+      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: OK Offer processed, new price: $${newRequestedAmount}`);
     } else {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: ⚠️ Price unchanged at $${newRequestedAmount}`);
+      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price unchanged at $${newRequestedAmount}`);
     }
 
     // ALWAYS save pirate counter-offer to log (even if price unchanged)
@@ -495,7 +494,7 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
     }
   }
 
-  logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: ⚠️ Reached maximum rounds (${MAX_ROUNDS})`);
+  logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Reached maximum rounds (${MAX_ROUNDS})`);
 
   if (broadcastToUser) {
     broadcastToUser(null, {
@@ -511,7 +510,7 @@ async function processHijackingCase(userId, caseId, vesselName, threshold, offer
  */
 async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdateAllData) {
   if (autopilotPaused) {
-    logger.log('[Auto-Negotiate Hijacking] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Negotiate Hijacking] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -520,9 +519,7 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
 
   const settings = state.getSettings(userId);
   if (!settings.autoNegotiateHijacking) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Negotiate Hijacking] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Negotiate Hijacking] Feature disabled in settings');
     return;
   }
 

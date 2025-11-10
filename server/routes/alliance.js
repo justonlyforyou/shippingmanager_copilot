@@ -40,23 +40,25 @@
 
 const express = require('express');
 const validator = require('validator');
-const { apiCall, getCompanyName, getChatFeed, getAllianceId } = require('../utils/api');
+const { apiCall, getCompanyName, getChatFeed, getAllianceId, getUserId } = require('../utils/api');
 const { messageLimiter } = require('../middleware');
+const { getLastReadTimestamp, updateLastReadTimestamp } = require('../utils/read-tracker');
 
 const router = express.Router();
 
 /**
- * GET /api/chat - Retrieves alliance chat feed with enriched message data.
+ * GET /api/chat - Retrieves alliance chat feed with enriched message data and unread count.
  *
  * This endpoint fetches the alliance chat feed from the game API, transforms
  * the raw feed data into a client-friendly format with company names and
- * formatted timestamps, and returns it as JSON.
+ * formatted timestamps, and returns it as JSON along with unread count.
  *
  * Why This Transformation:
  * - API returns user_id, but frontend needs company name for display
  * - Timestamps converted from Unix epoch to UTC string for readability
  * - Separates 'chat' messages from 'feed' events for different UI rendering
  * - Company names cached to reduce API calls
+ * - Backend tracks read status (prevents localStorage sync issues)
  *
  * Message Types:
  * 1. Chat Messages (type: 'chat')
@@ -66,41 +68,52 @@ const router = express.Router();
  *    - Alliance joins, route completions, etc.
  *    - Company name already in replacements object
  *
+ * Read Tracking:
+ * - Backend stores per-user last read timestamp
+ * - Unread count calculated by comparing message timestamps to lastRead
+ * - Only chat messages counted as unread (not feed events)
+ * - Syncs across all connected clients/devices
+ *
  * No Alliance Response:
- * - Returns { no_alliance: true, messages: [] } when user not in alliance
+ * - Returns { no_alliance: true, messages: [], unreadCount: 0, lastReadTimestamp: 0 } when user not in alliance
  * - Frontend can detect this and hide alliance features
  *
  * Response Format:
- * [
- *   {
- *     type: 'chat',
- *     company: 'ABC Shipping',
- *     message: 'Hello!',
- *     timestamp: 'Mon, 23 Oct 2025 14:30:00 GMT',
- *     user_id: 12345
- *   },
- *   {
- *     type: 'feed',
- *     feedType: 'alliance_member_joined',
- *     company: 'XYZ Corp',
- *     timestamp: 'Mon, 23 Oct 2025 14:25:00 GMT'
- *   }
- * ]
+ * {
+ *   messages: [
+ *     {
+ *       type: 'chat',
+ *       company: 'ABC Shipping',
+ *       message: 'Hello!',
+ *       timestamp: 'Mon, 23 Oct 2025 14:30:00 GMT',
+ *       user_id: 12345
+ *     },
+ *     {
+ *       type: 'feed',
+ *       feedType: 'alliance_member_joined',
+ *       company: 'XYZ Corp',
+ *       timestamp: 'Mon, 23 Oct 2025 14:25:00 GMT'
+ *     }
+ *   ],
+ *   unreadCount: 3,
+ *   lastReadTimestamp: 1699876543000
+ * }
  *
  * Side Effects:
  * - Makes API call to /alliance/get-chat-feed
  * - May make multiple API calls to /user/get-company for uncached names
+ * - Reads user's last read timestamp from read-tracker
  *
  * @name GET /api/chat
  * @function
  * @memberof module:server/routes/alliance
  * @param {express.Request} req - Express request object
  * @param {express.Response} res - Express response object
- * @returns {Promise<void>} Sends JSON response with messages array
+ * @returns {Promise<void>} Sends JSON response with messages array, unreadCount, and lastReadTimestamp
  */
 router.get('/chat', async (req, res) => {
   if (!getAllianceId()) {
-    return res.json({ no_alliance: true, messages: [] });
+    return res.json({ no_alliance: true, messages: [], unreadCount: 0, lastReadTimestamp: 0 });
   }
 
   try {
@@ -111,25 +124,44 @@ router.get('/chat', async (req, res) => {
       if (msg.type === 'chat') {
         const companyName = await getCompanyName(msg.user_id);
         const timestamp = new Date(msg.time_created * 1000).toUTCString();
+        const timestampMs = msg.time_created * 1000;
         messages.push({
           type: 'chat',
           company: companyName,
           message: msg.message,
           timestamp: timestamp,
+          timestampMs: timestampMs, // Add Unix timestamp in milliseconds for comparison
           user_id: msg.user_id
         });
       } else if (msg.type === 'feed') {
         const timestamp = new Date(msg.time_created * 1000).toUTCString();
+        const timestampMs = msg.time_created * 1000;
         messages.push({
           type: 'feed',
           feedType: msg.feed_type,
           company: msg.replacements.company_name,
-          timestamp: timestamp
+          timestamp: timestamp,
+          timestampMs: timestampMs
         });
       }
     }
 
-    res.json(messages);
+    // Get user's last read timestamp from backend
+    const userId = getUserId();
+    const lastReadTimestamp = getLastReadTimestamp(userId);
+
+    // Calculate unread count (only chat messages, not feed events, not own messages)
+    const unreadCount = messages.filter(msg => {
+      return msg.type === 'chat' &&
+             msg.timestampMs > lastReadTimestamp &&
+             msg.user_id !== userId; // Exclude own messages
+    }).length;
+
+    res.json({
+      messages: messages,
+      unreadCount: unreadCount,
+      lastReadTimestamp: lastReadTimestamp
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -309,6 +341,73 @@ router.get('/alliance-members', async (req, res) => {
       company_name: member.company_name
     }));
     res.json(members);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/chat/mark-read - Marks alliance chat as read up to a specific timestamp.
+ *
+ * This endpoint updates the user's last read timestamp for alliance chat,
+ * which is used to calculate unread counts and prevent notification spam.
+ *
+ * Why This Endpoint:
+ * - Provides backend-controlled read tracking (syncs across devices)
+ * - Called when user opens alliance chat panel
+ * - Prevents old messages from repeatedly showing as unread
+ * - Stops duplicate notifications for messages user has already seen
+ *
+ * Request Body:
+ * - timestamp: Unix timestamp in milliseconds (number)
+ *   - Should be the timestamp of the latest message in the chat
+ *   - All messages with timestamp <= this value are marked as read
+ *
+ * Validation:
+ * - Timestamp must be positive integer
+ * - Returns 400 error for invalid timestamp
+ *
+ * Side Effects:
+ * - Updates user's last read timestamp in read-tracker
+ * - Persists to userdata/settings/read-tracking.json
+ * - Future GET /api/chat calls will use this timestamp for unread count
+ *
+ * @name POST /api/chat/mark-read
+ * @function
+ * @memberof module:server/routes/alliance
+ * @param {express.Request} req - Express request object with { timestamp: number } body
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response { success: true } or error
+ *
+ * @example
+ * // Mark chat as read up to current time
+ * POST /api/chat/mark-read
+ * Body: { "timestamp": 1699876543000 }
+ * Response: { "success": true }
+ */
+router.post('/chat/mark-read', express.json(), async (req, res) => {
+  try {
+    const { timestamp } = req.body;
+
+    // Validate timestamp
+    if (!timestamp || typeof timestamp !== 'number' || timestamp <= 0) {
+      return res.status(400).json({ error: 'Invalid timestamp. Must be a positive number.' });
+    }
+
+    // Get current user ID
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(500).json({ error: 'User ID not available' });
+    }
+
+    // Update last read timestamp
+    const success = updateLastReadTimestamp(userId, timestamp);
+
+    if (success) {
+      res.json({ success: true });
+    } else {
+      res.status(500).json({ error: 'Failed to update read timestamp' });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

@@ -529,8 +529,8 @@ export async function buyCampaign(campaignId, typeName, duration, price, updateC
       // Refresh the campaign overlay to show updated state
       await showCampaignsOverlay();
 
-      if (updateCallbacks) {
-        await updateCallbacks.updateCampaignsStatus();
+      // WebSocket will auto-update campaign badge and bunker status
+      if (updateCallbacks && updateCallbacks.updateBunkerStatus) {
         await updateCallbacks.updateBunkerStatus();
       }
     } else {
@@ -553,9 +553,8 @@ export async function buyCampaign(campaignId, typeName, duration, price, updateC
       // Refresh the campaign overlay to show updated state even on error
       await showCampaignsOverlay();
 
-      // Also update status displays
-      if (updateCallbacks) {
-        await updateCallbacks.updateCampaignsStatus();
+      // WebSocket will auto-update campaign badge and bunker status
+      if (updateCallbacks && updateCallbacks.updateBunkerStatus) {
         await updateCallbacks.updateBunkerStatus();
       }
     }
@@ -568,9 +567,8 @@ export async function buyCampaign(campaignId, typeName, duration, price, updateC
     try {
       await showCampaignsOverlay();
 
-      // Also update status displays
-      if (updateCallbacks) {
-        await updateCallbacks.updateCampaignsStatus();
+      // WebSocket will auto-update campaign badge and bunker status
+      if (updateCallbacks && updateCallbacks.updateBunkerStatus) {
         await updateCallbacks.updateBunkerStatus();
       }
     } catch (refreshError) {

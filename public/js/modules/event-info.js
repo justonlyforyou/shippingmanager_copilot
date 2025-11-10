@@ -8,6 +8,7 @@
  */
 
 let currentEventData = null;
+let timerInterval = null;
 
 /**
  * Updates stored event data
@@ -24,8 +25,12 @@ export function updateEventData(eventData) {
         return;
     }
 
-    // Only create banner if we have event data AND a valid, non-empty event name
-    if (eventData && eventData.name && eventData.name.trim() !== '') {
+    // Check if event has ended
+    const now = Math.floor(Date.now() / 1000);
+    const eventEnded = eventData && eventData.time_end && (eventData.time_end <= now);
+
+    // Only create banner if we have event data AND a valid, non-empty event name AND event hasn't ended
+    if (eventData && eventData.name && eventData.name.trim() !== '' && !eventEnded) {
         // Format event name (replace underscores, capitalize)
         const formattedName = eventData.name
             .split('_')
@@ -48,7 +53,7 @@ export function updateEventData(eventData) {
             banner.addEventListener('click', openEventModal);
         }
     } else {
-        // Remove banner if no event or no event name
+        // Remove banner if no event, no event name, or event has ended
         container.innerHTML = '';
     }
 }
@@ -64,6 +69,12 @@ export function openEventModal() {
 
     overlay.classList.remove('d-none');
     overlay.classList.add('d-flex');
+
+    // Clear any existing timer
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
 
     if (!currentEventData) {
         content.innerHTML = '<p style="text-align: center; color: #999;">No active event</p>';
@@ -83,8 +94,17 @@ export function openEventModal() {
         return port.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
     });
 
-    // Format time remaining as timer
-    const endsIn = currentEventData.ends_in || 0;
+    // Calculate time remaining from time_end (live calculation, not cached ends_in)
+    const now = Math.floor(Date.now() / 1000); // Current Unix timestamp
+    const endsIn = Math.max(0, currentEventData.time_end - now);
+
+    // Debug logging
+    const nowDate = new Date(now * 1000);
+    const endDateObj = new Date(currentEventData.time_end * 1000);
+    console.log(`[Event] Current time: ${nowDate.toISOString()} (${now})`);
+    console.log(`[Event] Event ends: ${endDateObj.toISOString()} (${currentEventData.time_end})`);
+    console.log(`[Event] Seconds remaining: ${endsIn}`);
+
     const days = Math.floor(endsIn / 86400);
     const hours = Math.floor((endsIn % 86400) / 3600);
     const minutes = Math.floor((endsIn % 3600) / 60);
@@ -154,18 +174,22 @@ export function openEventModal() {
 
     content.innerHTML = html;
 
-    // Start countdown timer
-    startEventTimer(currentEventData.ends_in);
+    // Start countdown timer (calculate live from time_end)
+    startEventTimer();
 }
 
 /**
  * Starts the event countdown timer
- * @param {number} initialSeconds - Initial seconds remaining
+ * Calculates remaining time live from time_end (not cached ends_in)
  */
-function startEventTimer(initialSeconds) {
-    let remainingSeconds = initialSeconds;
-
+function startEventTimer() {
     const updateTimer = () => {
+        if (!currentEventData || !currentEventData.time_end) return;
+
+        // Calculate remaining time live
+        const now = Math.floor(Date.now() / 1000);
+        const remainingSeconds = Math.max(0, currentEventData.time_end - now);
+
         const days = Math.floor(remainingSeconds / 86400);
         const hours = Math.floor((remainingSeconds % 86400) / 3600);
         const minutes = Math.floor((remainingSeconds % 3600) / 60);
@@ -173,27 +197,23 @@ function startEventTimer(initialSeconds) {
 
         const timerElement = document.getElementById('eventTimer');
         if (timerElement) {
-            timerElement.textContent = `${days} (d) ${hours} (h) ${minutes} (m) ${seconds} (s)`;
-        }
-
-        remainingSeconds--;
-
-        if (remainingSeconds < 0) {
-            clearInterval(timerInterval);
-            if (timerElement) {
+            if (remainingSeconds > 0) {
+                timerElement.textContent = `${days} (d) ${hours} (h) ${minutes} (m) ${seconds} (s)`;
+            } else {
                 timerElement.textContent = 'Event Ended';
+                clearInterval(timerInterval);
             }
         }
     };
 
     // Clear any existing timer
-    if (window.eventTimerInterval) {
-        clearInterval(window.eventTimerInterval);
+    if (timerInterval) {
+        clearInterval(timerInterval);
     }
 
     // Update immediately and then every second
     updateTimer();
-    window.eventTimerInterval = setInterval(updateTimer, 1000);
+    timerInterval = setInterval(updateTimer, 1000);
 }
 
 /**

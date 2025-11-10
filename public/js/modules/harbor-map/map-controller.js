@@ -10,6 +10,7 @@ import { fetchHarborMapOverview, fetchVesselReachablePorts, fetchPortDetails, ge
 import { showVesselPanel, hideVesselPanel } from './vessel-panel.js';
 import { showPortPanel, hidePortPanel } from './port-panel.js';
 import { initializePanelDrag } from './panel-drag.js';
+import { filterVessels, filterPorts, getVesselFilterOptions, getPortFilterOptions } from './filters.js';
 
 // Map instance
 let map = null;
@@ -25,14 +26,35 @@ let vesselClusterGroup = null;
 let portClusterGroup = null;
 
 // Current state
-let currentFilter = localStorage.getItem('harborMapFilter') || 'my_ports'; // 'my_ports' or 'all_ports'
+let currentPortFilter = localStorage.getItem('harborMapPortFilter') || 'my_ports'; // Port filter
+let currentVesselFilter = localStorage.getItem('harborMapVesselFilter') || 'all_vessels'; // Vessel filter
 let selectedVesselId = null;
 let selectedPortCode = null;
 let currentMapStyle = localStorage.getItem('harborMapStyle') || 'dark'; // 'standard', 'dark', or 'satellite'
 let weatherEnabled = localStorage.getItem('harborMapWeather') === 'true' || false;
+let weatherType = localStorage.getItem('harborMapWeatherType') || 'off'; // 'off', 'rain', 'cloud'
+
+// Raw data (unfiltered - loaded once from API)
+let rawVessels = [];
+let rawPorts = [];
 
 // Weather control reference
 let weatherControl = null;
+
+// Environmental Layer - Rotating button (off -> wind -> clouds -> temperature -> off)
+let currentEnvLayer = localStorage.getItem('harborMapEnvLayer') || 'off'; // 'off', 'wind', 'clouds', 'temperature'
+let envLayer = null;
+let envLayerControl = null;
+
+// Cloud animation
+let cloudAnimationFrames = [];
+let cloudAnimationInterval = null;
+let currentCloudFrame = 0;
+
+// POI Layer - Rotating button (off -> lighthouses -> shipyards -> platforms -> museums -> off)
+let currentPOILayer = localStorage.getItem('harborMapPOILayer') || 'off'; // 'off', 'lighthouses', 'shipyards', 'platforms', 'museums'
+let poiMarkerLayer = null;
+let poiLayerControl = null;
 
 // Current data (for route filtering)
 let currentVessels = [];
@@ -241,9 +263,9 @@ export function initMap(containerId) {
   // Initialize weather layer and dblclick handler only if enableWeatherData is enabled
   const settings = window.getSettings ? window.getSettings() : {};
   if (settings.enableWeatherData === true) {
-    // Initialize weather layer if enabled
-    if (weatherEnabled) {
-      toggleWeatherLayer(true);
+    // Initialize weather layer with saved type
+    if (weatherType !== 'off') {
+      toggleWeatherLayer(weatherType);
     }
 
     // Add long-press handler for weather info
@@ -423,18 +445,26 @@ async function showWeatherInfo(latlng, tooltipContent = null) {
 }
 
 /**
- * Toggles weather radar overlay (RainViewer)
+ * Toggles weather overlay (Rain Radar or Cloud Cover)
  *
- * @param {boolean} enabled - Show or hide weather layer
+ * @param {string} type - Weather layer type: 'off', 'rain', 'cloud'
  * @returns {void}
  */
-function toggleWeatherLayer(enabled) {
-  if (enabled) {
-    // Get current timestamp (rounded to nearest 10 minutes for caching)
+function toggleWeatherLayer(type) {
+  // Remove existing weather layer
+  if (weatherLayer) {
+    map.removeLayer(weatherLayer);
+    weatherLayer = null;
+  }
+
+  weatherType = type;
+  localStorage.setItem('harborMapWeatherType', type);
+
+  if (type === 'rain') {
+    // Rain Radar (RainViewer)
     const now = new Date();
     const timestamp = Math.floor(now.getTime() / 1000 / 600) * 600;
 
-    // Create weather layer with RainViewer tiles
     weatherLayer = L.tileLayer(
       `https://tilecache.rainviewer.com/v2/radar/${timestamp}/512/{z}/{x}/{y}/2/1_1.png`,
       {
@@ -447,15 +477,12 @@ function toggleWeatherLayer(enabled) {
     weatherLayer.addTo(map);
     weatherEnabled = true;
     localStorage.setItem('harborMapWeather', 'true');
-    console.log('[Harbor Map] Weather radar enabled');
+    console.log('[Harbor Map] Rain radar enabled');
   } else {
-    if (weatherLayer) {
-      map.removeLayer(weatherLayer);
-      weatherLayer = null;
-    }
+    // Off
     weatherEnabled = false;
     localStorage.setItem('harborMapWeather', 'false');
-    console.log('[Harbor Map] Weather radar disabled');
+    console.log('[Harbor Map] Weather overlay disabled');
   }
 }
 
@@ -464,19 +491,49 @@ function toggleWeatherLayer(enabled) {
  * Positioned in top-right corner below zoom controls
  */
 function addCustomControls() {
-  // Port Filter Control
-  const FilterControl = L.Control.extend({
+  // Vessel Filter Control
+  const VesselFilterControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
       const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-filter');
+
+      const options = getVesselFilterOptions();
+      const optionsHTML = options.map(opt =>
+        `<option value="${opt.value}" ${opt.value === currentVesselFilter ? 'selected' : ''}>${opt.label}</option>`
+      ).join('');
+
       container.innerHTML = `
-        <select id="portFilterSelect">
-          <option value="my_ports">My Ports</option>
-          <option value="all_ports">All Ports</option>
-          <option value="my_ports_with_arrived_vessels">Ports with Arrived Vessels</option>
-          <option value="my_ports_with_anchored_vessels">Ports with Anchored Vessels</option>
-          <option value="my_ports_with_vessels_in_maint">Ports with Vessels in Maintenance</option>
-          <option value="my_ports_with_pending_vessels">Ports with Pending Vessels</option>
+        <select id="vesselFilterSelect" title="Vessel Filter">
+          ${optionsHTML}
+        </select>
+      `;
+
+      // Prevent map click propagation
+      L.DomEvent.disableClickPropagation(container);
+
+      // Add change listener
+      container.querySelector('select').addEventListener('change', async (e) => {
+        await setVesselFilter(e.target.value);
+      });
+
+      return container;
+    }
+  });
+
+  // Port Filter Control
+  const PortFilterControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-filter');
+
+      const options = getPortFilterOptions();
+      const optionsHTML = options.map(opt =>
+        `<option value="${opt.value}" ${opt.value === currentPortFilter ? 'selected' : ''}>${opt.label}</option>`
+      ).join('');
+
+      container.innerHTML = `
+        <select id="portFilterSelect" title="Port Filter">
+          ${optionsHTML}
         </select>
       `;
 
@@ -513,25 +570,40 @@ function addCustomControls() {
     }
   });
 
-  // Settings Control
-  const SettingsControl = L.Control.extend({
+  // Map Style Toggle Control (cycles through: standard -> dark -> satellite -> standard)
+  const MapStyleControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
-      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-settings');
-      container.innerHTML = `
-        <select id="mapStyleSelect" title="Map Style">
-          <option value="standard">Standard</option>
-          <option value="dark">Dark Mode</option>
-          <option value="satellite">Satellite</option>
-        </select>
-      `;
+      const container = L.DomUtil.create('div', 'leaflet-control-custom map-style-toggle');
+
+      // Emoji map for each style
+      const styleEmojis = {
+        'standard': '🗺️',
+        'dark': '🌙',
+        'satellite': '🛰️'
+      };
+
+      container.innerHTML = styleEmojis[currentMapStyle];
+      container.title = 'Map Style';
 
       // Prevent map click propagation
       L.DomEvent.disableClickPropagation(container);
 
-      // Add change listener
-      container.querySelector('select').addEventListener('change', (e) => {
-        changeTileLayer(e.target.value);
+      // Add click listener - cycle through styles
+      container.addEventListener('click', () => {
+        const styles = ['standard', 'dark', 'satellite'];
+        const currentIndex = styles.indexOf(currentMapStyle);
+        const nextIndex = (currentIndex + 1) % styles.length;
+        const nextStyle = styles[nextIndex];
+
+        changeTileLayer(nextStyle);
+        container.innerHTML = styleEmojis[nextStyle];
+
+        // Reset tooltip
+        container.removeAttribute('title');
+        setTimeout(() => {
+          container.title = 'Map Style';
+        }, 100);
       });
 
       return container;
@@ -603,32 +675,358 @@ function addCustomControls() {
     }
   });
 
-  // Weather Control
+  // Weather Control (Rain Radar Toggle)
   const WeatherControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
-      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-weather');
-      const icon = weatherEnabled ? '🌧️' : '☀️';
-      container.innerHTML = `<button title="Toggle Weather Radar">${icon}</button>`;
+      const container = L.DomUtil.create('div', 'leaflet-control-custom weather-toggle');
+
+      container.innerHTML = weatherEnabled ? '🌧️' : '☀️';
+      container.title = 'Rain Radar';
 
       // Prevent map click propagation
       L.DomEvent.disableClickPropagation(container);
 
       // Add click listener
-      container.querySelector('button').addEventListener('click', () => {
-        const button = container.querySelector('button');
-        const newState = !weatherEnabled;
-        toggleWeatherLayer(newState);
-        button.innerHTML = newState ? '🌧️' : '☀️';
-        button.title = newState ? 'Hide Weather Radar' : 'Show Weather Radar';
+      container.addEventListener('click', () => {
+        weatherEnabled = !weatherEnabled;
+
+        if (weatherEnabled) {
+          container.innerHTML = '🌧️';
+          toggleWeatherLayer('rain');
+        } else {
+          container.innerHTML = '☀️';
+          toggleWeatherLayer('off');
+        }
+
+        // Reset tooltip
+        container.removeAttribute('title');
+        setTimeout(() => {
+          container.title = 'Rain Radar';
+        }, 100);
       });
 
       return container;
     }
   });
 
-  // Add controls to map (order matters - top to bottom)
+  // Environmental Layer Control - Rotating button (off -> wind -> clouds -> temperature -> off)
+  const EnvironmentalLayerControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+      const container = L.DomUtil.create('div', 'leaflet-control-custom env-layer-toggle');
+
+      // Function to update button appearance
+      const updateButton = (resetTooltip = false) => {
+        let tooltipText = '';
+
+        switch(currentEnvLayer) {
+          case 'wind':
+            container.innerHTML = '💨';
+            container.style.opacity = '1';
+            break;
+          case 'clouds':
+            container.innerHTML = '☁️';
+            container.style.opacity = '1';
+            break;
+          case 'temperature':
+            container.innerHTML = '🌡️';
+            container.style.opacity = '1';
+            break;
+          default: // 'off'
+            container.innerHTML = '🌍';
+            container.style.opacity = '0.5';
+            tooltipText = 'Environmental Layers';
+            break;
+        }
+
+        // Update tooltip: remove old one, then set new one after delay
+        if (resetTooltip) {
+          container.removeAttribute('title');
+          setTimeout(() => {
+            if (tooltipText) {
+              container.title = tooltipText;
+            }
+          }, 100);
+        } else {
+          if (tooltipText) {
+            container.title = tooltipText;
+          } else {
+            container.removeAttribute('title');
+          }
+        }
+      };
+
+      // Function to start cloud layer (static for now)
+      const startCloudAnimation = () => {
+        stopCloudAnimation(); // Clean up any existing animation
+
+        console.log('[Environmental] Adding cloud layer...');
+
+        // Use single OWM clouds layer with higher opacity for better visibility
+        const opacity = currentMapStyle === 'standard' ? 0.7 : 0.5;
+        envLayer = L.OWM.clouds({showLegend: false, opacity: opacity});
+        envLayer.addTo(map);
+      };
+
+      // Function to stop cloud layer
+      const stopCloudAnimation = () => {
+        if (envLayer && map.hasLayer(envLayer)) {
+          map.removeLayer(envLayer);
+          envLayer = null;
+        }
+
+        console.log('[Environmental] Removed cloud layer');
+      };
+
+      // Function to switch to next layer
+      const switchEnvLayer = (newLayer) => {
+        // Stop cloud animation if switching away from clouds
+        if (currentEnvLayer === 'clouds') {
+          stopCloudAnimation();
+        }
+
+        // Remove old layer (non-animated)
+        if (envLayer) {
+          map.removeLayer(envLayer);
+          envLayer = null;
+        }
+
+        // Add new layer
+        if (newLayer !== 'off') {
+          console.log(`[Environmental] Switching to ${newLayer} layer...`);
+          switch(newLayer) {
+            case 'wind':
+              // Higher opacity in standard mode for better visibility
+              const windOpacity = currentMapStyle === 'standard' ? 0.6 : 0.4;
+              envLayer = L.OWM.wind({opacity: windOpacity});
+              envLayer.addTo(map);
+              break;
+            case 'clouds':
+              // Use animated clouds
+              startCloudAnimation();
+              break;
+            case 'temperature':
+              // Higher opacity in standard mode for better visibility
+              const tempOpacity = currentMapStyle === 'standard' ? 0.6 : 0.4;
+              envLayer = L.OWM.temperature({showLegend: true, opacity: tempOpacity});
+              envLayer.addTo(map);
+              break;
+          }
+        }
+
+        currentEnvLayer = newLayer;
+        localStorage.setItem('harborMapEnvLayer', newLayer);
+        updateButton(true); // Reset tooltip after click
+      };
+
+      L.DomEvent.disableClickPropagation(container);
+
+      container.addEventListener('click', () => {
+        // Rotate through: off -> wind -> clouds -> temperature -> off
+        const nextLayer = {
+          'off': 'wind',
+          'wind': 'clouds',
+          'clouds': 'temperature',
+          'temperature': 'off'
+        }[currentEnvLayer] || 'wind';
+
+        switchEnvLayer(nextLayer);
+      });
+
+      updateButton();
+      return container;
+    }
+  });
+
+  // POI Layer Control - Rotating button (off -> lighthouses -> shipyards -> platforms -> museums -> off)
+  const POILayerControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+      const container = L.DomUtil.create('div', 'leaflet-control-custom poi-layer-toggle');
+
+      // Function to load POIs from Overpass API
+      const loadPOIs = async (type) => {
+        const bounds = map.getBounds();
+        const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+
+        let query = '';
+        switch(type) {
+          case 'lighthouses':
+            query = `[out:json][timeout:25];(node["man_made"="lighthouse"](${bbox}););out body;`;
+            break;
+          case 'shipyards':
+            query = `[out:json][timeout:25];(node["industrial"="shipyard"](${bbox});way["industrial"="shipyard"](${bbox}););out center;`;
+            break;
+          case 'platforms':
+            query = `[out:json][timeout:25];(node["man_made"="offshore_platform"](${bbox}););out body;`;
+            break;
+          case 'museums':
+            query = `[out:json][timeout:25];(node["tourism"="museum"]["museum"="maritime"](${bbox});way["tourism"="museum"]["museum"="maritime"](${bbox}););out center;`;
+            break;
+        }
+
+        // Try multiple Overpass servers
+        const servers = [
+          'https://overpass-api.de/api/interpreter',
+          'https://overpass.kumi.systems/api/interpreter',
+          'https://overpass.openstreetmap.ru/api/interpreter'
+        ];
+
+        for (const server of servers) {
+          try {
+            console.log(`[POI] Trying server: ${server}`);
+            const response = await fetch(server, {
+              method: 'POST',
+              body: query,
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+              }
+            });
+
+            if (!response.ok) {
+              console.warn(`[POI] Server ${server} returned ${response.status}`);
+              continue;
+            }
+
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+              console.warn(`[POI] Server ${server} returned non-JSON response`);
+              continue;
+            }
+
+            const data = await response.json();
+            console.log(`[POI] Successfully loaded from ${server}`);
+            return data.elements || [];
+          } catch (error) {
+            console.warn(`[POI] Server ${server} failed:`, error.message);
+            continue;
+          }
+        }
+
+        console.error('[POI] All Overpass servers failed');
+        return [];
+      };
+
+      // Function to update button appearance
+      const updateButton = (resetTooltip = false) => {
+        let tooltipText = '';
+
+        switch(currentPOILayer) {
+          case 'lighthouses':
+            container.innerHTML = '🏮';
+            container.style.opacity = '1';
+            break;
+          case 'shipyards':
+            container.innerHTML = '🔧';
+            container.style.opacity = '1';
+            break;
+          case 'platforms':
+            container.innerHTML = '🛢️';
+            container.style.opacity = '1';
+            break;
+          case 'museums':
+            container.innerHTML = '🏛️';
+            container.style.opacity = '1';
+            break;
+          default: // 'off'
+            container.innerHTML = '⚓';
+            container.style.opacity = '0.5';
+            tooltipText = 'Maritime POIs';
+            break;
+        }
+
+        // Update tooltip
+        if (resetTooltip) {
+          container.removeAttribute('title');
+          setTimeout(() => {
+            if (tooltipText) {
+              container.title = tooltipText;
+            }
+          }, 100);
+        } else {
+          if (tooltipText) {
+            container.title = tooltipText;
+          } else {
+            container.removeAttribute('title');
+          }
+        }
+      };
+
+      // Function to switch POI layer
+      const switchPOILayer = async (newLayer) => {
+        // Remove old markers
+        if (poiMarkerLayer) {
+          map.removeLayer(poiMarkerLayer);
+          poiMarkerLayer = null;
+        }
+
+        // Add new layer
+        if (newLayer !== 'off') {
+          console.log(`[POI] Loading ${newLayer}...`);
+          const pois = await loadPOIs(newLayer);
+
+          if (pois.length > 0) {
+            poiMarkerLayer = L.layerGroup();
+
+            pois.forEach(poi => {
+              if (poi.lat && poi.lon) {
+                const name = poi.tags?.name || 'Unknown';
+                const icon = L.divIcon({
+                  className: 'poi-marker',
+                  html: `<div style="font-size: 20px;">${
+                    newLayer === 'lighthouses' ? '🏮' :
+                    newLayer === 'shipyards' ? '🔧' :
+                    newLayer === 'platforms' ? '🛢️' :
+                    '🏛️'
+                  }</div>`,
+                  iconSize: [30, 30],
+                  iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker([poi.lat, poi.lon], { icon });
+                marker.bindPopup(`<b>${name}</b><br>${newLayer.charAt(0).toUpperCase() + newLayer.slice(1, -1)}`);
+                poiMarkerLayer.addLayer(marker);
+              }
+            });
+
+            poiMarkerLayer.addTo(map);
+            console.log(`[POI] Loaded ${pois.length} ${newLayer}`);
+          } else {
+            console.log(`[POI] No ${newLayer} found in current area`);
+          }
+        }
+
+        currentPOILayer = newLayer;
+        localStorage.setItem('harborMapPOILayer', newLayer);
+        updateButton(true);
+      };
+
+      L.DomEvent.disableClickPropagation(container);
+
+      container.addEventListener('click', () => {
+        // Rotate through: off -> lighthouses -> shipyards -> platforms -> museums -> off
+        const nextLayer = {
+          'off': 'lighthouses',
+          'lighthouses': 'shipyards',
+          'shipyards': 'platforms',
+          'platforms': 'museums',
+          'museums': 'off'
+        }[currentPOILayer] || 'lighthouses';
+
+        switchPOILayer(nextLayer);
+      });
+
+      updateButton();
+      return container;
+    }
+  });
+
+  // Add controls to map (order matters - top to bottom for topleft, top to bottom for topright)
+
+  // Top left controls (icon buttons - after +/- zoom which Leaflet adds automatically)
   map.addControl(new FullscreenControl());
+  map.addControl(new MapStyleControl());
 
   // Only add Weather Control if enableWeatherData is enabled
   const settings = window.getSettings ? window.getSettings() : {};
@@ -637,24 +1035,63 @@ function addCustomControls() {
     map.addControl(weatherControl);
   }
 
+  // Add Environmental Layer Control (rotating button: off -> wind -> clouds -> temperature)
+  envLayerControl = new EnvironmentalLayerControl();
+  map.addControl(envLayerControl);
+
+  // Add POI Layer Control (rotating button: off -> lighthouses -> shipyards -> platforms -> museums)
+  poiLayerControl = new POILayerControl();
+  map.addControl(poiLayerControl);
+
   map.addControl(new RefreshControl());
-  map.addControl(new SettingsControl());
+
+  // Top right controls (filter dropdowns)
   map.addControl(new RouteFilterControl());
-  map.addControl(new FilterControl());
+  map.addControl(new VesselFilterControl());
+  map.addControl(new PortFilterControl());
 
   // Set saved values in dropdowns
-  const mapStyleSelect = document.getElementById('mapStyleSelect');
+  const vesselFilterSelect = document.getElementById('vesselFilterSelect');
   const portFilterSelect = document.getElementById('portFilterSelect');
 
-  if (mapStyleSelect) {
-    mapStyleSelect.value = currentMapStyle;
+  if (vesselFilterSelect) {
+    vesselFilterSelect.value = currentVesselFilter;
   }
 
   if (portFilterSelect) {
-    portFilterSelect.value = currentFilter;
+    portFilterSelect.value = currentPortFilter;
   }
 
-  console.log(`[Harbor Map] Restored saved settings - Style: ${currentMapStyle}, Filter: ${currentFilter}`);
+  console.log(`[Harbor Map] Restored saved settings - Style: ${currentMapStyle}, Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}`);
+
+  // Initialize Environmental Layer if enabled (restore from localStorage)
+  if (currentEnvLayer && currentEnvLayer !== 'off') {
+    console.log(`[Environmental] Restoring ${currentEnvLayer} layer from saved state...`);
+    switch(currentEnvLayer) {
+      case 'wind':
+        // Higher opacity in standard mode for better visibility
+        const windOpacity = currentMapStyle === 'standard' ? 0.6 : 0.4;
+        envLayer = L.OWM.wind({opacity: windOpacity});
+        if (envLayer) {
+          envLayer.addTo(map);
+        }
+        break;
+      case 'clouds':
+        // Add cloud layer (static) with higher opacity in standard mode
+        const cloudsOpacity = currentMapStyle === 'standard' ? 0.7 : 0.5;
+        envLayer = L.OWM.clouds({showLegend: false, opacity: cloudsOpacity});
+        envLayer.addTo(map);
+        break;
+      case 'temperature':
+        // Higher opacity in standard mode for better visibility
+        const tempOpacity = currentMapStyle === 'standard' ? 0.6 : 0.4;
+        envLayer = L.OWM.temperature({showLegend: true, opacity: tempOpacity});
+        if (envLayer) {
+          envLayer.addTo(map);
+        }
+        break;
+    }
+  }
 
   // Apply theme class for control styling
   applyMapTheme(currentMapStyle);
@@ -714,6 +1151,11 @@ function changeTileLayer(layerKey) {
   const mapContainer = map.getContainer();
   const backgroundColor = layerKey === 'standard' ? '#e0e0e0' : '#1f1f1f';
   mapContainer.style.backgroundColor = backgroundColor;
+
+  // Re-add environmental layer if active (to keep it on top of the new tile layer)
+  if (envLayer && currentEnvLayer !== 'off') {
+    envLayer.bringToFront();
+  }
 
   console.log(`[Harbor Map] Changed map style to: ${tileLayers[layerKey].name} (saved)`);
 }
@@ -1044,28 +1486,91 @@ export function clearRoute() {
 }
 
 /**
- * Sets port filter to specific value and reloads map
+ * Sets port filter to specific value (client-side only - no API calls)
  *
- * @param {string} filter - 'my_ports' or 'all_ports'
+ * @param {string} filter - Port filter type
  * @returns {Promise<void>}
  * @example
  * await setPortFilter('my_ports');
  */
 export async function setPortFilter(filter) {
-  currentFilter = filter;
-  localStorage.setItem('harborMapFilter', filter);
-  console.log(`[Harbor Map] Filter changed to: ${filter} (saved)`);
+  currentPortFilter = filter;
+  localStorage.setItem('harborMapPortFilter', filter);
+  console.log(`[Harbor Map] Port filter changed to: ${filter} (client-side)`);
 
-  // Clear cache to force fresh data fetch with new filter
-  const { clearHarborMapCache } = await import('./api-client.js');
-  await clearHarborMapCache();
-
-  await loadOverview();
+  // Apply filter client-side (no API call)
+  await applyFiltersAndRender();
 }
 
 /**
- * Loads and renders harbor map overview from cache only
- * Does NOT fetch from API - relies on background auto-update
+ * Sets vessel filter to specific value (client-side only - no API calls)
+ *
+ * @param {string} filter - Vessel filter type
+ * @returns {Promise<void>}
+ * @example
+ * await setVesselFilter('tanker_only');
+ */
+export async function setVesselFilter(filter) {
+  currentVesselFilter = filter;
+  localStorage.setItem('harborMapVesselFilter', filter);
+  console.log(`[Harbor Map] Vessel filter changed to: ${filter} (client-side)`);
+
+  // Apply filter client-side (no API call)
+  await applyFiltersAndRender();
+}
+
+/**
+ * Applies current filters to raw data and renders the result
+ * NO API calls - pure client-side filtering
+ *
+ * @returns {Promise<void>}
+ */
+async function applyFiltersAndRender() {
+  // Debug: Check raw data
+  const assignedPortsCount = rawPorts.filter(p => p.isAssigned === true).length;
+  console.log(`[Harbor Map] Raw data - Total Ports: ${rawPorts.length}, Assigned Ports: ${assignedPortsCount}, Total Vessels: ${rawVessels.length}`);
+
+  // Debug: Show first port structure
+  if (rawPorts.length > 0) {
+    console.log(`[Harbor Map] Sample port:`, rawPorts[0]);
+  }
+
+  // Apply vessel filter
+  let filteredVessels = filterVessels(rawVessels, currentVesselFilter);
+
+  // Apply port filter (ports need vessel data for some filters)
+  let filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
+
+  console.log(`[Harbor Map] Applied filters - Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}`);
+  console.log(`[Harbor Map] Filtered results - Vessels: ${filteredVessels.length}/${rawVessels.length}, Ports: ${filteredPorts.length}/${rawPorts.length}`);
+
+  // Store filtered data for route filtering
+  currentVessels = filteredVessels;
+  currentPorts = filteredPorts;
+
+  // Update route dropdown
+  updateRouteDropdown();
+
+  // Apply route filter if active
+  const vesselsToRender = currentRouteFilter
+    ? currentVessels.filter(v => v.route_name === currentRouteFilter)
+    : currentVessels;
+
+  renderVessels(vesselsToRender);
+  renderPorts(filteredPorts);
+  clearRoute();
+
+  // Reset selection state
+  selectedVesselId = null;
+  selectedPortCode = null;
+
+  hideVesselPanel();
+  hidePortPanel();
+}
+
+/**
+ * Loads and renders harbor map overview
+ * Fetches ALL data once, then applies filters client-side
  *
  * @returns {Promise<void>}
  * @example
@@ -1076,68 +1581,34 @@ export async function loadOverview() {
     // Always use cached data only
     const cachedData = getCachedOverview();
 
-    if (cachedData && cachedData.filter === currentFilter) {
+    if (cachedData) {
       console.log('[Harbor Map] Loading from cache (no API call)');
 
-      // Store data for route filtering
-      currentVessels = cachedData.vessels;
-      currentPorts = cachedData.ports;
+      // Store RAW data (unfiltered)
+      rawVessels = cachedData.vessels;
+      rawPorts = cachedData.ports;
 
-      // Update route dropdown
-      updateRouteDropdown();
-
-      // Apply route filter if active
-      const vesselsToRender = currentRouteFilter
-        ? currentVessels.filter(v => v.route_name === currentRouteFilter)
-        : currentVessels;
-
-      renderVessels(vesselsToRender);
-      renderPorts(cachedData.ports);
-      clearRoute();
-
-      // Reset selection state
-      selectedVesselId = null;
-      selectedPortCode = null;
-
-      hideVesselPanel();
-      hidePortPanel();
-
+      // Apply filters client-side
+      await applyFiltersAndRender();
       return;
     }
 
-    // No cache available - fetch once (only on first load or filter change)
-    console.log('[Harbor Map] No cache available, fetching initial data...');
-    const data = await fetchHarborMapOverview(currentFilter);
+    // No cache available - fetch ALL data once (no filter parameter)
+    console.log('[Harbor Map] No cache available, fetching ALL data...');
+    const data = await fetchHarborMapOverview('all_ports');
 
     console.log('[Harbor Map] Overview data:', {
       vessels: data.vessels.length,
       ports: data.ports.length,
-      filter: data.filter,
       sampleVessel: data.vessels[0]
     });
 
-    // Store data for route filtering
-    currentVessels = data.vessels;
-    currentPorts = data.ports;
+    // Store RAW data (unfiltered)
+    rawVessels = data.vessels;
+    rawPorts = data.ports;
 
-    // Update route dropdown
-    updateRouteDropdown();
-
-    // Apply route filter if active
-    const vesselsToRender = currentRouteFilter
-      ? currentVessels.filter(v => v.route_name === currentRouteFilter)
-      : currentVessels;
-
-    renderVessels(vesselsToRender);
-    renderPorts(data.ports);
-    clearRoute();
-
-    // Reset selection state
-    selectedVesselId = null;
-    selectedPortCode = null;
-
-    hideVesselPanel();
-    hidePortPanel();
+    // Apply filters client-side
+    await applyFiltersAndRender();
   } catch (error) {
     console.error('Error loading harbor map overview:', error);
   }

@@ -52,7 +52,7 @@ const DEBUG_MODE = config.DEBUG_MODE;
 async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-Rebuy Fuel] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Rebuy Fuel] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -62,9 +62,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
   // Check settings
   const settings = state.getSettings(userId);
   if (!settings.autoRebuyFuel) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Rebuy Fuel] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Rebuy Fuel] Feature disabled in settings');
     return;
   }
 
@@ -110,9 +108,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
     // Check if bunker has space
     const availableSpace = bunker.maxFuel - bunker.fuel;
     if (availableSpace < 0.5) {
-      if (DEBUG_MODE) {
-        logger.log('[Auto-Rebuy Fuel] Bunker full');
-      }
+      logger.debug('[Auto-Rebuy Fuel] Bunker full');
       return; // Bunker full
     }
 
@@ -134,7 +130,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
     logger.debug(`[Auto-Rebuy Fuel] Calculations: Space=${availableSpace.toFixed(1)}t, Cash=$${bunker.cash.toLocaleString()}, MinCash=$${minCash.toLocaleString()}, Available=$${cashAvailable.toLocaleString()}, MaxAffordable=${maxAffordable}t, ToBuy=${amountToBuy}t`);
 
     if (amountToBuy <= 0) {
-      logger.log(`[Auto-Rebuy Fuel] Cannot buy: Not enough cash after keeping minimum reserve`);
+      logger.warn(`[Auto-Rebuy Fuel] Cannot buy: Not enough cash after keeping minimum reserve`);
       return;
     }
 
@@ -155,9 +151,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
 
     // Broadcast success
     if (broadcastToUser) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Rebuy Fuel] Broadcasting fuel_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-      }
+      logger.debug(`[Auto-Rebuy Fuel] Broadcasting fuel_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
       broadcastToUser(userId, 'fuel_purchased', {
         amount: amountToBuy,
         price: prices.fuel,
@@ -175,7 +169,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       });
     }
 
-    logger.log(`[Auto-Rebuy Fuel] Purchased ${amountToBuy}t @ $${prices.fuel}/t (New total: ${result.newTotal.toFixed(1)}t)`);
+    logger.info(`[Auto-Rebuy Fuel] Purchased ${amountToBuy}t @ $${prices.fuel}/t (New total: ${result.newTotal.toFixed(1)}t)`);
 
     // Log to autopilot logbook
     await logAutopilotAction(

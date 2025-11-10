@@ -14,11 +14,21 @@ const os = require('os');
 const { getLogDir } = require('../config');
 
 /**
- * Load log level from startup settings (no env vars).
+ * Load log level from startup settings and debug mode.
  * Must be done inline to avoid circular dependency with config.js.
+ *
+ * Priority:
+ * 1. If DEBUG_MODE env var is set (from systray toggle), use 'debug'
+ * 2. Otherwise use settings.logLevel (from settings.json)
+ *
  * @returns {string} Log level (info, debug, warn, error)
  */
 function loadLogLevel() {
+  // Check if Debug Mode is enabled via environment variable (set by start.py)
+  if (process.env.DEBUG_MODE === 'true') {
+    return 'debug';
+  }
+
   try {
     const isPkg = !!process.pkg;
     let settingsPath;
@@ -96,41 +106,13 @@ const debugLogPath = path.join(logDir, 'debug.log');
 /**
  * Build transports array - only include debug.log when debug mode is active
  */
+// Winston only writes to console (stdout)
+// Python's start.py captures stdout and routes to log files based on level
 const transports = [
-  // Console output (colored)
   new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      consoleFormat
-    )
-  }),
-  // server.log - info and above (append mode - cleared by Python on startup)
-  new winston.transports.File({
-    filename: serverLogPath,
-    level: 'info',
-    format: fileFormat,
-    options: { flags: 'a' } // Append mode - Python clears the file before starting Node
+    format: consoleFormat
   })
 ];
-
-// Only add debug.log transport when debug mode is active
-// Filter: ONLY [DEBUG] messages, no INFO/WARN/ERROR duplication
-if (loadLogLevel() === 'debug') {
-  transports.push(
-    new winston.transports.File({
-      filename: debugLogPath,
-      level: 'debug',
-      format: winston.format.combine(
-        // Filter out everything except debug level
-        winston.format((info) => {
-          return info.level === 'debug' ? info : false;
-        })(),
-        fileFormat
-      ),
-      options: { flags: 'a' } // Append mode - Python clears the file before starting Node
-    })
-  );
-}
 
 /**
  * Winston logger instance with log level from startup settings
@@ -140,14 +122,6 @@ const logger = winston.createLogger({
   format: consoleFormat,
   transports: transports
 });
-
-/**
- * Log info message with timestamp
- * @param {...any} args - Arguments to log
- */
-function log(...args) {
-  logger.info(args.join(' '));
-}
 
 /**
  * Log error message with timestamp
@@ -173,8 +147,16 @@ function debug(...args) {
   logger.debug(args.join(' '));
 }
 
+/**
+ * Log info message with timestamp
+ * @param {...any} args - Arguments to log
+ */
+function info(...args) {
+  logger.info(args.join(' '));
+}
+
 module.exports = {
-  log,
+  info,
   error,
   warn,
   debug,

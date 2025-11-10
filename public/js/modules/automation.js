@@ -59,7 +59,9 @@ async function sendAutoPilotFeedback(message, type = 'success') {
     // Strip HTML tags for notification
     const plainMessage = message.replace(/<[^>]*>/g, '');
     await showNotification('🤖 Auto-Pilot Action', {
-      body: plainMessage,
+      body: `
+
+${plainMessage}`,
       icon: '/favicon.ico',
       tag: 'auto-pilot',
       silent: false
@@ -268,9 +270,11 @@ async function performAutoRebuyFuel(bunkerState, fuelPrice) {
       const settings = window.getSettings ? window.getSettings() : {};
       const desktopNotifsEnabled = settings.enableDesktopNotifications !== undefined ? settings.enableDesktopNotifications : true;
       if (desktopNotifsEnabled && Notification.permission === 'granted') {
-        await showNotification('🤖 Auto-Rebuy: Fuel', {
-          body: `Bought ${formatNumber(amountToBuy)}t @ $${fuelPrice}/t`,
-          icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>⛽</text></svg>",
+        await showNotification('⛽ Auto-Rebuy: Fuel', {
+          body: `
+
+Bought ${formatNumber(amountToBuy)}t @ $${fuelPrice}/t`,
+          icon: '/favicon.ico',
           tag: 'auto-rebuy-fuel',
           silent: false
         });
@@ -403,9 +407,11 @@ async function performAutoRebuyCO2(bunkerState, co2Price) {
       const settings = window.getSettings ? window.getSettings() : {};
       const desktopNotifsEnabled = settings.enableDesktopNotifications !== undefined ? settings.enableDesktopNotifications : true;
       if (desktopNotifsEnabled && Notification.permission === 'granted') {
-        await showNotification('🤖 Auto-Rebuy: CO2', {
-          body: `Bought ${formatNumber(amountToBuy)}t @ $${co2Price}/t`,
-          icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>💨</text></svg>",
+        await showNotification('💨 Auto-Rebuy: CO2', {
+          body: `
+
+Bought ${formatNumber(amountToBuy)}t @ $${co2Price}/t`,
+          icon: '/favicon.ico',
           tag: 'auto-rebuy-co2',
           silent: false
         });
@@ -760,9 +766,15 @@ async function checkAutoDepartAll(settings) {
       const settings = window.getSettings ? window.getSettings() : {};
       const desktopNotifsEnabled = settings.enableDesktopNotifications !== undefined ? settings.enableDesktopNotifications : true;
       if (desktopNotifsEnabled && Notification.permission === 'granted') {
-        await showNotification(`🤖 Auto-Depart: ${departedCount} vessel${departedCount > 1 ? 's' : ''}`, {
-          body: `💰 Income: $${formatNumber(totalIncome)} | ⛽ ${formatNumber(totalFuelUsage)}t fuel | 💨 ${formatNumber(totalCO2Emission)}t CO2`,
-          icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>🚢</text></svg>",
+        await showNotification('🚢 Auto-Depart', {
+          body: `
+
+${departedCount} vessel${departedCount > 1 ? 's' : ''} departed
+
+💰 Income: $${formatNumber(totalIncome)}
+
+Fuel: ${formatNumber(totalFuelUsage)}t | CO2: ${formatNumber(totalCO2Emission)}t`,
+          icon: '/favicon.ico',
           tag: 'auto-depart',
           silent: false
         });
@@ -924,9 +936,15 @@ async function checkAutoCampaignRenewal(settings) {
           const settings = window.getSettings ? window.getSettings() : {};
           const desktopNotifsEnabled = settings.enableDesktopNotifications !== undefined ? settings.enableDesktopNotifications : true;
           if (desktopNotifsEnabled && Notification.permission === 'granted') {
-            await showNotification(`🤖 Auto-Campaign: ${typeName}`, {
-              body: `${duration}h | Efficiency: ${efficiency} | Cost: $${formatNumber(bestCampaign.price)}`,
-              icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>📊</text></svg>",
+            await showNotification('📊 Auto-Campaign', {
+              body: `
+
+${typeName}
+
+Duration: ${duration}h | Efficiency: ${efficiency}
+
+💰 Cost: $${formatNumber(bestCampaign.price)}`,
+              icon: '/favicon.ico',
               tag: 'auto-campaign',
               silent: false
             });

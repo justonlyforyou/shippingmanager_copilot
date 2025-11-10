@@ -40,7 +40,7 @@ const DEBUG_MODE = config.DEBUG_MODE;
 async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-Repair] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Repair] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -49,9 +49,7 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
 
   const settings = state.getSettings(userId);
   if (!settings.autoBulkRepair) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Repair] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Repair] Feature disabled in settings');
     return;
   }
 
@@ -63,21 +61,17 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
 
     const vesselsNeedingRepair = vessels.filter(v => v.wear >= threshold);
 
-    if (DEBUG_MODE) {
-      logger.log(`[Auto-Repair] Found ${vesselsNeedingRepair.length} vessels with wear >= ${threshold}%`);
-    }
+    logger.debug(`[Auto-Repair] Found ${vesselsNeedingRepair.length} vessels with wear >= ${threshold}%`);
 
     if (vesselsNeedingRepair.length === 0) {
-      if (DEBUG_MODE) {
-        logger.log('[Auto-Repair] No vessels need repair');
-      }
+      logger.debug('[Auto-Repair] No vessels need repair');
       return;
     }
 
     // Check minimum cash balance
     const minCash = settings.autoBulkRepairMinCash !== undefined ? settings.autoBulkRepairMinCash : 0;
     if (bunker.cash < minCash) {
-      logger.log(`[Auto-Repair] Cash balance $${bunker.cash.toLocaleString()} below minimum $${minCash.toLocaleString()}`);
+      logger.warn(`[Auto-Repair] Cash balance $${bunker.cash.toLocaleString()} below minimum $${minCash.toLocaleString()}`);
       return;
     }
 
@@ -100,19 +94,17 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
       return;
     }
 
-    if (DEBUG_MODE) {
-      logger.log(`[Auto-Repair] Repair cost: $${costData.totalCost.toLocaleString()} | Cash: $${bunker.cash.toLocaleString()}`);
-    }
+    logger.debug(`[Auto-Repair] Repair cost: $${costData.totalCost.toLocaleString()} | Cash: $${bunker.cash.toLocaleString()}`);
 
     if (costData.totalCost === 0) {
-      logger.log('[Auto-Repair] API returned $0 cost - attempting repair anyway (API bug workaround)');
+      logger.warn('[Auto-Repair] API returned $0 cost - attempting repair anyway (API bug workaround)');
     }
 
     // Always attempt repair if we have enough cash
     if (costData.totalCost === 0 || bunker.cash >= costData.totalCost) {
       const result = await gameapi.bulkRepairVessels(vesselIds);
 
-      logger.log(`[Auto-Repair] Repaired ${result.count} vessels - API returned cost: $${result.totalCost.toLocaleString()}, Calculated cost: $${costData.totalCost.toLocaleString()}`);
+      logger.info(`[Auto-Repair] Repaired ${result.count} vessels - API returned cost: $${result.totalCost.toLocaleString()}, Calculated cost: $${costData.totalCost.toLocaleString()}`);
 
       // Build vessel list with names, wear, and costs
       const vesselList = vesselsNeedingRepair.map(vessel => {
@@ -130,9 +122,7 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
       });
 
       if (broadcastToUser) {
-        if (DEBUG_MODE) {
-          logger.log(`[Auto-Repair] Broadcasting vessels_repaired event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-        }
+        logger.debug(`[Auto-Repair] Broadcasting vessels_repaired event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
 
         broadcastToUser(userId, 'vessels_repaired', {
           count: result.count,
@@ -158,10 +148,11 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
       await tryUpdateAllData();
 
       // Force immediate repair count update (in case tryUpdateAllData was skipped due to lock)
-      const { updateRepairCount } = require('../autopilot');
+      const { updateRepairCount, updateDrydockCount } = require('../autopilot');
       await updateRepairCount();
+      await updateDrydockCount();
     } else {
-      logger.log(`[Auto-Repair] Insufficient funds: need $${costData.totalCost.toLocaleString()}, have $${bunker.cash.toLocaleString()}`);
+      logger.warn(`[Auto-Repair] Insufficient funds: need $${costData.totalCost.toLocaleString()}, have $${bunker.cash.toLocaleString()}`);
     }
 
   } catch (error) {

@@ -32,7 +32,7 @@ const logger = require('./logger');
 let keytar;
 try {
     keytar = require('keytar');
-    logger.log('[Encryption] Using native OS credential storage (keytar)');
+    logger.debug('[Encryption] Using native OS credential storage (keytar)');
 } catch (error) {
     logger.warn('[Encryption] keytar not available, falling back to local encryption');
     keytar = null;
@@ -183,9 +183,9 @@ async function decryptData(encryptedData, accountName) {
 
                     if (hasNullBytes) {
                         // Remove null bytes: keep only even-indexed characters (0, 2, 4, 6...)
-                        // Example: "e\0y\0J\0" → "eyJ"
+                        // Example: "e\0y\0J\0" -> "eyJ"
                         const fixed = password.split('').filter((_, i) => i % 2 === 0).join('');
-                        logger.warn(`[Encryption] Fixed Python UTF-16 encoding issue (${password.length} → ${fixed.length} chars)`);
+                        logger.warn(`[Encryption] Fixed Python UTF-16 encoding issue (${password.length} to ${fixed.length} chars)`);
                         password = fixed;
                     }
                 }

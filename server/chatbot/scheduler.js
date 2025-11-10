@@ -54,7 +54,7 @@ function scheduleDailyForecast(settings, scheduledTasksMap, callbacks) {
     const msUntilScheduled = scheduledTime - now;
 
     // Log the scheduled time in local timezone for debugging
-    logger.log(`[ChatBot] Daily forecast scheduled for: ${scheduledTime.toLocaleString('de-DE')} (in ${Math.round(msUntilScheduled / 1000 / 60)} minutes)`);
+    logger.debug(`[ChatBot] Daily forecast scheduled for: ${scheduledTime.toLocaleString('de-DE')} (in ${Math.round(msUntilScheduled / 1000 / 60)} minutes)`);
 
     const timeout = setTimeout(async () => {
         await sendDailyForecast(settings, callbacks);
@@ -87,7 +87,7 @@ async function sendDailyForecast(settings, callbacks) {
         // Broadcast success notification to all connected clients
         const userId = getUserId();
         if (broadcastToUser && userId) {
-            logger.log('[ChatBot] ✓ Daily forecast sent successfully to alliance chat');
+            logger.debug('[ChatBot] OK Daily forecast sent successfully to alliance chat');
             broadcastToUser(userId, 'user_action_notification', {
                 type: 'success',
                 message: `📊 <strong>Daily Forecast Posted</strong><br><br>Tomorrow's forecast has been automatically posted to alliance chat at ${now.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}`

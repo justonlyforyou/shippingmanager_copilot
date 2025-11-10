@@ -81,7 +81,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
     // Check if fuel is too low (use minFuelThreshold setting)
     if (bunker.fuel < settings.minFuelThreshold) {
-      logger.log(`[Depart] Skipping - insufficient fuel (${bunker.fuel.toFixed(1)}t < ${settings.minFuelThreshold}t minimum)`);
+      logger.warn(`[Depart] Skipping - insufficient fuel (${bunker.fuel.toFixed(1)}t < ${settings.minFuelThreshold}t minimum)`);
 
       // Notify user about insufficient fuel
       if (broadcastToUser) {
@@ -107,17 +107,13 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         v.status === 'port' &&
         !v.is_parked
       );
-      if (DEBUG_MODE) {
-        logger.log(`[Depart] Filtering ${vesselIds.length} requested vessels, found ${harbourVessels.length} in harbor`);
-      }
+      logger.debug(`[Depart] Filtering ${vesselIds.length} requested vessels, found ${harbourVessels.length} in harbor`);
     } else {
       // Depart ALL vessels in harbor
       harbourVessels = allVessels.filter(v => v.status === 'port' && !v.is_parked);
     }
 
-    if (DEBUG_MODE) {
-      logger.log(`[Depart] Found ${harbourVessels.length} vessels to process (total: ${allVessels.length})`);
-    }
+    logger.debug(`[Depart] Found ${harbourVessels.length} vessels to process (total: ${allVessels.length})`);
 
     // Broadcast vessel count to all clients (use consistent format)
     if (broadcastToUser) {
@@ -133,9 +129,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     }
 
     if (harbourVessels.length === 0) {
-      if (DEBUG_MODE) {
-        logger.log('[Depart] No vessels to depart, skipping');
-      }
+      logger.debug('[Depart] No vessels to depart, skipping');
       return { success: true, reason: 'no_vessels' };
     }
 
@@ -167,9 +161,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         const totalFuelUsed = departedVessels.reduce((sum, v) => sum + v.fuelUsed, 0);
         const totalCO2Used = departedVessels.reduce((sum, v) => sum + v.co2Used, 0);
 
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] Batch: ${departedVessels.length} departed, ${failedVessels.length} failed - Income: $${totalIncome.toLocaleString()}`);
-        }
+        logger.debug(`[Depart] Batch: ${departedVessels.length} departed, ${failedVessels.length} failed - Income: $${totalIncome.toLocaleString()}`);
 
         if (broadcastToUser) {
           const bunkerState = await gameapi.fetchBunkerState();
@@ -196,9 +188,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
         // Trigger auto-rebuy after each successful batch (if enabled)
         if (departedVessels.length > 0) {
-          if (DEBUG_MODE) {
-            logger.log(`[Depart] Triggering auto-rebuy after ${departedVessels.length} vessels departed in this batch`);
-          }
+          logger.debug(`[Depart] Triggering auto-rebuy after ${departedVessels.length} vessels departed in this batch`);
           await autoRebuyAll();
         }
 
@@ -212,9 +202,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
     for (const vessel of harbourVessels) {
       if (!vessel.route_destination) {
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] Skipping ${vessel.name}: no route destination`);
-        }
+        logger.debug(`[Depart] Skipping ${vessel.name}: no route destination`);
         failedVessels.push({
           name: vessel.name,
           destination: 'Unknown',
@@ -223,9 +211,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         continue;
       }
       if (vessel.delivery_price !== null && vessel.delivery_price > 0) {
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] Skipping ${vessel.name}: delivery contract active ($${vessel.delivery_price})`);
-        }
+        logger.debug(`[Depart] Skipping ${vessel.name}: delivery contract active ($${vessel.delivery_price})`);
         failedVessels.push({
           name: vessel.name,
           destination: vessel.route_destination || 'Unknown',
@@ -244,9 +230,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       vesselsByDestinationAndType[key].push(vessel);
     }
 
-    if (DEBUG_MODE) {
-      logger.log(`[Depart] Grouped vessels into ${Object.keys(vesselsByDestinationAndType).length} destination+type groups`);
-    }
+    logger.debug(`[Depart] Grouped vessels into ${Object.keys(vesselsByDestinationAndType).length} destination+type groups`);
 
     // Process each destination+type group
     for (const key in vesselsByDestinationAndType) {
@@ -254,9 +238,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       const firstVessel = vessels[0];
       const vesselType = firstVessel.capacity_type;
 
-      if (DEBUG_MODE) {
-        logger.log(`[Depart] Processing group: ${key} (${vessels.length} vessels)`);
-      }
+      logger.debug(`[Depart] Processing group: ${key} (${vessels.length} vessels)`);
 
       // Determine next destination
       let destination;
@@ -268,9 +250,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         destination = firstVessel.route_destination;
       }
 
-      if (DEBUG_MODE) {
-        logger.log(`[Depart] Destination: ${destination}`);
-      }
+      logger.debug(`[Depart] Destination: ${destination}`);
 
       // Sort vessels by capacity (largest first)
       const sortedVessels = vessels.sort((a, b) => getTotalCapacity(b) - getTotalCapacity(a));
@@ -296,9 +276,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         // Calculate CURRENT remaining demand with fresh data
         const remainingDemand = calculateRemainingDemand(port, vesselType);
 
-        if (DEBUG_MODE) {
-          logger.log(`[Depart] ${vessel.name}: Demand check - Remaining: ${remainingDemand}`);
-        }
+        logger.debug(`[Depart] ${vessel.name}: Demand check - Remaining: ${remainingDemand}`);
 
         // Skip if no demand
         if (remainingDemand <= 0) {
@@ -325,7 +303,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
               : (fuelPrice > 0 || crudePrice > 0);
 
             if (!hasValidPrice) {
-              logger.log(`[Depart] ⚠️ ${vessel.name}: Price per TEU is $0 at ${destination} - BLOCKING departure to avoid losses`);
+              logger.warn(`[Depart] ${vessel.name}: Price per TEU is $0 at ${destination} - BLOCKING departure to avoid losses`);
               failedVessels.push({
                 name: vessel.name,
                 destination: destination,
@@ -334,9 +312,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
               continue;
             }
 
-            if (DEBUG_MODE) {
-              logger.log(`[Depart] ${vessel.name}: Price check OK - Dry: $${dryPrice}, Ref: $${refPrice}, Fuel: $${fuelPrice}, Crude: $${crudePrice}`);
-            }
+            logger.debug(`[Depart] ${vessel.name}: Price check OK - Dry: $${dryPrice}, Ref: $${refPrice}, Fuel: $${fuelPrice}, Crude: $${crudePrice}`);
           }
         } catch (error) {
           logger.error(`[Depart] ${vessel.name}: Failed to fetch auto-price - BLOCKING departure to avoid potential losses`);
@@ -376,27 +352,25 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         }
 
         try {
-          if (DEBUG_MODE) {
-            logger.log(`[Depart] Attempting to depart vessel: name="${vessel.name}", id=${vessel.id}, status="${vessel.status}"`);
-          }
+          logger.debug(`[Depart] Attempting to depart vessel: name="${vessel.name}", id=${vessel.id}, status="${vessel.status}"`);
           const result = await gameapi.departVessel(vessel.id, speed, guards);
 
           // Check if departure failed
           if (result.success === false) {
             // SPECIAL CASE: Vessel already departed
             if (result.error === 'Vessel not found or status invalid') {
-              logger.log(`[Depart] Vessel ${vessel.name} was already departed (race condition - ignoring)`);
+              logger.debug(`[Depart] Vessel ${vessel.name} was already departed (race condition - ignoring)`);
               continue;
             }
 
             // SPECIAL CASE: CO2 "errors"
             if (result.errorMessage && (result.errorMessage.toLowerCase().includes('co2') ||
                                        result.errorMessage.toLowerCase().includes('emission'))) {
-              logger.log(`[Depart] ${vessel.name} departed with CO2 warning - vessel sent but no stats available, skipping notification`);
+              logger.debug(`[Depart] ${vessel.name} departed with CO2 warning - vessel sent but no stats available, skipping notification`);
               continue;
             }
 
-            logger.log(`[Depart] Failed to depart ${vessel.name}: "${result.errorMessage}"`);
+            logger.warn(`[Depart] Failed to depart ${vessel.name}: "${result.errorMessage}"`);
 
             let detailedReason = result.errorMessage;
             if (result.apiResponse && result.apiResponse.message) {
@@ -433,7 +407,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
           // Check for $0 revenue
           if (result.income === 0 && result.harborFee === 0) {
-            logger.log(`[Depart] WARNING: ${vessel.name} departed with $0 revenue - demand exhausted during batch`);
+            logger.warn(`[Depart] WARNING: ${vessel.name} departed with $0 revenue - demand exhausted during batch`);
             const warningData = {
               name: result.vesselName,
               destination: result.destination,
@@ -563,7 +537,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-Depart] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Depart] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -573,15 +547,11 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
   const settings = state.getSettings(userId);
 
   if (!settings.autoDepartAll) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Depart] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Depart] Feature disabled in settings');
     return;
   }
 
-  if (DEBUG_MODE) {
-    logger.log(`[Auto-Depart] Checking... ${settings.autoDepartAll ? 'ENABLED' : 'DISABLED'}`);
-  }
+  logger.debug(`[Auto-Depart] Checking... ${settings.autoDepartAll ? 'ENABLED' : 'DISABLED'}`);
 
   try {
     // Call universal depart function with all vessels (vesselIds = null)

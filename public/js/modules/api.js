@@ -4,21 +4,13 @@
  * vessels, bunker management, messenger, campaigns, and user data.
  *
  * All functions implement proper error handling and return promises.
- * Company names are cached to reduce API calls.
  *
  * @module api
  */
 
 /**
- * Cache for storing user company names to reduce API calls.
- * Key: userId (number), Value: companyName (string)
- * @type {Map<number, string>}
- */
-const userCache = new Map();
-
-/**
- * Fetches company name for a user with caching.
- * Returns cached value if available, otherwise fetches from API.
+ * Fetches company name for a user from backend.
+ * Backend handles caching, so no frontend cache needed.
  * Falls back to "User {id}" if fetch fails.
  *
  * @param {number|string} userId - User ID to fetch company name for
@@ -29,9 +21,6 @@ const userCache = new Map();
  */
 export async function getCompanyNameCached(userId) {
   const userIdInt = parseInt(userId);
-  if (userCache.has(userIdInt)) {
-    return userCache.get(userIdInt);
-  }
 
   try {
     const response = await fetch(window.apiUrl('/api/company-name'), {
@@ -42,9 +31,7 @@ export async function getCompanyNameCached(userId) {
 
     if (!response.ok) throw new Error('Failed to get company name');
     const data = await response.json();
-    const name = data.company_name;
-    userCache.set(userIdInt, name);
-    return name;
+    return data.company_name;
   } catch {
     return `User ${userIdInt}`;
   }

@@ -22,7 +22,7 @@ const { calculateVesselPosition, calculateETA, calculateCargoUtilization, format
 function aggregateVesselData(vessels, allPorts) {
   const logger = require('../utils/logger');
 
-  logger.log(`[Harbor Map Aggregator] Processing ${vessels.length} vessels with ${allPorts.length} ports`);
+  logger.debug(`[Harbor Map Aggregator] Processing ${vessels.length} vessels with ${allPorts.length} ports`);
 
   const result = vessels.map((vessel, index) => {
     const position = calculateVesselPosition(vessel, allPorts);
@@ -31,7 +31,7 @@ function aggregateVesselData(vessels, allPorts) {
     const formattedCargo = formatCargoCapacity(vessel);
 
     if (index === 0) {
-      logger.log(`[Harbor Map Aggregator] Sample vessel: ${vessel.name}, status: ${vessel.status}, position: ${JSON.stringify(position)}`);
+      logger.debug(`[Harbor Map Aggregator] Sample vessel: ${vessel.name}, status: ${vessel.status}, position: ${JSON.stringify(position)}`);
     }
 
     return {
@@ -44,7 +44,7 @@ function aggregateVesselData(vessels, allPorts) {
   });
 
   const withPosition = result.filter(v => v.position !== null).length;
-  logger.log(`[Harbor Map Aggregator] Result: ${withPosition}/${vessels.length} vessels have position`);
+  logger.debug(`[Harbor Map Aggregator] Result: ${withPosition}/${vessels.length} vessels have position`);
 
   return result;
 }
@@ -116,8 +116,8 @@ function categorizeVesselsByPort(portCode, allVessels) {
   // Debug: Log first vessel structure to understand fields
   if (allVessels.length > 0) {
     const sampleVessel = allVessels[0];
-    logger.log(`[Categorize] Sample vessel fields: current_port_code=${sampleVessel.current_port_code}, status=${sampleVessel.status}, active_route=${JSON.stringify(sampleVessel.active_route)}`);
-    logger.log(`[Categorize] Looking for portCode: "${portCode}"`);
+    logger.debug(`[Categorize] Sample vessel fields: current_port_code=${sampleVessel.current_port_code}, status=${sampleVessel.status}, active_route=${JSON.stringify(sampleVessel.active_route)}`);
+    logger.debug(`[Categorize] Looking for portCode: "${portCode}"`);
   }
 
   allVessels.forEach(vessel => {
@@ -141,7 +141,7 @@ function categorizeVesselsByPort(portCode, allVessels) {
     }
   });
 
-  logger.log(`[Categorize] Results for port ${portCode}: inPort=${inPort.length}, toPort=${toPort.length}, fromPort=${fromPort.length}, pending=${pending.length}`);
+  logger.debug(`[Categorize] Results for port ${portCode}: inPort=${inPort.length}, toPort=${toPort.length}, fromPort=${fromPort.length}, pending=${pending.length}`);
 
   return { inPort, toPort, fromPort, pending };
 }

@@ -451,6 +451,327 @@ export async function updateRepairCount(settings) {
 /**
  * Shows bulk repair dialog with vessel list and costs
  */
+/**
+ * Shows tabbed dialog with Wear Repairs and Drydock tabs
+ */
+async function showRepairAndDrydockDialog(settings, repairCount, drydockCount) {
+  return new Promise(async (resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-dialog-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'confirm-dialog bulk-repair-dialog';
+
+    // Determine initial active tab based on badge counts
+    let activeTab = repairCount > 0 ? 'repair' : 'drydock';
+
+    // Fetch data for both tabs
+    const [repairData, drydockDataRaw] = await Promise.all([
+      repairCount > 0 ? fetch(window.apiUrl('/api/vessel/get-repair-preview'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ threshold: settings.maintenanceThreshold })
+      }).then(res => res.json()) : Promise.resolve({ vessels: [] }),
+
+      drydockCount > 0 ? fetch(window.apiUrl('/api/game/index'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      }).then(res => res.json()).then(data => {
+        const vessels = data.data.user_vessels || [];
+        return vessels.filter(v => {
+          const hours = v.hours_until_check !== undefined ? v.hours_until_check : 999;
+          return hours <= settings.autoDrydockThreshold;
+        });
+      }) : Promise.resolve([])
+    ]);
+
+    // Fetch drydock costs
+    let drydockData = { vessels: [], totalCost: 0, cash: 0 };
+    if (drydockDataRaw.length > 0) {
+      const vesselIds = drydockDataRaw.map(v => v.id);
+      const costResponse = await fetch(window.apiUrl('/api/maintenance/get-drydock-status'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vessel_ids: JSON.stringify(vesselIds),
+          speed: settings.autoDrydockSpeed || 'minimum',
+          maintenance_type: settings.autoDrydockType || 'major'
+        })
+      });
+      const costData = await costResponse.json();
+
+      // Merge vessel data with costs
+      drydockData.vessels = drydockDataRaw.map(v => {
+        const costVessel = costData.vessels?.find(cv => cv.id === v.id);
+        return {
+          ...v,
+          cost: costVessel?.cost || 0
+        };
+      });
+      drydockData.totalCost = costData.totalCost || 0;
+      drydockData.cash = costData.cash || 0;
+    }
+
+    const updateDialog = () => {
+      // Determine which execute button to show based on active tab
+      const executeButtonHTML = activeTab === 'repair'
+        ? (repairData.vessels?.length > 0 ? '<button class="confirm-dialog-btn confirm" id="executeRepair">Repair All</button>' : '')
+        : (drydockData.vessels?.length > 0 ? '<button class="confirm-dialog-btn confirm" id="executeDrydock">Send to Drydock</button>' : '');
+
+      dialog.innerHTML = `
+        <div class="confirm-dialog-header">
+          <h3>🔧 Vessel Maintenance</h3>
+          <div class="confirm-dialog-buttons">
+            <button class="confirm-dialog-btn cancel" data-action="cancel">Close</button>
+            ${executeButtonHTML}
+          </div>
+        </div>
+        <div class="confirm-dialog-body">
+          <div class="repair-tabs">
+            <button class="tab-button ${activeTab === 'repair' ? 'tab-active' : ''}" data-tab="repair">
+              Wear Repairs
+              ${repairCount > 0 ? `<span class="tab-badge">${repairCount}</span>` : ''}
+            </button>
+            <button class="tab-button ${activeTab === 'drydock' ? 'tab-active' : ''}" data-tab="drydock">
+              Drydock
+              ${drydockCount > 0 ? `<span class="tab-badge">${drydockCount}</span>` : ''}
+            </button>
+          </div>
+
+          <div class="tab-content ${activeTab === 'repair' ? 'tab-active' : ''}" id="repairTab">
+            ${renderRepairTab(repairData, settings)}
+          </div>
+
+          <div class="tab-content ${activeTab === 'drydock' ? 'tab-active' : ''}" id="drydockTab">
+            ${renderDrydockTab(drydockData, settings)}
+          </div>
+        </div>
+      `;
+
+      // Tab switching
+      dialog.querySelectorAll('[data-tab]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          activeTab = btn.dataset.tab;
+          updateDialog();
+        });
+      });
+
+      // Close button
+      dialog.querySelector('[data-action="cancel"]').addEventListener('click', () => {
+        overlay.remove();
+        resolve(false);
+      });
+
+      // Repair tab execute button
+      const repairExecuteBtn = dialog.querySelector('#executeRepair');
+      if (repairExecuteBtn) {
+        repairExecuteBtn.addEventListener('click', async () => {
+          overlay.remove();
+          await repairAllVessels(settings);
+          resolve(true);
+        });
+      }
+
+      // Drydock tab execute button
+      const drydockExecuteBtn = dialog.querySelector('#executeDrydock');
+      if (drydockExecuteBtn) {
+        drydockExecuteBtn.addEventListener('click', async () => {
+          await executeDrydock(settings, dialog, overlay);
+          resolve(true);
+        });
+      }
+    };
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    updateDialog();
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(false);
+      }
+    });
+  });
+}
+
+/**
+ * Renders the Repair tab content
+ */
+function renderRepairTab(costData, settings) {
+  const vessels = costData.vessels || [];
+  const totalCost = costData.totalCost || 0;
+  const bunkerCash = costData.cash || 0;
+  const affordable = bunkerCash >= totalCost;
+
+  if (vessels.length === 0) {
+    return '<div style="text-align: center; color: #9ca3af; padding: 40px;">No vessels need repair</div>';
+  }
+
+  const vesselListHtml = vessels.map(v => `
+    <div class="repair-vessel-row">
+      <span class="vessel-name">${escapeHtml(v.name)}</span>
+      <span class="vessel-wear">${v.wear}%</span>
+      <span class="vessel-cost">$${formatNumber(v.cost)}</span>
+    </div>
+  `).join('');
+
+  return `
+    <div class="repair-summary ${affordable ? 'affordable' : 'too-expensive'}">
+      <div class="summary-row">
+        <span class="label">Vessels to repair:</span>
+        <span class="value">${vessels.length}</span>
+      </div>
+      <div class="summary-row total">
+        <span class="label">Total Cost:</span>
+        <span class="value">$${formatNumber(totalCost)}</span>
+      </div>
+      <div class="summary-row cash">
+        <span class="label">Available Cash:</span>
+        <span class="value">$${formatNumber(bunkerCash)}</span>
+      </div>
+      <div class="summary-row threshold">
+        <span class="label">Wear Threshold:</span>
+        <span class="value">${settings.maintenanceThreshold}%+</span>
+      </div>
+    </div>
+    <div class="repair-vessel-list">
+      <div class="repair-vessel-header">
+        <span>Vessel Name</span>
+        <span>Wear</span>
+        <span>Cost</span>
+      </div>
+      ${vesselListHtml}
+    </div>
+  `;
+}
+
+/**
+ * Renders the Drydock tab content
+ */
+function renderDrydockTab(drydockData, settings) {
+  const vessels = drydockData.vessels || [];
+  const totalCost = drydockData.totalCost || 0;
+  const bunkerCash = drydockData.cash || 0;
+  const affordable = bunkerCash >= totalCost;
+
+  if (vessels.length === 0) {
+    return '<div style="text-align: center; color: #9ca3af; padding: 40px;">No vessels need drydock</div>';
+  }
+
+  const vesselListHtml = vessels.map(v => {
+    const hours = v.hours_until_check !== undefined ? v.hours_until_check : 999;
+    const route = v.route_destination ? `→ ${v.route_destination}` : 'No route';
+    const cost = v.cost || 0;
+    return `
+      <div class="drydock-vessel-row">
+        <input type="checkbox" class="drydock-vessel-checkbox" data-vessel-id="${v.id}" checked>
+        <span class="vessel-name">${escapeHtml(v.name)}</span>
+        <span class="vessel-hours">${hours}h</span>
+        <span class="vessel-route">${escapeHtml(route)}</span>
+        <span class="vessel-cost">$${formatNumber(cost)}</span>
+      </div>
+    `;
+  }).join('');
+
+  const typeLabel = settings.autoDrydockType === 'major' ? 'Major (100%)' : 'Minor (60%)';
+  const speedLabel = settings.autoDrydockSpeed === 'maximum' ? 'Maximum' : 'Minimum';
+
+  return `
+    <div class="repair-summary ${affordable ? 'affordable' : 'too-expensive'}">
+      <div class="summary-row">
+        <span class="label">Vessels to drydock:</span>
+        <span class="value">${vessels.length}</span>
+      </div>
+      <div class="summary-row total">
+        <span class="label">Total Cost:</span>
+        <span class="value">$${formatNumber(totalCost)}</span>
+      </div>
+      <div class="summary-row cash">
+        <span class="label">Available Cash:</span>
+        <span class="value">$${formatNumber(bunkerCash)}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Type:</span>
+        <span class="value">${typeLabel}</span>
+      </div>
+      <div class="summary-row">
+        <span class="label">Speed:</span>
+        <span class="value">${speedLabel}</span>
+      </div>
+      <div class="summary-row threshold">
+        <span class="label">Hours Threshold:</span>
+        <span class="value">${settings.autoDrydockThreshold}h</span>
+      </div>
+    </div>
+    <div class="drydock-options">
+      <div class="drydock-option-group">
+        <label for="drydockSpeed">Route Speed</label>
+        <select id="drydockSpeed">
+          <option value="minimum" ${settings.autoDrydockSpeed === 'minimum' ? 'selected' : ''}>Minimum (Slow, Less Fuel)</option>
+          <option value="maximum" ${settings.autoDrydockSpeed === 'maximum' ? 'selected' : ''}>Maximum (Fast, More Fuel)</option>
+        </select>
+      </div>
+      <div class="drydock-option-group">
+        <label for="drydockType">Maintenance Type</label>
+        <select id="drydockType">
+          <option value="major" ${settings.autoDrydockType === 'major' ? 'selected' : ''}>Major (100% Antifouling)</option>
+          <option value="minor" ${settings.autoDrydockType === 'minor' ? 'selected' : ''}>Minor (60% Antifouling)</option>
+        </select>
+      </div>
+    </div>
+    <div class="repair-vessel-list">
+      <div class="repair-vessel-header" style="grid-template-columns: auto 2fr 1fr 1fr 1fr;">
+        <span>Select</span>
+        <span>Vessel Name</span>
+        <span>Hours</span>
+        <span>Route</span>
+        <span>Cost</span>
+      </div>
+      ${vesselListHtml}
+    </div>
+  `;
+}
+
+/**
+ * Executes drydock for selected vessels
+ */
+async function executeDrydock(settings, dialog, overlay) {
+  const checkedBoxes = dialog.querySelectorAll('.drydock-vessel-checkbox:checked');
+  if (checkedBoxes.length === 0) {
+    showSideNotification('No vessels selected', 'info');
+    return;
+  }
+
+  const vesselIds = Array.from(checkedBoxes).map(cb => cb.dataset.vesselId);
+  const speed = dialog.querySelector('#drydockSpeed').value;
+  const maintenanceType = dialog.querySelector('#drydockType').value;
+
+  try {
+    overlay.remove();
+
+    const response = await fetch(window.apiUrl('/api/maintenance/bulk-drydock'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        vessel_ids: JSON.stringify(vesselIds),
+        speed,
+        maintenance_type: maintenanceType
+      })
+    });
+
+    const data = await response.json();
+
+    if (data.error) {
+      showSideNotification(`Drydock failed: ${data.error}`, 'error');
+    }
+  } catch (error) {
+    console.error('[Drydock] Error:', error);
+    showSideNotification('Drydock failed', 'error');
+  }
+}
+
 function showBulkRepairDialog(costData, threshold) {
   return new Promise((resolve) => {
     const overlay = document.createElement('div');
@@ -530,6 +851,26 @@ function showBulkRepairDialog(costData, threshold) {
       if (e.target === overlay) handleClose(false);
     });
   });
+}
+
+/**
+ * Opens tabbed dialog with Wear Repairs and Drydock options
+ */
+export async function openRepairAndDrydockDialog(settings) {
+  const repairBtn = document.getElementById('repairAllBtn');
+  const repairCountBadge = document.getElementById('repairCount');
+  const drydockCountBadge = document.getElementById('drydockCount');
+
+  const repairCount = parseInt(repairCountBadge.textContent) || 0;
+  const drydockCount = parseInt(drydockCountBadge.textContent) || 0;
+
+  if (repairCount === 0 && drydockCount === 0) {
+    showSideNotification('No vessels need repair or drydock', 'info');
+    return;
+  }
+
+  // Show tabbed dialog
+  await showRepairAndDrydockDialog(settings, repairCount, drydockCount);
 }
 
 export async function repairAllVessels(settings) {

@@ -80,13 +80,20 @@ async function fetchPrices() {
 
   const prices = data.data.prices;
 
-  // Get current LOCAL time to find matching price (prices are in server's local time)
+  // API time slots are in UTC
+  // Get current UTC time to find matching price
   const now = new Date();
-  const localHours = now.getHours(); // Local hours, not UTC
-  const localMinutes = now.getMinutes();
-  const currentTime = `${String(localHours).padStart(2, '0')}:${localMinutes < 30 ? '00' : '30'}`;
+  const utcHours = now.getUTCHours();
+  const utcMinutes = now.getUTCMinutes();
 
-  // Find price matching current time slot
+  // Between 00:00:00 and 00:29:59 UTC → search for "00:00"
+  // Between 00:30:00 and 00:59:59 UTC → search for "00:30"
+  const currentTime = `${String(utcHours).padStart(2, '0')}:${utcMinutes < 30 ? '00' : '30'}`;
+
+  logger.debug(`[GameAPI] Searching for UTC time slot "${currentTime}" at ${now.toISOString()}`);
+  logger.debug(`[GameAPI] Available time slots:`, prices.map(p => p.time).join(', '));
+
+  // Find price matching current UTC time slot
   let currentPrice = prices.find(p => p.time === currentTime);
 
   // Check for event discounts
@@ -103,103 +110,50 @@ async function fetchPrices() {
     eventDiscount = { percentage: eventCO2Discount, type: 'co2' };
   }
 
-  // Track missing timeslot bugs (if no exact match and no discounted prices)
+  // NO FALLBACK - If time slot not found and no event prices, THROW ERROR
   if (!currentPrice && (discountedFuel === null || discountedCO2 === null)) {
-    // Load known bugs list
-    let knownBugs = {
-      description: "Known timeslots where API doesn't return price data. Collected for game developers.",
-      bugs: {}
-    };
+    logger.error(`[GameAPI] CRITICAL: Time slot not found in API response`);
+    logger.error(`  Searched for: "${currentTime}"`);
+    logger.error(`  Current time: ${now.toISOString()} (UTC: ${utcHours}:${utcMinutes})`);
+    logger.error(`  Available slots: ${prices.map(p => p.time).join(', ')}`);
+    logger.error(`  Event discounts: fuel=${discountedFuel}, co2=${discountedCO2}`);
+
+    // Save full raw response to file for debugging
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `price-response-MISSING-${currentTime.replace(':', '-')}-${timestamp}.json`;
+    const filepath = path.join(BUNKER_PRICE_BUG_DIR, filename);
+
     try {
-      if (fs.existsSync(BUNKER_PRICE_BUGS_FILE)) {
-        knownBugs = JSON.parse(fs.readFileSync(BUNKER_PRICE_BUGS_FILE, 'utf8'));
-      }
+      fs.mkdirSync(BUNKER_PRICE_BUG_DIR, { recursive: true });
+      fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+      logger.error(`  Raw API response saved to: ${filepath}`);
     } catch (err) {
-      logger.debug(`[GameAPI] Failed to load known price bugs file: ${err.message}`);
+      logger.error(`  Failed to save response file: ${err.message}`);
     }
 
-    // Check if this timeslot is already known
-    const isKnownBug = knownBugs.bugs[currentTime] !== undefined;
-
-    if (!isKnownBug) {
-      // NEW BUG - Log full details and save to file
-      logger.error(`[GameAPI] MISSING TIMESLOT detected (NEW)!`);
-      logger.error(`  Requested timeslot: ${currentTime}`);
-      logger.error(`  Available timeslots: ${prices.map(p => p.time).join(', ')}`);
-      logger.error(`  Has discounted prices: fuel=${discountedFuel}, co2=${discountedCO2}`);
-
-      // Save full raw response to file for game developers
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `price-response-${currentTime.replace(':', '-')}-${timestamp}.json`;
-      const filepath = path.join(BUNKER_PRICE_BUG_DIR, filename);
-
-      try {
-        // Ensure bunker price bug directory exists
-        fs.mkdirSync(BUNKER_PRICE_BUG_DIR, { recursive: true });
-        fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-        logger.error(`  Raw API response saved to: ${filepath}`);
-      } catch (err) {
-        logger.error(`  Failed to save response file: ${err.message}`);
-      }
-
-      // Add to known bugs list
-      knownBugs.bugs[currentTime] = {
-        first_seen: new Date().toISOString(),
-        last_seen: new Date().toISOString(),
-        occurrence_count: 1,
-        has_discounted_prices: discountedFuel !== null && discountedCO2 !== null,
-        response_file: filepath
-      };
-
-      try {
-        fs.writeFileSync(BUNKER_PRICE_BUGS_FILE, JSON.stringify(knownBugs, null, 2));
-        logger.error(`  Timeslot ${currentTime} added to known bugs list`);
-      } catch (err) {
-        logger.error(`  Failed to update known bugs file: ${err.message}`);
-      }
-    } else {
-      // Known bug - update occurrence count and last_seen
-      knownBugs.bugs[currentTime].last_seen = new Date().toISOString();
-      knownBugs.bugs[currentTime].occurrence_count++;
-
-      try {
-        fs.writeFileSync(BUNKER_PRICE_BUGS_FILE, JSON.stringify(knownBugs, null, 2));
-      } catch (err) {
-        // Ignore write errors for known bugs
-      }
-
-      logger.debug(`[GameAPI] Missing timeslot at known buggy time: ${currentTime} (occurrence #${knownBugs.bugs[currentTime].occurrence_count})`);
-    }
-
-    // Use last price in array as fallback
-    currentPrice = prices[prices.length - 1];
-    if (DEBUG_MODE) {
-      logger.log(`[GameAPI] No exact time match for ${currentTime}, using last price from ${currentPrice.time}`);
-    }
+    throw new Error(`Time slot "${currentTime}" not found in API response. Expected this slot to exist. Response saved to ${filepath}`);
   }
 
-  // Use discounted prices if available
+  // Use discounted prices if available, otherwise use matched price
   const finalFuelPrice = discountedFuel !== null ? discountedFuel : currentPrice.fuel_price;
   const finalCO2Price = discountedCO2 !== null ? discountedCO2 : currentPrice.co2_price;
 
   // CRITICAL VALIDATION: If API returns invalid prices (0, null, undefined), throw error
   // This prevents broadcasting invalid prices to clients
   if (!finalFuelPrice || finalFuelPrice <= 0) {
-    logger.error(`[GameAPI] ⚠️ API returned INVALID fuel price: ${finalFuelPrice} (discounted: ${discountedFuel}, regular: ${currentPrice.fuel_price})`);
+    logger.error(`[GameAPI] API returned INVALID fuel price: ${finalFuelPrice} (discounted: ${discountedFuel}, regular: ${currentPrice.fuel_price})`);
     throw new Error(`Invalid fuel price from API: ${finalFuelPrice}`);
   }
   if (!finalCO2Price || finalCO2Price <= 0) {
-    logger.error(`[GameAPI] ⚠️ API returned INVALID CO2 price: ${finalCO2Price} (discounted: ${discountedCO2}, regular: ${currentPrice.co2_price})`);
+    logger.error(`[GameAPI] API returned INVALID CO2 price: ${finalCO2Price} (discounted: ${discountedCO2}, regular: ${currentPrice.co2_price})`);
     throw new Error(`Invalid CO2 price from API: ${finalCO2Price}`);
   }
 
-  if (DEBUG_MODE) {
-    if (eventDiscount) {
-      logger.log(`[GameAPI] EVENT ACTIVE: ${eventDiscount.percentage}% off ${eventDiscount.type}`);
-      logger.log(`[GameAPI] Current prices (${currentPrice.time}): Fuel=$${finalFuelPrice}/t${discountedFuel ? ` (was $${currentPrice.fuel_price})` : ''}, CO2=$${finalCO2Price}/t${discountedCO2 ? ` (was $${currentPrice.co2_price})` : ''}`);
-    } else {
-      logger.log(`[GameAPI] Current prices (${currentPrice.time}): Fuel=$${finalFuelPrice}/t, CO2=$${finalCO2Price}/t`);
-    }
+  if (eventDiscount) {
+    logger.debug(`[GameAPI] EVENT ACTIVE: ${eventDiscount.percentage}% off ${eventDiscount.type}`);
+    logger.debug(`[GameAPI] Current prices (${currentPrice.time}): Fuel=$${finalFuelPrice}/t${discountedFuel ? ` (was $${currentPrice.fuel_price})` : ''}, CO2=$${finalCO2Price}/t${discountedCO2 ? ` (was $${currentPrice.co2_price})` : ''}`);
+  } else {
+    logger.debug(`[GameAPI] Current prices (${currentPrice.time}): Fuel=$${finalFuelPrice}/t, CO2=$${finalCO2Price}/t`);
   }
 
   // Fetch full event data if there's an active event
@@ -264,9 +218,7 @@ async function fetchBunkerState() {
     maxCO2: settings.max_co2 / 1000
   };
 
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Bunker state: Fuel=${bunkerState.fuel.toFixed(1)}t/${bunkerState.maxFuel.toFixed(0)}t, CO2=${bunkerState.co2.toFixed(1)}t/${bunkerState.maxCO2.toFixed(0)}t, Cash=$${bunkerState.cash}, Points=${bunkerState.points}`);
-  }
+  logger.debug(`[GameAPI] Bunker state: Fuel=${bunkerState.fuel.toFixed(1)}t/${bunkerState.maxFuel.toFixed(0)}t, CO2=${bunkerState.co2.toFixed(1)}t/${bunkerState.maxCO2.toFixed(0)}t, Cash=$${bunkerState.cash}, Points=${bunkerState.points}`);
 
   return bunkerState;
 }
@@ -297,22 +249,18 @@ async function purchaseFuel(amount, pricePerTon = null, userId = null) {
   // API expects amount in kg, we work in tons - convert tons to kg
   const amountInKg = amount * 1000;
 
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] purchaseFuel REQUEST: Sending ${amount}t (${amountInKg}kg) to API`);
-    logger.log(`[GameAPI] purchaseFuel REQUEST body:`, JSON.stringify({ amount: amountInKg }, null, 2));
-  }
+  logger.debug(`[GameAPI] purchaseFuel REQUEST: Sending ${amount}t (${amountInKg}kg) to API`);
+  logger.debug(`[GameAPI] purchaseFuel REQUEST body:`, JSON.stringify({ amount: amountInKg }, null, 2));
 
   const data = await apiCall('/bunker/purchase-fuel', 'POST', { amount: amountInKg });
 
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] purchaseFuel RESPONSE:`, JSON.stringify(data, null, 2));
-  }
+  logger.debug(`[GameAPI] purchaseFuel RESPONSE:`, JSON.stringify(data, null, 2));
 
   // Check if purchase was successful
   if (data.error || data.success === false) {
     const errorMsg = data.error || 'Purchase failed';
     if (data.user && data.user.cash !== undefined) {
-      logger.log(`[GameAPI] Purchase FAILED with error "${errorMsg}" - API reports current cash: $${data.user.cash.toLocaleString()}`);
+      logger.info(`[GameAPI] Purchase FAILED with error "${errorMsg}" - API reports current cash: $${data.user.cash.toLocaleString()}`);
     }
     throw new Error(errorMsg);
   }
@@ -335,9 +283,7 @@ async function purchaseFuel(amount, pricePerTon = null, userId = null) {
     newTotal: data.user.fuel / 1000, // kg to tons
     cost: cost
   };
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Purchased ${amount}t fuel for $${result.cost}, new total: ${result.newTotal.toFixed(1)}t`);
-  }
+  logger.debug(`[GameAPI] Purchased ${amount}t fuel for $${result.cost}, new total: ${result.newTotal.toFixed(1)}t`);
   return result;
 }
 
@@ -361,9 +307,7 @@ async function purchaseCO2(amount, pricePerTon = null, userId = null) {
   const amountInKg = amount * 1000;
   const data = await apiCall('/bunker/purchase-co2', 'POST', { amount: amountInKg });
 
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] purchaseCO2 API response:`, JSON.stringify(data, null, 2));
-  }
+  logger.debug(`[GameAPI] purchaseCO2 API response:`, JSON.stringify(data, null, 2));
 
   // Check if purchase was successful
   if (data.error || data.success === false) {
@@ -388,9 +332,7 @@ async function purchaseCO2(amount, pricePerTon = null, userId = null) {
     newTotal: (data.user.co2 || data.user.co2_certificate) / 1000, // kg to tons
     cost: cost
   };
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Purchased ${amount}t CO2 for $${result.cost}, new total: ${result.newTotal.toFixed(1)}t`);
-  }
+  logger.debug(`[GameAPI] Purchased ${amount}t CO2 for $${result.cost}, new total: ${result.newTotal.toFixed(1)}t`);
   return result;
 }
 
@@ -453,15 +395,11 @@ async function departVessel(vesselId, speed, guards = 0) {
     const actualError = data.error || 'Unknown error';
     const actualMessage = data.message || actualError;
 
-    if (DEBUG_MODE) {
-      logger.log(`[GameAPI] Depart failed for vessel ${vesselId} - Error: "${actualError}"`);
-    }
+    logger.debug(`[GameAPI] Depart failed for vessel ${vesselId} - Error: "${actualError}"`);
 
     // Special case: Vessel already departed (race condition)
     if (actualError === 'Vessel not found or status invalid') {
-      if (DEBUG_MODE) {
-        logger.log(`[GameAPI] Vessel ${vesselId} was already departed (race condition - ignoring)`);
-      }
+      logger.debug(`[GameAPI] Vessel ${vesselId} was already departed (race condition - ignoring)`);
     }
 
     return {
@@ -604,9 +542,7 @@ async function fetchCampaigns() {
       const available = cached.data.marketing_campaigns;
       const active = cached.data.active_campaigns;
 
-      if (DEBUG_MODE) {
-        logger.log(`[GameAPI] Campaigns from cache - Active: ${active.length}, Available: ${available.length}`);
-      }
+      logger.debug(`[GameAPI] Campaigns from cache - Active: ${active.length}, Available: ${available.length}`);
 
       return {
         available: available,
@@ -623,9 +559,7 @@ async function fetchCampaigns() {
     const available = data.data.marketing_campaigns;
     const active = data.data.active_campaigns;
 
-    if (DEBUG_MODE) {
-      logger.log(`[GameAPI] Fetched campaigns from API - Active: ${active.length}, Available: ${available.length}`);
-    }
+    logger.debug(`[GameAPI] Fetched campaigns from API - Active: ${active.length}, Available: ${available.length}`);
 
     return {
       available: available,
@@ -683,17 +617,13 @@ async function activateCampaign(campaignId) {
  * @throws {Error} If API call fails
  */
 async function getMaintenanceCost(vesselIds) {
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Requesting maintenance cost for vessel IDs: [${vesselIds.join(', ')}]`);
-  }
+  logger.debug(`[GameAPI] Requesting maintenance cost for vessel IDs: [${vesselIds.join(', ')}]`);
 
   // Frontend sends: JSON.stringify({ vessel_ids: JSON.stringify(vesselIds) })
   // Which results in: { vessel_ids: "[17696320,17696321]" }
   // So we need to send the array as a JSON string
   const vesselIdsString = JSON.stringify(vesselIds);
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Sending vessel_ids as JSON string: ${vesselIdsString}`);
-  }
+  logger.debug(`[GameAPI] Sending vessel_ids as JSON string: ${vesselIdsString}`);
 
   try {
     const data = await apiCall('/maintenance/get', 'POST', { vessel_ids: vesselIdsString });
@@ -714,9 +644,7 @@ async function getMaintenanceCost(vesselIds) {
       }
     });
 
-    if (DEBUG_MODE) {
-      logger.log(`[GameAPI] Calculated total maintenance cost: $${totalCost} for ${vesselIds.length} vessels`);
-    }
+    logger.debug(`[GameAPI] Calculated total maintenance cost: $${totalCost} for ${vesselIds.length} vessels`);
     return {
       totalCost: totalCost,
       vessels: vessels
@@ -744,15 +672,11 @@ async function getMaintenanceCost(vesselIds) {
  * @throws {Error} If API call fails
  */
 async function bulkRepairVessels(vesselIds) {
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Executing bulk repair for vessel IDs: [${vesselIds.join(', ')}]`);
-  }
+  logger.debug(`[GameAPI] Executing bulk repair for vessel IDs: [${vesselIds.join(', ')}]`);
 
   // Frontend sends vessel_ids as JSON string: "[17696320,17696321]"
   const vesselIdsString = JSON.stringify(vesselIds);
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Sending vessel_ids as JSON string: ${vesselIdsString}`);
-  }
+  logger.debug(`[GameAPI] Sending vessel_ids as JSON string: ${vesselIdsString}`);
 
   const data = await apiCall('/maintenance/do-wear-maintenance-bulk', 'POST', {
     vessel_ids: vesselIdsString
@@ -764,9 +688,7 @@ async function bulkRepairVessels(vesselIds) {
   }
 
   const totalCost = data.data?.total_cost || 0;
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Repaired ${vesselIds.length} vessels - API returned cost: $${totalCost}`);
-  }
+  logger.debug(`[GameAPI] Repaired ${vesselIds.length} vessels - API returned cost: $${totalCost}`);
 
   return {
     success: true,
@@ -799,19 +721,15 @@ async function fetchUnreadMessages() {
     const { getCachedMessengerChats } = require('./websocket');
     const chats = await getCachedMessengerChats();
 
-    if (DEBUG_MODE) {
-      // Debug: Log all chats with their properties
-      logger.log(`[GameAPI] Total chats: ${chats.length}`);
-      chats.forEach((chat, i) => {
-        logger.log(`[GameAPI] Chat ${i}: system_chat=${chat.system_chat}, new=${chat.new}, subject="${chat.subject || 'N/A'}"`);
-      });
-    }
+    // Debug: Log all chats with their properties
+    logger.debug(`[GameAPI] Total chats: ${chats.length}`);
+    chats.forEach((chat, i) => {
+      logger.debug(`[GameAPI] Chat ${i}: system_chat=${chat.system_chat}, new=${chat.new}, subject="${chat.subject || 'N/A'}"`);
+    });
 
     // Count ALL chats where new=true (including system messages like hijack notifications)
     const unreadCount = chats.filter(chat => chat.new).length;
-    if (DEBUG_MODE) {
-      logger.log(`[GameAPI] Unread messages count (including system): ${unreadCount}`);
-    }
+    logger.debug(`[GameAPI] Unread messages count (including system): ${unreadCount}`);
     return unreadCount;
   } catch (error) {
     logger.error('[GameAPI] Error fetching unread messages:', error.message);
@@ -834,9 +752,7 @@ async function fetchAutoPrice(userVesselId, routeId) {
       route_id: routeId
     });
 
-    if (DEBUG_MODE) {
-      logger.log(`[GameAPI] Auto-price for vessel ${userVesselId} on route ${routeId}:`, data);
-    }
+    logger.debug(`[GameAPI] Auto-price for vessel ${userVesselId} on route ${routeId}:`, data);
 
     return data;
   } catch (error) {
@@ -869,20 +785,16 @@ async function fetchEventData() {
   const data = await apiCall('/game/index', 'POST', {});
 
   if (!data.data || !data.data.event || data.data.event.length === 0) {
-    if (DEBUG_MODE) {
-      logger.log('[GameAPI] No active events');
-    }
+    logger.debug('[GameAPI] No active events');
     return null;
   }
 
   const event = data.data.event[0];
 
-  if (DEBUG_MODE) {
-    logger.log(`[GameAPI] Active event: ${event.name} (${event.type})`);
-    logger.log(`[GameAPI] Discount: ${event.discount_percentage}% off ${event.discount_type}`);
-    logger.log(`[GameAPI] Demand multiplier: ${event.daily_demand_multiplier}x`);
-    logger.log(`[GameAPI] Ends in: ${Math.floor(event.ends_in / 3600)}h ${Math.floor((event.ends_in % 3600) / 60)}m`);
-  }
+  logger.debug(`[GameAPI] Active event: ${event.name} (${event.type})`);
+  logger.debug(`[GameAPI] Discount: ${event.discount_percentage}% off ${event.discount_type}`);
+  logger.debug(`[GameAPI] Demand multiplier: ${event.daily_demand_multiplier}x`);
+  logger.debug(`[GameAPI] Ends in: ${Math.floor(event.ends_in / 3600)}h ${Math.floor((event.ends_in % 3600) / 60)}m`);
 
   return event;
 }

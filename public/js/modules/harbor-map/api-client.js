@@ -10,6 +10,17 @@
 let cachedOverviewData = null;
 
 /**
+ * Invalidates the overview cache
+ * Call this when switching to client-side filtering to ensure fresh data
+ *
+ * @returns {void}
+ */
+export function invalidateOverviewCache() {
+  cachedOverviewData = null;
+  console.log('[Harbor Map API] Cache invalidated');
+}
+
+/**
  * Pre-fetches harbor map data in background for instant loading
  * Call this on app initialization
  *

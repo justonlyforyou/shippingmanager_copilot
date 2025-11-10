@@ -185,7 +185,7 @@ function getNetworkIPs() {
  * console.log(ca.cert); // PEM-encoded certificate
  */
 function generateCA() {
-  logger.log('Generating Certificate Authority (CA)...');
+  logger.info('Generating Certificate Authority (CA)...');
 
   const keys = forge.pki.rsa.generateKeyPair(2048);
   const cert = forge.pki.createCertificate();
@@ -224,18 +224,18 @@ function generateCA() {
   fs.writeFileSync(CA_CERT_PATH, caPem);
   fs.writeFileSync(CA_KEY_PATH, caKeyPem);
 
-  logger.log('✓ CA generated successfully');
+  logger.info('OK CA generated successfully');
 
   // Try to install CA certificate automatically on Windows
   if (os.platform() === 'win32') {
     // Check if already installed
     if (isCertificateInstalled('Shipping Manager CoPilot CA')) {
-      logger.log('✓ CA certificate already installed in Windows Trust Store');
+      logger.info('OK CA certificate already installed in Windows Trust Store');
       return { cert: caPem, key: caKeyPem };
     }
     try {
-      logger.log('\n🔒 Installing CA certificate to Windows Trust Store...');
-      logger.log('   (Admin rights required - UAC dialog will appear)\n');
+      logger.info('\n🔒 Installing CA certificate to Windows Trust Store...');
+      logger.info('   (Admin rights required - UAC dialog will appear)\n');
 
       // Validate path doesn't contain dangerous characters (defense in depth)
       if (CA_CERT_PATH.includes("'") || CA_CERT_PATH.includes('"') || CA_CERT_PATH.includes(';')) {
@@ -257,18 +257,18 @@ function generateCA() {
         throw result.error;
       }
 
-      logger.log('\n✓ CA certificate installed successfully!');
-      logger.log('✓ Browser will now trust all certificates from this CA\n');
+      logger.info('\nOK CA certificate installed successfully!');
+      logger.info('OK Browser will now trust all certificates from this CA\n');
     } catch (error) {
-      logger.log('\n⚠ Installation cancelled or failed');
-      logger.log('📋 Manual installation:');
-      logger.log(`   1. Right-click Command Prompt → "Run as Administrator"`);
-      logger.log(`   2. Run: certutil -addstore -f "Root" "${CA_CERT_PATH}"\n`);
+      logger.warn('[Certificate] Installation cancelled or failed');
+      logger.info('[Certificate] Manual installation:');
+      logger.info(`   1. Right-click Command Prompt "Run as Administrator"`);
+      logger.info(`   2. Run: certutil -addstore -f "Root" "${CA_CERT_PATH}"\n`);
     }
   } else if (os.platform() === 'darwin') {
-    logger.log(`\n📋 macOS: sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${CA_CERT_PATH}"\n`);
+    logger.info(`\n📋 macOS: sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "${CA_CERT_PATH}"\n`);
   } else {
-    logger.log(`\n📋 Linux: sudo cp "${CA_CERT_PATH}" /usr/local/share/ca-certificates/ && sudo update-ca-certificates\n`);
+    logger.info(`\n📋 Linux: sudo cp "${CA_CERT_PATH}" /usr/local/share/ca-certificates/ && sudo update-ca-certificates\n`);
   }
 
   return { cert: caPem, key: caKeyPem };
@@ -319,10 +319,10 @@ function generateCA() {
  * // Generates cert.pem and key.pem
  * // Console output:
  * //   "Adding network IP to certificate: 192.168.1.100"
- * //   "✓ Server certificate generated successfully"
+ * //   "OK Server certificate generated successfully"
  */
 function generateCertificate() {
-  logger.log('Generating server certificate...');
+  logger.info('Generating server certificate...');
 
   // Load or generate CA
   let caCert, caKey;
@@ -366,7 +366,7 @@ function generateCertificate() {
 
   networkIPs.forEach(ip => {
     altNames.push({ type: 7, ip });
-    logger.log(`  Adding network IP to certificate: ${ip}`);
+    logger.debug(`  Adding network IP to certificate: ${ip}`);
   });
 
   cert.setExtensions([
@@ -398,7 +398,7 @@ function generateCertificate() {
   fs.writeFileSync(CERT_PATH, certPem);
   fs.writeFileSync(KEY_PATH, keyPem);
 
-  logger.log('✓ Server certificate generated successfully');
+  logger.info('OK Server certificate generated successfully');
 }
 
 /**

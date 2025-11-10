@@ -407,9 +407,31 @@ export async function showChatNotification(title, message) {
   }
 }
 
-export function handleNotifications(newMessages) {
+export function handleNotifications(newMessages, lastReadTimestamp) {
   if (document.hidden) {
-    newMessages.forEach(msg => {
+    // Get current user ID to filter out own messages
+    const currentUserId = window.USER_STORAGE_PREFIX;
+
+    // Filter messages to only show notifications for truly new messages
+    // Backend provides lastReadTimestamp, only notify for messages after that
+    const unreadMessages = newMessages.filter(msg => {
+      if (!lastReadTimestamp) return true; // If no lastRead, show all
+
+      // Get message timestamp in milliseconds
+      const msgTimestamp = msg.timestampMs || new Date(msg.timestamp).getTime();
+
+      // Only show notification if message is newer than last read
+      // AND not sent by current user (no notifications for own messages)
+      if (msg.type === 'chat' && msg.user_id && currentUserId) {
+        if (String(msg.user_id) === String(currentUserId)) {
+          return false; // Skip own messages
+        }
+      }
+
+      return msgTimestamp > lastReadTimestamp;
+    });
+
+    unreadMessages.forEach(msg => {
       if (msg.type === 'chat') {
         showChatNotification(
           `💬 ${msg.company}`,

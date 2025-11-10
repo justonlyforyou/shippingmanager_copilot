@@ -32,26 +32,26 @@ const { logAutopilotAction } = require('../logbook');
 async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-COOP] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-COOP] Skipped - Autopilot is PAUSED');
     return;
   }
 
   const userId = getUserId();
   if (!userId) {
-    logger.log('[Auto-COOP] No user ID available, skipping');
+    logger.debug('[Auto-COOP] No user ID available, skipping');
     return;
   }
 
   const settings = state.getSettings(userId);
   if (!settings.autoCoopEnabled) {
-    logger.log('[Auto-COOP] Auto-COOP is DISABLED in settings, skipping');
+    logger.debug('[Auto-COOP] Auto-COOP is DISABLED in settings, skipping');
     return;
   }
 
   try {
-    logger.log('[Auto-COOP] ========================================');
-    logger.log('[Auto-COOP] Starting Auto-COOP distribution');
-    logger.log('[Auto-COOP] ========================================');
+    logger.debug('[Auto-COOP] ========================================');
+    logger.info('[Auto-COOP] Starting Auto-COOP distribution');
+    logger.debug('[Auto-COOP] ========================================');
 
     // Fetch COOP data with restrictions from our own API
     const axios = require('axios');
@@ -64,17 +64,17 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
     const members = coopData.data?.members_coop;
 
     if (available === 0) {
-      logger.log('[Auto-COOP] No COOP vessels available to send');
+      logger.debug('[Auto-COOP] No COOP vessels available to send');
       return;
     }
 
-    logger.log(`[Auto-COOP] Available COOP vessels: ${available}`);
+    logger.debug(`[Auto-COOP] Available COOP vessels: ${available}`);
 
     // Filter members who can receive (no restrictions)
     const eligibleMembers = members.filter(m => m.can_receive_coop === true && m.total_vessels > 0);
 
     if (eligibleMembers.length === 0) {
-      logger.log('[Auto-COOP] No eligible members found (all have restrictions or no vessels)');
+      logger.warn('[Auto-COOP] No eligible members found (all have restrictions or no vessels)');
 
       // Notify user
       if (broadcastToUser) {
@@ -89,7 +89,7 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
     // Sort by total_vessels DESC (largest fleets first)
     eligibleMembers.sort((a, b) => b.total_vessels - a.total_vessels);
 
-    logger.log(`[Auto-COOP] Found ${eligibleMembers.length} eligible members`);
+    logger.debug(`[Auto-COOP] Found ${eligibleMembers.length} eligible members`);
 
     // Track totals
     let totalSent = 0;
@@ -105,13 +105,13 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
       const currentAvailable = refreshResponse.data.data?.coop?.available;
 
       if (currentAvailable === 0) {
-        logger.log('[Auto-COOP] All COOP vessels distributed, stopping');
+        logger.debug('[Auto-COOP] All COOP vessels distributed, stopping');
         break;
       }
 
       const maxToSend = Math.min(currentAvailable, member.total_vessels);
 
-      logger.log(`[Auto-COOP] Sending ${maxToSend} vessels to ${member.company_name} (${member.user_id})...`);
+      logger.info(`[Auto-COOP] Sending ${maxToSend} vessels to ${member.company_name} (${member.user_id})...`);
 
       try {
         // Send via our own API endpoint
@@ -133,7 +133,7 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
           partial: result.partial
         });
 
-        logger.log(`[Auto-COOP] OK Sent ${result.departed} of ${result.requested} to ${member.company_name}`);
+        logger.info(`[Auto-COOP] OK Sent ${result.departed} of ${result.requested} to ${member.company_name}`);
 
         // Small delay between sends to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -148,13 +148,13 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
       }
     }
 
-    logger.log('[Auto-COOP] ========================================');
-    logger.log(`[Auto-COOP] Distribution complete: ${totalSent}/${totalRequested} vessels sent to ${results.length} members`);
-    logger.log('[Auto-COOP] ========================================');
+    logger.debug('[Auto-COOP] ========================================');
+    logger.info(`[Auto-COOP] Distribution complete: ${totalSent}/${totalRequested} vessels sent to ${results.length} members`);
+    logger.debug('[Auto-COOP] ========================================');
 
     // Broadcast results to user
     if (broadcastToUser) {
-      logger.log(`[Auto-COOP] Broadcasting auto_coop_complete event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
+      logger.debug(`[Auto-COOP] Broadcasting auto_coop_complete event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
       broadcastToUser(userId, 'auto_coop_complete', {
         totalRequested,
         totalSent,

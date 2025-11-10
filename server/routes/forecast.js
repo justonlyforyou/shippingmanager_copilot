@@ -31,9 +31,44 @@ function getForecastDataPath() {
 }
 
 /**
- * Get UTC offset for timezone abbreviations
- * @param {string} timezone - Timezone abbreviation (e.g., "PST", "CEST", "UTC")
- * @returns {number} UTC offset in hours
+ * Parse numeric UTC offset from string formats
+ * Supports: "UTC-6", "GMT-6", "UTC+2", "-06:00", "+02:00", "-6", "+2"
+ * @param {string} timezone - Timezone string
+ * @returns {number|null} UTC offset in hours, or null if invalid
+ */
+function parseNumericOffset(timezone) {
+    const str = timezone.trim();
+
+    // Format 1: "UTC-6", "UTC+2", "GMT-6", "GMT+2"
+    // eslint-disable-next-line security/detect-unsafe-regex
+    const utcMatch = str.match(/^(UTC|GMT)([+-]?\d+(?:\.\d+)?)$/i);
+    if (utcMatch) {
+        return parseFloat(utcMatch[2]);
+    }
+
+    // Format 2: "-06:00", "+02:00", "-6:00", "+2:00"
+    const colonMatch = str.match(/^([+-]?)(\d{1,2}):(\d{2})$/);
+    if (colonMatch) {
+        const sign = colonMatch[1] === '-' ? -1 : 1;
+        const hours = parseInt(colonMatch[2], 10);
+        const minutes = parseInt(colonMatch[3], 10);
+        return sign * (hours + minutes / 60);
+    }
+
+    // Format 3: "-6", "+2", "6", "-5.5"
+    // eslint-disable-next-line security/detect-unsafe-regex
+    const plainMatch = str.match(/^([+-]?\d+(?:\.\d+)?)$/);
+    if (plainMatch) {
+        return parseFloat(plainMatch[1]);
+    }
+
+    return null;
+}
+
+/**
+ * Get UTC offset for timezone abbreviations or numeric offsets
+ * @param {string} timezone - Timezone abbreviation (e.g., "PST", "CEST", "UTC") or numeric offset ("UTC-6", "GMT-6", "-6")
+ * @returns {number|null} UTC offset in hours, or null if invalid
  */
 function getTimezoneOffsetHours(timezone) {
     const timezoneOffsets = {
@@ -69,26 +104,45 @@ function getTimezoneOffsetHours(timezone) {
     };
 
     const normalized = timezone.toUpperCase();
+
+    // First, try named timezone abbreviations
     if (timezoneOffsets.hasOwnProperty(normalized)) {
         return timezoneOffsets[normalized];
+    }
+
+    // Second, try parsing as numeric offset
+    const numericOffset = parseNumericOffset(timezone);
+    if (numericOffset !== null) {
+        // Validate range (-12 to +14)
+        if (numericOffset >= -12 && numericOffset <= 14) {
+            return numericOffset;
+        }
     }
 
     return null; // Invalid timezone
 }
 
 /**
- * Get all valid timezone abbreviations
- * @returns {string[]} Array of valid timezone strings
+ * Get all valid timezone abbreviations and formats
+ * @returns {Object} Object with named timezones and numeric format examples
  */
 function getValidTimezones() {
-    return [
-        'PST', 'PDT', 'MST', 'MDT', 'CST', 'CDT', 'EST', 'EDT',
-        'GMT', 'BST', 'WET', 'WEST', 'CET', 'CEST', 'EET', 'EEST',
-        'JST', 'KST', 'IST',
-        'AEST', 'AEDT', 'ACST', 'ACDT', 'AWST',
-        'NZST', 'NZDT',
-        'UTC'
-    ];
+    return {
+        named_timezones: [
+            'PST', 'PDT', 'MST', 'MDT', 'CST', 'CDT', 'EST', 'EDT',
+            'GMT', 'BST', 'WET', 'WEST', 'CET', 'CEST', 'EET', 'EEST',
+            'JST', 'KST', 'IST',
+            'AEST', 'AEDT', 'ACST', 'ACDT', 'AWST',
+            'NZST', 'NZDT',
+            'UTC'
+        ],
+        numeric_formats: [
+            'UTC-6', 'UTC+2', 'GMT-6', 'GMT+2',  // UTC/GMT with offset
+            '-06:00', '+02:00',                   // ISO 8601 format
+            '-6', '+2', '0'                       // Plain numeric offset
+        ],
+        note: 'Numeric offsets must be between -12 and +14 hours'
+    };
 }
 
 /**
@@ -203,7 +257,7 @@ function convertCESTToTimezone(forecastData, targetTimezone, requestedDay = null
 
     // If no offset needed, return data as-is
     if (hoursOffset === 0) {
-        logger.log('[Forecast] No timezone conversion needed (already CEST)');
+        logger.debug('[Forecast] No timezone conversion needed (already CEST)');
         return {
             success: true,
             data: forecastData,
@@ -214,7 +268,7 @@ function convertCESTToTimezone(forecastData, targetTimezone, requestedDay = null
     // Convert intervals (30-minute intervals, so hours * 2)
     const intervalOffset = Math.round(hoursOffset * 2);
 
-    logger.log(`[Forecast] Converting CEST to ${targetTimezone}: ${hoursOffset} hours (${intervalOffset} intervals)`);
+    logger.debug(`[Forecast] Converting CEST to ${targetTimezone}: ${hoursOffset} hours (${intervalOffset} intervals)`);
 
     // Convert each day
     const convertedData = forecastData.map(dayData => {
@@ -393,6 +447,25 @@ router.get('/', async (req, res) => {
     try {
         const { source, day, timezone: requestedTz } = req.query;
 
+        // Validate source parameter
+        const validSources = ['chatbot', 'json'];
+        if (source && !validSources.includes(source)) {
+            return res.status(400).json({
+                error: 'Invalid source parameter',
+                valid_sources: validSources
+            });
+        }
+
+        // Validate day parameter if provided
+        if (day !== undefined) {
+            const dayNum = parseInt(day);
+            if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
+                return res.status(400).json({
+                    error: 'Invalid day parameter. Must be a number between 1 and 31'
+                });
+            }
+        }
+
         // Load original CEST forecast data
         const dataPath = getForecastDataPath();
         const rawData = await fs.readFile(dataPath, 'utf-8');
@@ -402,7 +475,7 @@ router.get('/', async (req, res) => {
         const serverTz = getServerLocalTimezone();
         const targetTimezone = requestedTz ? requestedTz.toUpperCase() : serverTz.name;
 
-        logger.log(`[Forecast] Request: timezone=${targetTimezone}, source=${source || 'json'}, day=${day || 'all'}`);
+        logger.debug(`[Forecast] Request: timezone=${targetTimezone}, source=${source || 'json'}, day=${day || 'all'}`);
 
         // Convert from CEST to target timezone
         const conversionResult = convertCESTToTimezone(forecastData, targetTimezone);
@@ -454,7 +527,7 @@ router.get('/', async (req, res) => {
                 data: convertedData
             };
 
-            logger.log(`[Forecast] Serving data in ${targetTimezone} (${hoursOffset >= 0 ? '+' : ''}${hoursOffset}h from CEST)`);
+            logger.debug(`[Forecast] Serving data in ${targetTimezone} (${hoursOffset >= 0 ? '+' : ''}${hoursOffset}h from CEST)`);
 
             res.json(response);
         }

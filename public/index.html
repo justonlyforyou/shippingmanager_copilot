@@ -124,6 +124,7 @@
                 <button id="repairAllBtn" class="action-btn" disabled title="Repair all vessels with high wear">
                     🔧
                     <span id="repairCount" class="action-badge hidden"></span>
+                    <span id="drydockCount" class="action-badge-bottom-left hidden"></span>
                 </button>
                 <button id="buyVesselsBtn" class="action-btn" title="Buy vessels">
                     ⛴️
@@ -608,6 +609,17 @@
                                     <option value="99">>99%</option>
                                 </select>
                             </div>
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
+                                <label for="autoDrydockThreshold" style="margin: 0; color: #e0e0e0; font-size: 14px;">🛠️ Drydock Threshold</label>
+                                <select id="autoDrydockThreshold" style="width: 100px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer;">
+                                    <option value="25">25h</option>
+                                    <option value="50">50h</option>
+                                    <option value="75">75h</option>
+                                    <option value="100">100h</option>
+                                    <option value="150">150h</option>
+                                    <option value="999">>150h</option>
+                                </select>
+                            </div>
 
                             <!-- Weather Data Toggle -->
                             <div style="padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
@@ -813,7 +825,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">⚓ Autopilot - Harbormaster</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically purchase anchor points when available capacity drops below threshold. Event-driven (checks every 60 seconds).
+                                    Automatically purchase anchor points when available capacity drops below threshold. Checks every 5 minutes.
                                 </p>
 
                                 <div id="autoAnchorPointOptions" class="autopilot-options autopilot-options-light-blue hidden">
@@ -872,6 +884,53 @@
                                         </label>
                                         <label style="display: flex; align-items: center; cursor: pointer;">
                                             <input type="checkbox" id="notifyYardForemanDesktop" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
+                                            <span style="color: #d1d5db; font-size: 13px;">🔔 Enable desktop notifications</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Auto Drydock -->
+                            <div style="padding: 16px; background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 8px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="checkbox" id="autoDrydock" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
+                                    <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🛠️ Autopilot - Drydock Master</span>
+                                </label>
+                                <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
+                                    Automatically send vessels to drydock when hours_until_check reaches threshold. Event-driven (checks every 60 seconds).
+                                </p>
+                                <p style="margin: 4px 0 0 28px; color: #6b7280; font-size: 11px; font-style: italic;">
+                                    Uses the drydock threshold configured in General Settings
+                                </p>
+
+                                <!-- Nested: Drydock Options -->
+                                <div id="autoDrydockOptions" class="autopilot-options autopilot-options-orange">
+                                    <div style="margin-bottom: 12px;">
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">🚢 Maintenance Type:</label>
+                                        <select id="autoDrydockType" style="width: 100%; padding: 8px 12px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer;">
+                                            <option value="major">Major (100% Antifouling)</option>
+                                            <option value="minor">Minor (60% Antifouling)</option>
+                                        </select>
+                                    </div>
+                                    <div style="margin-bottom: 12px;">
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">⚡ Route Speed:</label>
+                                        <select id="autoDrydockSpeed" style="width: 100%; padding: 8px 12px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px; cursor: pointer;">
+                                            <option value="minimum">Minimum (Slow, Less Fuel)</option>
+                                            <option value="maximum">Maximum (Fast, More Fuel)</option>
+                                        </select>
+                                    </div>
+                                    <div style="margin-bottom: 8px;">
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">💰 Min Cash Reserve ($):</label>
+                                        <input type="text" id="autoDrydockMinCash" class="autopilot-mincash-input" min="0" step="10000">
+                                        <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px;">Don't send to drydock if cash would drop below this amount</p>
+                                    </div>
+                                    <div style="padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+                                        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 6px;">
+                                            <input type="checkbox" id="notifyDrydockMasterInApp" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
+                                            <span style="color: #d1d5db; font-size: 13px;">📱 Enable in-app alerts</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; cursor: pointer;">
+                                            <input type="checkbox" id="notifyDrydockMasterDesktop" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
                                             <span style="color: #d1d5db; font-size: 13px;">🔔 Enable desktop notifications</span>
                                         </label>
                                     </div>
@@ -1353,9 +1412,11 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="/css/leaflet-environmental.css" />
 
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/js/vendor/leaflet-environmental.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
 
     <script type="module" src="/js/script.js"></script>

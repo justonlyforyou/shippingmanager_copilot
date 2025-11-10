@@ -223,7 +223,7 @@ router.post('/coop/send-max', async (req, res) => {
     }
 
     // Send max vessels to target user
-    logger.log(`[COOP] Attempting to send ${maxToSend} vessels to user ${user_id}`);
+    logger.info(`[COOP] Attempting to send ${maxToSend} vessels to user ${user_id}`);
     const result = await apiCall('/route/depart-coop', 'POST', {
       user_id,
       vessels: maxToSend

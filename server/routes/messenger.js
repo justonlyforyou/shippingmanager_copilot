@@ -98,8 +98,8 @@ function migrateHijackHistory() {
       }
 
       if (migratedCount > 0) {
-        logger.log(`[Hijacking] Migrated ${migratedCount} hijack history file(s) to APPDATA`);
-        logger.log(`[Hijacking] New location: ${newHistoryDir}`);
+        logger.debug(`[Hijacking] Migrated ${migratedCount} hijack history file(s) to APPDATA`);
+        logger.debug(`[Hijacking] New location: ${newHistoryDir}`);
       }
     } catch (error) {
       logger.error('[Hijacking] Error migrating hijack history:', error.message);
@@ -457,7 +457,7 @@ router.post('/messenger/delete-chat', express.json(), async (req, res) => {
       try {
         if (fs.existsSync(historyFile)) {
           fs.unlinkSync(historyFile);
-          logger.log(`[Hijacking] Deleted history file for case ${case_id}`);
+          logger.debug(`[Hijacking] Deleted history file for case ${case_id}`);
         }
       } catch (error) {
         logger.error(`[Hijacking] Failed to delete history file for case ${case_id}:`, error);
@@ -556,6 +556,20 @@ router.post('/user/search', express.json(), async (req, res) => {
  */
 router.get('/hijacking/history/:caseId', (req, res) => {
   const { caseId } = req.params;
+
+  // CRITICAL: Validate caseId to prevent path traversal attacks
+  // Only allow alphanumeric characters, hyphens, and underscores
+  if (!caseId || !/^[a-zA-Z0-9\-_]+$/.test(caseId)) {
+    return res.status(400).json({
+      error: 'Invalid case ID. Only alphanumeric characters, hyphens, and underscores allowed.'
+    });
+  }
+
+  // Limit length to prevent abuse
+  if (caseId.length > 100) {
+    return res.status(400).json({ error: 'Case ID too long (max 100 characters)' });
+  }
+
   const userId = getUserId();
   const fs = require('fs');
   const path = require('path');
@@ -596,6 +610,20 @@ router.get('/hijacking/history/:caseId', (req, res) => {
  */
 router.post('/hijacking/history/:caseId', express.json(), (req, res) => {
   const { caseId } = req.params;
+
+  // CRITICAL: Validate caseId to prevent path traversal attacks
+  // Only allow alphanumeric characters, hyphens, and underscores
+  if (!caseId || !/^[a-zA-Z0-9\-_]+$/.test(caseId)) {
+    return res.status(400).json({
+      error: 'Invalid case ID. Only alphanumeric characters, hyphens, and underscores allowed.'
+    });
+  }
+
+  // Limit length to prevent abuse
+  if (caseId.length > 100) {
+    return res.status(400).json({ error: 'Case ID too long (max 100 characters)' });
+  }
+
   const { history } = req.body;
   const userId = getUserId();
   const fs = require('fs');
@@ -763,7 +791,7 @@ router.post('/hijacking/pay', express.json(), async (req, res) => {
     const actualPaid = cashBefore - cashAfter;
     const verified = actualPaid === expectedAmount;
 
-    logger.log(`[Hijacking Payment] Case ${case_id}: Payment verification - Expected: $${expectedAmount}, Actual: $${actualPaid}, Verified: ${verified}`);
+    logger.info(`[Hijacking Payment] Case ${case_id}: Payment verification - Expected: $${expectedAmount}, Actual: $${actualPaid}, Verified: ${verified}`);
 
     // Save verification data to history
     try {

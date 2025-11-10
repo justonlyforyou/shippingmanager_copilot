@@ -196,7 +196,7 @@ export async function loadMessages(chatFeed) {
       await displayMessages(allMessages, chatFeed);
 
       if (newOnly.length > 0) {
-        handleNotifications(newOnly);
+        handleNotifications(newOnly, data.lastReadTimestamp);
       }
     }
 
@@ -205,8 +205,8 @@ export async function loadMessages(chatFeed) {
       autoScroll = false;
     }
 
-    // Update unread badge (only if chat is closed)
-    updateAllianceChatBadge(newMessages);
+    // Update unread badge using backend's unread count
+    updateAllianceChatBadge(data.unreadCount);
 
   } catch (error) {
     console.error('Error loading messages:', error);
@@ -217,36 +217,32 @@ export async function loadMessages(chatFeed) {
 }
 
 /**
- * Updates the alliance chat badge with unread message count.
- * Only shows badge if chat is closed and there are unread messages.
+ * Updates the alliance chat badge with unread message count from backend.
+ * Backend controls read tracking, client is just "dumb display".
  *
- * @param {Array<Object>} messages - All alliance chat messages
+ * Why Backend Tracking:
+ * - localStorage doesn't sync across devices/browsers
+ * - Backend provides single source of truth
+ * - Prevents duplicate notifications
+ * - Read status syncs to all connected clients
+ *
+ * @param {number} unreadCount - Unread message count calculated by backend
  * @returns {void}
  */
-function updateAllianceChatBadge(messages) {
+function updateAllianceChatBadge(unreadCount) {
   const overlay = document.getElementById('allianceChatOverlay');
   const badge = document.getElementById('allianceChatBadge');
 
   if (!badge || !overlay) return;
 
-  // If chat is open, mark all as read and hide badge
+  // If chat is open, hide badge (mark-read will be called on close)
   const isChatOpen = !overlay.classList.contains('hidden');
   if (isChatOpen) {
-    if (messages.length > 0) {
-      const latestTimestamp = Math.max(...messages.map(m => new Date(m.timestamp).getTime()));
-      localStorage.setItem('allianceChatLastRead', latestTimestamp.toString());
-    }
     badge.classList.add('hidden');
     return;
   }
 
-  // Chat is closed - count unread messages
-  const lastReadTimestamp = parseInt(localStorage.getItem('allianceChatLastRead') || '0');
-  const unreadCount = messages.filter(msg => {
-    const msgTimestamp = new Date(msg.timestamp).getTime();
-    return msgTimestamp > lastReadTimestamp && msg.type === 'chat'; // Only count chat messages, not feed events
-  }).length;
-
+  // Chat is closed - use backend's unread count
   if (unreadCount > 0) {
     badge.textContent = unreadCount > 99 ? '99+' : unreadCount;
     badge.classList.remove('hidden');
@@ -584,9 +580,15 @@ function handleBackendAutoRepairComplete(data) {
   // Send browser notification if enabled
   const desktopNotifsEnabled = settings.enableDesktopNotifications !== undefined ? settings.enableDesktopNotifications : true;
   if (desktopNotifsEnabled && Notification.permission === 'granted') {
-    showNotification(`🔧 Yard Foreman - ${count} vessel${count > 1 ? 's' : ''} repaired`, {
-      body: `\nCost: $${totalCost.toLocaleString()}\nThreshold: ${threshold}%`,
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>🔧</text></svg>",
+    showNotification('🔧 Yard Foreman', {
+      body: `
+
+${count} vessel${count > 1 ? 's' : ''} repaired
+
+💰 Cost: $${totalCost.toLocaleString()}
+
+Threshold: ${threshold}%`,
+      icon: '/favicon.ico',
       tag: 'yard-foreman',
       silent: false
     });
@@ -722,6 +724,8 @@ export function initWebSocket() {
         handleVesselsFailed(data);
       } else if (type === 'vessels_repaired') {
         handleVesselsRepaired(data);
+      } else if (type === 'vessels_drydocked') {
+        handleVesselsDrydocked(data);
       } else if (type === 'campaigns_renewed') {
         handleCampaignsRenewed(data);
       } else if (type === 'auto_coop_complete') {
@@ -732,8 +736,12 @@ export function initWebSocket() {
         handleBunkerUpdate(data);
       } else if (type === 'vessel_count_update') {
         handleVesselCountUpdate(data);
+      } else if (type === 'harbor_map_refresh_required') {
+        handleHarborMapRefreshRequired(data);
       } else if (type === 'repair_count_update') {
         handleRepairCountUpdate(data);
+      } else if (type === 'drydock_count_update') {
+        handleDrydockCountUpdate(data);
       } else if (type === 'campaign_status_update') {
         handleCampaignStatusUpdate(data);
       } else if (type === 'unread_messages_update') {
@@ -1051,9 +1059,13 @@ async function handlePriceAlert(data) {
   });
 
   if (settings.enableDesktopNotifications && Notification.permission === 'granted') {
-    await showNotification(`${emoji} ${label} Price Alert - $${price}/t`, {
-      body: `Price dropped to $${price}/t (threshold: $${threshold}/t)`,
-      icon: `data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>${emoji}</text></svg>`,
+    await showNotification(`${emoji} ${label} Price Alert`, {
+      body: `
+
+Price dropped to $${price}/t
+
+Threshold: $${threshold}/t`,
+      icon: '/favicon.ico',
       tag: `price-alert-${type}`,
       silent: false
     });
@@ -1099,10 +1111,14 @@ async function handleFuelPurchased(data) {
   }
 
   // Desktop notification
-  if (settings.autoPilotNotifications && settings.enableDesktopNotifications && settings.notifyBarrelBossDesktop && Notification.permission === 'granted') {
-    await showNotification(`⛽ Barrel Boss - ${formatNumber(amount)}t @ $${price}/t`, {
-      body: `\nTotal: $${Math.round(cost).toLocaleString()}`,
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>⛽</text></svg>",
+  if (settings.autoPilotNotifications && settings.notifyBarrelBossDesktop && Notification.permission === 'granted') {
+    await showNotification('⛽ Barrel Boss', {
+      body: `
+
+${formatNumber(amount)}t @ $${price}/t
+
+💰 Total: $${Math.round(cost).toLocaleString()}`,
+      icon: '/favicon.ico',
       tag: 'barrel-boss',
       silent: false
     });
@@ -1147,10 +1163,14 @@ async function handleCO2Purchased(data) {
   }
 
   // Desktop notification
-  if (settings.autoPilotNotifications && settings.enableDesktopNotifications && settings.notifyAtmosphereBrokerDesktop && Notification.permission === 'granted') {
-    await showNotification(`💨 Atmosphere Broker - ${formatNumber(amount)}t @ $${price}/t`, {
-      body: `\nTotal: $${Math.round(cost).toLocaleString()}`,
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>💨</text></svg>",
+  if (settings.autoPilotNotifications && settings.notifyAtmosphereBrokerDesktop && Notification.permission === 'granted') {
+    await showNotification('💨 Atmosphere Broker', {
+      body: `
+
+${formatNumber(amount)}t @ $${price}/t
+
+💰 Total: $${Math.round(cost).toLocaleString()}`,
+      icon: '/favicon.ico',
       tag: 'atmosphere-broker',
       silent: false
     });
@@ -1308,6 +1328,9 @@ async function handleVesselsDepartComplete(data) {
     showSideNotification(message, notificationType, 15000);
   }
 
+  // Desktop notification - moved to after harbor fee calculation to merge both notifications
+  // (See below after harbor fee section)
+
   // Separate Harbor Fee Warning Notification (only if threshold is set)
   if (succeeded.count > 0 && settings.harborFeeWarningThreshold) {
     const harborFeeThreshold = settings.harborFeeWarningThreshold;
@@ -1351,6 +1374,84 @@ async function handleVesselsDepartComplete(data) {
 
       showSideNotification(warningMessage, 'warning', 12000);
     }
+  }
+
+  // Combined Desktop notification (includes harbor fee warning if applicable)
+  if (settings.autoPilotNotifications && settings.notifyCargoMarshalDesktop && Notification.permission === 'granted') {
+    let desktopBody = '';
+
+    // Calculate harbor fee info (if threshold is set)
+    let highFeeCount = 0;
+    let totalHarborFees = 0;
+    if (succeeded.count > 0 && settings.harborFeeWarningThreshold) {
+      const harborFeeThreshold = settings.harborFeeWarningThreshold;
+      const highFeeVessels = succeeded.vessels.filter(v => {
+        const grossIncome = v.income + v.harborFee;
+        const feePercentage = (v.harborFee / grossIncome) * 100;
+        return feePercentage > harborFeeThreshold;
+      });
+      highFeeCount = highFeeVessels.length;
+      totalHarborFees = succeeded.vessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
+    }
+
+    // Build notification body based on results
+    if (succeeded.count > 0 && failed.count === 0) {
+      // Success case
+      const vesselCountStr = highFeeCount > 0
+        ? `${succeeded.count} vessel${succeeded.count > 1 ? 's' : ''} departed (${highFeeCount} ⚠️)`
+        : `${succeeded.count} vessel${succeeded.count > 1 ? 's' : ''} departed`;
+
+      desktopBody = `
+
+${vesselCountStr}
+
+💰 Net Profit: $${formatNumber(succeeded.totalIncome)}`;
+
+      if (highFeeCount > 0) {
+        desktopBody += `
+⚠️ Harbor Fees: $${formatNumber(totalHarborFees)}`;
+      }
+
+      desktopBody += `
+
+Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.totalCO2Used)}t`;
+
+    } else if (succeeded.count === 0 && failed.count > 0) {
+      // All failed
+      desktopBody = `
+
+${failed.count} vessel${failed.count > 1 ? 's' : ''} could not depart
+
+Check logs for details`;
+
+    } else {
+      // Mixed results
+      const vesselCountStr = highFeeCount > 0
+        ? `${succeeded.count} departed (${highFeeCount} ⚠️), ${failed.count} failed`
+        : `${succeeded.count} departed, ${failed.count} failed`;
+
+      desktopBody = `
+
+${vesselCountStr}
+
+💰 Net Profit: $${formatNumber(succeeded.totalIncome)}`;
+
+      if (highFeeCount > 0) {
+        desktopBody += `
+⚠️ Harbor Fees: $${formatNumber(totalHarborFees)}`;
+      }
+
+      desktopBody += `
+
+Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.totalCO2Used)}t`;
+    }
+
+    await showNotification('🚢 Cargo Marshal', {
+      body: desktopBody,
+      icon: '/favicon.ico',
+      tag: 'cargo-marshal',
+      silent: false
+    });
   }
 
   // Force immediate vessel count update and unlock depart button
@@ -1537,9 +1638,107 @@ async function handleVesselsRepaired(data) {
     showSideNotification(message, 'success', null, false);
   }
 
+  // Desktop notification
+  if (settings.autoPilotNotifications && settings.notifyYardForemanDesktop && Notification.permission === 'granted') {
+    await showNotification('🔧 Yard Foreman', {
+      body: `
+
+${count} vessel${count > 1 ? 's' : ''} repaired
+
+💰 Total Cost: $${formatNumber(totalCost)}`,
+      icon: '/favicon.ico',
+      tag: 'yard-foreman',
+      silent: false
+    });
+  }
+
   // Force immediate repair count update
   if (window.updateRepairCount) {
     window.updateRepairCount(window.getSettings ? window.getSettings() : {});
+  }
+}
+
+/**
+ * Handles vessels drydocked event from backend autopilot.
+ * Shows success notification with drydocked vessel list.
+ */
+async function handleVesselsDrydocked(data) {
+  const { count, maintenanceType, speed, vessels, totalCost } = data;
+
+  console.log(`[Autopilot] Vessels sent to drydock: ${count} vessels - Type: ${maintenanceType}, Speed: ${speed}, Cost: $${totalCost}`);
+
+  // Build vessel list
+  let contentHTML = '';
+  if (vessels && vessels.length > 0) {
+    const vesselList = vessels.map(v =>
+      `<div style="font-size: 0.8em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+        <div><strong>${v.name}</strong></div>
+        <div style="font-size: 0.9em; color: #9ca3af; margin-top: 2px;">
+          Hours: ${v.hours_until_check}h | Route: ${v.route_destination}${v.cost ? ` | Cost: $${formatNumber(v.cost)}` : ''}
+        </div>
+      </div>`
+    ).join('');
+
+    const typeLabel = maintenanceType === 'major' ? 'Major (100%)' : 'Minor (60%)';
+    const speedLabel = speed === 'maximum' ? 'Maximum' : 'Minimum';
+
+    contentHTML = `
+      <div class="notification-summary-box">
+        <div style="color: #f59e0b; font-weight: bold; margin-bottom: 10px;">${count} vessel${count > 1 ? 's' : ''} sent to drydock</div>
+        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 1.1em; margin-bottom: 4px;">
+          <span style="color: #fff; font-weight: bold;">Total Cost:</span>
+          <span style="color: #ef4444; font-weight: bold;">$${formatNumber(totalCost || 0)}</span>
+        </div>
+        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 1em; margin-bottom: 4px;">
+          <span style="color: #9ca3af;">Type:</span>
+          <span style="color: #fff; font-weight: bold;">${typeLabel}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 1em;">
+          <span style="color: #9ca3af;">Speed:</span>
+          <span style="color: #fff; font-weight: bold;">${speedLabel}</span>
+        </div>
+      </div>
+      <div class="notification-vessel-list">
+        ${vesselList}
+      </div>
+    `;
+  }
+
+  const message = `
+    <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+      <strong style="font-size: 1.1em;">Drydock Master</strong>
+    </div>
+    ${contentHTML}
+  `;
+
+  // In-app notification
+  const settings = window.getSettings ? window.getSettings() : {};
+  if (settings.autoPilotNotifications && settings.notifyDrydockMasterInApp) {
+    showSideNotification(message, 'success', null, false);
+  }
+
+  // Desktop notification
+  if (settings.autoPilotNotifications && settings.notifyDrydockMasterDesktop && Notification.permission === 'granted') {
+    const typeLabel = maintenanceType === 'major' ? 'Major' : 'Minor';
+    await showNotification('🛠️ Drydock Master', {
+      body: `
+
+${count} vessel${count > 1 ? 's' : ''} sent
+
+Type: ${typeLabel}
+
+💰 Total Cost: $${formatNumber(totalCost || 0)}`,
+      icon: '/favicon.ico',
+      tag: 'drydock-master',
+      silent: false
+    });
+  }
+
+  // Force immediate drydock count update
+  if (window.debouncedUpdateRepairCount) {
+    setTimeout(() => window.debouncedUpdateRepairCount(800), 1000);
   }
 }
 
@@ -1572,6 +1771,21 @@ async function handleCampaignsRenewed(data) {
   const settings = window.getSettings ? window.getSettings() : {};
   if (settings.autoPilotNotifications && settings.notifyReputationChiefInApp) {
     showSideNotification(message, 'success', 10000);
+  }
+
+  // Desktop notification
+  if (settings.autoPilotNotifications && settings.notifyReputationChiefDesktop && Notification.permission === 'granted') {
+    const totalCost = campaigns.reduce((sum, c) => sum + c.price, 0);
+    await showNotification('📊 Reputation Chief', {
+      body: `
+
+${campaigns.length} campaign${campaigns.length > 1 ? 's' : ''} renewed
+
+💰 Total Cost: $${formatNumber(totalCost)}`,
+      icon: '/favicon.ico',
+      tag: 'reputation-chief',
+      silent: false
+    });
   }
 }
 
@@ -1615,6 +1829,20 @@ async function handleAutoCoopComplete(data) {
   const settings = window.getSettings ? window.getSettings() : {};
   if (settings.autoPilotNotifications && settings.notifyFairHandInApp) {
     showSideNotification(message, totalSent === totalRequested ? 'success' : 'warning', 12000);
+  }
+
+  // Desktop notification
+  if (settings.autoPilotNotifications && settings.notifyFairHandDesktop && Notification.permission === 'granted') {
+    await showNotification('🤝 Fair Hand', {
+      body: `
+
+${totalSent} vessel${totalSent > 1 ? 's' : ''} distributed
+
+Sent to ${successResults.length} member${successResults.length > 1 ? 's' : ''}`,
+      icon: '/favicon.ico',
+      tag: 'fair-hand',
+      silent: false
+    });
   }
 
   // Update COOP badge
@@ -1897,10 +2125,7 @@ function handleVesselCountUpdate(data) {
     }
   }
 
-  // Update Harbor Map if open (60s update cycle)
-  if (window.harborMap && window.harborMap.refreshIfOpen) {
-    window.harborMap.refreshIfOpen();
-  }
+  // Harbor Map refresh is now handled by harbor_map_refresh_required event
 
   // Update pending button visibility
   const pendingBtn = document.getElementById('filterPendingBtn');
@@ -1930,6 +2155,22 @@ function handleVesselCountUpdate(data) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     }).catch(err => console.error('[Auto-Depart] Failed to trigger:', err));
+  }
+}
+
+/**
+ * Handles Harbor Map refresh requests from backend.
+ * Only refreshes when actual vessel/port changes occur (with rate limiting).
+ */
+function handleHarborMapRefreshRequired(data) {
+  const { reason } = data;
+  if (AUTOPILOT_LOG_LEVEL === 'detailed') {
+    console.log(`[Harbor Map] Refresh requested (reason: ${reason})`);
+  }
+
+  // Trigger Harbor Map refresh if open (has built-in 30s cooldown)
+  if (window.harborMap && window.harborMap.refreshIfOpen) {
+    window.harborMap.refreshIfOpen();
   }
 }
 
@@ -1975,9 +2216,39 @@ function handleRepairCountUpdate(data) {
 }
 
 /**
+ * Handles drydock count updates from backend.
+ * Updates the "Drydock" badge without API calls.
+ */
+function handleDrydockCountUpdate(data) {
+  const { count } = data;
+  updateDataCache.drydock = count;
+  if (AUTOPILOT_LOG_LEVEL === 'detailed') {
+    console.log(`[Autopilot] Drydock count update: ${count} vessel${count === 1 ? '' : 's'} need drydock`);
+  }
+
+  const drydockBadge = document.getElementById('drydockCount');
+  if (drydockBadge) {
+    drydockBadge.textContent = count;
+    if (count > 0) {
+      drydockBadge.classList.remove('hidden');
+    } else {
+      drydockBadge.classList.add('hidden');
+    }
+  }
+
+  // Cache value for next page load
+  if (window.saveBadgeCache) {
+    window.saveBadgeCache({ drydock: count });
+  }
+}
+
+/**
  * Handles campaign status updates from backend.
  * Updates the "Campaigns" badge without API calls.
  */
+// Track last campaign count for change detection
+let lastCampaignsCount = null;
+
 function handleCampaignStatusUpdate(data) {
   const { activeCount } = data;
   updateDataCache.campaigns = activeCount;
@@ -2009,6 +2280,59 @@ function handleCampaignStatusUpdate(data) {
       campaignsHeaderDisplay.classList.remove('text-success');
     }
   }
+
+  // Update button tooltip with campaign status
+  const campaignsBtn = document.getElementById('campaignsBtn');
+  if (campaignsBtn) {
+    const requiredTypes = ['reputation', 'awareness', 'green'];
+    const activeTypes = new Set((data.active || []).map(c => c.option_name));
+    const statusList = requiredTypes.map(type => {
+      const isActive = activeTypes.has(type);
+      const icon = isActive ? '✓' : '✗';
+      const name = type.charAt(0).toUpperCase() + type.slice(1);
+      return `${icon} ${name}`;
+    }).join('\n');
+    campaignsBtn.title = `Marketing Campaigns (${activeCount}/3 active)\n${statusList}`;
+  }
+
+  // Show notifications on initial load or count changes
+  if (lastCampaignsCount === null) {
+    // Initial notification (only if < 3 campaigns)
+    if (activeCount !== 3) {
+      showSideNotification(`📊 <strong>Marketing Campaigns</strong><br><br>Only ${activeCount}/3 campaigns are active!`, 'warning', null, true);
+
+      if (Notification.permission === 'granted') {
+        showNotification('📊 Marketing Campaigns Alert', {
+          body: `
+
+Only ${activeCount}/3 campaigns active`,
+          icon: '/favicon.ico',
+          tag: 'campaigns-alert',
+          silent: false
+        });
+      }
+    }
+  } else if (lastCampaignsCount !== activeCount) {
+    // Count changed - show appropriate notification
+    if (activeCount === 3) {
+      showSideNotification('✅ All 3 marketing campaigns are now active!', 'success');
+    } else {
+      showSideNotification(`⚠️ <strong>Marketing Campaigns</strong><br><br>${activeCount}/3 campaigns active`, 'warning', null, true);
+
+      if (Notification.permission === 'granted') {
+        showNotification('📊 Marketing Campaigns Alert', {
+          body: `
+
+Only ${activeCount}/3 campaigns active`,
+          icon: '/favicon.ico',
+          tag: 'campaigns-alert',
+          silent: false
+        });
+      }
+    }
+  }
+
+  lastCampaignsCount = activeCount;
 
   // Cache value for next page load
   if (window.saveBadgeCache) {
@@ -2282,7 +2606,7 @@ function handleHeaderDataUpdate(data) {
  * @param {string} data.action - Type of update (offer_submitted, pirate_counter_offer, accepting_price, hijacking_resolved)
  * @param {number} data.case_id - Hijacking case ID
  */
-function handleHijackingUpdate(data) {
+async function handleHijackingUpdate(data) {
   // Check if this is a badge/header update (from 30-second polling)
   if (data.openCases !== undefined || data.hijackedCount !== undefined) {
     if (window.DEBUG_MODE) {
@@ -2353,6 +2677,16 @@ function handleHijackingUpdate(data) {
       window.showSideNotification(blackbeardMessage, 'success', 12000);
     }
 
+    // Desktop notification
+    if (settings.autoPilotNotifications && settings.notifyCaptainBlackbeardDesktop && Notification.permission === 'granted') {
+      await showNotification(`☠️ Captain Blackbeard - Case ${case_id} Resolved`, {
+        body: `${vessel_name || 'Vessel'} secured for $${final_amount?.toLocaleString()}`,
+        icon: '/favicon.ico',
+        tag: 'captain-blackbeard',
+        silent: false
+      });
+    }
+
     // Refresh messenger to show Captain Blackbeard signature
     if (window.refreshMessengerChatList) {
       window.refreshMessengerChatList();
@@ -2366,6 +2700,16 @@ function handleHijackingUpdate(data) {
     if (settings.autoPilotNotifications && settings.notifyCaptainBlackbeardInApp && window.showSideNotification) {
       window.showSideNotification(blackbeardErrorMessage, 'error', 12000);
     }
+
+    // Desktop notification
+    if (settings.autoPilotNotifications && settings.notifyCaptainBlackbeardDesktop && Notification.permission === 'granted') {
+      await showNotification(`☠️ Captain Blackbeard - Case ${case_id} Failed`, {
+        body: `Negotiation failed - check case for details`,
+        icon: '/favicon.ico',
+        tag: 'captain-blackbeard',
+        silent: false
+      });
+    }
   } else if (action === 'insufficient_funds') {
     // Show Captain Blackbeard insufficient funds message as side notification
     const settings = window.getSettings ? window.getSettings() : {};
@@ -2375,6 +2719,16 @@ function handleHijackingUpdate(data) {
     // In-app notification
     if (settings.autoPilotNotifications && settings.notifyCaptainBlackbeardInApp && window.showSideNotification) {
       window.showSideNotification(blackbeardMoneyMessage, 'warning', 15000);
+    }
+
+    // Desktop notification
+    if (settings.autoPilotNotifications && settings.notifyCaptainBlackbeardDesktop && Notification.permission === 'granted') {
+      await showNotification(`☠️ Captain Blackbeard - Insufficient Funds`, {
+        body: `Case ${case_id}: Need $${required?.toLocaleString()}, have $${available?.toLocaleString()}`,
+        icon: '/favicon.ico',
+        tag: 'captain-blackbeard',
+        silent: false
+      });
     }
   }
 }
@@ -2412,5 +2766,66 @@ function handleEventDataUpdate(eventData) {
     window.saveBadgeCache({
       eventData: eventData
     });
+  }
+}
+
+/**
+ * Marks alliance chat as read by sending the latest message timestamp to backend.
+ * This updates the user's last read timestamp, which is used to calculate unread counts
+ * and prevent notification spam.
+ *
+ * Why This Function:
+ * - Called when user closes alliance chat overlay
+ * - Updates backend read tracking (syncs across devices)
+ * - Prevents old messages from showing as unread again
+ * - Backend becomes single source of truth for read status
+ *
+ * Side Effects:
+ * - Makes POST request to /api/chat/mark-read
+ * - Updates backend read-tracking.json file
+ * - Future GET /api/chat calls will use this timestamp
+ *
+ * @async
+ * @returns {Promise<void>}
+ *
+ * @example
+ * // Called when user closes chat overlay
+ * await markAllianceChatAsRead();
+ */
+export async function markAllianceChatAsRead() {
+  try {
+    // Get the latest message timestamp from allMessages
+    if (allMessages.length === 0) {
+      return; // No messages to mark as read
+    }
+
+    // Find the latest timestamp (messages may have timestampMs from backend)
+    const latestTimestamp = Math.max(...allMessages.map(msg => {
+      if (msg.timestampMs) {
+        return msg.timestampMs;
+      } else if (msg.timestamp) {
+        return new Date(msg.timestamp).getTime();
+      }
+      return 0;
+    }));
+
+    if (latestTimestamp === 0) {
+      return; // No valid timestamps
+    }
+
+    // Send mark-read request to backend
+    const response = await fetch(window.apiUrl('/api/chat/mark-read'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ timestamp: latestTimestamp })
+    });
+
+    if (!response.ok) {
+      console.error('[Chat] Failed to mark messages as read:', response.statusText);
+    }
+  } catch (error) {
+    console.error('[Chat] Error marking messages as read:', error);
   }
 }

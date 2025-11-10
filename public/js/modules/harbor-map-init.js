@@ -7,7 +7,7 @@
  */
 
 import { initMap, loadOverview, setPortFilter, deselectAll, updateWeatherDataSetting } from './harbor-map/map-controller.js';
-import { prefetchHarborMapData } from './harbor-map/api-client.js';
+import { prefetchHarborMapData, invalidateOverviewCache } from './harbor-map/api-client.js';
 
 let mapInitialized = false;
 let autoUpdateInterval = null;
@@ -19,18 +19,37 @@ let autoUpdateInterval = null;
  * @returns {Promise<void>}
  */
 export async function preloadHarborMapData() {
-  await prefetchHarborMapData('my_ports');
+  // Invalidate old cache (might contain filtered data from old version)
+  invalidateOverviewCache();
+
+  // Always fetch ALL data - filtering happens client-side
+  await prefetchHarborMapData('all_ports');
 }
+
+// Rate limiting for Harbor Map refresh
+let lastRefreshTime = 0;
+const REFRESH_COOLDOWN = 30000; // 30 seconds
 
 /**
  * Refreshes harbor map if open (called from external update routines)
  * This is called by vessel-management.js when vessel data is updated
  * ONLY refreshes if no detail panel is open (to avoid disrupting user)
+ * Rate limited: 30s cooldown between refreshes
  *
  * @returns {Promise<void>}
  */
 export async function refreshHarborMapIfOpen() {
   try {
+    // Rate limiting check
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastRefreshTime;
+
+    if (timeSinceLastRefresh < REFRESH_COOLDOWN) {
+      const remainingSeconds = Math.floor((REFRESH_COOLDOWN - timeSinceLastRefresh) / 1000);
+      console.log(`[Harbor Map] Skipping refresh (cooldown active, ${remainingSeconds}s remaining)`);
+      return;
+    }
+
     // Check if Harbor Map tab is active
     const harborMapCanvas = document.getElementById('harborMapCanvas');
     const isMapVisible = harborMapCanvas && harborMapCanvas.offsetParent !== null;
@@ -40,9 +59,8 @@ export async function refreshHarborMapIfOpen() {
       return;
     }
 
-    // Map is visible - update cache
-    const savedFilter = localStorage.getItem('harborMapFilter') || 'my_ports';
-    await prefetchHarborMapData(savedFilter);
+    // Map is visible - update cache (always fetch ALL data)
+    await prefetchHarborMapData('all_ports');
 
     // Map is open - check if panels are open
     const vesselPanel = document.getElementById('vessel-detail-panel');
@@ -66,6 +84,9 @@ export async function refreshHarborMapIfOpen() {
       await loadOverview();
       console.log('[Harbor Map] Map refreshed with new vessel data');
     }
+
+    // Update last refresh timestamp
+    lastRefreshTime = Date.now();
   } catch (error) {
     console.error('[Harbor Map] Refresh failed:', error);
   }

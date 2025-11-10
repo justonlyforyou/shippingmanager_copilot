@@ -36,7 +36,7 @@ const DEBUG_MODE = config.DEBUG_MODE;
 async function autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-Anchor Purchase] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Anchor Purchase] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -44,9 +44,7 @@ async function autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser,
 
   const settings = state.getSettings(userId);
   if (!settings.autoAnchorPointEnabled) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Anchor Purchase] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Anchor Purchase] Feature disabled in settings');
     return;
   }
 
@@ -88,7 +86,7 @@ async function autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser,
 
     // Check if we have enough cash for the purchase
     if (totalCost > bunker.cash) {
-      logger.log(`[Auto-Anchor] Insufficient funds: Need $${totalCost.toLocaleString()}, Have $${bunker.cash.toLocaleString()}`);
+      logger.warn(`[Auto-Anchor] Insufficient funds: Need $${totalCost.toLocaleString()}, Have $${bunker.cash.toLocaleString()}`);
       return;
     }
 
@@ -97,30 +95,24 @@ async function autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser,
 
     // Only buy if remaining cash stays above minimum
     if (remainingCash < minCash) {
-      logger.log(`[Auto-Anchor] Skipping purchase: Would leave $${remainingCash.toLocaleString()}, need to keep minimum $${minCash.toLocaleString()}`);
+      logger.warn(`[Auto-Anchor] Skipping purchase: Would leave $${remainingCash.toLocaleString()}, need to keep minimum $${minCash.toLocaleString()}`);
       return;
     }
 
-    if (DEBUG_MODE) {
-      logger.log(`[Auto-Anchor] Purchasing ${amount} anchor point(s) @ $${price.toLocaleString()}/point = $${totalCost.toLocaleString()}`);
-    }
+    logger.debug(`[Auto-Anchor] Purchasing ${amount} anchor point(s) @ $${price.toLocaleString()}/point = $${totalCost.toLocaleString()}`);
 
     // Purchase anchor points
     const purchaseData = await apiCall('/anchor-point/purchase-anchor-points', 'POST', { amount });
 
     // Check for errors
     if (purchaseData.error) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Anchor] Purchase failed: ${purchaseData.error.error || 'Unknown error'}`);
-      }
+      logger.debug(`[Auto-Anchor] Purchase failed: ${purchaseData.error.error || 'Unknown error'}`);
       return;
     }
 
     // Check if purchase was not successful
     if (!purchaseData.data?.success) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Anchor] Purchase not successful (API returned success: false)`);
-      }
+      logger.debug(`[Auto-Anchor] Purchase not successful (API returned success: false)`);
       return;
     }
 
@@ -134,7 +126,7 @@ async function autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser,
     state.updateSettings(userId, currentSettings);
     await saveSettings(userId, currentSettings);
 
-    logger.log(`[Auto-Anchor] Success! Purchased ${amount} anchor point(s) for $${totalCost.toLocaleString()}. Construction timer started.`);
+    logger.info(`[Auto-Anchor] Success! Purchased ${amount} anchor point(s) for $${totalCost.toLocaleString()}. Construction timer started.`);
 
     // Log to autopilot logbook
     await logAutopilotAction(

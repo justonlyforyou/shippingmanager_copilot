@@ -43,7 +43,7 @@ class ChatBot {
             this.settings = await settingsManager.loadSettings();
             this.setupScheduledTasks();
             this.initialized = true;
-            logger.log('[ChatBot] Initialized successfully');
+            logger.debug('[ChatBot] Initialized successfully');
         } catch (error) {
             logger.error('[ChatBot] Failed to initialize:', error);
         }

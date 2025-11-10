@@ -196,7 +196,7 @@ function clearAllCaches() {
   coopCache = null;
   allianceCache = null;
   companyCache = null;
-  logger.log('[Cache] All caches cleared');
+  logger.debug('[Cache] All caches cleared');
 }
 
 module.exports = {

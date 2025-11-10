@@ -30,7 +30,7 @@ const DEBUG_MODE = config.DEBUG_MODE;
 async function autoCampaignRenewal(campaignData = null, autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-Campaign] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Campaign] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -39,9 +39,7 @@ async function autoCampaignRenewal(campaignData = null, autopilotPaused, broadca
 
   const settings = state.getSettings(userId);
   if (!settings.autoCampaignRenewal) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Campaign] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Campaign] Feature disabled in settings');
     return;
   }
 
@@ -64,7 +62,7 @@ async function autoCampaignRenewal(campaignData = null, autopilotPaused, broadca
     logger.debug(`[Auto-Campaign] Types needing renewal: ${typesToRenew.join(', ') || 'none'}`);
 
     if (typesToRenew.length === 0) {
-      logger.log('[Auto-Campaign] All campaign types are active, no renewal needed');
+      logger.debug('[Auto-Campaign] All campaign types are active, no renewal needed');
       return;
     }
 
@@ -105,7 +103,7 @@ async function autoCampaignRenewal(campaignData = null, autopilotPaused, broadca
     if (renewed.length > 0) {
       // Log summary
       const summary = renewed.map(r => `${r.name} (${r.duration}h, $${r.price.toLocaleString()})`).join(', ');
-      logger.log(`[Auto-Campaign] Renewed ${renewed.length} campaign(s): ${summary}`);
+      logger.info(`[Auto-Campaign] Renewed ${renewed.length} campaign(s): ${summary}`);
 
       if (broadcastToUser) {
         logger.debug(`[Auto-Campaign] Broadcasting campaigns_renewed (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);

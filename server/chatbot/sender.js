@@ -84,7 +84,7 @@ async function sendAllianceMessage(message) {
 
         // CRITICAL: Game API has 1000 character limit
         if (message.length > 1000) {
-            logger.error(`[ChatBot] ⚠️ WARNING: Message too long! ${message.length} chars (max: 1000)`);
+            logger.error(`[ChatBot] WARNING: Message too long! ${message.length} chars (max: 1000)`);
             logger.error(`[ChatBot] Message will be truncated to avoid API error`);
 
             // Truncate message and add indicator
@@ -124,7 +124,7 @@ async function sendPrivateMessage(userId, subject, message) {
     try {
         // CRITICAL: Game API has 1000 character limit for messages
         if (message.length > 1000) {
-            logger.error(`[ChatBot] ⚠️ WARNING: DM too long! ${message.length} chars (max: 1000)`);
+            logger.error(`[ChatBot] WARNING: DM too long! ${message.length} chars (max: 1000)`);
             logger.error(`[ChatBot] Message will be truncated to avoid API error`);
 
             // Truncate message and add indicator
@@ -151,7 +151,7 @@ async function sendPrivateMessage(userId, subject, message) {
         // Special handling for self-DM attempts
         if (userId === myUserId) {
             logger.error(`[ChatBot] Cannot send DM to yourself - game API limitation`);
-            logger.log(`[ChatBot] Falling back to public response`);
+            logger.debug(`[ChatBot] Falling back to public response`);
             // Don't re-throw for self-DM, handle gracefully
             return null;
         }

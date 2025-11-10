@@ -30,7 +30,7 @@ async function loadSettings() {
 
         // Map per-user settings to chatbot settings object
         const chatbotSettings = mapSettingsToChatBotObject(allSettings);
-        logger.log('[ChatBot] Settings loaded');
+        logger.debug('[ChatBot] Settings loaded');
         return chatbotSettings;
     } catch (error) {
         logger.error('[ChatBot] Error loading settings:', error);
@@ -190,7 +190,7 @@ async function updateSettings(newSettings, currentSettings) {
         // Save updated per-user settings
         await fs.writeFile(settingsPath, JSON.stringify(allSettings, null, 2), 'utf8');
 
-        logger.log('[ChatBot] Settings updated successfully');
+        logger.debug('[ChatBot] Settings updated successfully');
 
         return mergedSettings;
     } catch (error) {

@@ -93,9 +93,9 @@ function loadProcessedMessageCache(userId) {
       const ids = JSON.parse(data);
       const userSet = getProcessedMessageIds(userId);
       ids.forEach(id => userSet.add(id));
-      logger.log(`[Messenger] Loaded ${userSet.size} processed message IDs from cache for user ${userId}`);
+      logger.debug(`[Messenger] Loaded ${userSet.size} processed message IDs from cache for user ${userId}`);
     } else {
-      logger.log(`[Messenger] No cache file found for user ${userId}, starting with empty processed messages cache`);
+      logger.debug(`[Messenger] No cache file found for user ${userId}, starting with empty processed messages cache`);
     }
   } catch (error) {
     logger.error(`[Messenger] Error loading processed messages cache for user ${userId}:`, error.message);
@@ -242,9 +242,7 @@ async function getCachedMessengerChats() {
 
   // Return cached data if still fresh
   if (messengerChatsCache.data && cacheAge < MESSENGER_CHATS_CACHE_TTL) {
-    if (DEBUG_MODE) {
-      logger.log(`[Messenger Cache] Using cached data (age: ${Math.round(cacheAge / 1000)}s)`);
-    }
+    logger.debug(`[Messenger Cache] Using cached data (age: ${Math.round(cacheAge / 1000)}s)`);
     return messengerChatsCache.data;
   }
 
@@ -260,9 +258,7 @@ async function getCachedMessengerChats() {
       timestamp: now
     };
 
-    if (DEBUG_MODE) {
-      logger.log(`[Messenger Cache] Fetched fresh data (${chats.length} chats)`);
-    }
+    logger.debug(`[Messenger Cache] Fetched fresh data (${chats.length} chats)`);
 
     return chats;
   } catch (error) {
@@ -270,7 +266,7 @@ async function getCachedMessengerChats() {
 
     // Return stale cache if available (better than nothing)
     if (messengerChatsCache.data) {
-      logger.log('[Messenger Cache] Returning stale cache due to error');
+      logger.warn('[Messenger Cache] Returning stale cache due to error');
       return messengerChatsCache.data;
     }
 
@@ -303,24 +299,18 @@ async function getCachedHijackingCase(caseId) {
 
       // Solved cases: Cache forever
       if (!cached.isOpen) {
-        if (DEBUG_MODE) {
-          logger.log(`[Hijacking Cache] Case ${caseId} (solved) from cache`);
-        }
+        logger.debug(`[Hijacking Cache] Case ${caseId} (solved) from cache`);
         return { ...cached, cached: true };
       }
 
       // Open cases: Cache for 5 minutes
       if (age < HIJACKING_CASE_CACHE_TTL) {
-        if (DEBUG_MODE) {
-          logger.log(`[Hijacking Cache] Case ${caseId} (open) from cache (age: ${Math.round(age / 1000)}s)`);
-        }
+        logger.debug(`[Hijacking Cache] Case ${caseId} (open) from cache (age: ${Math.round(age / 1000)}s)`);
         return { ...cached, cached: true };
       }
 
       // Cache expired for open case
-      if (DEBUG_MODE) {
-        logger.log(`[Hijacking Cache] Case ${caseId} cache expired (age: ${Math.round(age / 1000)}s), refreshing`);
-      }
+      logger.debug(`[Hijacking Cache] Case ${caseId} cache expired (age: ${Math.round(age / 1000)}s), refreshing`);
     }
 
     // Fetch fresh data from API
@@ -343,9 +333,7 @@ async function getCachedHijackingCase(caseId) {
       logger.debug(`[Hijacking] Case ${caseId} solved, added to cache`);
     }
 
-    if (DEBUG_MODE) {
-      logger.log(`[Hijacking Cache] Case ${caseId} fetched from API (status: ${isOpen ? 'open' : 'solved'})`);
-    }
+    logger.debug(`[Hijacking Cache] Case ${caseId} fetched from API (status: ${isOpen ? 'open' : 'solved'})`);
 
     return { isOpen, details, cached: false };
   } catch (error) {
@@ -395,7 +383,7 @@ function initWebSocket(server) {
   wss = new WebSocket.Server({ noServer: true });
 
   wss.on('connection', async (ws) => {
-    logger.log('[WebSocket] Client connected');
+    logger.debug('[WebSocket] Client connected');
 
     // Send ALL cached data immediately on connect
     try {
@@ -410,7 +398,7 @@ function initWebSocket(server) {
           loadProcessedMessageCache(userId);
         }
 
-        logger.log('[WebSocket] Sending all cached data to client...');
+        logger.debug('[WebSocket] Sending all cached data to client...');
 
         // Send current autopilot pause status FIRST
         ws.send(JSON.stringify({
@@ -435,7 +423,7 @@ function initWebSocket(server) {
                 regularCO2: prices.regularCO2
               }
             }));
-            logger.log('[WebSocket] ✓ Prices sent');
+            logger.debug('[WebSocket] OK Prices sent');
           } else if (prices) {
             logger.warn(`[WebSocket] ✗ Prices NOT sent - invalid values: fuel=${prices.fuel}, co2=${prices.co2}`);
           }
@@ -447,7 +435,7 @@ function initWebSocket(server) {
               type: 'bunker_update',
               data: bunker
             }));
-            logger.log('[WebSocket] ✓ Bunker state sent');
+            logger.debug('[WebSocket] OK Bunker state sent');
           }
 
           // Vessel counts
@@ -457,7 +445,7 @@ function initWebSocket(server) {
               type: 'vessel_count_update',
               data: vesselCounts
             }));
-            logger.log('[WebSocket] ✓ Vessel counts sent');
+            logger.debug('[WebSocket] OK Vessel counts sent');
           }
 
           // Repair count
@@ -467,7 +455,7 @@ function initWebSocket(server) {
               type: 'repair_count_update',
               data: { count: repairCount }
             }));
-            logger.log('[WebSocket] ✓ Repair count sent');
+            logger.debug('[WebSocket] OK Repair count sent');
           }
 
           // Campaign status
@@ -477,7 +465,7 @@ function initWebSocket(server) {
               type: 'campaign_status_update',
               data: campaignStatus
             }));
-            logger.log('[WebSocket] ✓ Campaign status sent');
+            logger.debug('[WebSocket] OK Campaign status sent');
           }
 
           // COOP data - alliance-dependent
@@ -490,7 +478,7 @@ function initWebSocket(server) {
               type: 'coop_update',
               data: { available: 0, cap: 0, coop_boost: 0 }
             }));
-            logger.log('[WebSocket] ✓ COOP cleared (no alliance)');
+            logger.debug('[WebSocket] OK COOP cleared (no alliance)');
           } else {
             // User in alliance - fetch/send COOP data
             let coopData = state.getCoopData(userId);
@@ -507,7 +495,7 @@ function initWebSocket(server) {
                   };
                   // Cache for future use
                   state.updateCoopData(userId, coopData);
-                  logger.log('[WebSocket] ✓ COOP data fetched from API (cache was empty)');
+                  logger.debug('[WebSocket] OK COOP data fetched from API (cache was empty)');
                 }
               } catch (coopError) {
                 logger.error('[WebSocket] Failed to fetch COOP data:', coopError.message);
@@ -521,14 +509,14 @@ function initWebSocket(server) {
                 type: 'coop_update',
                 data: coopData
               }));
-              logger.log('[WebSocket] ✓ COOP data sent');
+              logger.debug('[WebSocket] OK COOP data sent');
             } else {
               // Send placeholder to make button visible (data will be updated later)
               ws.send(JSON.stringify({
                 type: 'coop_update',
                 data: { available: 0, cap: 1, coop_boost: 0 }  // cap: 1 to show button
               }));
-              logger.log('[WebSocket] ✓ COOP placeholder sent (data will load later)');
+              logger.debug('[WebSocket] OK COOP placeholder sent (data will load later)');
             }
           }
 
@@ -545,14 +533,14 @@ function initWebSocket(server) {
                   anchor: headerData.anchor || { available: 0, max: 0 }
                 }
               }));
-              logger.log('[WebSocket] ✓ Header data sent (stock cleared, anchor kept - no alliance)');
+              logger.debug('[WebSocket] OK Header data sent (stock cleared, anchor kept - no alliance)');
             } else {
               // User in alliance - send full header data
               ws.send(JSON.stringify({
                 type: 'header_data_update',
                 data: headerData
               }));
-              logger.log('[WebSocket] ✓ Header data sent');
+              logger.debug('[WebSocket] OK Header data sent');
             }
           }
 
@@ -563,7 +551,7 @@ function initWebSocket(server) {
               type: 'event_data_update',
               data: eventData
             }));
-            logger.log('[WebSocket] ✓ Event data sent');
+            logger.debug('[WebSocket] OK Event data sent');
           }
 
         } catch (cacheError) {
@@ -595,7 +583,7 @@ function initWebSocket(server) {
                 type: 'chat_update',
                 data: messages
               }));
-              logger.log('[WebSocket] ✓ Chat data sent');
+              logger.debug('[WebSocket] OK Chat data sent');
             }
           }
         } catch (chatError) {
@@ -615,7 +603,7 @@ function initWebSocket(server) {
             type: 'messenger_update',
             data: { messages: unreadCount, chats: chats.length }
           }));
-          logger.log('[WebSocket] ✓ Messenger counts sent');
+          logger.debug('[WebSocket] OK Messenger counts sent');
 
           // Hijacking counts
           const hijackingChats = chats.filter(chat =>
@@ -639,20 +627,20 @@ function initWebSocket(server) {
             type: 'hijacking_update',
             data: { openCases, totalCases: cases.length, hijackedCount }
           }));
-          logger.log('[WebSocket] ✓ Hijacking counts sent');
+          logger.debug('[WebSocket] OK Hijacking counts sent');
 
         } catch (messengerError) {
           logger.error('[WebSocket] Failed to send messenger/hijacking data:', messengerError.message);
         }
 
-        logger.log('[WebSocket] All cached data sent to client');
+        logger.debug('[WebSocket] All cached data sent to client');
       }
     } catch (error) {
       logger.error('[WebSocket] Failed to send initial data:', error.message);
     }
 
     ws.on('close', () => {
-      logger.log('[WebSocket] Client disconnected');
+      logger.debug('[WebSocket] Client disconnected');
     });
 
     ws.on('error', (error) => {
@@ -716,9 +704,7 @@ function broadcast(type, data) {
 
   const openClients = Array.from(wss.clients).filter(c => c.readyState === WebSocket.OPEN);
 
-  if (DEBUG_MODE) {
-    logger.log(`[WebSocket] Broadcasting '${type}' to ${openClients.length} client(s)`);
-  }
+  logger.debug(`[WebSocket] Broadcasting '${type}' to ${openClients.length} client(s)`);
 
   wss.clients.forEach(client => {
     if (client.readyState === WebSocket.OPEN) {
@@ -901,7 +887,7 @@ async function performChatRefresh() {
 
   // Skip if previous refresh is still running
   if (isChatRefreshing) {
-    logger.log('[Chat Refresh] Skipping - previous request still running');
+    logger.debug('[Chat Refresh] Skipping - previous request still running');
     return;
   }
 
@@ -997,7 +983,7 @@ function startChatAutoRefresh() {
  * triggerImmediateChatRefresh(); // Clients will see response in ~3 seconds instead of up to 25s
  */
 function triggerImmediateChatRefresh() {
-  logger.log('[Chat Refresh] Immediate refresh triggered - will execute in 3 seconds');
+  logger.debug('[Chat Refresh] Immediate refresh triggered - will execute in 3 seconds');
   setTimeout(async () => {
     await performChatRefresh();
   }, 3000); // 3-second delay to allow Game API to persist the message
@@ -1015,7 +1001,7 @@ function triggerImmediateChatRefresh() {
 async function performMessengerRefresh() {
   // Skip if previous refresh is still running
   if (isMessengerRefreshing) {
-    logger.log('[Messenger Refresh] Skipping - previous request still running');
+    logger.debug('[Messenger Refresh] Skipping - previous request still running');
     return;
   }
 
@@ -1095,7 +1081,7 @@ async function performMessengerRefresh() {
 
         // Only log if chat is unread (to reduce spam in logs)
         if (chat.new) {
-          logger.log(`[Messenger] New DM from ${chat.participants_string}: "${latestMessage.body || chat.subject}"`);
+          logger.info(`[Messenger] New DM from ${chat.participants_string}: "${latestMessage.body || chat.subject}"`);
         }
 
         // Process with ChatBot - lazy-loaded to avoid circular dependency
@@ -1111,7 +1097,7 @@ async function performMessengerRefresh() {
         if (wasProcessed) {
           userProcessedIds.add(messageIdentifier);
           saveProcessedMessageCache(userId);
-          logger.log(`[Messenger] Bot replied and cached: ${messageIdentifier}`);
+          logger.info(`[Messenger] Bot replied and cached: ${messageIdentifier}`);
         } else {
           // Add to cache even if not processed, so we don't spam logs every polling cycle
           userProcessedIds.add(messageIdentifier);
@@ -1125,12 +1111,10 @@ async function performMessengerRefresh() {
     }
 
     // Log only in debug mode
-    if (DEBUG_MODE) {
-      if (unreadCount > 0) {
-        logger.log(`[Messenger] ${unreadCount} unread messages detected`);
-      } else {
-        logger.log(`[Messenger] Poll complete: 0 unread messages`);
-      }
+    if (unreadCount > 0) {
+      logger.debug(`[Messenger] ${unreadCount} unread messages detected`);
+    } else {
+      logger.debug(`[Messenger] Poll complete: 0 unread messages`);
     }
   } catch (error) {
     // Only log non-timeout errors
@@ -1153,7 +1137,7 @@ async function performMessengerRefresh() {
 function startMessengerAutoRefresh() {
   // Messenger refresh now runs together with chat refresh in startChatAutoRefresh()
   // No separate interval needed - both APIs are called simultaneously
-  logger.log('[Messenger] Messenger polling synchronized with chat polling (20s interval)');
+  logger.info('[Messenger] Messenger polling synchronized with chat polling (20s interval)');
 }
 
 /**
@@ -1174,7 +1158,7 @@ function startMessengerAutoRefresh() {
  * triggerImmediateMessengerRefresh(); // Client will see response in ~3 seconds instead of up to 10s
  */
 function triggerImmediateMessengerRefresh() {
-  logger.log('[Messenger Refresh] Immediate refresh triggered - will execute in 3 seconds');
+  logger.debug('[Messenger Refresh] Immediate refresh triggered - will execute in 3 seconds');
   setTimeout(async () => {
     await performMessengerRefresh();
   }, 3000); // 3-second delay to allow Game API to persist the message
@@ -1271,9 +1255,7 @@ function stopChatAutoRefresh() {
 async function performHijackingRefresh() {
   // Skip if previous refresh is still running
   if (isHijackingRefreshing) {
-    if (DEBUG_MODE) {
-      logger.log('[Hijacking Refresh] Skipping - previous request still running');
-    }
+    logger.debug('[Hijacking Refresh] Skipping - previous request still running');
     return;
   }
 
@@ -1322,12 +1304,10 @@ async function performHijackingRefresh() {
       totalCases: cases.length,
       hijackedCount: hijackedCount
     };
-    logger.log(`[Hijacking Refresh] Broadcasting update: ${openCases} open, ${hijackedCount} hijacked (${fetchedCount} API calls, ${cachedCount} cached)`);
+    logger.debug(`[Hijacking Refresh] Broadcasting update: ${openCases} open, ${hijackedCount} hijacked (${fetchedCount} API calls, ${cachedCount} cached)`);
     broadcast('hijacking_update', hijackingData);
 
-    if (DEBUG_MODE) {
-      logger.log(`[Hijacking] ${openCases} open cases, ${hijackedCount} hijacked vessels`);
-    }
+    logger.debug(`[Hijacking] ${openCases} open cases, ${hijackedCount} hijacked vessels`);
   } catch (error) {
     // Only log non-timeout and non-connection errors
     if (!error.message.includes('socket hang up') &&
@@ -1380,12 +1360,51 @@ function stopHijackingAutoRefresh() {
  * @returns {void}
  */
 function triggerImmediateHijackingRefresh() {
-  if (DEBUG_MODE) {
-    logger.log('[Hijacking Refresh] Immediate refresh triggered - will execute in 2 seconds');
-  }
+  logger.debug('[Hijacking Refresh] Immediate refresh triggered - will execute in 2 seconds');
   setTimeout(async () => {
     await performHijackingRefresh();
   }, 2000); // 2-second delay to allow API to update
+}
+
+// ============================================================================
+// Harbor Map Refresh Management (Rate-Limited)
+// ============================================================================
+
+// Rate limiting for Harbor Map refresh broadcasts
+let lastHarborMapBroadcast = 0;
+const HARBOR_MAP_COOLDOWN = 30000; // 30 seconds
+
+/**
+ * Broadcasts a Harbor Map refresh event with rate limiting.
+ * Only broadcasts if > 30 seconds since last broadcast.
+ *
+ * @param {string} userId - User ID
+ * @param {string} reason - Reason for refresh (e.g., "vessels_departed", "vessels_purchased", "ports_purchased", "interval")
+ * @param {Object} data - Additional data to include in broadcast
+ * @returns {boolean} - True if broadcast sent, false if skipped due to cooldown
+ */
+function broadcastHarborMapRefresh(userId, reason, data = {}) {
+  const now = Date.now();
+  const timeSinceLastBroadcast = now - lastHarborMapBroadcast;
+
+  // Skip if within cooldown period
+  if (timeSinceLastBroadcast < HARBOR_MAP_COOLDOWN) {
+    logger.debug(`[Harbor Map] Skipping broadcast (cooldown active, ${Math.floor((HARBOR_MAP_COOLDOWN - timeSinceLastBroadcast) / 1000)}s remaining)`);
+    return false;
+  }
+
+  // Update last broadcast timestamp
+  lastHarborMapBroadcast = now;
+
+  // Broadcast the event
+  broadcastToUser(userId, 'harbor_map_refresh_required', {
+    reason,
+    timestamp: now,
+    ...data
+  });
+
+  logger.debug(`[Harbor Map] Refresh broadcast sent (reason: ${reason})`);
+  return true;
 }
 
 module.exports = {
@@ -1393,6 +1412,7 @@ module.exports = {
   broadcast,
   broadcastToUser,
   broadcastBunkerUpdate,
+  broadcastHarborMapRefresh,
   startChatAutoRefresh,
   stopChatAutoRefresh,
   triggerImmediateChatRefresh,

@@ -72,7 +72,7 @@ async function handleForecastCommand(args, userId, userName, config, isDM, sendR
     if (forecastText && forecastText.trim()) {
         await sendResponseFn(forecastText, responseType, userId, isDM);
     } else {
-        logger.log('[ChatBot] No forecast text generated - skipping response');
+        logger.debug('[ChatBot] No forecast text generated - skipping response');
     }
 }
 
@@ -84,7 +84,7 @@ async function handleForecastCommand(args, userId, userName, config, isDM, sendR
  */
 async function generateForecastText(day, timezone) {
     try {
-        logger.log(`[ChatBot] Generating forecast for day ${day}${timezone ? ` in ${timezone}` : ' (server timezone)'}`);
+        logger.debug(`[ChatBot] Generating forecast for day ${day}${timezone ? ` in ${timezone}` : ' (server timezone)'}`);
 
         // Use the existing forecast API endpoint (includes event discounts, formatting, etc.)
         const axios = require('axios');
@@ -110,7 +110,7 @@ async function generateForecastText(day, timezone) {
 
         const forecastText = response.data;
 
-        logger.log(`[ChatBot] Forecast generated successfully for day ${day}`);
+        logger.debug(`[ChatBot] Forecast generated successfully for day ${day}`);
         return forecastText;
 
     } catch (error) {

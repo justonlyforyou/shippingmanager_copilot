@@ -137,17 +137,17 @@ if (typeof window !== 'undefined') {
  * backtracking (ReDoS vulnerability).
  *
  * @param {number|string} value - Number to format
- * @returns {string} Formatted number with dots as thousand separators (e.g., "10.000")
+ * @returns {string} Formatted number with commas as thousand separators (e.g., "10,000")
  *
  * @example
- * formatNumberWithSeparator(1000)      // "1.000"
- * formatNumberWithSeparator("10000")   // "10.000"
- * formatNumberWithSeparator(1234567)   // "1.234.567"
+ * formatNumberWithSeparator(1000)      // "1,000"
+ * formatNumberWithSeparator("10000")   // "10,000"
+ * formatNumberWithSeparator(1234567)   // "1,234,567"
  */
 function formatNumberWithSeparator(value) {
   const num = Number(value);
   if (isNaN(num)) return String(value);
-  return new Intl.NumberFormat('de-DE', {
+  return new Intl.NumberFormat('en-US', {
     useGrouping: true,
     maximumFractionDigits: 0
   }).format(num);
@@ -192,11 +192,13 @@ import {
   handleMessageInput,
   loadAllianceMembers,
   initWebSocket,
-  setChatScrollListener
+  setChatScrollListener,
+  markAllianceChatAsRead
 } from './modules/chat.js';
 
-// Expose loadMessages to window for alliance chat badge updates
+// Expose loadMessages and markAllianceChatAsRead to window for alliance chat badge updates
 window.loadMessages = loadMessages;
+window.markAllianceChatAsRead = markAllianceChatAsRead;
 
 // Import messenger functionality
 import {
@@ -223,7 +225,6 @@ import {
 // Import bunker management
 import {
   updateBunkerStatus,
-  updateCampaignsStatus,
   buyMaxFuel,
   buyMaxCO2,
   setCapacityFromBunkerUpdate
@@ -237,6 +238,7 @@ import {
   updateRepairCount,
   departAllVessels,
   repairAllVessels,
+  openRepairAndDrydockDialog,
   loadAcquirableVessels,
   showPendingVessels,
   displayVessels,
@@ -314,15 +316,12 @@ const charCount = document.getElementById('charCount');
 let settings = null; // Will be loaded async on DOMContentLoaded
 
 /**
- * Debouncing timeout handles for preventing excessive API calls.
- * These are used to batch rapid UI updates into single delayed API requests.
+ * Debouncing timeout storage for preventing excessive API calls.
+ * Uses a Map to manage multiple debounce timers efficiently.
  *
- * @type {number|null}
+ * @type {Map<string, number>}
  */
-let updateBunkerTimeout = null;
-let updateVesselTimeout = null;
-let updateUnreadTimeout = null;
-let updateRepairTimeout = null;
+const debounceTimeouts = new Map();
 
 // =============================================================================
 // Badge Caching System
@@ -1031,10 +1030,26 @@ window.setCapacityFromBunkerUpdate = setCapacityFromBunkerUpdate;
  * // Called when fuel threshold changes
  * debouncedUpdateBunkerStatus(800);
  */
-function debouncedUpdateBunkerStatus(delay = 800) {
-  clearTimeout(updateBunkerTimeout);
-  updateBunkerTimeout = setTimeout(() => updateBunkerStatus(settings), delay);
+/**
+ * Creates a debounced function that delays executing the given function until
+ * after the specified delay has elapsed since the last invocation.
+ *
+ * @function
+ * @param {string} key - Unique identifier for this debounced function's timeout
+ * @param {Function} func - The function to debounce
+ * @returns {Function} Debounced function that accepts a delay parameter
+ * @example
+ * const debouncedFn = createDebouncedFunction('myKey', () => console.log('Called'));
+ * debouncedFn(500); // Executes after 500ms of inactivity
+ */
+function createDebouncedFunction(key, func) {
+  return function(delay) {
+    clearTimeout(debounceTimeouts.get(key));
+    debounceTimeouts.set(key, setTimeout(func, delay));
+  };
 }
+
+const debouncedUpdateBunkerStatus = createDebouncedFunction('bunker', () => updateBunkerStatus(settings));
 
 /**
  * Debounced vessel count update to prevent excessive API calls.
@@ -1046,10 +1061,7 @@ function debouncedUpdateBunkerStatus(delay = 800) {
  * // Called after vessel departure or purchase
  * debouncedUpdateVesselCount(500);
  */
-function debouncedUpdateVesselCount(delay = 800) {
-  clearTimeout(updateVesselTimeout);
-  updateVesselTimeout = setTimeout(() => updateVesselCount(), delay);
-}
+const debouncedUpdateVesselCount = createDebouncedFunction('vessel', () => updateVesselCount());
 
 /**
  * Debounced unread message badge update.
@@ -1061,10 +1073,7 @@ function debouncedUpdateVesselCount(delay = 800) {
  * // Called after sending/reading messages
  * debouncedUpdateUnreadBadge(1000);
  */
-function debouncedUpdateUnreadBadge(delay = 1000) {
-  clearTimeout(updateUnreadTimeout);
-  updateUnreadTimeout = setTimeout(() => updateUnreadBadge(), delay);
-}
+const debouncedUpdateUnreadBadge = createDebouncedFunction('unread', () => updateUnreadBadge());
 
 /**
  * Debounced repair count update to prevent excessive API calls.
@@ -1076,10 +1085,7 @@ function debouncedUpdateUnreadBadge(delay = 1000) {
  * // Called when maintenance threshold setting changes
  * debouncedUpdateRepairCount(500);
  */
-function debouncedUpdateRepairCount(delay = 800) {
-  clearTimeout(updateRepairTimeout);
-  updateRepairTimeout = setTimeout(() => updateRepairCount(settings), delay);
-}
+const debouncedUpdateRepairCount = createDebouncedFunction('repair', () => updateRepairCount(settings));
 
 // =============================================================================
 // Global Function Exposure (Cross-Module Access Pattern)
@@ -1528,8 +1534,13 @@ async function testBrowserNotification() {
 
   try {
     await showNotification('🔔 Test Price Alert', {
-      body: `Test Alert!\n\nFuel threshold: $${settings.fuelThreshold}/ton\nCO2 threshold: $${settings.co2Threshold}/ton`,
-      icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>⚓</text></svg>",
+      body: `
+
+Test Alert!
+
+Fuel threshold: $${settings.fuelThreshold}/ton
+CO2 threshold: $${settings.co2Threshold}/ton`,
+      icon: '/favicon.ico',
       tag: 'test-alert',
       silent: false
     });
@@ -1570,7 +1581,6 @@ async function testBrowserNotification() {
  */
 window.buyCampaign = (campaignId, typeName, duration, price) => {
   buyCampaign(campaignId, typeName, duration, price, {
-    updateCampaignsStatus: () => updateCampaignsStatus(),
     updateBunkerStatus: () => debouncedUpdateBunkerStatus(500)
   });
 };
@@ -1798,6 +1808,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (document.getElementById('harborFeeWarningThreshold')) {
     document.getElementById('harborFeeWarningThreshold').value = settings.harborFeeWarningThreshold || '';
   }
+  // Drydock threshold (in General Settings)
+  if (document.getElementById('autoDrydockThreshold')) {
+    document.getElementById('autoDrydockThreshold').value = settings.autoDrydockThreshold || 150;
+  }
   if (document.getElementById('autoVesselSpeed')) document.getElementById('autoVesselSpeed').value = settings.autoVesselSpeed;
 
   // Auto-Repair
@@ -1811,6 +1825,25 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (document.getElementById('autoBulkRepairMinCash') && settings.autoBulkRepairMinCash !== undefined) {
     const value = String(settings.autoBulkRepairMinCash);
     document.getElementById('autoBulkRepairMinCash').value = formatNumberWithSeparator(value);
+  }
+
+  // Auto-Drydock
+  if (document.getElementById('autoDrydock')) {
+    document.getElementById('autoDrydock').checked = settings.autoDrydock;
+    const autoDrydockOptions = document.getElementById('autoDrydockOptions');
+    if (autoDrydockOptions) {
+      autoDrydockOptions.classList.toggle('hidden', !settings.autoDrydock);
+    }
+  }
+  if (document.getElementById('autoDrydockType')) {
+    document.getElementById('autoDrydockType').value = settings.autoDrydockType || 'major';
+  }
+  if (document.getElementById('autoDrydockSpeed')) {
+    document.getElementById('autoDrydockSpeed').value = settings.autoDrydockSpeed || 'minimum';
+  }
+  if (document.getElementById('autoDrydockMinCash') && settings.autoDrydockMinCash !== undefined) {
+    const value = String(settings.autoDrydockMinCash);
+    document.getElementById('autoDrydockMinCash').value = formatNumberWithSeparator(value);
   }
 
   // Auto-Campaign
@@ -1886,6 +1919,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (document.getElementById('notifyCargoMarshalDesktop')) document.getElementById('notifyCargoMarshalDesktop').checked = settings.notifyCargoMarshalDesktop !== false;
   if (document.getElementById('notifyYardForemanInApp')) document.getElementById('notifyYardForemanInApp').checked = settings.notifyYardForemanInApp !== false;
   if (document.getElementById('notifyYardForemanDesktop')) document.getElementById('notifyYardForemanDesktop').checked = settings.notifyYardForemanDesktop !== false;
+  if (document.getElementById('notifyDrydockMasterInApp')) document.getElementById('notifyDrydockMasterInApp').checked = settings.notifyDrydockMasterInApp !== false;
+  if (document.getElementById('notifyDrydockMasterDesktop')) document.getElementById('notifyDrydockMasterDesktop').checked = settings.notifyDrydockMasterDesktop !== false;
   if (document.getElementById('notifyReputationChiefInApp')) document.getElementById('notifyReputationChiefInApp').checked = settings.notifyReputationChiefInApp !== false;
   if (document.getElementById('notifyReputationChiefDesktop')) document.getElementById('notifyReputationChiefDesktop').checked = settings.notifyReputationChiefDesktop !== false;
   if (document.getElementById('notifyFairHandInApp')) document.getElementById('notifyFairHandInApp').checked = settings.notifyFairHandInApp !== false;
@@ -2205,10 +2240,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Close alliance chat overlay
-  document.getElementById('closeChatBtn').addEventListener('click', () => {
+  document.getElementById('closeChatBtn').addEventListener('click', async () => {
     const overlay = document.getElementById('allianceChatOverlay');
     if (overlay) {
       overlay.classList.add('hidden');
+
+      // Mark messages as read when closing chat
+      if (window.markAllianceChatAsRead) {
+        await window.markAllianceChatAsRead();
+      }
     }
   });
 
@@ -2453,6 +2493,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     'notifyCargoMarshalDesktop',
     'notifyYardForemanInApp',
     'notifyYardForemanDesktop',
+    'notifyDrydockMasterInApp',
+    'notifyDrydockMasterDesktop',
     'notifyReputationChiefInApp',
     'notifyReputationChiefDesktop',
     'notifyFairHandInApp',
@@ -2594,6 +2636,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveSettings(settings);
   });
 
+  // Auto-drydock vessels
+  document.getElementById('autoDrydock').addEventListener('change', function() {
+    settings.autoDrydock = this.checked;
+    // Show/hide options based on checkbox state
+    document.getElementById('autoDrydockOptions').classList.toggle('hidden', !this.checked);
+    saveSettings(settings);
+    updatePageTitle(settings);
+  });
+
+  // Drydock maintenance type
+  document.getElementById('autoDrydockType').addEventListener('change', function() {
+    settings.autoDrydockType = this.value;
+    saveSettings(settings);
+  });
+
+  // Drydock route speed
+  document.getElementById('autoDrydockSpeed').addEventListener('change', function() {
+    settings.autoDrydockSpeed = this.value;
+    saveSettings(settings);
+  });
+
+  // Min cash balance for auto drydock
+  document.getElementById('autoDrydockMinCash').addEventListener('change', function() {
+    settings.autoDrydockMinCash = parseInt(this.value.replace(/\./g, ''));
+    saveSettings(settings);
+  });
+
   // Auto-renew expiring campaigns
   document.getElementById('autoCampaignRenewal').addEventListener('change', function() {
     settings.autoCampaignRenewal = this.checked;
@@ -2714,6 +2783,15 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (harborFeeWarningThresholdSelect) {
     harborFeeWarningThresholdSelect.addEventListener('change', function() {
       settings.harborFeeWarningThreshold = this.value === '' ? null : parseInt(this.value);
+      saveSettings(settings);
+    });
+  }
+
+  // Drydock threshold (in General Settings)
+  const autoDrydockThresholdSelect = document.getElementById('autoDrydockThreshold');
+  if (autoDrydockThresholdSelect) {
+    autoDrydockThresholdSelect.addEventListener('change', function() {
+      settings.autoDrydockThreshold = parseInt(this.value);
       saveSettings(settings);
     });
   }
@@ -3135,8 +3213,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Show anchor info overlay (vessel status details)
   document.getElementById('anchorBtn').addEventListener('click', showAnchorInfo);
 
-  // Repair all vessels below maintenance threshold
-  document.getElementById('repairAllBtn').addEventListener('click', () => repairAllVessels(settings));
+  // Open repair and drydock dialog (tabbed)
+  document.getElementById('repairAllBtn').addEventListener('click', () => openRepairAndDrydockDialog(settings));
 
   // --- Bunker Management Event Listeners ---
   // Buy maximum fuel based on available storage

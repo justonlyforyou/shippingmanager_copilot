@@ -1200,8 +1200,10 @@ export async function updateUnreadBadge(retryCount = 0) {
         // Show desktop notification
         if (Notification.permission === 'granted') {
           showNotification(notificationTitle, {
-            body: notificationBody,
-            icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>📬</text></svg>",
+            body: `
+
+${notificationBody}`,
+            icon: '/favicon.ico',
             tag: "shipping-manager-inbox",
             requireInteraction: systemMessages.some(chat => chat.body === 'vessel_got_hijacked'), // Keep hijack notifications visible
             data: { action: 'open-inbox' }

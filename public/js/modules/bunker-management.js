@@ -23,7 +23,7 @@
  */
 
 import { formatNumber, showSideNotification, showNotification } from './utils.js';
-import { fetchBunkerPrices, purchaseFuel as apiPurchaseFuel, purchaseCO2 as apiPurchaseCO2, fetchCampaigns } from './api.js';
+import { fetchBunkerPrices, purchaseFuel as apiPurchaseFuel, purchaseCO2 as apiPurchaseCO2 } from './api.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 
 /**
@@ -75,50 +75,6 @@ let fuelPrice = null;
  * @type {number|null}
  */
 let co2Price = null;
-
-/**
- * Last known count of active marketing campaigns.
- * Used to detect changes in campaign status and trigger alerts accordingly.
- * @type {number|null}
- */
-let lastCampaignsCount = null;
-
-/**
- * Retry fetching prices if time slot not found
- * @param {string} targetTimeSlot - The time slot we're looking for
- * @param {number} attempt - Current attempt number (1-5)
- */
-async function retryFetchPrices(targetTimeSlot, attempt) {
-  // During events, API returns invalid data - no point retrying
-  if (attempt > 1) {
-    return;
-  }
-
-  try {
-    const response = await fetch('/api/bunker/get-prices');
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const data = await response.json();
-    const priceData = data.data.prices.find(p => p.time === targetTimeSlot);
-
-    if (priceData && priceData.fuel_price > 0 && priceData.co2_price > 0) {
-      // Success! Update prices
-      fuelPrice = priceData.fuel_price;
-      co2Price = priceData.co2_price;
-
-      // Trigger a UI update
-      const settings = window.getSettings ? window.getSettings() : { fuelThreshold: 400, co2Threshold: 7 };
-      await updateBunkerStatus(settings);
-    } else {
-      // API returned invalid data (likely during event)
-      console.log(`[Bunker Management] Price data unavailable for time slot ${targetTimeSlot} (event active?)`);
-    }
-  } catch (error) {
-    console.log(`[Bunker Management] Failed to fetch prices: ${error.message}`);
-  }
-}
 
 /**
  * Sets capacity values from bunker_update event data.
@@ -187,7 +143,8 @@ export function setCapacityFromBunkerUpdate(newMaxFuel, newMaxCO2) {
  */
 export async function updateBunkerStatus(settings) {
   try {
-    // Silent update - no user feedback for routine updates
+    // Fetch bunker state (fuel/CO2/cash levels) from API
+    // Prices come from WebSocket updates (window.updateDataCache.prices)
     const data = await fetchBunkerPrices();
 
     if (!data.user || data.user.cash === undefined) {
@@ -199,49 +156,22 @@ export async function updateBunkerStatus(settings) {
     currentCO2 = data.user.co2 / 1000;
     currentCash = data.user.cash;
 
-    const now = new Date();
-    const localHours = now.getHours(); // Local hours, not UTC (prices are in local time)
-    const localMinutes = now.getMinutes();
-    const currentTimeSlot = `${String(localHours).padStart(2, '0')}:${localMinutes < 30 ? '00' : '30'}`;
+    // Use prices from WebSocket cache (already processed by backend)
+    // This avoids redundant time slot matching and uses the same source as the header
+    if (window.updateDataCache && window.updateDataCache.prices) {
+      const cachedPrices = window.updateDataCache.prices;
 
-    let currentPriceData = data.data.prices.find(p => p.time === currentTimeSlot);
-
-    // If no exact match found, check for event discounted prices
-    if (!currentPriceData) {
-      const discountedFuel = data.data.discounted_fuel;
-      const discountedCO2 = data.data.discounted_co2;
-
-      if (discountedFuel !== null && discountedFuel !== undefined &&
-          discountedCO2 !== null && discountedCO2 !== undefined &&
-          discountedFuel > 0 && discountedCO2 > 0) {
-        // Event prices found - use them directly
-        fuelPrice = discountedFuel;
-        co2Price = discountedCO2;
-        console.log('[Bunker Management] Using event discounted prices - fuel:', fuelPrice, 'co2:', co2Price);
-
-        // Skip normal price update logic below and go straight to display update
-        currentPriceData = { fuel_price: fuelPrice, co2_price: co2Price, time: 'EVENT' };
-      } else {
-        // No timeslot match and no event prices - trigger retry
-        if (window.DEBUG_MODE) {
-          console.warn('[Bunker Management] Time slot not found and no event prices available - retrying in 2s');
-        }
-        setTimeout(() => retryFetchPrices(currentTimeSlot, 1), 2000);
-        return;
+      if (cachedPrices.fuel && cachedPrices.fuel > 0) {
+        fuelPrice = cachedPrices.fuel;
       }
-    }
 
-    // Only update module-level prices if we have valid data (> 0)
-    if (currentPriceData && currentPriceData.fuel_price > 0 && currentPriceData.co2_price > 0) {
-      fuelPrice = currentPriceData.fuel_price;
-      co2Price = currentPriceData.co2_price;
-    } else if (currentPriceData) {
-      // Log warning if we received price data but it's invalid
-      console.warn('[Bunker Management] ⚠️ Received invalid price data - NOT updating prices:', {
-        fuel: currentPriceData.fuel_price,
-        co2: currentPriceData.co2_price,
-        timeSlot: currentPriceData.time
-      });
+      if (cachedPrices.co2 && cachedPrices.co2 > 0) {
+        co2Price = cachedPrices.co2;
+      }
+
+      console.log('[Bunker Management] Using prices from WebSocket cache - fuel:', fuelPrice, 'co2:', co2Price);
+    } else {
+      console.warn('[Bunker Management] Price cache not available yet, prices may be stale');
     }
 
     const fuelDisplay = document.getElementById('fuelDisplay');
@@ -354,116 +284,6 @@ export async function updateBunkerStatus(settings) {
 
   } catch (error) {
     console.error('Error updating bunker status:', error);
-  }
-}
-
-/**
- * Updates marketing campaigns status display and triggers alerts for inactive campaigns.
- * Monitors three required campaign types: reputation, awareness, and green.
- *
- * Campaign Monitoring Logic:
- * - Checks if all 3 required campaign types are active
- * - Updates badge display showing active count (hidden if all 3 active)
- * - On first load: alerts if not all campaigns active
- * - On subsequent checks: alerts on any count change
- * - Shows success feedback when reaching 3/3 active
- *
- * Side Effects:
- * - Updates DOM badge display and button tooltip
- * - Triggers desktop notifications for campaign status changes
- * - Shows in-app price alerts for campaign warnings
- * - Updates lastCampaignsCount state for change detection
- *
- * @async
- * @returns {Promise<void>}
- * @throws {Error} Silently catches and logs errors to console
- *
- * @example
- * // Called automatically every 30-35 seconds alongside bunker updates
- * updateCampaignsStatus();
- */
-export async function updateCampaignsStatus() {
-  try {
-    const data = await fetchCampaigns();
-
-    const activeCampaigns = data.data.active_campaigns || [];
-    const activeTypes = new Set(activeCampaigns.map(c => c.option_name));
-
-    const requiredTypes = ['reputation', 'awareness', 'green'];
-    const activeCount = requiredTypes.filter(type => activeTypes.has(type)).length;
-
-    const badge = document.getElementById('campaignsCount');
-    const button = document.getElementById('campaignsBtn');
-
-    // Only show badge if < 3 campaigns (0, 1, or 2)
-    if (activeCount < 3) {
-      badge.textContent = activeCount;
-      badge.classList.remove('hidden');
-    } else {
-      badge.classList.add('hidden');
-    }
-
-    // Update header display
-    const campaignsHeaderDisplay = document.getElementById('campaignsHeaderDisplay');
-    if (campaignsHeaderDisplay) {
-      campaignsHeaderDisplay.textContent = activeCount;
-      if (activeCount >= 3) {
-        campaignsHeaderDisplay.classList.remove('text-danger');
-        campaignsHeaderDisplay.classList.add('text-success');
-      } else {
-        campaignsHeaderDisplay.classList.remove('text-success');
-        campaignsHeaderDisplay.classList.add('text-danger');
-      }
-    }
-
-    const statusList = requiredTypes.map(type => {
-      const isActive = activeTypes.has(type);
-      const icon = isActive ? '✓' : '✗';
-      const name = type.charAt(0).toUpperCase() + type.slice(1);
-      return `${icon} ${name}`;
-    }).join('\n');
-
-    button.title = `Marketing Campaigns (${activeCount}/3 active)\n${statusList}`;
-
-    if (lastCampaignsCount === null) {
-      if (activeCount !== 3) {
-        showSideNotification(`📊 <strong>Marketing Campaigns</strong><br><br>Only ${activeCount}/3 campaigns are active!`, 'warning', null, true);
-
-        if (Notification.permission === 'granted') {
-          await showNotification('📊 Marketing Campaigns Alert!', {
-            body: `Only ${activeCount}/3 campaigns active`,
-            icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>📊</text></svg>",
-            tag: 'campaigns-alert',
-            silent: false
-          });
-        }
-      }
-    } else if (lastCampaignsCount !== activeCount) {
-      if (activeCount === 3) {
-        showSideNotification('✅ All 3 marketing campaigns are now active!', 'success');
-      } else {
-        showSideNotification(`⚠️ <strong>Marketing Campaigns</strong><br><br>${activeCount}/3 campaigns active`, 'warning', null, true);
-
-        if (Notification.permission === 'granted') {
-          await showNotification('📊 Marketing Campaigns Alert!', {
-            body: `Only ${activeCount}/3 campaigns active`,
-            icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='50%' x='50%' text-anchor='middle' font-size='80'>📊</text></svg>",
-            tag: 'campaigns-alert',
-            silent: false
-          });
-        }
-      }
-    }
-
-    lastCampaignsCount = activeCount;
-
-    // Cache campaigns count for next page load
-    if (window.saveBadgeCache) {
-      window.saveBadgeCache({ campaigns: activeCount });
-    }
-
-  } catch (error) {
-    console.error('Error updating campaigns status:', error);
   }
 }
 

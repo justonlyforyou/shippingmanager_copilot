@@ -111,7 +111,7 @@ setInterval(() => {
   // Build compact one-line stats
   const topEndpointsStr = sortedEndpoints.map(([endpoint, count]) => `${endpoint}:${count}x`).join(', ');
 
-  logger.log(`[API Stats] ${requestsLastMinute} req/min | Top 10: ${topEndpointsStr}`);
+  logger.debug(`[API Stats] ${requestsLastMinute} req/min | Top 10: ${topEndpointsStr}`);
 }, 60000); // 1 minute = 60000ms
 
 /**
@@ -275,7 +275,7 @@ async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, re
       // Retry with exponential backoff for network errors
       if (isRetryableError && retryCount < maxRetries) {
         const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s, 4s
-        logger.log(`[API Retry] ${endpoint} - Network error (${error.message}), retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+        logger.debug(`[API Retry] ${endpoint} - Network error (${error.message}), retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
         await sleep(delay);
         return apiCall(endpoint, method, body, timeout, retryCount + 1);
       }
@@ -347,7 +347,7 @@ async function apiCallWithRetry(endpoint, method = 'POST', body = {}, timeout = 
       // If network error and we have retries left, try again
       if (isNetworkError && attempt < maxRetries) {
         const delay = 1000 * attempt; // Exponential backoff: 1s, 2s
-        logger.log(`[API Retry] ${endpoint} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
+        logger.debug(`[API Retry] ${endpoint} failed (attempt ${attempt}/${maxRetries}), retrying in ${delay}ms...`);
         await sleep(delay);
         continue;
       }
@@ -481,10 +481,10 @@ async function initializeAlliance() {
     // Debug: Show cookie info (first and last 10 chars for security)
     const cookie = config.SESSION_COOKIE;
     const cookiePreview = cookie ? `${cookie.substring(0, 10)}...${cookie.substring(cookie.length - 10)}` : 'NONE';
-    logger.log(`[Session] Initializing with cookie: ${cookiePreview} (length: ${cookie ? cookie.length : 0})`);
+    logger.debug(`[Session] Initializing with cookie: ${cookiePreview} (length: ${cookie ? cookie.length : 0})`);
 
     // 1. Load User ID and Company Name first
-    logger.log(`[Session] Calling API: /user/get-user-settings...`);
+    logger.debug(`[Session] Calling API: /user/get-user-settings...`);
     const userData = await apiCall('/user/get-user-settings', 'POST', {});
 
     // Check if API call failed
@@ -509,7 +509,7 @@ async function initializeAlliance() {
     USER_ID = userData.user.id;
     USER_COMPANY_NAME = userData.user.company_name;
     logger.debug(`[Session] User loaded: ${USER_COMPANY_NAME} (ID: ${USER_ID})`);
-    logger.log(`[Session] User login successful`);
+    logger.info(`[Session] User login successful`);
 
     // 2. Try to load Alliance ID
     try {
@@ -517,7 +517,7 @@ async function initializeAlliance() {
       if (allianceData.data && allianceData.data.alliance && allianceData.data.alliance.id) {
         ALLIANCE_ID = allianceData.data.alliance.id;
         logger.debug(`[Session] Alliance loaded: ${allianceData.data.alliance.name} (ID: ${ALLIANCE_ID})`);
-        logger.log(`[Session] Alliance loaded`);
+        logger.info(`[Session] Alliance loaded`);
       } else {
         ALLIANCE_ID = null;
         logger.debug(`[Session] User is not in an alliance`);

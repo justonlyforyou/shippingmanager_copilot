@@ -45,7 +45,7 @@ function initialize() {
   // Start periodic write timer
   if (!writeTimer) {
     writeTimer = setInterval(flushAllToDisk, WRITE_INTERVAL);
-    logger.log('Logbook: Periodic write timer started (30s interval)');
+    logger.debug('Logbook: Periodic write timer started (30s interval)');
   }
 }
 
@@ -66,7 +66,7 @@ async function loadLogsFromDisk(userId) {
     const data = await fs.readFile(filePath, 'utf8');
     const logs = JSON.parse(data);
     logCache.set(userId, logs);
-    logger.log(`Logbook: Loaded ${logs.length} entries for user ${userId}`);
+    logger.debug(`Logbook: Loaded ${logs.length} entries for user ${userId}`);
     return logs;
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -102,7 +102,7 @@ async function writeLogsToDisk(userId, logs) {
     await fs.writeFile(tempPath, data, 'utf8');
     await fs.rename(tempPath, filePath);
     dirtyFlags.set(userId, false);
-    logger.log(`Logbook: Wrote ${logs.length} entries to disk for user ${userId}`);
+    logger.debug(`Logbook: Wrote ${logs.length} entries to disk for user ${userId}`);
   } catch (err) {
     logger.error(`Logbook: Failed to write logs for user ${userId}:`, err);
     // Clean up temp file if it exists
@@ -162,7 +162,7 @@ async function logAutopilotAction(userId, autopilot, status, summary, details = 
   logCache.set(userId, logs);
   dirtyFlags.set(userId, true);
 
-  logger.log(`Logbook: [${status}] ${autopilot}: ${summary}`);
+  logger.debug(`Logbook: [${status}] ${autopilot}: ${summary}`);
 
   // Broadcast to all connected clients via WebSocket
   try {
@@ -343,7 +343,7 @@ async function deleteAllLogs(userId) {
 
     // Delete file
     await fs.unlink(filePath);
-    logger.log(`Logbook: Deleted all logs for user ${userId}`);
+    logger.debug(`Logbook: Deleted all logs for user ${userId}`);
     return true;
   } catch (err) {
     if (err.code === 'ENOENT') {
@@ -394,7 +394,7 @@ async function shutdown() {
 
   // Flush all dirty caches
   await flushAllToDisk();
-  logger.log('Logbook: Shutdown complete');
+  logger.debug('Logbook: Shutdown complete');
 }
 
 // Initialize on module load

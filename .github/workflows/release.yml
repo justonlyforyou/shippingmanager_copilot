@@ -52,6 +52,12 @@ jobs:
           echo "VERSION=$version" >> $env:GITHUB_OUTPUT
         shell: pwsh
 
+      - name: Debug - List dist folder
+        run: |
+          echo "Contents of dist folder:"
+          ls -la dist/
+        shell: bash
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1

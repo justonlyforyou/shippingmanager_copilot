@@ -81,7 +81,7 @@ router.post('/anchor/purchase', express.json(), async (req, res) => {
       });
     }
 
-    logger.log(`[${new Date().toISOString()}] [Anchor] Purchase request: amount=${amount}`);
+    logger.debug(`[${new Date().toISOString()}] [Anchor] Purchase request: amount=${amount}`);
     const purchaseData = await apiCall('/anchor-point/purchase-anchor-points', 'POST', { amount });
 
     if (purchaseData.error) {
@@ -166,6 +166,14 @@ router.post('/anchor/purchase', express.json(), async (req, res) => {
               available: availableCapacity,
               pending: pendingAnchorPoints
             }
+          });
+        }
+
+        // Trigger Harbor Map refresh (ports purchased - anchors enable more ports)
+        const { broadcastHarborMapRefresh } = require('../websocket');
+        if (broadcastHarborMapRefresh) {
+          broadcastHarborMapRefresh(userId, 'ports_purchased', {
+            count: amount
           });
         }
 
@@ -264,7 +272,7 @@ router.post('/anchor-point/purchase', express.json(), async (req, res) => {
     const purchaseData = await apiCall('/anchor-point/purchase-anchor-points', 'POST', { amount });
 
     if (purchaseData.data?.success) {
-      logger.log(`[Manual Anchor Purchase] User bought ${amount} anchor point(s) @ $${price.toLocaleString()}/point = $${totalCost.toLocaleString()}`);
+      logger.info(`[Manual Anchor Purchase] User bought ${amount} anchor point(s) @ $${price.toLocaleString()}/point = $${totalCost.toLocaleString()}`);
 
       // Broadcast success notification
       if (userId) {

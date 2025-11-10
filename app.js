@@ -100,7 +100,7 @@ if (!fs.existsSync(LOG_DIR)) {
 const LOG_FILE = path.join(LOG_DIR, 'server.log');
 
 // Winston handles file logging automatically with timestamps
-logger.log(`[Logging] Server logs will be written to: ${LOG_FILE}`);
+logger.info(`[Logging] Server logs will be written to: ${LOG_FILE}`);
 
 // Route modules
 const allianceRoutes = require('./server/routes/alliance');
@@ -197,15 +197,15 @@ const chatBot = require('./server/chatbot');
   // Start server
   server.listen(config.PORT, config.HOST, async () => {
     // Load session cookie from encrypted storage FIRST
-    logger.log('[Session] Loading sessions from encrypted storage...');
+    logger.info('[Session] Loading sessions from encrypted storage...');
 
     try {
       const availableSessions = await sessionManager.getAvailableSessions();
 
       // Debug: Show all available sessions
-      logger.log(`[Session] Found ${availableSessions.length} session(s) in storage`);
+      logger.info(`[Session] Found ${availableSessions.length} session(s) in storage`);
       availableSessions.forEach((s, idx) => {
-        logger.log(`[Session]   [${idx}] User ID: ${s.userId} (${typeof s.userId}), Company: ${s.companyName}, Method: ${s.loginMethod}`);
+        logger.debug(`[Session]   [${idx}] User ID: ${s.userId} (${typeof s.userId}), Company: ${s.companyName}, Method: ${s.loginMethod}`);
       });
 
       if (availableSessions.length === 0) {
@@ -217,11 +217,11 @@ const chatBot = require('./server/chatbot');
 
       // User selection ONLY via ENV (from start.py) - NO persistence
       const selectedUserId = process.env.SELECTED_USER_ID;
-      logger.log(`[Session] ENV SELECTED_USER_ID: ${selectedUserId} (${typeof selectedUserId})`);
+      logger.debug(`[Session] ENV SELECTED_USER_ID: ${selectedUserId} (${typeof selectedUserId})`);
 
       if (selectedUserId) {
         // User was selected via start.py - use that specific session
-        logger.log(`[Session] Searching for user ID: ${selectedUserId} in ${availableSessions.length} sessions...`);
+        logger.debug(`[Session] Searching for user ID: ${selectedUserId} in ${availableSessions.length} sessions...`);
         selectedSession = availableSessions.find(s => s.userId === selectedUserId);
 
         if (!selectedSession) {
@@ -236,11 +236,11 @@ const chatBot = require('./server/chatbot');
           process.exit(1);
         }
 
-        logger.log(`[Session] Match found! Using session for user ${selectedSession.userId} (${selectedSession.companyName})`);
+        logger.info(`[Session] Match found! Using session for user ${selectedSession.userId} (${selectedSession.companyName})`);
       } else if (availableSessions.length === 1) {
         // Only one session available - use it automatically
         selectedSession = availableSessions[0];
-        logger.log(`[Session] Using session for user ${selectedSession.userId} (${selectedSession.companyName})`);
+        logger.info(`[Session] Using session for user ${selectedSession.userId} (${selectedSession.companyName})`);
       } else {
         // Multiple sessions but no selection - error out
         logger.error('[FATAL] Multiple sessions found but no session selected.');
@@ -254,7 +254,7 @@ const chatBot = require('./server/chatbot');
 
       // Set the session cookie in config
       config.setSessionCookie(selectedSession.cookie);
-      logger.log('[Session] Session cookie loaded and decrypted');
+      logger.info('[Session] Session cookie loaded and decrypted');
 
     } catch (error) {
       logger.error('[FATAL] Failed to load session:', error.message);
@@ -266,10 +266,10 @@ const chatBot = require('./server/chatbot');
 
     // Migrate any plaintext sessions to encrypted storage
     try {
-      logger.log('[Security] Checking for plaintext sessions to encrypt...');
+      logger.debug('[Security] Checking for plaintext sessions to encrypt...');
       const migratedCount = await sessionManager.migrateToEncrypted();
       if (migratedCount > 0) {
-        logger.log(`[Security] ✓ Successfully encrypted ${migratedCount} session(s)`);
+        logger.info(`[Security] OK Successfully encrypted ${migratedCount} session(s)`);
       }
     } catch (error) {
       logger.error('[Security] Session migration failed:', error.message);
@@ -286,28 +286,28 @@ const chatBot = require('./server/chatbot');
     }
 
     logger.debug(`[Settings] Detected User ID: ${userId}`);
-    logger.log(`[Settings] Loading user settings...`);
+    logger.info(`[Settings] Loading user settings...`);
 
     // NOW load user-specific settings
     const settings = await initializeSettings(userId);
 
     // Load validated settings into state BEFORE initializing scheduler
     state.updateSettings(userId, settings);
-    logger.log('[Autopilot] Settings loaded and validated:');
-    logger.log(`[Autopilot] Interval: ${settings.autopilotInterval / 60}min`);
-    if (settings.autoRebuyFuel) logger.log(`[Autopilot] Barrel Boss enabled`);
-    if (settings.autoRebuyCO2) logger.log(`[Autopilot] Atmosphere Broker enabled`);
-    if (settings.autoDepartAll) logger.log(`[Autopilot] Cargo Marshal enabled`);
-    if (settings.autoAnchorPointEnabled) logger.log(`[Autopilot] Harbormaster enabled`);
-    if (settings.autoBulkRepair) logger.log(`[Autopilot] Yard Foreman enabled`);
-    if (settings.autoCampaignRenewal) logger.log(`[Autopilot] Reputation Chief enabled`);
-    if (settings.autoCoopEnabled) logger.log(`[Autopilot] Fair Hand enabled`);
-    if (settings.autoNegotiateHijacking) logger.log(`[Autopilot] Cap'n Blackbeard enabled`);
+    logger.info('[Autopilot] Settings loaded and validated:');
+    logger.debug(`[Autopilot] Interval: ${settings.autopilotInterval / 60}min`);
+    if (settings.autoRebuyFuel) logger.debug(`[Autopilot] Barrel Boss enabled`);
+    if (settings.autoRebuyCO2) logger.debug(`[Autopilot] Atmosphere Broker enabled`);
+    if (settings.autoDepartAll) logger.debug(`[Autopilot] Cargo Marshal enabled`);
+    if (settings.autoAnchorPointEnabled) logger.debug(`[Autopilot] Harbormaster enabled`);
+    if (settings.autoBulkRepair) logger.debug(`[Autopilot] Yard Foreman enabled`);
+    if (settings.autoCampaignRenewal) logger.debug(`[Autopilot] Reputation Chief enabled`);
+    if (settings.autoCoopEnabled) logger.debug(`[Autopilot] Fair Hand enabled`);
+    if (settings.autoNegotiateHijacking) logger.debug(`[Autopilot] Cap'n Blackbeard enabled`);
 
   // Initialize autopilot system (AFTER settings are loaded)
   autopilot.setBroadcastFunction(broadcastToUser);
   initScheduler();
-  logger.log('[Autopilot] Backend autopilot system initialized');
+  logger.info('[Autopilot] Backend autopilot system initialized');
 
   // Initialize Chat Bot with current settings
   const chatBotSettings = {
@@ -344,24 +344,24 @@ const chatBot = require('./server/chatbot');
   };
 
   await chatBot.initialize(chatBotSettings);
-  logger.log('[ChatBot] Chat Bot initialized with settings:');
-  logger.log(`[ChatBot] Enabled: ${settings.chatbotEnabled ? 'true' : 'false'}`);
-  logger.log(`[ChatBot] Command Prefix "${settings.chatbotPrefix}"`);
+  logger.info('[ChatBot] Chat Bot initialized with settings:');
+  logger.debug(`[ChatBot] Enabled: ${settings.chatbotEnabled ? 'true' : 'false'}`);
+  logger.debug(`[ChatBot] Command Prefix "${settings.chatbotPrefix}"`);
   if (settings.chatbotDailyForecastEnabled) {
-    logger.log(`[ChatBot] Daily Forecast enabled at ${settings.chatbotDailyForecastTime} UTC`);
+    logger.debug(`[ChatBot] Daily Forecast enabled at ${settings.chatbotDailyForecastTime} UTC`);
   }
   if (settings.chatbotAllianceCommandsEnabled) {
-    logger.log(`[ChatBot] Alliance Commands enabled`);
+    logger.debug(`[ChatBot] Alliance Commands enabled`);
   }
   if (settings.chatbotDMCommandsEnabled) {
-    logger.log(`[ChatBot] DM Commands enabled`);
+    logger.debug(`[ChatBot] DM Commands enabled`);
   }
 
   // Start chat and messenger polling (both synchronized at 20 seconds)
   startChatAutoRefresh();
   startMessengerAutoRefresh();
-  logger.log('[Alliance Chat] Started 20-second chat polling');
-  logger.log('[Messenger] Started 20-second messenger polling');
+  logger.debug('[Alliance Chat] Started 20-second chat polling');
+  logger.debug('[Messenger] Started 20-second messenger polling');
 
   // All automation runs via scheduler.js and autopilot.js
 
@@ -383,10 +383,10 @@ const chatBot = require('./server/chatbot');
   if (isNetworkAccessible) {
     // Show all URLs in single line
     const urls = [`https://localhost:${config.PORT}`, ...addresses.map(addr => `https://${addr}:${config.PORT}`)];
-    logger.log(`[Frontend] ShippingManager CoPilot Frontend running on: ${urls.join(', ')}`);
+    logger.info(`[Frontend] ShippingManager CoPilot Frontend running on: ${urls.join(', ')}`);
   } else {
     // Show only the configured specific IP
-    logger.log(`[Frontend] ShippingManager CoPilot Frontend running on: https://${config.HOST}:${config.PORT}`);
+    logger.info(`[Frontend] ShippingManager CoPilot Frontend running on: https://${config.HOST}:${config.PORT}`);
   }
   logger.warn(`[Frontend] Self-signed certificate - accept security warning in browser`);
   });

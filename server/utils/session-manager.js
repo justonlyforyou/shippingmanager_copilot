@@ -189,7 +189,7 @@ async function saveSession(userId, cookie, companyName, loginMethod) {
 
     await saveSessions(sessions);
 
-    logger.log(`[SessionManager] Saved encrypted session for user ${userId} (${companyName})`);
+    logger.debug(`[SessionManager] Saved encrypted session for user ${userId} (${companyName})`);
 }
 
 /**
@@ -208,7 +208,7 @@ async function deleteSession(userId) {
     delete sessions[String(userId)];
     await saveSessions(sessions);
 
-    logger.log(`[SessionManager] Deleted session for user ${userId}`);
+    logger.debug(`[SessionManager] Deleted session for user ${userId}`);
     return true;
 }
 
@@ -229,14 +229,14 @@ async function getAllUserIds() {
  * @returns {Promise<number>} Number of sessions migrated
  */
 async function migrateToEncrypted() {
-    logger.log('[SessionManager] Starting session migration...');
+    logger.debug('[SessionManager] Starting session migration...');
 
     const sessions = await loadSessions();
     let migratedCount = 0;
 
     for (const [userId, session] of Object.entries(sessions)) {
         if (session.cookie && !isEncrypted(session.cookie)) {
-            logger.log(`[SessionManager] Migrating session for user ${userId}...`);
+            logger.debug(`[SessionManager] Migrating session for user ${userId}...`);
 
             const accountName = `session_${userId}`;
             const encryptedCookie = await encryptData(session.cookie, accountName);
@@ -252,9 +252,9 @@ async function migrateToEncrypted() {
 
     if (migratedCount > 0) {
         await saveSessions(sessions);
-        logger.log(`[SessionManager] ✓ Migrated ${migratedCount} session(s) to encrypted format`);
+        logger.debug(`[SessionManager] OK Migrated ${migratedCount} session(s) to encrypted format`);
     } else {
-        logger.log('[SessionManager] No sessions needed migration');
+        logger.debug('[SessionManager] No sessions needed migration');
     }
 
     return migratedCount;

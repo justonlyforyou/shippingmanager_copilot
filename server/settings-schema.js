@@ -83,6 +83,13 @@ const SETTINGS_SCHEMA = {
   autoBulkRepair: false,
   autoBulkRepairMinCash: 500000,
 
+  // Auto-Drydock
+  autoDrydock: false,
+  autoDrydockThreshold: 150,  // Send to drydock when hours_until_check <= X (options: >150, 150, 100, 75, 50, 25)
+  autoDrydockType: 'major',  // Maintenance type: 'major' (100% antifouling) or 'minor' (60% antifouling)
+  autoDrydockSpeed: 'minimum',  // Route speed: 'maximum' (fast, more fuel) or 'minimum' (slow, less fuel)
+  autoDrydockMinCash: 500000,  // Minimum cash reserve before sending vessels to drydock
+
   // Auto-Campaign
   autoCampaignRenewal: false,
   autoCampaignRenewalMinCash: 12000000,
@@ -122,6 +129,10 @@ const SETTINGS_SCHEMA = {
   // Yard Foreman (Auto-Repair) Notifications
   notifyYardForemanInApp: true,
   notifyYardForemanDesktop: true,
+
+  // Drydock Master (Auto-Drydock) Notifications
+  notifyDrydockMasterInApp: true,
+  notifyDrydockMasterDesktop: true,
 
   // Reputation Chief (Auto-Campaign) Notifications
   notifyReputationChiefInApp: true,
@@ -373,23 +384,23 @@ async function initializeSettings(userId = null) {
     const { validated, needsWrite } = validateSettings(settings);
 
     if (needsWrite) {
-      logger.log('[Settings] Missing keys detected, writing complete settings...');
+      logger.debug('[Settings] Missing keys detected, writing complete settings...');
 
       // Ensure settings directory exists
       const settingsDir = path.dirname(settingsFile);
       await fs.mkdir(settingsDir, { recursive: true });
 
       await fs.writeFile(settingsFile, JSON.stringify(validated, null, 2), 'utf8');
-      logger.log('[Settings] Settings file updated with missing defaults');
+      logger.debug('[Settings] Settings file updated with missing defaults');
     }
 
-    logger.log('[Settings] User settings loaded successfully');
+    logger.debug('[Settings] User settings loaded successfully');
     return validated;
 
   } catch (error) {
     if (error.code === 'ENOENT') {
       // File doesn't exist - first run
-      logger.log(`[Settings] ${fileLabel} not found, creating with defaults...`);
+      logger.debug(`[Settings] ${fileLabel} not found, creating with defaults...`);
 
       // Ensure settings directory exists
       const settingsDir = path.dirname(settingsFile);
@@ -397,7 +408,7 @@ async function initializeSettings(userId = null) {
 
       const defaults = getDefaults();
       await fs.writeFile(settingsFile, JSON.stringify(defaults, null, 2), 'utf8');
-      logger.log(`[Settings] Created ${fileLabel} with default values`);
+      logger.debug(`[Settings] Created ${fileLabel} with default values`);
       return defaults;
     }
 
@@ -438,7 +449,7 @@ async function saveSettings(userId, settings) {
     await fs.mkdir(settingsDir, { recursive: true });
 
     await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
-    logger.log(`[Settings] Saved to ${fileLabel}`);
+    logger.debug(`[Settings] Saved to ${fileLabel}`);
   } catch (error) {
     logger.error(`[Settings] Error saving ${fileLabel}:`, error);
     throw error;

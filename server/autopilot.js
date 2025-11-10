@@ -27,6 +27,7 @@ const { autoRebuyFuel } = require('./autopilot/pilot_barrel_boss');
 const { autoRebuyCO2 } = require('./autopilot/pilot_atmosphere_broker');
 const { departVessels, autoDepartVessels, calculateRemainingDemand, getTotalCapacity } = require('./autopilot/pilot_cargo_marshal');
 const { autoRepairVessels } = require('./autopilot/pilot_yard_foreman');
+const { autoDrydockVessels } = require('./autopilot/pilot_drydock_master');
 const { autoCampaignRenewal } = require('./autopilot/pilot_reputation_chief');
 const { autoCoop } = require('./autopilot/pilot_fair_hand');
 const { autoAnchorPointPurchase } = require('./autopilot/pilot_harbormaster');
@@ -43,7 +44,7 @@ let broadcastToUser = null;
  */
 function setBroadcastFunction(broadcastFn) {
   broadcastToUser = broadcastFn;
-  logger.log('[Autopilot] Broadcast function set:', broadcastFn ? 'OK' : 'NULL');
+  logger.debug('[Autopilot] Broadcast function set:', broadcastFn ? 'OK' : 'NULL');
 }
 
 // Global pause state
@@ -57,9 +58,9 @@ function initializeAutopilotState(userId) {
   const settings = state.getSettings(userId);
   if (settings && typeof settings.autopilotPaused === 'boolean') {
     autopilotPaused = settings.autopilotPaused;
-    logger.log(`[Autopilot] Loaded pause state from settings: ${autopilotPaused ? 'PAUSED' : 'RUNNING'}`);
+    logger.info(`[Autopilot] Loaded pause state from settings: ${autopilotPaused ? 'PAUSED' : 'RUNNING'}`);
   } else {
-    logger.log('[Autopilot] No saved pause state, defaulting to RUNNING');
+    logger.info('[Autopilot] No saved pause state, defaulting to RUNNING');
   }
 }
 
@@ -68,7 +69,7 @@ function initializeAutopilotState(userId) {
  */
 async function pauseAutopilot() {
   autopilotPaused = true;
-  logger.log('[Autopilot] PAUSED - All autopilot functions suspended');
+  logger.info('[Autopilot] PAUSED - All autopilot functions suspended');
 
   try {
     const userId = getUserId();
@@ -80,7 +81,7 @@ async function pauseAutopilot() {
       const fsPromises = require('fs').promises;
       const settingsFile = getSettingsFilePath(userId);
       await fsPromises.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
-      logger.log('[Autopilot] Pause state saved to settings');
+      logger.debug('[Autopilot] Pause state saved to settings');
     }
   } catch (error) {
     logger.error('[Autopilot] Failed to save pause state:', error);
@@ -92,7 +93,7 @@ async function pauseAutopilot() {
  */
 async function resumeAutopilot() {
   autopilotPaused = false;
-  logger.log('[Autopilot] RESUMED - All autopilot functions active');
+  logger.info('[Autopilot] RESUMED - All autopilot functions active');
 
   try {
     const userId = getUserId();
@@ -104,7 +105,7 @@ async function resumeAutopilot() {
       const fsPromises = require('fs').promises;
       const settingsFile = getSettingsFilePath(userId);
       await fsPromises.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
-      logger.log('[Autopilot] Resume state saved to settings');
+      logger.debug('[Autopilot] Resume state saved to settings');
     }
   } catch (error) {
     logger.error('[Autopilot] Failed to save resume state:', error);
@@ -229,6 +230,34 @@ async function updateRepairCount() {
 }
 
 /**
+ * Updates drydock count badge
+ */
+async function updateDrydockCount() {
+  const userId = getUserId();
+  if (!userId) return;
+
+  try {
+    const settings = state.getSettings(userId);
+    const threshold = settings.autoDrydockThreshold;
+
+    const vessels = await gameapi.fetchVessels();
+    const drydockCount = vessels.filter(v => {
+      const hoursUntilCheck = v.hours_until_check !== undefined ? v.hours_until_check : 999;
+      const alreadyScheduled = v.next_route_is_maintenance === true;
+      return hoursUntilCheck <= threshold && !alreadyScheduled;
+    }).length;
+
+    if (broadcastToUser) {
+      broadcastToUser(userId, 'drydock_count_update', {
+        count: drydockCount
+      });
+    }
+  } catch (error) {
+    logger.error('[Header] Failed to update drydock count:', error.message);
+  }
+}
+
+/**
  * Updates campaign status and triggers auto-renewal if needed.
  * EVENT-DRIVEN: Triggers auto-renewal immediately when active campaigns < 3.
  */
@@ -258,7 +287,7 @@ async function updateCampaigns() {
     const settings = state.getSettings(userId);
     logger.debug(`[Auto-Campaign] autoCampaignRenewal setting: ${settings.autoCampaignRenewal}, activeCount < 3: ${activeCount < 3}`);
     if (settings.autoCampaignRenewal && activeCount < 3) {
-      logger.log(`[Auto-Campaign] EVENT TRIGGERED: ${activeCount}/3 campaigns active, starting renewal`);
+      logger.info(`[Auto-Campaign] EVENT TRIGGERED: ${activeCount}/3 campaigns active, starting renewal`);
       await autoCampaignRenewal(campaigns, autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
   } catch (error) {
@@ -312,9 +341,7 @@ let updateAllDataLock = false;
  */
 async function updateAllData() {
   if (updateAllDataLock) {
-    if (DEBUG_MODE) {
-      logger.log('[UpdateAll] Skipping - already in progress (locked)');
-    }
+    logger.debug('[UpdateAll] Skipping - already in progress (locked)');
     return;
   }
 
@@ -327,9 +354,7 @@ async function updateAllData() {
       return;
     }
 
-    if (DEBUG_MODE) {
-      logger.log('[UpdateAll] Starting complete data fetch...');
-    }
+    logger.debug('[UpdateAll] Starting complete data fetch...');
 
     // Fetch all data
     const gameIndexData = await apiCall('/game/index', 'POST', {});
@@ -425,9 +450,7 @@ async function updateAllData() {
     }
 
     // Update event data
-    if (DEBUG_MODE) {
-      logger.log('[UpdateAll] Event data:', eventData ? `Found event: ${eventData.name}` : 'No active event');
-    }
+    logger.debug('[UpdateAll] Event data:', eventData ? `Found event: ${eventData.name}` : 'No active event');
     if (eventData) {
       state.updateEventData(userId, eventData);
       if (broadcastToUser) {
@@ -466,9 +489,7 @@ async function updateAllData() {
       broadcastToUser(userId, 'all_data_updated', { timestamp: Date.now() });
     }
 
-    if (DEBUG_MODE) {
-      logger.log('[UpdateAll] All data broadcasted successfully');
-    }
+    logger.debug('[UpdateAll] All data broadcasted successfully');
 
   } catch (error) {
     logger.error('[UpdateAll] Failed to fetch all data:', error.message);
@@ -483,9 +504,7 @@ async function updateAllData() {
  */
 async function tryUpdateAllData() {
   if (updateAllDataLock) {
-    if (DEBUG_MODE) {
-      logger.log('[UpdateAll] Skipping tryUpdateAllData - locked');
-    }
+    logger.debug('[UpdateAll] Skipping tryUpdateAllData - locked');
     return;
   }
   await updateAllData();
@@ -657,9 +676,6 @@ async function mainEventLoop() {
   }
 
   try {
-    // Update prices EVERY loop (60 seconds)
-    await updatePrices();
-
     // Validate data
     const prices = state.getPrices(userId);
     const bunker = state.getBunkerState(userId);
@@ -684,6 +700,7 @@ async function mainEventLoop() {
     const atAnchor = vessels.filter(v => v.status === 'anchor').length;
     const pending = vessels.filter(v => v.status === 'pending').length;
 
+    // Always update vessel count badges
     if (broadcastToUser) {
       broadcastToUser(userId, 'vessel_count_update', {
         readyToDepart,
@@ -692,11 +709,19 @@ async function mainEventLoop() {
       });
     }
 
+    // Update repair and drydock count badges
+    await updateRepairCount();
+    await updateDrydockCount();
+
+    // Trigger Harbor Map refresh with rate limiting (30s cooldown)
+    const { broadcastHarborMapRefresh } = require('./websocket');
+    if (broadcastHarborMapRefresh) {
+      broadcastHarborMapRefresh(userId, 'interval', { readyToDepart, atAnchor, pending });
+    }
+
     // Skip automation if paused
     if (autopilotPaused) {
-      if (DEBUG_MODE) {
-        logger.log('[Loop] Autopilot paused, skipping automation (badge update completed)');
-      }
+      logger.debug('[Loop] Autopilot paused, skipping automation (badge update completed)');
       setTimeout(mainEventLoop, LOOP_INTERVAL);
       return;
     }
@@ -706,15 +731,25 @@ async function mainEventLoop() {
 
     // Vessels ready to depart
     if (settings.autoDepartAll && readyToDepart > 0) {
-      logger.log(`[Loop] ${readyToDepart} vessel(s) ready to depart`);
+      logger.debug(`[Loop] ${readyToDepart} vessel(s) ready to depart`);
       await autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll, tryUpdateAllData);
     }
 
     // Vessels need repair
     const needsRepair = vessels.filter(v => v.wear >= settings.maintenanceThreshold).length;
     if (settings.autoBulkRepair && needsRepair > 0) {
-      logger.log(`[Loop] ${needsRepair} vessel(s) need repair`);
+      logger.debug(`[Loop] ${needsRepair} vessel(s) need repair`);
       await autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllData);
+    }
+
+    // Vessels need drydock
+    const needsDrydock = vessels.filter(v => {
+      const hours = v.hours_until_check !== undefined ? v.hours_until_check : 999;
+      return hours <= settings.autoDrydockThreshold;
+    }).length;
+    if (settings.autoDrydock && needsDrydock > 0) {
+      logger.debug(`[Loop] ${needsDrydock} vessel(s) need drydock`);
+      await autoDrydockVessels(autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
 
     // COOP targets available
@@ -722,7 +757,7 @@ async function mainEventLoop() {
       const coopData = await fetchCoopDataCached();
       const available = coopData.data?.coop?.available;
       if (available > 0) {
-        logger.log(`[Loop] ${available} COOP target(s) available`);
+        logger.debug(`[Loop] ${available} COOP target(s) available`);
         await autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData);
       }
     }
@@ -732,10 +767,8 @@ async function mainEventLoop() {
       await autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
 
-    // Anchor point purchase
-    if (settings.autoAnchorPointEnabled) {
-      await autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser, tryUpdateAllData);
-    }
+    // Anchor point purchase - handled by scheduler (every 5 minutes)
+    // Removed from main loop to avoid redundancy
 
     // Campaign status update and auto-renewal
     await updateCampaigns();
@@ -754,7 +787,7 @@ async function mainEventLoop() {
  * Starts the main event loop.
  */
 function startMainEventLoop() {
-  logger.log('[Loop] Starting main event loop (60s interval)');
+  logger.info('[Loop] Starting main event loop (60s interval)');
   mainEventLoop();
 }
 
@@ -786,11 +819,13 @@ module.exports = {
   departVessels,
   autoDepartVessels,
   autoRepairVessels,
+  autoDrydockVessels,
   autoCoop,
   autoAnchorPointPurchase,
   autoNegotiateHijacking,
   autoCampaignRenewal,
   updateRepairCount,
+  updateDrydockCount,
   updateCampaigns,
   updateUnreadMessages,
   updateAllData,

@@ -275,15 +275,15 @@ router.post('/settings', async (req, res) => {
       const scheduler = require('../scheduler');
       const chatBot = require('../chatbot');
 
-      logger.log(`[Settings] ========================================`);
-      logger.log(`[Settings] Scheduler Update Triggered`);
-      logger.log(`[Settings] Header + Autopilot Interval: ${Math.floor(validSettings.headerDataInterval / 60)}min`);
-      logger.log(`[Settings] Auto-Depart: ${validSettings.autoDepartAll ? 'ENABLED' : 'DISABLED'}`);
-      logger.log(`[Settings] Auto-Repair: ${validSettings.autoBulkRepair ? 'ENABLED' : 'DISABLED'}`);
-      logger.log(`[Settings] Auto-Campaign: ${validSettings.autoCampaignRenewal ? 'ENABLED' : 'DISABLED'}`);
-      logger.log(`[Settings] Auto-COOP: ${validSettings.autoCoopEnabled ? 'ENABLED' : 'DISABLED'}`);
-      logger.log(`[Settings] Auto-Anchor: ${validSettings.autoAnchorPointEnabled ? 'ENABLED' : 'DISABLED'}`);
-      logger.log(`[Settings] ========================================`);
+      logger.debug(`[Settings] ========================================`);
+      logger.info(`[Settings] Scheduler Update Triggered`);
+      logger.debug(`[Settings] Header + Autopilot Interval: ${Math.floor(validSettings.headerDataInterval / 60)}min`);
+      logger.debug(`[Settings] Auto-Depart: ${validSettings.autoDepartAll ? 'ENABLED' : 'DISABLED'}`);
+      logger.debug(`[Settings] Auto-Repair: ${validSettings.autoBulkRepair ? 'ENABLED' : 'DISABLED'}`);
+      logger.debug(`[Settings] Auto-Campaign: ${validSettings.autoCampaignRenewal ? 'ENABLED' : 'DISABLED'}`);
+      logger.debug(`[Settings] Auto-COOP: ${validSettings.autoCoopEnabled ? 'ENABLED' : 'DISABLED'}`);
+      logger.debug(`[Settings] Auto-Anchor: ${validSettings.autoAnchorPointEnabled ? 'ENABLED' : 'DISABLED'}`);
+      logger.debug(`[Settings] ========================================`);
 
       // Header + Autopilot monitor now combined (eliminates duplicate /game/index calls)
       // headerDataInterval controls both header updates AND autopilot monitor
@@ -292,15 +292,15 @@ router.post('/settings', async (req, res) => {
       // Handle auto-rebuy - trigger immediately when enabled or settings changed
       const autopilot = require('../autopilot');
       if (validSettings.autoRebuyFuel || validSettings.autoRebuyCO2) {
-        logger.log(`[Settings] Auto-Rebuy enabled - triggering immediate check`);
-        logger.log(`[Settings] Auto-Rebuy Fuel: ${validSettings.autoRebuyFuel ? 'ENABLED' : 'DISABLED'}`);
-        logger.log(`[Settings] Auto-Rebuy CO2: ${validSettings.autoRebuyCO2 ? 'ENABLED' : 'DISABLED'}`);
+        logger.debug(`[Settings] Auto-Rebuy enabled - triggering immediate check`);
+        logger.debug(`[Settings] Auto-Rebuy Fuel: ${validSettings.autoRebuyFuel ? 'ENABLED' : 'DISABLED'}`);
+        logger.debug(`[Settings] Auto-Rebuy CO2: ${validSettings.autoRebuyCO2 ? 'ENABLED' : 'DISABLED'}`);
 
         // Trigger auto-rebuy immediately
         setTimeout(async () => {
           try {
             await autopilot.autoRebuyAll();
-            logger.log(`[Settings] Auto-Rebuy triggered successfully`);
+            logger.debug(`[Settings] Auto-Rebuy triggered successfully`);
           } catch (error) {
             logger.error(`[Settings] Failed to trigger auto-rebuy:`, error);
           }
@@ -309,7 +309,7 @@ router.post('/settings', async (req, res) => {
 
       // Update ChatBot settings
       try {
-        logger.log(`[Settings] ChatBot: ${validSettings.chatbotEnabled ? 'ENABLED' : 'DISABLED'}`);
+        logger.debug(`[Settings] ChatBot: ${validSettings.chatbotEnabled ? 'ENABLED' : 'DISABLED'}`);
 
         // Transform settings to ChatBot format
         const chatBotSettings = {
@@ -345,7 +345,7 @@ router.post('/settings', async (req, res) => {
         };
 
         await chatBot.updateSettings(chatBotSettings);
-        logger.log('[Settings] ChatBot settings updated');
+        logger.debug('[Settings] ChatBot settings updated');
       } catch (error) {
         logger.error('[Settings] Failed to update ChatBot:', error);
       }

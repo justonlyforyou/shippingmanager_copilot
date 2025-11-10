@@ -30,6 +30,7 @@ module.exports = [
       'docs/jsdoc-template/**',  // External JSDoc template
       'development/**',          // Development/testing scripts
       'public/docs/**',          // Generated JSDoc documentation
+      'public/js/vendor/**',     // Third-party vendor files
       'reports/**'               // Security scan reports
     ]
   },

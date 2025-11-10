@@ -195,7 +195,7 @@ router.post('/bunker/purchase-fuel', express.json(), async (req, res) => {
       const actualCost = Math.round(cashBefore - cashAfter);
       const actualPricePerTon = Math.round(actualCost / amount);
 
-      logger.log(`[Manual Fuel Purchase] User bought ${amount}t @ $${actualPricePerTon}/t = $${actualCost.toLocaleString('en-US')} (Cash: $${cashBefore.toLocaleString('en-US')} → $${cashAfter.toLocaleString('en-US')})`);
+      logger.info(`[Manual Fuel Purchase] User bought ${amount}t @ $${actualPricePerTon}/t = $${actualCost.toLocaleString('en-US')} (Cash before: $${cashBefore.toLocaleString('en-US')} Cash after: $${cashAfter.toLocaleString('en-US')})`);
 
       broadcastToUser(userId, 'user_action_notification', {
         type: 'success',
@@ -295,7 +295,7 @@ router.post('/bunker/purchase-co2', express.json(), async (req, res) => {
       const actualCost = Math.round(cashBefore - cashAfter);
       const actualPricePerTon = Math.round(actualCost / amount);
 
-      logger.log(`[Manual CO2 Purchase] User bought ${amount}t @ $${actualPricePerTon}/t = $${actualCost.toLocaleString('en-US')} (Cash: $${cashBefore.toLocaleString('en-US')} → $${cashAfter.toLocaleString('en-US')})`);
+      logger.info(`[Manual CO2 Purchase] User bought ${amount}t @ $${actualPricePerTon}/t = $${actualCost.toLocaleString('en-US')} (Cash before: $${cashBefore.toLocaleString('en-US')} Cash after: $${cashAfter.toLocaleString('en-US')})`);
 
       broadcastToUser(userId, 'user_action_notification', {
         type: 'success',
@@ -372,16 +372,23 @@ router.post('/route/depart', async (req, res) => {
     }
 
     if (vesselIds) {
-      logger.log(`[Depart API] Departing ${vesselIds.length} specific vessels`);
+      logger.debug(`[Depart API] Departing ${vesselIds.length} specific vessels`);
     } else {
-      logger.log(`[Depart API] Departing ALL vessels in harbor`);
+      logger.debug(`[Depart API] Departing ALL vessels in harbor`);
     }
 
     // Call universal depart function
     // vesselIds = null means "depart all"
     // vesselIds = [1,2,3] means "depart these specific vessels"
-    const { broadcastToUser } = require('../websocket');
+    const { broadcastToUser, broadcastHarborMapRefresh } = require('../websocket');
     const result = await autopilot.departVessels(userId, vesselIds, broadcastToUser, autopilot.autoRebuyAll, autopilot.tryUpdateAllData);
+
+    // Trigger Harbor Map refresh (vessels departed)
+    if (broadcastHarborMapRefresh) {
+      broadcastHarborMapRefresh(userId, 'vessels_departed', {
+        count: vesselIds ? vesselIds.length : 'all'
+      });
+    }
 
     res.json(result || { success: true, message: 'Depart triggered' });
   } catch (error) {
@@ -439,6 +446,98 @@ router.post('/maintenance/do-wear-maintenance-bulk', express.json(), async (req,
   } catch (error) {
     logger.error('Error performing bulk maintenance:', error);
     res.status(500).json({ error: 'Failed to perform bulk maintenance' });
+  }
+});
+
+/** POST /api/maintenance/get-drydock-status - Gets drydock maintenance pricing for specified vessels. Returns pricing for major/minor drydock and wear repairs. */
+router.post('/maintenance/get-drydock-status', express.json(), async (req, res) => {
+  const { vessel_ids, speed, maintenance_type } = req.body;
+
+  if (!vessel_ids) {
+    return res.status(400).json({ error: 'Missing vessel_ids' });
+  }
+
+  if (!speed || !['maximum', 'minimum'].includes(speed)) {
+    return res.status(400).json({ error: 'Invalid speed. Must be "maximum" or "minimum"' });
+  }
+
+  if (!maintenance_type || !['major', 'minor'].includes(maintenance_type)) {
+    return res.status(400).json({ error: 'Invalid maintenance_type. Must be "major" or "minor"' });
+  }
+
+  try {
+    const data = await apiCall('/maintenance/get', 'POST', {
+      vessel_ids,
+      speed,
+      maintenance_type
+    });
+    res.json(data);
+  } catch (error) {
+    logger.error('Error getting drydock status:', error);
+    res.status(500).json({ error: 'Failed to get drydock status' });
+  }
+});
+
+/** POST /api/maintenance/bulk-drydock - Executes drydock maintenance for specified vessels. Sends vessels to nearest drydock for major or minor antifouling restoration. */
+router.post('/maintenance/bulk-drydock', express.json(), async (req, res) => {
+  const { vessel_ids, speed, maintenance_type } = req.body;
+
+  if (!vessel_ids) {
+    return res.status(400).json({ error: 'Missing vessel_ids' });
+  }
+
+  if (!speed || !['maximum', 'minimum'].includes(speed)) {
+    return res.status(400).json({ error: 'Invalid speed. Must be "maximum" or "minimum"' });
+  }
+
+  if (!maintenance_type || !['major', 'minor'].includes(maintenance_type)) {
+    return res.status(400).json({ error: 'Invalid maintenance_type. Must be "major" or "minor"' });
+  }
+
+  try {
+    const data = await apiCall('/maintenance/do-major-drydock-maintenance-bulk', 'POST', {
+      vessel_ids,
+      speed,
+      maintenance_type
+    });
+
+    const userId = getUserId();
+    if (userId && data.data?.success) {
+      logger.info(`[Manual Drydock] User sent ${JSON.parse(vessel_ids).length} vessel(s) to drydock (${maintenance_type}, ${speed} speed)`);
+
+      // Broadcast success notification
+      broadcastToUser(userId, 'user_action_notification', {
+        type: 'success',
+        message: `🔧 <strong>Drydock Scheduled!</strong><br><br>Sent ${JSON.parse(vessel_ids).length} vessel(s) to drydock`
+      });
+
+      // Broadcast bunker update (cash/fuel/co2 updated)
+      if (data.user) {
+        const cachedCapacity = autopilot.getCachedCapacity(userId);
+        broadcastToUser(userId, 'bunker_update', {
+          fuel: data.user.fuel / 1000,
+          co2: (data.user.co2 || data.user.co2_certificate) / 1000,
+          cash: data.user.cash,
+          maxFuel: cachedCapacity.maxFuel,
+          maxCO2: cachedCapacity.maxCO2
+        });
+      }
+    }
+
+    res.json(data);
+  } catch (error) {
+    logger.error('Error executing drydock:', error);
+
+    const userId = getUserId();
+    if (userId) {
+      const safeErrorMessage = validator.escape(error.message || 'Unknown error');
+      broadcastToUser(userId, 'user_action_notification', {
+        type: 'error',
+        message: `🔧 <strong>Drydock Failed</strong><br><br>${safeErrorMessage}`
+      });
+    }
+
+    res.status(500).json({ error: 'Failed to execute drydock' });
   }
 });
 
@@ -545,7 +644,7 @@ router.post('/vessel/sell-vessels', express.json(), async (req, res) => {
 
     const userId = getUserId();
     if (userId && soldCount > 0) {
-      logger.log(`[Manual Vessel Sell] User sold ${soldCount} vessel(s)`);
+      logger.info(`[Manual Vessel Sell] User sold ${soldCount} vessel(s)`);
 
       // Broadcast notification to all clients
       broadcastToUser(userId, 'user_action_notification', {
@@ -645,7 +744,7 @@ router.post('/vessel/purchase-vessel', express.json(), async (req, res) => {
       // Escape vessel name to prevent XSS in notifications
       const safeVesselName = validator.escape(vesselName);
 
-      logger.log(`[Manual Vessel Purchase] User bought ${purchaseCount}x ${vesselName}`);
+      logger.info(`[Manual Vessel Purchase] User bought ${purchaseCount}x ${vesselName}`);
 
       // Broadcast notification to all clients (unless silent=true)
       broadcastToUser(userId, 'user_action_notification', {
@@ -745,6 +844,14 @@ router.post('/vessel/broadcast-purchase-summary', express.json(), async (req, re
     broadcastToUser(userId, 'bulk_buy_complete', {
       count: vessels.length
     });
+
+    // Trigger Harbor Map refresh (vessels purchased)
+    const { broadcastHarborMapRefresh } = require('../websocket');
+    if (broadcastHarborMapRefresh) {
+      broadcastHarborMapRefresh(userId, 'vessels_purchased', {
+        count: vessels.length
+      });
+    }
 
     res.json({ success: true });
   } catch (error) {
@@ -959,7 +1066,7 @@ router.post('/autopilot/trigger-depart', async (req, res) => {
       return res.json({ success: false, message: 'Auto-depart not enabled' });
     }
 
-    logger.log(`[Auto-Depart] Event-driven trigger received for user ${userId}`);
+    logger.debug(`[Auto-Depart] Event-driven trigger received for user ${userId}`);
 
     // Execute auto-depart directly
     await autopilot.autoDepartVessels();
@@ -994,7 +1101,7 @@ router.post('/autopilot/toggle', async (req, res) => {
     }
 
     const status = newPausedState ? 'paused' : 'resumed';
-    logger.log(`[Autopilot] User ${userId} ${status} autopilot`);
+    logger.info(`[Autopilot] User ${userId} ${status} autopilot`);
 
     // Broadcast status to this user's connected clients
     broadcastToUser(userId, 'autopilot_status', {

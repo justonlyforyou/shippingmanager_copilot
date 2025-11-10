@@ -30,9 +30,23 @@ let serverReady = false;
  * Called once during server startup.
  */
 function initScheduler() {
-  logger.log('[Scheduler] Initializing schedulers...');
+  logger.info('[Scheduler] Initializing schedulers...');
 
-  // 1. Auto-Anchor: Every 5 minutes (separate from main loop)
+  // 1. Price Updates: At :01, :16, :31, :46 every hour (4 times per hour)
+  // Game prices change at :00 and :30, we fetch 1 minute after to ensure fresh data
+  new CronJob('0 1,16,31,46 * * * *', async () => {
+    try {
+      const userId = getUserId();
+      if (!userId) return;
+
+      logger.info('[Scheduler] Updating prices...');
+      await autopilot.updatePrices();
+    } catch (error) {
+      logger.error('[Scheduler] Price update failed:', error.message);
+    }
+  }, null, true, 'Europe/Berlin');
+
+  // 2. Auto-Anchor: Every 5 minutes (separate from main loop)
   new CronJob('0 */5 * * * *', async () => {
     try {
       const userId = getUserId();
@@ -53,7 +67,7 @@ function initScheduler() {
           return;
         }
 
-        logger.log('[Scheduler] Running Auto-Anchor (Harbormaster)');
+        logger.info('[Scheduler] Running Auto-Anchor (Harbormaster)');
         await autopilot.autoAnchorPointPurchase(userId);
       }
     } catch (error) {
@@ -61,14 +75,14 @@ function initScheduler() {
     }
   }, null, true, 'Europe/Berlin');
 
-  logger.log('[Scheduler] Schedulers initialized');
-  logger.log('[Scheduler] - Auto-Anchor: every 5 minutes');
-  logger.log('[Scheduler] - Price updates: every 60 seconds (in main event loop)');
+  logger.info('[Scheduler] Schedulers initialized');
+  logger.info('[Scheduler] - Auto-Anchor: every 5 minutes');
+  logger.info('[Scheduler] - Price updates: every 60 seconds (in main event loop)');
 
   // Initial startup: Load essential data BEFORE starting event loop
-  logger.log('[Scheduler] Loading initial UI data in 10 seconds...');
+  logger.info('[Scheduler] Loading initial UI data in 10 seconds...');
   setTimeout(async () => {
-    logger.log('[Scheduler] INITIAL DATA LOAD FOR UI');
+    logger.info('[Scheduler] INITIAL DATA LOAD FOR UI');
 
     try {
       const userId = getUserId();
@@ -85,22 +99,22 @@ function initScheduler() {
       autopilot.initializeAutopilotState(userId);
 
       // Load all initial data
-      logger.log('[Scheduler] Step 1/3: Loading all game data...');
+      logger.info('[Scheduler] Step 1/3: Loading all game data...');
       await autopilot.updateAllData();
 
-      logger.log('[Scheduler] Step 2/3: Loading current prices...');
+      logger.info('[Scheduler] Step 2/3: Loading current prices...');
       await autopilot.updatePrices();
 
-      logger.log('[Scheduler] Step 3/3: Checking price alerts...');
+      logger.info('[Scheduler] Step 3/3: Checking price alerts...');
       await autopilot.checkPriceAlerts();
 
-      logger.log('[Scheduler] INITIAL DATA LOADED - UI READY');
+      logger.info('[Scheduler] INITIAL DATA LOADED - UI READY');
 
       // Mark server as ready
       serverReady = true;
 
       // Start event-driven autopilot loop (60s interval)
-      logger.log('[Scheduler] Starting event-driven autopilot loop...');
+      logger.info('[Scheduler] Starting event-driven autopilot loop...');
       autopilot.startMainEventLoop();
 
     } catch (error) {

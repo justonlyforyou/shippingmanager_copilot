@@ -88,6 +88,22 @@ router.get('/overview', async (req, res) => {
   try {
     const filter = req.query.filter || 'my_ports'; // 'my_ports' or 'all_ports' or specific filters
 
+    // Validate filter parameter - whitelist approach
+    const validFilters = [
+      'my_ports',
+      'all_ports',
+      'my_ports_with_arrived_vessels',
+      'my_ports_with_anchored_vessels',
+      'my_ports_with_vessels_in_maint',
+      'my_ports_with_pending_vessels'
+    ];
+    if (!validFilters.includes(filter)) {
+      return res.status(400).json({
+        error: 'Invalid filter parameter',
+        valid_filters: validFilters
+      });
+    }
+
     // Fetch game index (cached) for ports
     const gameIndexData = await getGameIndexCached();
     const allPortsWithDemand = extractPortsFromGameIndex(gameIndexData);
@@ -96,7 +112,7 @@ router.get('/overview', async (req, res) => {
     const vesselsResponse = await gameapi.getAllUserVessels();
     const allVessels = vesselsResponse?.data?.user_vessels || [];
 
-    logger.log(`[Harbor Map] getAllUserVessels response: ${allVessels.length} vessels`);
+    logger.debug(`[Harbor Map] getAllUserVessels response: ${allVessels.length} vessels`);
 
     // Aggregate vessel data with calculated positions
     const vesselsWithPositions = aggregateVesselData(allVessels, allPortsWithDemand);
@@ -110,67 +126,69 @@ router.get('/overview', async (req, res) => {
     let vessels = vesselsWithPositions;
 
     if (filter === 'my_ports') {
-      // Only show assigned ports
-      ports = filterAssignedPorts(assignedPorts, allPortsWithDemand);
-      logger.log(`[Harbor Map] Filter: ${filter}, Assigned ports: ${assignedPorts.length}, Filtered ports: ${ports.length}, All ports: ${allPortsWithDemand.length}`);
+      // Only show assigned ports (mark them with isAssigned: true)
+      ports = filterAssignedPorts(assignedPorts, allPortsWithDemand).map(p => ({ ...p, isAssigned: true }));
+      logger.debug(`[Harbor Map] Filter: ${filter}, Assigned ports: ${assignedPorts.length}, Filtered ports: ${ports.length}, All ports: ${allPortsWithDemand.length}`);
     } else if (filter === 'my_ports_with_arrived_vessels') {
       // Only show assigned ports with vessels in 'port' status AND only show those vessels
       const assignedPortsWithDemand = filterAssignedPorts(assignedPorts, allPortsWithDemand);
       const portsWithArrivedVessels = new Set(
         vesselsWithPositions.filter(v => v.status === 'port' && v.current_port_code).map(v => v.current_port_code)
       );
-      ports = assignedPortsWithDemand.filter(p => portsWithArrivedVessels.has(p.code));
+      ports = assignedPortsWithDemand.filter(p => portsWithArrivedVessels.has(p.code)).map(p => ({ ...p, isAssigned: true }));
       vessels = vesselsWithPositions.filter(v => v.status === 'port' && v.current_port_code && portsWithArrivedVessels.has(v.current_port_code));
-      logger.log(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
+      logger.debug(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
     } else if (filter === 'my_ports_with_anchored_vessels') {
       // Only show assigned ports with vessels in 'anchor' status AND only show those vessels
       const assignedPortsWithDemand = filterAssignedPorts(assignedPorts, allPortsWithDemand);
       const portsWithAnchoredVessels = new Set(
         vesselsWithPositions.filter(v => v.status === 'anchor' && v.current_port_code).map(v => v.current_port_code)
       );
-      ports = assignedPortsWithDemand.filter(p => portsWithAnchoredVessels.has(p.code));
+      ports = assignedPortsWithDemand.filter(p => portsWithAnchoredVessels.has(p.code)).map(p => ({ ...p, isAssigned: true }));
       vessels = vesselsWithPositions.filter(v => v.status === 'anchor' && v.current_port_code && portsWithAnchoredVessels.has(v.current_port_code));
-      logger.log(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
+      logger.debug(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
     } else if (filter === 'my_ports_with_vessels_in_maint') {
       // Only show assigned ports with vessels in 'maintenance' status AND only show those vessels
       const assignedPortsWithDemand = filterAssignedPorts(assignedPorts, allPortsWithDemand);
       const portsWithMaintenanceVessels = new Set(
         vesselsWithPositions.filter(v => v.status === 'maintenance' && v.current_port_code).map(v => v.current_port_code)
       );
-      ports = assignedPortsWithDemand.filter(p => portsWithMaintenanceVessels.has(p.code));
+      ports = assignedPortsWithDemand.filter(p => portsWithMaintenanceVessels.has(p.code)).map(p => ({ ...p, isAssigned: true }));
       vessels = vesselsWithPositions.filter(v => v.status === 'maintenance' && v.current_port_code && portsWithMaintenanceVessels.has(v.current_port_code));
-      logger.log(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
+      logger.debug(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
     } else if (filter === 'my_ports_with_pending_vessels') {
       // Only show assigned ports with vessels in 'pending' or 'delivery' status AND only show those vessels
       const assignedPortsWithDemand = filterAssignedPorts(assignedPorts, allPortsWithDemand);
       const portsWithPendingVessels = new Set(
         vesselsWithPositions.filter(v => (v.status === 'pending' || v.status === 'delivery') && v.current_port_code).map(v => v.current_port_code)
       );
-      ports = assignedPortsWithDemand.filter(p => portsWithPendingVessels.has(p.code));
+      ports = assignedPortsWithDemand.filter(p => portsWithPendingVessels.has(p.code)).map(p => ({ ...p, isAssigned: true }));
       vessels = vesselsWithPositions.filter(v => (v.status === 'pending' || v.status === 'delivery') && v.current_port_code && portsWithPendingVessels.has(v.current_port_code));
-      logger.log(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
+      logger.debug(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
     } else {
       // Show all ports, but merge assigned ports (with correct demand) with all other ports
       const assignedPortsWithDemand = filterAssignedPorts(assignedPorts, allPortsWithDemand);
 
       // Debug: Log first assigned port to see structure
       if (config.DEBUG_MODE && assignedPortsWithDemand.length > 0) {
-        logger.log(`[Harbor Map] Sample assigned port:`, JSON.stringify(assignedPortsWithDemand[0], null, 2));
+        logger.debug(`[Harbor Map] Sample assigned port:`, JSON.stringify(assignedPortsWithDemand[0], null, 2));
       }
 
       // Create a map of assigned ports by code for quick lookup
       const assignedPortMap = new Map(assignedPortsWithDemand.map(p => [p.code, p]));
 
       // Merge: use assigned port data if available (has correct demand), otherwise use game/index data
+      // Mark assigned ports with isAssigned flag for client-side filtering
       ports = allPortsWithDemand.map(port => {
         const assignedPort = assignedPortMap.get(port.code);
         if (assignedPort) {
-          logger.debug(`[Harbor Map] Using assigned port for ${port.code}, hasDemand: ${!!assignedPort.demand}`);
+          return { ...assignedPort, isAssigned: true }; // Mark as assigned
         }
-        return assignedPort || port; // Prefer assigned port (has correct demand)
+        return { ...port, isAssigned: false }; // Mark as not assigned
       });
 
-      logger.log(`[Harbor Map] Filter: ${filter}, All ports: ${ports.length}, Assigned ports with demand: ${assignedPortsWithDemand.length}`);
+      const assignedCount = ports.filter(p => p.isAssigned === true).length;
+      logger.debug(`[Harbor Map] Filter: ${filter}, All ports: ${ports.length}, Assigned ports marked: ${assignedCount}, Assigned ports from API: ${assignedPortsWithDemand.length}`);
     }
 
     res.json({
@@ -234,7 +252,7 @@ router.get('/vessel/:vesselId/reachable-ports', async (req, res) => {
     // Extract route if vessel is sailing
     let route = null;
     if (vessel.status === 'enroute' && vessel.active_route?.path) {
-      logger.log(`[Harbor Map] Active route for vessel ${vesselId}:`, JSON.stringify(vessel.active_route, null, 2));
+      logger.debug(`[Harbor Map] Active route for vessel ${vesselId}:`, JSON.stringify(vessel.active_route, null, 2));
 
       // Handle reversed routes - if reversed=true, swap origin and destination
       const isReversed = vessel.active_route.reversed === true;
@@ -250,7 +268,7 @@ router.get('/vessel/:vesselId/reachable-ports', async (req, res) => {
         origin: actualOrigin,
         destination: actualDestination
       };
-      logger.log(`[Harbor Map] Route created (reversed=${isReversed}) with origin: ${route.origin}, destination: ${route.destination}`);
+      logger.debug(`[Harbor Map] Route created (reversed=${isReversed}) with origin: ${route.origin}, destination: ${route.destination}`);
     }
 
     res.json({
@@ -284,6 +302,19 @@ router.get('/port/:portCode', async (req, res) => {
   try {
     const portCode = req.params.portCode.toLowerCase(); // Port codes are lowercase in game/index
 
+    // Validate portCode to prevent injection attacks
+    // Port codes should only contain lowercase letters, numbers, underscores
+    if (!/^[a-z0-9_]+$/.test(portCode)) {
+      return res.status(400).json({
+        error: 'Invalid port code format. Only lowercase letters, numbers, and underscores allowed.'
+      });
+    }
+
+    // Limit length
+    if (portCode.length > 50) {
+      return res.status(400).json({ error: 'Port code too long (max 50 characters)' });
+    }
+
     // Fetch game index (cached) for all ports (coordinates/metadata)
     const gameIndexData = await getGameIndexCached();
     const allPortsFromIndex = extractPortsFromGameIndex(gameIndexData);
@@ -309,19 +340,19 @@ router.get('/port/:portCode', async (req, res) => {
       });
     }
 
-    logger.log(`[Harbor Map] Port ${portCode} found in: ${assignedPorts.find(p => p.code === portCode) ? 'assigned-ports' : 'game-index'}`);
-    logger.log(`[Harbor Map] Port demand structure: ${JSON.stringify(port.demand)}`);
-    logger.log(`[Harbor Map] Assigned ports list: ${assignedPorts.map(p => p.code).join(', ')}`);
+    logger.debug(`[Harbor Map] Port ${portCode} found in: ${assignedPorts.find(p => p.code === portCode) ? 'assigned-ports' : 'game-index'}`);
+    logger.debug(`[Harbor Map] Port demand structure: ${JSON.stringify(port.demand)}`);
+    logger.debug(`[Harbor Map] Assigned ports list: ${assignedPorts.map(p => p.code).join(', ')}`);
 
     // If port has no demand and is in assigned ports, try to find it with alternate matching
     if ((!port.demand || port.demand.length === 0) && assignedPorts.length > 0) {
-      logger.log(`[Harbor Map] Port has no demand, searching assigned ports by partial match...`);
+      logger.debug(`[Harbor Map] Port has no demand, searching assigned ports by partial match...`);
       const alternateMatch = assignedPorts.find(p =>
         p.code.toLowerCase().includes(portCode) ||
         portCode.includes(p.code.toLowerCase())
       );
       if (alternateMatch) {
-        logger.log(`[Harbor Map] Found alternate match: ${alternateMatch.code} with demand: ${JSON.stringify(alternateMatch.demand)}`);
+        logger.debug(`[Harbor Map] Found alternate match: ${alternateMatch.code} with demand: ${JSON.stringify(alternateMatch.demand)}`);
         port = alternateMatch;
       }
     }
@@ -330,7 +361,7 @@ router.get('/port/:portCode', async (req, res) => {
     const vesselsResponse = await gameapi.getAllUserVessels();
     const allVessels = vesselsResponse?.data?.user_vessels || [];
 
-    logger.log(`[Harbor Map] Fetched ${allVessels.length} vessels from API`);
+    logger.debug(`[Harbor Map] Fetched ${allVessels.length} vessels from API`);
 
     // Aggregate vessel data
     const vesselsWithPositions = aggregateVesselData(allVessels, allPortsFromIndex);
@@ -338,7 +369,7 @@ router.get('/port/:portCode', async (req, res) => {
     // Categorize vessels by port
     const categorizedVessels = categorizeVesselsByPort(portCode, vesselsWithPositions);
 
-    logger.log(`[Harbor Map] Port ${portCode} vessels: inPort=${categorizedVessels.inPort.length}, toPort=${categorizedVessels.toPort.length}, fromPort=${categorizedVessels.fromPort.length}`);
+    logger.debug(`[Harbor Map] Port ${portCode} vessels: inPort=${categorizedVessels.inPort.length}, toPort=${categorizedVessels.toPort.length}, fromPort=${categorizedVessels.fromPort.length}`);
 
     res.json({
       port,
@@ -364,7 +395,7 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
   try {
     const vesselId = parseInt(req.params.vesselId);
 
-    logger.log(`[Harbor Map] Fetching history for vessel ${vesselId}`);
+    logger.debug(`[Harbor Map] Fetching history for vessel ${vesselId}`);
 
     // Fetch vessel history from API
     const historyResponse = await gameapi.getVesselHistory(vesselId);
@@ -374,7 +405,7 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
       return res.status(404).json({ error: 'Vessel history not found' });
     }
 
-    logger.log(`[Harbor Map] Found ${historyResponse.data.vessel_history.length} history entries for vessel ${vesselId}`);
+    logger.debug(`[Harbor Map] Found ${historyResponse.data.vessel_history.length} history entries for vessel ${vesselId}`);
 
     // Transform API response to match frontend expectations
     res.json({
@@ -406,7 +437,7 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
 router.post('/clear-cache', (req, res) => {
   gameIndexCache = null;
   gameIndexCacheTime = 0;
-  logger.log('[Harbor Map] Cache cleared');
+  logger.info('[Harbor Map] Cache cleared');
 
   res.json({ success: true, message: 'Cache cleared' });
 });
@@ -433,7 +464,7 @@ router.post('/vessel/:vesselId/history/export', async (req, res) => {
       });
     }
 
-    logger.log(`[Harbor Map] Exporting history for vessel ${vesselId} as ${format}`);
+    logger.debug(`[Harbor Map] Exporting history for vessel ${vesselId} as ${format}`);
 
     // Fetch vessel history from API
     const historyResponse = await gameapi.getVesselHistory(vesselId);
@@ -477,7 +508,7 @@ router.post('/vessel/:vesselId/history/export', async (req, res) => {
       return res.status(400).json({ error: 'Invalid format. Must be txt, csv, or json' });
     }
 
-    logger.log(`[Harbor Map] Exported ${history.length} history entries as ${format}`);
+    logger.debug(`[Harbor Map] Exported ${history.length} history entries as ${format}`);
   } catch (error) {
     logger.error(`Error exporting vessel history for ${req.params.vesselId}:`, error);
     res.status(500).json({ error: 'Failed to export vessel history' });

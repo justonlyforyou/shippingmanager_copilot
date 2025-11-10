@@ -52,7 +52,7 @@ const DEBUG_MODE = config.DEBUG_MODE;
 async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser, tryUpdateAllData) {
   // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.log('[Auto-Rebuy CO2] Skipped - Autopilot is PAUSED');
+    logger.debug('[Auto-Rebuy CO2] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -62,9 +62,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
   // Check settings
   const settings = state.getSettings(userId);
   if (!settings.autoRebuyCO2) {
-    if (DEBUG_MODE) {
-      logger.log('[Auto-Rebuy CO2] Feature disabled in settings');
-    }
+    logger.debug('[Auto-Rebuy CO2] Feature disabled in settings');
     return;
   }
 
@@ -110,9 +108,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
     // Check if bunker has space
     const availableSpace = bunker.maxCO2 - bunker.co2;
     if (availableSpace < 0.5) {
-      if (DEBUG_MODE) {
-        logger.log('[Auto-Rebuy CO2] Bunker full');
-      }
+      logger.debug('[Auto-Rebuy CO2] Bunker full');
       return; // Bunker full
     }
 
@@ -134,7 +130,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
     logger.debug(`[Auto-Rebuy CO2] Calculations: Space=${availableSpace.toFixed(1)}t, Cash=$${bunker.cash.toLocaleString()}, MinCash=$${minCash.toLocaleString()}, Available=$${cashAvailable.toLocaleString()}, MaxAffordable=${maxAffordable}t, ToBuy=${amountToBuy}t`);
 
     if (amountToBuy <= 0) {
-      logger.log(`[Auto-Rebuy CO2] Cannot buy: Not enough cash after keeping minimum reserve`);
+      logger.warn(`[Auto-Rebuy CO2] Cannot buy: Not enough cash after keeping minimum reserve`);
       return;
     }
 
@@ -152,9 +148,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
 
     // Broadcast success
     if (broadcastToUser) {
-      if (DEBUG_MODE) {
-        logger.log(`[Auto-Rebuy CO2] Broadcasting co2_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
-      }
+      logger.debug(`[Auto-Rebuy CO2] Broadcasting co2_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
       broadcastToUser(userId, 'co2_purchased', {
         amount: amountToBuy,
         price: prices.co2,
@@ -172,7 +166,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       });
     }
 
-    logger.log(`[Auto-Rebuy CO2] Purchased ${amountToBuy}t @ $${prices.co2}/t (New total: ${result.newTotal.toFixed(1)}t)`);
+    logger.info(`[Auto-Rebuy CO2] Purchased ${amountToBuy}t @ $${prices.co2}/t (New total: ${result.newTotal.toFixed(1)}t)`);
 
     // Log to autopilot logbook
     await logAutopilotAction(

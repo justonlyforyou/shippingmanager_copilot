@@ -218,7 +218,7 @@ async function processAllianceMessage(message, userId, userName, chatbotInstance
     const commandInput = parts[0].toLowerCase();
     const args = parts.slice(1);
 
-    logger.log(`[ChatBot] Command from ${userName}: !${commandInput} ${args.join(' ')}`);
+    logger.debug(`[ChatBot] Command from ${userName}: !${commandInput} ${args.join(' ')}`);
 
     // Resolve command name (including aliases)
     const command = resolveCommandName(commandInput, settings);
@@ -241,7 +241,7 @@ async function processAllianceMessage(message, userId, userName, chatbotInstance
     // Check if command is allowed in alliance chat based on settings
     const isAllianceAllowed = isCommandAllowedInChannel(command, 'alliance');
     if (!isAllianceAllowed) {
-        logger.log(`[ChatBot] Command '${command}' not allowed in alliance chat per settings`);
+        logger.debug(`[ChatBot] Command '${command}' not allowed in alliance chat per settings`);
         return;
     }
 
@@ -254,13 +254,13 @@ async function processAllianceMessage(message, userId, userName, chatbotInstance
     // Check admin permission
     const currentUserId = getUserId();
     if (cmdConfig.adminOnly && userId !== currentUserId) {
-        logger.log(`[ChatBot] User ${userId} tried admin command ${command}`);
+        logger.debug(`[ChatBot] User ${userId} tried admin command ${command}`);
         return;
     }
 
     // Check cooldown
     if (isOnCooldown(userId, command, lastCommandTime, settings)) {
-        logger.log(`[ChatBot] Command ${command} on cooldown for user ${userId}`);
+        logger.debug(`[ChatBot] Command ${command} on cooldown for user ${userId}`);
         return;
     }
 
@@ -355,7 +355,7 @@ async function processPrivateMessage(messageId, body, senderId, senderName, chat
         return false;
     }
 
-    logger.log(`[ChatBot] DM command from ${senderName}: !${command}`);
+    logger.debug(`[ChatBot] DM command from ${senderName}: !${command}`);
 
     // Mark as processed
     processedMessages.add(messageId);
