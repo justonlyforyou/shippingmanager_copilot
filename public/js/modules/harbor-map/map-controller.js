@@ -11,6 +11,7 @@ import { showVesselPanel, hideVesselPanel } from './vessel-panel.js';
 import { showPortPanel, hidePortPanel } from './port-panel.js';
 import { initializePanelDrag } from './panel-drag.js';
 import { filterVessels, filterPorts, getVesselFilterOptions, getPortFilterOptions } from './filters.js';
+import { showSideNotification } from '../utils.js';
 
 // Map instance
 let map = null;
@@ -51,15 +52,15 @@ let cloudAnimationFrames = [];
 let cloudAnimationInterval = null;
 let currentCloudFrame = 0;
 
-// POI Layer - Rotating button (off -> lighthouses -> shipyards -> platforms -> museums -> off)
-let currentPOILayer = localStorage.getItem('harborMapPOILayer') || 'off'; // 'off', 'lighthouses', 'shipyards', 'platforms', 'museums'
+// POI Layer - Rotating button (off -> museums -> wrecks -> off)
+let currentPOILayer = localStorage.getItem('harborMapPOILayer') || 'off'; // 'off', 'museums', 'wrecks'
 let poiMarkerLayer = null;
 let poiLayerControl = null;
 
 // Current data (for route filtering)
 let currentVessels = [];
 let currentPorts = [];
-let currentRouteFilter = null; // null = show all, string = show specific route
+let currentRouteFilter = localStorage.getItem('harborMapRouteFilter') || null; // null = show all, string = show specific route
 
 // Tile layers
 let currentTileLayer = null;
@@ -625,8 +626,8 @@ function addCustomControls() {
       L.DomEvent.disableClickPropagation(container);
 
       // Add change listener
-      container.querySelector('select').addEventListener('change', (e) => {
-        setRouteFilter(e.target.value);
+      container.querySelector('select').addEventListener('change', async (e) => {
+        await setRouteFilter(e.target.value);
       });
 
       return container;
@@ -681,7 +682,36 @@ function addCustomControls() {
     onAdd: function() {
       const container = L.DomUtil.create('div', 'leaflet-control-custom weather-toggle');
 
-      container.innerHTML = weatherEnabled ? '🌧️' : '☀️';
+      const updateWeatherButton = () => {
+        container.style.position = 'relative';
+
+        if (weatherEnabled) {
+          container.innerHTML = '🌧️';
+        } else {
+          container.innerHTML = '🌧️';
+        }
+
+        // Add or update strike-through line
+        let strikeLine = container.querySelector('.weather-strike');
+        if (!strikeLine) {
+          strikeLine = document.createElement('div');
+          strikeLine.className = 'weather-strike';
+          strikeLine.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #ef4444;
+            transform: translateY(-50%) rotate(-45deg);
+            pointer-events: none;
+          `;
+          container.appendChild(strikeLine);
+        }
+        strikeLine.style.display = weatherEnabled ? 'none' : 'block';
+      };
+
+      updateWeatherButton();
       container.title = 'Rain Radar';
 
       // Prevent map click propagation
@@ -692,12 +722,12 @@ function addCustomControls() {
         weatherEnabled = !weatherEnabled;
 
         if (weatherEnabled) {
-          container.innerHTML = '🌧️';
           toggleWeatherLayer('rain');
         } else {
-          container.innerHTML = '☀️';
           toggleWeatherLayer('off');
         }
+
+        updateWeatherButton();
 
         // Reset tooltip
         container.removeAttribute('title');
@@ -839,185 +869,363 @@ function addCustomControls() {
     }
   });
 
-  // POI Layer Control - Rotating button (off -> lighthouses -> shipyards -> platforms -> museums -> off)
-  const POILayerControl = L.Control.extend({
+  // Zoom Level Display Control
+  const ZoomDisplayControl = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd: function() {
+      const container = L.DomUtil.create('div', 'leaflet-control-custom zoom-display');
+      container.style.cssText = `
+        background: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        pointer-events: none;
+      `;
+
+      const updateZoom = () => {
+        const zoom = map.getZoom();
+        container.innerHTML = `Zoom: ${zoom}`;
+      };
+
+      updateZoom();
+      map.on('zoomend', updateZoom);
+
+      return container;
+    }
+  });
+
+  // Museums Layer Control - Simple toggle button (no zoom limit - not many museums)
+  let museumsEnabled = localStorage.getItem('harborMapMuseumsEnabled') === 'true';
+  let museumsMarkerLayer = null;
+
+  const MuseumsLayerControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
-      const container = L.DomUtil.create('div', 'leaflet-control-custom poi-layer-toggle');
+      const container = L.DomUtil.create('div', 'leaflet-control-custom museums-toggle');
 
-      // Function to load POIs from Overpass API
-      const loadPOIs = async (type) => {
-        const bounds = map.getBounds();
-        const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+      const updateButton = () => {
+        container.style.position = 'relative';
+        container.innerHTML = '🏛️';
 
-        let query = '';
-        switch(type) {
-          case 'lighthouses':
-            query = `[out:json][timeout:25];(node["man_made"="lighthouse"](${bbox}););out body;`;
-            break;
-          case 'shipyards':
-            query = `[out:json][timeout:25];(node["industrial"="shipyard"](${bbox});way["industrial"="shipyard"](${bbox}););out center;`;
-            break;
-          case 'platforms':
-            query = `[out:json][timeout:25];(node["man_made"="offshore_platform"](${bbox}););out body;`;
-            break;
-          case 'museums':
-            query = `[out:json][timeout:25];(node["tourism"="museum"]["museum"="maritime"](${bbox});way["tourism"="museum"]["museum"="maritime"](${bbox}););out center;`;
-            break;
+        let strikeLine = container.querySelector('.museums-strike');
+        if (!strikeLine) {
+          strikeLine = document.createElement('div');
+          strikeLine.className = 'museums-strike';
+          strikeLine.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #ef4444;
+            transform: translateY(-50%) rotate(-45deg);
+            pointer-events: none;
+          `;
+          container.appendChild(strikeLine);
         }
+        strikeLine.style.display = museumsEnabled ? 'none' : 'block';
+      };
 
-        // Try multiple Overpass servers
-        const servers = [
-          'https://overpass-api.de/api/interpreter',
-          'https://overpass.kumi.systems/api/interpreter',
-          'https://overpass.openstreetmap.ru/api/interpreter'
-        ];
+      updateButton();
+      container.title = 'Maritime Museums';
 
-        for (const server of servers) {
+      L.DomEvent.disableClickPropagation(container);
+
+      container.addEventListener('click', async () => {
+        museumsEnabled = !museumsEnabled;
+        localStorage.setItem('harborMapMuseumsEnabled', museumsEnabled);
+
+        if (museumsEnabled) {
           try {
-            console.log(`[POI] Trying server: ${server}`);
-            const response = await fetch(server, {
-              method: 'POST',
-              body: query,
-              headers: {
-                'Content-Type': 'application/x-www-form-urlencoded'
-              }
-            });
-
-            if (!response.ok) {
-              console.warn(`[POI] Server ${server} returned ${response.status}`);
-              continue;
-            }
-
-            const contentType = response.headers.get('content-type');
-            if (!contentType || !contentType.includes('application/json')) {
-              console.warn(`[POI] Server ${server} returned non-JSON response`);
-              continue;
-            }
+            // Load all museums (no bbox - there aren't many)
+            const response = await fetch(window.apiUrl(`/api/poi/museums`));
+            if (!response.ok) return;
 
             const data = await response.json();
-            console.log(`[POI] Successfully loaded from ${server}`);
-            return data.elements || [];
-          } catch (error) {
-            console.warn(`[POI] Server ${server} failed:`, error.message);
-            continue;
-          }
-        }
+            const museums = data.museums || [];
 
-        console.error('[POI] All Overpass servers failed');
-        return [];
-      };
+            if (museums.length > 0) {
+              museumsMarkerLayer = L.layerGroup();
 
-      // Function to update button appearance
-      const updateButton = (resetTooltip = false) => {
-        let tooltipText = '';
+              museums.forEach(poi => {
+                if (!poi.lat || !poi.lon) return;
 
-        switch(currentPOILayer) {
-          case 'lighthouses':
-            container.innerHTML = '🏮';
-            container.style.opacity = '1';
-            break;
-          case 'shipyards':
-            container.innerHTML = '🔧';
-            container.style.opacity = '1';
-            break;
-          case 'platforms':
-            container.innerHTML = '🛢️';
-            container.style.opacity = '1';
-            break;
-          case 'museums':
-            container.innerHTML = '🏛️';
-            container.style.opacity = '1';
-            break;
-          default: // 'off'
-            container.innerHTML = '⚓';
-            container.style.opacity = '0.5';
-            tooltipText = 'Maritime POIs';
-            break;
-        }
+                const name = poi.tags?.name || 'Unknown Museum';
+                const openingHours = poi.tags?.opening_hours || '';
+                const website = poi.tags?.website || '';
+                const wikipedia = poi.tags?.wikipedia || '';
 
-        // Update tooltip
-        if (resetTooltip) {
-          container.removeAttribute('title');
-          setTimeout(() => {
-            if (tooltipText) {
-              container.title = tooltipText;
-            }
-          }, 100);
-        } else {
-          if (tooltipText) {
-            container.title = tooltipText;
-          } else {
-            container.removeAttribute('title');
-          }
-        }
-      };
-
-      // Function to switch POI layer
-      const switchPOILayer = async (newLayer) => {
-        // Remove old markers
-        if (poiMarkerLayer) {
-          map.removeLayer(poiMarkerLayer);
-          poiMarkerLayer = null;
-        }
-
-        // Add new layer
-        if (newLayer !== 'off') {
-          console.log(`[POI] Loading ${newLayer}...`);
-          const pois = await loadPOIs(newLayer);
-
-          if (pois.length > 0) {
-            poiMarkerLayer = L.layerGroup();
-
-            pois.forEach(poi => {
-              if (poi.lat && poi.lon) {
-                const name = poi.tags?.name || 'Unknown';
                 const icon = L.divIcon({
                   className: 'poi-marker',
-                  html: `<div style="font-size: 20px;">${
-                    newLayer === 'lighthouses' ? '🏮' :
-                    newLayer === 'shipyards' ? '🔧' :
-                    newLayer === 'platforms' ? '🛢️' :
-                    '🏛️'
-                  }</div>`,
+                  html: `<div style="font-size: 20px;">🏛️</div>`,
                   iconSize: [30, 30],
                   iconAnchor: [15, 15]
                 });
 
                 const marker = L.marker([poi.lat, poi.lon], { icon });
-                marker.bindPopup(`<b>${name}</b><br>${newLayer.charAt(0).toUpperCase() + newLayer.slice(1, -1)}`);
-                poiMarkerLayer.addLayer(marker);
-              }
-            });
 
-            poiMarkerLayer.addTo(map);
-            console.log(`[POI] Loaded ${pois.length} ${newLayer}`);
-          } else {
-            console.log(`[POI] No ${newLayer} found in current area`);
+                let tooltipContent = `<strong>${name}</strong>`;
+                if (openingHours) tooltipContent += `<br>🕒 ${openingHours}`;
+
+                marker.bindTooltip(tooltipContent, {
+                  direction: 'auto',
+                  offset: [0, -10]
+                });
+
+                marker.on('click', async (e) => {
+                  marker.closeTooltip();
+                  let popupContent = `<strong>${name}</strong><br>Museum`;
+                  if (openingHours) popupContent += `<br>🕒 ${openingHours}`;
+                  if (website) popupContent += `<br>🌐 <a href="${website}" target="_blank" style="color: #4a9eff;">Website</a>`;
+                  if (wikipedia) {
+                    const wikiUrl = wikipedia.startsWith('http') ? wikipedia : `https://en.wikipedia.org/wiki/${wikipedia}`;
+                    popupContent += `<br>📖 <a href="${wikiUrl}" target="_blank" style="color: #4a9eff;">Wikipedia</a>`;
+                  }
+                  await showWeatherInfo(e.latlng, popupContent);
+                });
+
+                museumsMarkerLayer.addLayer(marker);
+              });
+
+              museumsMarkerLayer.addTo(map);
+            }
+          } catch (error) {
+            console.error('[Museums] Load error:', error);
+          }
+        } else {
+          if (museumsMarkerLayer && map.hasLayer(museumsMarkerLayer)) {
+            map.removeLayer(museumsMarkerLayer);
+            museumsMarkerLayer = null;
           }
         }
 
-        currentPOILayer = newLayer;
-        localStorage.setItem('harborMapPOILayer', newLayer);
-        updateButton(true);
+        updateButton();
+
+        // Reset tooltip
+        container.removeAttribute('title');
+        setTimeout(() => {
+          container.title = 'Maritime Museums';
+        }, 100);
+      });
+
+      if (museumsEnabled) {
+        container.click();
+      }
+
+      return container;
+    }
+  });
+
+  // Wrecks Layer Control - Simple toggle button
+  let wrecksEnabled = localStorage.getItem('harborMapWrecksEnabled') === 'true';
+  let wrecksMarkerLayer = null;
+  let wrecksZoomNotification = null; // Store notification to prevent stacking
+  let wrecksLoadTimeout = null; // Debounce timer for loading wrecks
+  let lastWrecksBounds = null; // Track last loaded bounds to avoid duplicate loads
+
+  // Function to load wrecks for current map view
+  const loadWrecksForCurrentView = async () => {
+    const currentZoom = map.getZoom();
+
+    // Only load if enabled and zoom >= 5
+    if (!wrecksEnabled || currentZoom < 5) {
+      return;
+    }
+
+    try {
+      // Get current map bounds
+      const bounds = map.getBounds();
+
+      // Check if bounds changed significantly (more than 10% movement)
+      if (lastWrecksBounds) {
+        const lastSouth = lastWrecksBounds.getSouth();
+        const lastWest = lastWrecksBounds.getWest();
+        const lastNorth = lastWrecksBounds.getNorth();
+        const lastEast = lastWrecksBounds.getEast();
+
+        const currentSouth = bounds.getSouth();
+        const currentWest = bounds.getWest();
+        const currentNorth = bounds.getNorth();
+        const currentEast = bounds.getEast();
+
+        // Calculate how much the view has moved (as percentage of view size)
+        const latDiff = lastNorth - lastSouth;
+        const lngDiff = lastEast - lastWest;
+
+        const southMove = Math.abs(currentSouth - lastSouth) / latDiff;
+        const westMove = Math.abs(currentWest - lastWest) / lngDiff;
+        const northMove = Math.abs(currentNorth - lastNorth) / latDiff;
+        const eastMove = Math.abs(currentEast - lastEast) / lngDiff;
+
+        const maxMove = Math.max(southMove, westMove, northMove, eastMove);
+
+        // If view moved less than 10%, skip reload
+        if (maxMove < 0.1) {
+          console.log(`[Wrecks] Skipping reload - view moved only ${(maxMove * 100).toFixed(1)}%`);
+          return;
+        }
+      }
+
+      // Remove old markers
+      if (wrecksMarkerLayer && map.hasLayer(wrecksMarkerLayer)) {
+        map.removeLayer(wrecksMarkerLayer);
+        wrecksMarkerLayer = null;
+      }
+
+      const bbox = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+      console.log(`[Wrecks] Loading with bbox: ${bbox}`);
+
+      const response = await fetch(window.apiUrl(`/api/poi/wrecks?bbox=${encodeURIComponent(bbox)}`));
+      if (!response.ok) return;
+
+      const data = await response.json();
+      const wrecks = data.wrecks || [];
+      console.log(`[Wrecks] API returned ${wrecks.length} wrecks for bbox`);
+
+      if (wrecks.length > 0) {
+        wrecksMarkerLayer = L.layerGroup();
+
+        wrecks.forEach(poi => {
+          if (!poi.lat || !poi.lon) return;
+
+          const name = poi.tags?.name || 'Unknown Wreck';
+          const dateSunk = poi.tags?.['wreck:date_sunk'] || poi.tags?.['wreck:year_sunk'] || '';
+          const depthMetres = poi.tags?.['wreck:depth_metres'] || '';
+          const cargo = poi.tags?.['wreck:cargo'] || '';
+          const wreckType = poi.tags?.['wreck:type'] || '';
+          const visibleAtLowTide = poi.tags?.['wreck:visible_at_low_tide'] || '';
+          const description = poi.tags?.description || '';
+          const website = poi.tags?.website || '';
+          const wikipedia = poi.tags?.wikipedia || '';
+
+          const icon = L.divIcon({
+            className: 'poi-marker',
+            html: `<div style="font-size: 20px;">🪦</div>`,
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+
+          const marker = L.marker([poi.lat, poi.lon], { icon });
+
+          let tooltipContent = `<strong>${name}</strong><br>Shipwreck`;
+          if (dateSunk) tooltipContent += `<br>⚓ Sunk: ${dateSunk}`;
+          if (depthMetres) tooltipContent += `<br>🌊 Depth: ${depthMetres}m`;
+
+          marker.bindTooltip(tooltipContent, {
+            direction: 'auto',
+            offset: [0, -10]
+          });
+
+          marker.on('click', async (e) => {
+            marker.closeTooltip();
+            let popupContent = `<strong>${name}</strong>`;
+            if (wreckType) popupContent += ` (${wreckType})`;
+            if (!wreckType) popupContent += `<br>Shipwreck`;
+
+            if (description) popupContent += `<br><br>${description}`;
+            if (dateSunk) popupContent += `<br><br>⚓ Sunk: ${dateSunk}`;
+            if (cargo) popupContent += `<br>📦 Cargo: ${cargo}`;
+            if (depthMetres) popupContent += `<br>🌊 Depth: ${depthMetres} metres`;
+            if (visibleAtLowTide) popupContent += `<br>🌅 Visible at low tide: ${visibleAtLowTide}`;
+
+            if (website) popupContent += `<br><br>🌐 <a href="${website}" target="_blank" style="color: #4a9eff;">Website</a>`;
+            if (wikipedia) {
+              const wikiUrl = wikipedia.startsWith('http') ? wikipedia : `https://en.wikipedia.org/wiki/${wikipedia}`;
+              popupContent += `<br>📖 <a href="${wikiUrl}" target="_blank" style="color: #4a9eff;">Wikipedia</a>`;
+            }
+            await showWeatherInfo(e.latlng, popupContent);
+          });
+
+          wrecksMarkerLayer.addLayer(marker);
+        });
+
+        wrecksMarkerLayer.addTo(map);
+        console.log(`[Wrecks] Loaded ${wrecks.length} wrecks for current view`);
+      }
+
+      // Store the bounds we just loaded to prevent duplicate loads
+      lastWrecksBounds = bounds;
+    } catch (error) {
+      console.error('[Wrecks] Load error:', error);
+    }
+  };
+
+  const WrecksLayerControl = L.Control.extend({
+    options: { position: 'topleft' },
+    onAdd: function() {
+      const container = L.DomUtil.create('div', 'leaflet-control-custom wrecks-toggle');
+
+      const updateButton = () => {
+        container.style.position = 'relative';
+        container.innerHTML = '🪦';
+
+        let strikeLine = container.querySelector('.wrecks-strike');
+        if (!strikeLine) {
+          strikeLine = document.createElement('div');
+          strikeLine.className = 'wrecks-strike';
+          strikeLine.style.cssText = `
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: #ef4444;
+            transform: translateY(-50%) rotate(-45deg);
+            pointer-events: none;
+          `;
+          container.appendChild(strikeLine);
+        }
+        strikeLine.style.display = wrecksEnabled ? 'none' : 'block';
       };
+
+      updateButton();
+      container.title = 'Shipwrecks';
 
       L.DomEvent.disableClickPropagation(container);
 
-      container.addEventListener('click', () => {
-        // Rotate through: off -> lighthouses -> shipyards -> platforms -> museums -> off
-        const nextLayer = {
-          'off': 'lighthouses',
-          'lighthouses': 'shipyards',
-          'shipyards': 'platforms',
-          'platforms': 'museums',
-          'museums': 'off'
-        }[currentPOILayer] || 'lighthouses';
+      container.addEventListener('click', async () => {
+        const currentZoom = map.getZoom();
 
-        switchPOILayer(nextLayer);
+        // If trying to enable but zoom is too low, show warning and don't enable
+        if (!wrecksEnabled && currentZoom < 5) {
+          showSideNotification(
+            `⚠️ <strong>Zoom in to see Wrecks</strong><br><br>Wrecks are only visible at zoom level 5 or higher. They will appear when you zoom in.`,
+            'warning',
+            4000
+          );
+          return; // Don't toggle the state
+        }
+
+        wrecksEnabled = !wrecksEnabled;
+        localStorage.setItem('harborMapWrecksEnabled', wrecksEnabled);
+
+        if (wrecksEnabled) {
+          // Zoom is OK, load wrecks immediately
+          await loadWrecksForCurrentView();
+        } else {
+          // Disabled - remove markers and reset bbox tracking
+          if (wrecksMarkerLayer && map.hasLayer(wrecksMarkerLayer)) {
+            map.removeLayer(wrecksMarkerLayer);
+            wrecksMarkerLayer = null;
+          }
+          lastWrecksBounds = null; // Reset bounds tracking when disabled
+        }
+
+        updateButton();
+
+        // Reset tooltip
+        container.removeAttribute('title');
+        setTimeout(() => {
+          container.title = 'Shipwrecks';
+        }, 100);
       });
 
-      updateButton();
+      if (wrecksEnabled) {
+        container.click();
+      }
+
       return container;
     }
   });
@@ -1039,16 +1247,64 @@ function addCustomControls() {
   envLayerControl = new EnvironmentalLayerControl();
   map.addControl(envLayerControl);
 
-  // Add POI Layer Control (rotating button: off -> lighthouses -> shipyards -> platforms -> museums)
-  poiLayerControl = new POILayerControl();
-  map.addControl(poiLayerControl);
+  // Add Museums and Wrecks Layer Controls (two separate toggle buttons)
+  map.addControl(new MuseumsLayerControl());
+  map.addControl(new WrecksLayerControl());
 
+  // Add Refresh Control last (at bottom)
   map.addControl(new RefreshControl());
+
+  // Add Zoom Display Control (bottom left)
+  map.addControl(new ZoomDisplayControl());
 
   // Top right controls (filter dropdowns)
   map.addControl(new RouteFilterControl());
   map.addControl(new VesselFilterControl());
   map.addControl(new PortFilterControl());
+
+  // Auto-reload wrecks when zooming or moving map (with debouncing)
+  map.on('zoomend', () => {
+    const currentZoom = map.getZoom();
+
+    // Clear any pending load timeout
+    if (wrecksLoadTimeout) {
+      clearTimeout(wrecksLoadTimeout);
+      wrecksLoadTimeout = null;
+    }
+
+    if (wrecksEnabled) {
+      if (currentZoom < 5) {
+        // Hide wrecks if zoom too low
+        if (wrecksMarkerLayer && map.hasLayer(wrecksMarkerLayer)) {
+          map.removeLayer(wrecksMarkerLayer);
+          wrecksMarkerLayer = null;
+          lastWrecksBounds = null; // Reset bounds tracking
+          console.log(`[Wrecks] Auto-hidden at zoom level ${currentZoom}`);
+        }
+      } else {
+        // Zoom is OK, reload wrecks after 500ms delay (debounce)
+        wrecksLoadTimeout = setTimeout(() => {
+          loadWrecksForCurrentView();
+        }, 500);
+      }
+    }
+  });
+
+  // Reload wrecks when map is moved (panned/dragged) with debouncing
+  map.on('moveend', () => {
+    // Clear any pending load timeout
+    if (wrecksLoadTimeout) {
+      clearTimeout(wrecksLoadTimeout);
+      wrecksLoadTimeout = null;
+    }
+
+    if (wrecksEnabled && map.getZoom() >= 5) {
+      // Wait 500ms after movement stops before loading (debounce)
+      wrecksLoadTimeout = setTimeout(() => {
+        loadWrecksForCurrentView();
+      }, 500);
+    }
+  });
 
   // Set saved values in dropdowns
   const vesselFilterSelect = document.getElementById('vesselFilterSelect');
@@ -1062,7 +1318,7 @@ function addCustomControls() {
     portFilterSelect.value = currentPortFilter;
   }
 
-  console.log(`[Harbor Map] Restored saved settings - Style: ${currentMapStyle}, Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}`);
+  console.log(`[Harbor Map] Restored saved settings - Style: ${currentMapStyle}, Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}, Route Filter: ${currentRouteFilter || 'All Routes'}`);
 
   // Initialize Environmental Layer if enabled (restore from localStorage)
   if (currentEnvLayer && currentEnvLayer !== 'off') {
@@ -1108,13 +1364,15 @@ function applyMapTheme(style) {
   if (!mapCanvas) return;
 
   // Remove all theme classes
-  mapCanvas.classList.remove('theme-light', 'theme-dark');
+  mapCanvas.classList.remove('theme-light', 'theme-dark', 'theme-satellite');
 
   // Add appropriate theme class
   if (style === 'standard') {
     mapCanvas.classList.add('theme-light');
+  } else if (style === 'satellite') {
+    mapCanvas.classList.add('theme-satellite');
   } else {
-    // dark and satellite both use dark controls
+    // dark uses dark controls
     mapCanvas.classList.add('theme-dark');
   }
 
@@ -1556,9 +1814,52 @@ async function applyFiltersAndRender() {
     ? currentVessels.filter(v => v.route_name === currentRouteFilter)
     : currentVessels;
 
-  renderVessels(vesselsToRender);
-  renderPorts(filteredPorts);
-  clearRoute();
+  // If route filter is active, restore full route visualization
+  if (currentRouteFilter && vesselsToRender.length > 0) {
+    const firstVessel = vesselsToRender[0];
+
+    // Build route from vessel.active_route
+    if (firstVessel.status === 'enroute' && firstVessel.active_route?.path) {
+      // Handle reversed routes
+      const isReversed = firstVessel.active_route.reversed === true;
+      const actualOrigin = isReversed
+        ? (firstVessel.active_route.destination_port_code || firstVessel.active_route.destination)
+        : (firstVessel.active_route.origin_port_code || firstVessel.active_route.origin);
+      const actualDestination = isReversed
+        ? (firstVessel.active_route.origin_port_code || firstVessel.active_route.origin)
+        : (firstVessel.active_route.destination_port_code || firstVessel.active_route.destination);
+
+      const route = {
+        path: firstVessel.active_route.path,
+        origin: actualOrigin,
+        destination: actualDestination
+      };
+
+      // Filter ports to show only origin and destination
+      const routePorts = filteredPorts.filter(p =>
+        p.code === route.origin || p.code === route.destination
+      );
+
+      // Render vessels and route ports
+      renderVessels(vesselsToRender);
+      renderPorts(routePorts);
+
+      // Draw route path (WITHOUT auto-zoom during refresh)
+      drawRoute(route, currentPorts, false);
+
+      console.log(`[Harbor Map] Route filter restored during refresh: ${route.origin} → ${route.destination}`);
+    } else {
+      // No active route available, render normally
+      renderVessels(vesselsToRender);
+      renderPorts(filteredPorts);
+      clearRoute();
+    }
+  } else {
+    // No route filter active
+    renderVessels(vesselsToRender);
+    renderPorts(filteredPorts);
+    clearRoute();
+  }
 
   // Reset selection state
   selectedVesselId = null;
@@ -1612,6 +1913,17 @@ export async function loadOverview() {
   } catch (error) {
     console.error('Error loading harbor map overview:', error);
   }
+}
+
+/**
+ * Closes all open panels (vessel, port, route)
+ * Ensures only one panel is open at a time
+ * @returns {Promise<void>}
+ */
+export async function closeAllPanels() {
+  await closeVesselPanel();
+  await closePortPanel();
+  await closeRoutePanel();
 }
 
 /**
@@ -1732,8 +2044,8 @@ export async function selectVessel(vesselId) {
       });
     }
 
-    // Close port panel first, then show vessel panel
-    hidePortPanel();
+    // Close all panels first, then show vessel panel
+    await closeAllPanels();
     showVesselPanel(data.vessel);
   } catch (error) {
     console.error(`Error selecting vessel ${vesselId}:`, error);
@@ -1778,8 +2090,8 @@ export async function selectPort(portCode) {
       });
     }
 
-    // Close vessel panel first, then show port panel
-    hideVesselPanel();
+    // Close all panels first, then show port panel
+    await closeAllPanels();
     showPortPanel(data.port, data.vessels);
   } catch (error) {
     console.error(`Error selecting port ${portCode}:`, error);
@@ -1936,12 +2248,20 @@ function updateRouteDropdown() {
  * When a route is selected, draws the route path and shows only origin/destination ports
  *
  * @param {string} routeName - Route name to filter by (empty string = all routes)
- * @returns {void}
+ * @returns {Promise<void>}
  * @example
- * setRouteFilter('Hamburg - New York');
+ * await setRouteFilter('Hamburg - New York');
  */
-function setRouteFilter(routeName) {
+async function setRouteFilter(routeName) {
   currentRouteFilter = routeName || null;
+
+  // Save to localStorage
+  if (currentRouteFilter) {
+    localStorage.setItem('harborMapRouteFilter', currentRouteFilter);
+  } else {
+    localStorage.removeItem('harborMapRouteFilter');
+  }
+
   console.log(`[Harbor Map] Route filter changed to: ${currentRouteFilter || 'All Routes'}`);
 
   // Filter vessels
@@ -1952,6 +2272,9 @@ function setRouteFilter(routeName) {
   console.log(`[Harbor Map] Rendering ${vesselsToRender.length} vessels (filtered by route)`);
 
   if (currentRouteFilter && vesselsToRender.length > 0) {
+    // Close all other panels before showing route panel
+    await closeAllPanels();
+
     // Route selected - extract route from first vessel
     const firstVessel = vesselsToRender[0];
 

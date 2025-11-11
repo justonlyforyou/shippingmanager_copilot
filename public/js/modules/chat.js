@@ -2823,7 +2823,10 @@ export async function markAllianceChatAsRead() {
     });
 
     if (!response.ok) {
-      console.error('[Chat] Failed to mark messages as read:', response.statusText);
+      // Only log real errors, not temporary server issues
+      if (response.status !== 500) {
+        console.error('[Chat] Failed to mark messages as read:', response.statusText);
+      }
     }
   } catch (error) {
     console.error('[Chat] Error marking messages as read:', error);

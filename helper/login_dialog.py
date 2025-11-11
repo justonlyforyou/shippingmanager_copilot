@@ -20,6 +20,9 @@ class LoginDialog:
         self.root.geometry("600x650")
         self.root.resizable(False, False)
 
+        # Make sure window appears in taskbar and can be alt-tabbed
+        self.root.attributes('-toolwindow', False)
+
         # Hide window initially to prevent flashing
         self.root.withdraw()
 
@@ -55,12 +58,14 @@ class LoginDialog:
         # Show window after everything is ready (prevents flashing)
         self.root.deiconify()
 
-        # Make window modal
-        self.root.grab_set()
+        # Focus window but don't make it modal (causes GIL issues with pystray)
         self.root.focus_force()
 
-        # Always on top - set AFTER grab_set to avoid conflicts
-        self.root.attributes('-topmost', True)
+        # Bring to front but stay accessible via Alt+Tab
+        self.root.lift()
+        self.root.focus_set()
+
+        # Don't use grab_set() or topmost - we want normal window behavior
 
     def center_window(self):
         """Center window on screen."""

@@ -7,6 +7,7 @@
  */
 
 import { showVesselPanel } from './vessel-panel.js';
+import { closeAllPanels } from './map-controller.js';
 
 /**
  * Shows the route vessels panel with a list of vessels
@@ -114,8 +115,8 @@ export async function selectRouteVessel(vesselId) {
     return;
   }
 
-  // Hide route panel
-  hideRoutePanel();
+  // Close all panels first, then show vessel panel
+  await closeAllPanels();
 
   // Show vessel detail panel
   await showVesselPanel(vessel);

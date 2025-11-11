@@ -3,7 +3,7 @@
 <head>
     
     <meta charset="utf-8">
-    <title>server/config.js - Documentation</title>
+    <title>server/routes/poi.js - Documentation</title>
     
     
     <script src="scripts/prettify/prettify.js"></script>
@@ -276,7 +276,7 @@
 
 <div id="main">
     
-    <h1 class="page-title">server/config.js</h1>
+    <h1 class="page-title">server/routes/poi.js</h1>
     
 
     
@@ -287,273 +287,345 @@
     <section>
         <article>
             <pre class="prettyprint source linenums"><code>/**
- * @fileoverview Centralized configuration for Shipping Manager application.
- * Contains all server settings, API endpoints, rate limiting rules, and timing intervals.
- * Session cookie is loaded from encrypted sessions.json (secure storage).
+ * @fileoverview POI (Points of Interest) Routes
  *
- * Important configuration notes:
- * - All settings loaded from userdata/settings/settings.json (NO env vars)
- * - Rate limits are set conservatively to avoid API detection
- * - Chat refresh interval is 25 seconds (within the 29-minute price window)
- * - Session cookie provides full account access - never log or expose it
+ * Provides cached access to maritime POIs (museums, lighthouses, etc.)
+ * from OpenStreetMap Overpass API. Caches data for 24 hours to reduce
+ * external API load and improve response times.
  *
- * @module server/config
+ * @module server/routes/poi
  */
 
+const express = require('express');
+const router = express.Router();
+const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
+
+// Cache directory
+const CACHE_DIR = path.join(__dirname, '..', '..', 'userdata', 'cache');
+const MUSEUMS_CACHE_FILE = path.join(CACHE_DIR, 'museums.json');
+const WRECKS_CACHE_FILE = path.join(CACHE_DIR, 'wrecks.json');
+const CACHE_MAX_AGE = 4 * 60 * 60 * 1000; // 4 hours
 
 /**
- * Get platform-specific AppData directory without using environment variables.
- * Used for user settings, sessions, certificates (local data)
- * @returns {string} AppData\Local directory path
+ * Ensures cache directory exists
  */
-function getAppDataDir() {
-  if (process.platform === 'win32') {
-    // Windows: C:\Users\Username\AppData\Local
-    return path.join(os.homedir(), 'AppData', 'Local');
+function ensureCacheDir() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true });
+    logger.debug('[POI] Created cache directory:', CACHE_DIR);
   }
-  // Linux/Mac: ~/.local/share
-  return path.join(os.homedir(), '.local', 'share');
 }
 
 /**
- * Get platform-specific Local AppData directory (for machine-specific cache/data).
- * Used for forecast data, cache files, logs (non-roaming data)
- * @returns {string} AppData\Local directory path
+ * Checks if cache file is valid (exists and not expired)
+ * @param {string} filePath - Path to cache file
+ * @returns {boolean} True if cache is valid
  */
-function getLocalAppDataDir() {
-  if (process.platform === 'win32') {
-    // Windows: C:\Users\Username\AppData\Local
-    return path.join(os.homedir(), 'AppData', 'Local');
+function isCacheValid(filePath) {
+  if (!fs.existsSync(filePath)) {
+    return false;
   }
-  // Linux/Mac: ~/.local/share
-  return path.join(os.homedir(), '.local', 'share');
+
+  const stats = fs.statSync(filePath);
+  const age = Date.now() - stats.mtimeMs;
+  return age &lt; CACHE_MAX_AGE;
 }
 
 /**
- * Get log directory path.
- * When packaged as .exe: AppData/Local/ShippingManagerCoPilot/userdata/logs/
- * When running from source: ./userdata/logs/
- * @returns {string} Log directory path
+ * Loads POI data from cache file
+ * @param {string} filePath - Path to cache file
+ * @returns {Array|null} Cached POI data or null if invalid
  */
-function getLogDir() {
-  const isPkg = !!process.pkg;
-  console.log(`[DEBUG] getLogDir - process.pkg = ${isPkg}`);
+function loadFromCache(filePath) {
+  if (!isCacheValid(filePath)) {
+    return null;
+  }
 
-  if (isPkg) {
-    // Running as packaged .exe - use AppData/Local
-    if (process.platform === 'win32') {
-      const appDataPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'logs');
-      console.log(`[DEBUG] Using LocalAppData logs: ${appDataPath}`);
-      return appDataPath;
+  try {
+    const data = fs.readFileSync(filePath, 'utf8');
+    return JSON.parse(data);
+  } catch (error) {
+    logger.error(`[POI] Error reading cache file ${filePath}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Saves POI data to cache file
+ * @param {string} filePath - Path to cache file
+ * @param {Array} data - POI data to cache
+ */
+function saveToCache(filePath, data) {
+  try {
+    ensureCacheDir();
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf8');
+    logger.info(`[POI] Cached ${data.length} POIs to ${filePath}`);
+  } catch (error) {
+    logger.error(`[POI] Error writing cache file ${filePath}:`, error);
+  }
+}
+
+/**
+ * Filters POIs by bounding box
+ * @param {Array} pois - Array of POI objects
+ * @param {string} bbox - Bounding box "south,west,north,east"
+ * @returns {Array} Filtered POIs within bbox
+ */
+function filterPOIsByBbox(pois, bbox) {
+  const [south, west, north, east] = bbox.split(',').map(parseFloat);
+
+  return pois.filter(poi => {
+    const lat = poi.lat || poi.center?.lat;
+    const lon = poi.lon || poi.center?.lon;
+
+    if (!lat || !lon) return false;
+
+    return lat >= south &amp;&amp; lat &lt;= north &amp;&amp; lon >= west &amp;&amp; lon &lt;= east;
+  });
+}
+
+/**
+ * Reduces wreck data to only essential fields for client
+ * @param {Object} wreck - Full wreck POI object
+ * @returns {Object} Reduced wreck object
+ */
+function reduceWreckData(wreck) {
+  return {
+    lat: wreck.lat || wreck.center?.lat,
+    lon: wreck.lon || wreck.center?.lon,
+    tags: {
+      name: wreck.tags?.name,
+      'wreck:date_sunk': wreck.tags?.['wreck:date_sunk'],
+      'wreck:year_sunk': wreck.tags?.['wreck:year_sunk'],
+      'wreck:depth_metres': wreck.tags?.['wreck:depth_metres'],
+      'wreck:cargo': wreck.tags?.['wreck:cargo'],
+      'wreck:type': wreck.tags?.['wreck:type'],
+      'wreck:visible_at_low_tide': wreck.tags?.['wreck:visible_at_low_tide'],
+      description: wreck.tags?.description,
+      website: wreck.tags?.website,
+      wikipedia: wreck.tags?.wikipedia
     }
-    // macOS/Linux
-    return path.join(os.homedir(), '.local', 'share', 'ShippingManagerCoPilot', 'userdata', 'logs');
-  }
-  // Running from source - use project directory
-  const localPath = path.join(__dirname, '..', 'userdata', 'logs');
-  console.log(`[DEBUG] Using local logs: ${localPath}`);
-  return localPath;
+  };
 }
 
 /**
- * Global session cookie storage (set during initialization)
- * @private
+ * Fetches ALL museums globally from Overpass API
+ * @returns {Promise&lt;Array>} Array of museum POIs
  */
-let sessionCookie = null;
+async function fetchAllMuseumsFromAPI() {
+  // Global query - no bbox restriction
+  const query = `[out:json][timeout:60];(node["tourism"="museum"]["museum"="maritime"];way["tourism"="museum"]["museum"="maritime"];);out center;`;
 
-/**
- * Set the session cookie for API authentication
- * @param {string} cookie - Session cookie value
- */
-function setSessionCookie(cookie) {
-  sessionCookie = cookie;
-}
+  const server = 'https://overpass.kumi.systems/api/interpreter';
 
-/**
- * Get the current session cookie
- * @returns {string} Session cookie value
- */
-function getSessionCookie() {
-  return sessionCookie || 'COOKIE_NOT_INITIALIZED';
-}
+  logger.info('[POI] Fetching ALL maritime museums globally from Overpass API...');
 
-/**
- * Get settings directory path based on execution mode.
- * - .exe mode: AppData/Local/ShippingManagerCoPilot/userdata/settings/
- * - dev mode: ./userdata/settings/
- * @returns {string} Settings directory path
- */
-function getSettingsDir() {
-  const isPkg = !!process.pkg;
-  console.log(`[DEBUG] getSettingsDir - process.pkg = ${isPkg}`);
-
-  if (isPkg) {
-    // Running as packaged .exe - use AppData/Local
-    if (process.platform === 'win32') {
-      const appDataPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'settings');
-      console.log(`[DEBUG] Using LocalAppData settings: ${appDataPath}`);
-      return appDataPath;
+  const response = await fetch(server, {
+    method: 'POST',
+    body: query,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
     }
-    // macOS/Linux
-    return path.join(os.homedir(), '.local', 'share', 'ShippingManagerCoPilot', 'userdata', 'settings');
+  });
+
+  if (!response.ok) {
+    throw new Error(`Overpass API returned ${response.status}`);
   }
-  // Running from source - use userdata
-  const localPath = path.join(__dirname, '..', 'userdata', 'settings');
-  console.log(`[DEBUG] Using local settings: ${localPath}`);
-  return localPath;
+
+  const data = await response.json();
+  const elements = data.elements || [];
+  logger.info(`[POI] Loaded ${elements.length} museums globally`);
+  return elements;
 }
 
 /**
- * Load startup settings from systray configuration file.
- * Creates settings.json with localhost-only defaults on first run.
- * @returns {Object} Settings object with port, host, selectedUserId, logLevel, debugMode
+ * Fetches ALL shipwrecks globally from Overpass API
+ * @returns {Promise&lt;Array>} Array of shipwreck POIs
  */
-function loadStartupSettings() {
-  const settingsDir = getSettingsDir();
-  const settingsPath = path.join(settingsDir, 'settings.json');
+async function fetchAllWrecksFromAPI() {
+  // Global query - no bbox restriction
+  const query = `[out:json][timeout:60];(node["historic"="wreck"];way["historic"="wreck"];);out center;`;
 
-  // First run: Create settings.json with localhost-only defaults
-  if (!fs.existsSync(settingsPath)) {
-    const defaultSettings = {
-      port: 12345,
-      host: '127.0.0.1',  // localhost-only by default (secure)
-      logLevel: 'info',  // info, debug, warn, error
-      debugMode: false   // Enable detailed debug logging
-    };
+  logger.info('[POI] Fetching ALL shipwrecks globally from Overpass API...');
+
+  const server = 'https://overpass.kumi.systems/api/interpreter';
+
+  const response = await fetch(server, {
+    method: 'POST',
+    body: query,
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded'
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Overpass API returned ${response.status}`);
+  }
+
+  const data = await response.json();
+  const elements = data.elements || [];
+  logger.info(`[POI] Loaded ${elements.length} wrecks globally`);
+  return elements;
+}
+
+/**
+ * GET /api/poi/museums - Get all maritime museums
+ *
+ * Returns ALL museums from cache without filtering (there aren't many museums).
+ * Cache is refreshed every 4 hours.
+ *
+ * Response format:
+ * {
+ *   "museums": [...],
+ *   "timestamp": 1234567890,
+ *   "cached": true
+ * }
+ */
+router.get('/museums', async (req, res) => {
+  try {
+    // Try to load from cache first
+    let allMuseums = loadFromCache(MUSEUMS_CACHE_FILE);
+
+    if (!allMuseums) {
+      // Cache miss or expired - fetch from API
+      logger.info('[POI] Museums cache miss - fetching from Overpass API');
+      allMuseums = await fetchAllMuseumsFromAPI();
+      saveToCache(MUSEUMS_CACHE_FILE, allMuseums);
+    }
+
+    // Return ALL museums (no bbox filtering - there aren't many)
+    logger.debug(`[POI] Returning all ${allMuseums.length} museums from cache`);
+
+    res.json({
+      museums: allMuseums,
+      timestamp: Date.now(),
+      cached: true
+    });
+
+  } catch (error) {
+    logger.error('[POI] Error fetching museums:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/poi/wrecks?bbox=south,west,north,east - Get shipwrecks
+ *
+ * Returns wrecks from cache, filtered by bbox. Cache is refreshed every 4 hours.
+ * Wreck data is reduced to only essential fields to minimize transfer size.
+ *
+ * Response format:
+ * {
+ *   "wrecks": [...],
+ *   "timestamp": 1234567890,
+ *   "cached": true
+ * }
+ */
+router.get('/wrecks', async (req, res) => {
+  try {
+    const bbox = req.query.bbox;
+
+    if (!bbox) {
+      return res.status(400).json({ error: 'bbox parameter required (format: south,west,north,east)' });
+    }
+
+    // Try to load from cache first
+    let allWrecks = loadFromCache(WRECKS_CACHE_FILE);
+
+    if (!allWrecks) {
+      // Cache miss or expired - fetch from API
+      logger.info('[POI] Wrecks cache miss - fetching from Overpass API');
+      allWrecks = await fetchAllWrecksFromAPI();
+      saveToCache(WRECKS_CACHE_FILE, allWrecks);
+    }
+
+    // Filter by bbox
+    const filteredWrecks = filterPOIsByBbox(allWrecks, bbox);
+
+    // Reduce wreck data to only essential fields
+    const reducedWrecks = filteredWrecks.map(reduceWreckData);
+
+    logger.debug(`[POI] Returning ${reducedWrecks.length} wrecks for bbox (${allWrecks.length} total cached)`);
+
+    res.json({
+      wrecks: reducedWrecks,
+      timestamp: Date.now(),
+      cached: true
+    });
+
+  } catch (error) {
+    logger.error('[POI] Error fetching wrecks:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Initializes POI cache on server startup
+ * Loads museums and wrecks if cache is empty or expired
+ */
+async function initializePOICache() {
+  logger.info('[POI] Initializing POI cache on startup...');
+
+  try {
+    // Check museums cache
+    let museums = loadFromCache(MUSEUMS_CACHE_FILE);
+    if (!museums) {
+      logger.info('[POI] Museums cache empty - loading from Overpass API');
+      museums = await fetchAllMuseumsFromAPI();
+      saveToCache(MUSEUMS_CACHE_FILE, museums);
+    } else {
+      logger.info(`[POI] Museums cache loaded: ${museums.length} museums`);
+    }
+
+    // Check wrecks cache
+    let wrecks = loadFromCache(WRECKS_CACHE_FILE);
+    if (!wrecks) {
+      logger.info('[POI] Wrecks cache empty - loading from Overpass API');
+      wrecks = await fetchAllWrecksFromAPI();
+      saveToCache(WRECKS_CACHE_FILE, wrecks);
+    } else {
+      logger.info(`[POI] Wrecks cache loaded: ${wrecks.length} wrecks`);
+    }
+
+    logger.info('[POI] POI cache initialization complete');
+  } catch (error) {
+    logger.error('[POI] Error initializing POI cache:', error);
+  }
+}
+
+/**
+ * Starts automatic cache refresh every 4 hours
+ */
+function startAutomaticCacheRefresh() {
+  const REFRESH_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
+
+  setInterval(async () => {
+    logger.info('[POI] Starting automatic cache refresh...');
 
     try {
-      // Ensure directory exists
-      if (!fs.existsSync(settingsDir)) {
-        fs.mkdirSync(settingsDir, { recursive: true });
-      }
+      // Refresh museums
+      const museums = await fetchAllMuseumsFromAPI();
+      saveToCache(MUSEUMS_CACHE_FILE, museums);
 
-      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-      return defaultSettings;
+      // Refresh wrecks
+      const wrecks = await fetchAllWrecksFromAPI();
+      saveToCache(WRECKS_CACHE_FILE, wrecks);
+
+      logger.info('[POI] Automatic cache refresh complete');
     } catch (error) {
-      throw new Error(`Failed to create startup settings: ${error.message}`);
+      logger.error('[POI] Error during automatic cache refresh:', error);
     }
-  }
+  }, REFRESH_INTERVAL);
 
-  // Read existing settings
-  try {
-    const data = fs.readFileSync(settingsPath, 'utf8');
-    const settings = JSON.parse(data);
-
-    // Return settings with defaults for missing values
-    return {
-      port: settings.port || 12345,
-      host: settings.host || '127.0.0.1',
-      logLevel: settings.logLevel || 'info',
-      debugMode: settings.debugMode !== undefined ? settings.debugMode : false
-    };
-  } catch (error) {
-    throw new Error(`Failed to read startup settings: ${error.message}`);
-  }
+  logger.info(`[POI] Automatic cache refresh scheduled every 4 hours`);
 }
 
-// Load startup settings (REQUIRED - no fallbacks)
-const startupSettings = loadStartupSettings();
+router.initializePOICache = initializePOICache;
+router.startAutomaticCacheRefresh = startAutomaticCacheRefresh;
 
-const config = {
-  /**
-   * HTTPS server port from systray settings.
-   * NO DEFAULTS - always reads from userdata/settings/settings.json
-   * @constant {number}
-   */
-  PORT: startupSettings.port,
-
-  /**
-   * Server bind address from systray settings.
-   * NO DEFAULTS - always reads from userdata/settings/settings.json
-   * Default on first run: 127.0.0.1 (localhost-only for security)
-   * @constant {string}
-   */
-  HOST: startupSettings.host,
-
-  /**
-   * Base URL for Shipping Manager game API. All proxy requests are sent to this endpoint.
-   * @constant {string}
-   * @default 'https://shippingmanager.cc/api'
-   */
-  SHIPPING_MANAGER_API: 'https://shippingmanager.cc/api',
-
-  /**
-   * Session cookie for API authentication. Loaded from encrypted sessions.json.
-   * Provides full account access - must be kept secure and never logged.
-   * Use getSessionCookie() to access dynamically.
-   * @deprecated Use getSessionCookie() instead
-   * @constant {string}
-   */
-  get SESSION_COOKIE() {
-    return getSessionCookie();
-  },
-
-  /**
-   * Global rate limiting configuration for all API endpoints.
-   * Prevents API abuse and reduces detection risk.
-   *
-   * @typedef {Object} RateLimitConfig
-   * @property {number} windowMs - Time window in milliseconds (15 minutes)
-   * @property {number} max - Maximum requests allowed per window (1000 requests)
-   * @property {string} message - Error message shown when limit exceeded
-   */
-  RATE_LIMIT: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000,
-    message: 'Too many requests, please try again later'
-  },
-
-  /**
-   * Message-specific rate limiting configuration (stricter than global limit).
-   * Applied to alliance chat and private messaging endpoints.
-   *
-   * @typedef {Object} MessageRateLimitConfig
-   * @property {number} windowMs - Time window in milliseconds (1 minute)
-   * @property {number} max - Maximum messages allowed per window (30 messages)
-   * @property {string} message - Error message shown when limit exceeded
-   */
-  MESSAGE_RATE_LIMIT: {
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: 30,
-    message: 'Too many messages, please wait before sending again'
-  },
-
-  /**
-   * WebSocket chat auto-refresh interval in milliseconds.
-   * Server broadcasts updated chat feed to all connected clients every 20 seconds.
-   * Synchronized with messenger polling to reduce API load.
-   *
-   * @constant {number}
-   * @default 20000
-   */
-  CHAT_REFRESH_INTERVAL: 20000,
-
-  /**
-   * Debug mode enables verbose logging for development and troubleshooting.
-   * Loaded from userdata/settings/settings.json (no env vars).
-   *
-   * When enabled, logs include:
-   * - Detailed API call information
-   * - Autopilot operation details
-   * - Data fetch/broadcast operations
-   * - Scheduler execution logs
-   *
-   * @constant {boolean}
-   * @default false
-   */
-  DEBUG_MODE: startupSettings.debugMode
-};
-
-module.exports = config;
-module.exports.setSessionCookie = setSessionCookie;
-module.exports.getSessionCookie = getSessionCookie;
-module.exports.getAppDataDir = getAppDataDir;
-module.exports.getLocalAppDataDir = getLocalAppDataDir;
-module.exports.getLogDir = getLogDir;
-module.exports.getSettingsDir = getSettingsDir;
+module.exports = router;
 </code></pre>
         </article>
     </section>

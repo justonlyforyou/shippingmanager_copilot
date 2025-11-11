@@ -48,16 +48,27 @@ const logger = require('./utils/logger');
 /**
  * APPDATA directory for storing user data (certificates, sessions, etc.)
  * Uses platform-specific AppData directory (no env vars)
+ * Development mode: uses local ./userdata
+ * Production (pkg): uses AppData/Local/ShippingManagerCoPilot
  * @constant {string}
  */
 const { getAppDataDir } = require('./config');
-const APPDATA_DIR = path.join(getAppDataDir(), 'ShippingManagerCoPilot');
-const CERTS_DIR = path.join(APPDATA_DIR, 'userdata', 'certs');
 
-// Ensure directories exist
-if (!fs.existsSync(APPDATA_DIR)) {
-    fs.mkdirSync(APPDATA_DIR, { recursive: true });
+// Determine if running as packaged executable
+const isPkg = typeof process.pkg !== 'undefined';
+
+let CERTS_DIR;
+if (isPkg) {
+  // Production: use AppData
+  const APPDATA_DIR = path.join(getAppDataDir(), 'ShippingManagerCoPilot');
+  CERTS_DIR = path.join(APPDATA_DIR, 'userdata', 'certs');
+} else {
+  // Development: use local project directory
+  const PROJECT_ROOT = path.join(__dirname, '..');
+  CERTS_DIR = path.join(PROJECT_ROOT, 'userdata', 'certs');
 }
+
+// Ensure certificates directory exists
 if (!fs.existsSync(CERTS_DIR)) {
     fs.mkdirSync(CERTS_DIR, { recursive: true });
 }
@@ -187,6 +198,9 @@ function getNetworkIPs() {
 function generateCA() {
   logger.info('Generating Certificate Authority (CA)...');
 
+  // Check if old CA exists
+  const oldCaExists = fs.existsSync(CA_CERT_PATH);
+
   const keys = forge.pki.rsa.generateKeyPair(2048);
   const cert = forge.pki.createCertificate();
 
@@ -213,6 +227,11 @@ function generateCA() {
       name: 'keyUsage',
       keyCertSign: true,
       cRLSign: true
+    },
+    {
+      name: 'extKeyUsage',
+      serverAuth: true,
+      clientAuth: true
     }
   ]);
 
@@ -226,11 +245,21 @@ function generateCA() {
 
   logger.info('OK CA generated successfully');
 
+  // If we replaced an old CA, we need to prompt user to uninstall old and install new
+  if (oldCaExists) {
+    logger.warn('WARNING: New CA certificate generated. Old certificates in system trust store should be replaced.');
+    logger.info('   Use the Systray menu: Certificates > Uninstall CA Certificates, then Install CA Certificate');
+  }
+
   // Try to install CA certificate automatically on Windows
   if (os.platform() === 'win32') {
     // Check if already installed
     if (isCertificateInstalled('Shipping Manager CoPilot CA')) {
-      logger.info('OK CA certificate already installed in Windows Trust Store');
+      if (oldCaExists) {
+        logger.info('NOTE: CA certificate is installed but may be outdated. Consider reinstalling via Systray menu.');
+      } else {
+        logger.info('OK CA certificate already installed in Windows Trust Store');
+      }
       return { cert: caPem, key: caKeyPem };
     }
     try {
@@ -347,7 +376,7 @@ function generateCertificate() {
 
   const attrs = [
     { name: 'commonName', value: 'localhost' },
-    { name: 'organizationName', value: 'Shipping Manager Chat' },
+    { name: 'organizationName', value: 'Shipping Manager CoPilot' },
     { name: 'countryName', value: 'US' }
   ];
 

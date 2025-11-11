@@ -50,16 +50,25 @@ async function autoAnchorPointPurchase(userId, autopilotPaused, broadcastToUser,
 
   try {
     // CRITICAL: Check if anchor point is currently under construction
+    // GAME BUG: Buying while timer is active will RESET the timer to 0 and STEAL your money!
     const headerData = state.getHeaderData(userId);
     const anchorNextBuild = headerData?.anchor?.nextBuild;
     const now = Math.floor(Date.now() / 1000);
 
-    if (anchorNextBuild && anchorNextBuild > now) {
+    logger.debug(`[Auto-Anchor] Timer Check - anchorNextBuild: ${anchorNextBuild}, now: ${now}`);
+
+    // STRICT CHECK: If timer exists AND is in the future, DO NOT BUY
+    if (anchorNextBuild !== null && anchorNextBuild !== undefined && anchorNextBuild > now) {
       const remaining = anchorNextBuild - now;
       const minutes = Math.floor(remaining / 60);
-      logger.debug(`[Auto-Anchor] Construction in progress - ${minutes} minutes remaining. Skipping purchase to prevent timer reset.`);
+      const seconds = remaining % 60;
+      logger.warn(`[Auto-Anchor] ⏳ TIMER ACTIVE - Construction in progress (${minutes}m ${seconds}s remaining)`);
+      logger.warn(`[Auto-Anchor] ⛔ BLOCKED - Cannot purchase while timer is running (Game Bug: would steal money!)`);
       return;
     }
+
+    logger.debug(`[Auto-Anchor] ✓ Timer Check Passed - Safe to proceed with purchase`);
+
 
     const bunker = state.getBunkerState(userId);
 

@@ -20,7 +20,7 @@ import threading
 import time
 import platform
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
 from PIL import Image, ImageDraw
 import pystray
@@ -30,6 +30,9 @@ import urllib3
 import ssl
 import atexit
 import signal
+import zipfile
+import shutil
+from datetime import datetime
 
 # Disable SSL warnings for self-signed certificate
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -457,6 +460,35 @@ def start_server(settings):
         except Exception as e:
             print(f"[SM-CoPilot] Warning: Could not write PID file: {e}", file=sys.stderr)
 
+        # Check if new certificates were generated and prompt for installation
+        def check_and_prompt_certificate_installation():
+            """Check if certificates need to be installed and prompt user"""
+            try:
+                # Import certificate manager
+                if getattr(sys, 'frozen', False):
+                    helper_path = Path(sys._MEIPASS) / 'helper'
+                    if str(helper_path) not in sys.path:
+                        sys.path.insert(0, str(helper_path))
+                else:
+                    helper_path = PROJECT_ROOT / 'helper'
+                    if str(helper_path) not in sys.path:
+                        sys.path.insert(0, str(helper_path))
+
+                import certificate_manager
+
+                # Check if certificates exist but are not installed
+                if certificate_manager.check_certificate_update_needed():
+                    print("[SM-CoPilot] New certificates detected, prompting user for installation...", file=sys.stderr)
+                    log_to_server_file('info', 'New certificates detected, prompting user for installation')
+                    certificate_manager.prompt_certificate_installation()
+                else:
+                    print("[SM-CoPilot] Certificates already installed or not needed", file=sys.stderr)
+
+            except Exception as e:
+                print(f"[SM-CoPilot] Error checking certificate status: {e}", file=sys.stderr)
+                import traceback
+                traceback.print_exc()
+
         # Health check callback for loading dialog
         def health_check_callback(dialog_root):
             """Poll health endpoint until server is ready"""
@@ -517,6 +549,10 @@ def start_server(settings):
                             if data.get('ready'):
                                 print("[SM-CoPilot] Server is ready for UI Clients", file=sys.stderr)
                                 log_to_server_file('info', '[SM-CoPilot] Server is ready for UI Clients')
+
+                                # Check if certificates need to be installed (after server is ready)
+                                check_and_prompt_certificate_installation()
+
                                 return True
                         else:
                             print(f"[SM-CoPilot] Health check status: {response.status_code}", file=sys.stderr)
@@ -1896,6 +1932,539 @@ def show_ready_dialog(settings):
     # Run mainloop (will block until window is closed)
     root.mainloop()
 
+def get_userdata_path():
+    """Get the userdata path depending on execution mode (py or exe)"""
+    if IS_FROZEN:
+        return Path(os.environ['LOCALAPPDATA']) / 'ShippingManagerCoPilot' / 'userdata'
+    else:
+        return PROJECT_ROOT / 'userdata'
+
+def show_backup_dialog():
+    """Show backup dialog with custom design"""
+    # Dark theme colors (matching settings dialog)
+    bg_color = "#111827"
+    fg_color = "#e0e0e0"
+    accent_color = "#3b82f6"
+    success_color = "#10b981"
+
+    root = tk.Tk()
+    root.withdraw()
+
+    root.title("Shipping Manager CoPilot - Backup")
+    root.resizable(False, False)
+    root.attributes('-topmost', True)
+    set_window_icon(root)
+    root.configure(bg=bg_color)
+
+    # Header
+    header_frame = tk.Frame(root, bg=bg_color)
+    header_frame.pack(pady=(20, 10), padx=30, fill=tk.X)
+
+    title_label = tk.Label(
+        header_frame,
+        text="💾 Create Backup",
+        font=("Segoe UI", 18, "bold"),
+        bg=bg_color,
+        fg=accent_color
+    )
+    title_label.pack()
+
+    subtitle_label = tk.Label(
+        header_frame,
+        text="Backup all userdata to a ZIP file",
+        font=("Segoe UI", 10),
+        bg=bg_color,
+        fg="#9ca3af"
+    )
+    subtitle_label.pack(pady=(5, 0))
+
+    # Info frame
+    info_frame = tk.Frame(root, bg=bg_color)
+    info_frame.pack(pady=20, padx=40, fill=tk.X)
+
+    userdata_path = get_userdata_path()
+
+    info_label = tk.Label(
+        info_frame,
+        text=f"Backup location:\n{userdata_path}",
+        font=("Segoe UI", 10),
+        bg=bg_color,
+        fg=fg_color,
+        justify=tk.LEFT
+    )
+    info_label.pack()
+
+    # Status label
+    status_label = tk.Label(
+        info_frame,
+        text="",
+        font=("Segoe UI", 10, "bold"),
+        bg=bg_color,
+        fg=success_color,
+        justify=tk.LEFT,
+        wraplength=400
+    )
+    status_label.pack(pady=(10, 0))
+
+    # Button frame
+    button_frame = tk.Frame(root, bg=bg_color)
+    button_frame.pack(pady=20)
+
+    def do_backup():
+        """Execute backup"""
+        try:
+            if not userdata_path.exists():
+                status_label.config(text=f"Error: Userdata directory not found", fg="#ef4444")
+                return
+
+            # Create backup filename with timestamp
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_filename = f"SMCoPilot_Backup_{timestamp}.zip"
+
+            # Ask user where to save
+            initial_dir = Path.home() / 'Documents'
+            save_path = filedialog.asksaveasfilename(
+                title="Save Backup",
+                initialdir=initial_dir,
+                initialfile=backup_filename,
+                defaultextension=".zip",
+                filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
+                parent=root
+            )
+
+            if not save_path:
+                print("[Backup] User cancelled backup", file=sys.stderr)
+                return
+
+            save_path = Path(save_path)
+
+            # Update status
+            status_label.config(text="Creating backup...", fg=accent_color)
+            root.update()
+
+            # Create ZIP file
+            print(f"[Backup] Creating backup from {userdata_path}...", file=sys.stderr)
+            with zipfile.ZipFile(save_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                # Add metadata file
+                metadata = {
+                    'version': '1.0',
+                    'created': datetime.now().isoformat(),
+                    'source': 'ShippingManagerCoPilot',
+                    'execution_mode': 'exe' if IS_FROZEN else 'script'
+                }
+                zipf.writestr('backup_metadata.json', json.dumps(metadata, indent=2))
+
+                # Add all files from userdata
+                for root_dir, dirs, files in os.walk(userdata_path):
+                    for file in files:
+                        file_path = Path(root_dir) / file
+                        arcname = file_path.relative_to(userdata_path.parent)
+                        zipf.write(file_path, arcname)
+                        print(f"[Backup] Added: {arcname}", file=sys.stderr)
+
+            print(f"[Backup] Backup created successfully: {save_path}", file=sys.stderr)
+            status_label.config(text=f"✓ Backup created:\n{save_path.name}", fg=success_color)
+
+        except Exception as e:
+            print(f"[Backup] Error creating backup: {e}", file=sys.stderr)
+            status_label.config(text=f"Error: {str(e)}", fg="#ef4444")
+
+    def close_dialog():
+        root.destroy()
+
+    # Create Backup button
+    backup_btn = tk.Button(
+        button_frame,
+        text="Create Backup",
+        command=do_backup,
+        font=("Segoe UI", 11, "bold"),
+        bg=accent_color,
+        fg="white",
+        activebackground="#2563eb",
+        activeforeground="white",
+        relief=tk.RAISED,
+        borderwidth=2,
+        cursor="hand2",
+        width=18,
+        pady=10
+    )
+    backup_btn.pack(side=tk.LEFT, padx=8)
+
+    # Close button
+    close_btn = tk.Button(
+        button_frame,
+        text="Close",
+        command=close_dialog,
+        font=("Segoe UI", 11),
+        bg="#4b5563",
+        fg="white",
+        activebackground="#6b7280",
+        activeforeground="white",
+        relief=tk.RAISED,
+        borderwidth=2,
+        cursor="hand2",
+        width=18,
+        pady=10
+    )
+    close_btn.pack(side=tk.LEFT, padx=8)
+
+    # Position window centered in screen
+    root.update_idletasks()
+    width = 500
+    height = 280
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+
+    root.geometry(f"{width}x{height}+{x}+{y}")
+    root.deiconify()
+
+    # Keep on top permanently
+    root.attributes('-topmost', True)
+    root.lift()
+    root.focus_force()
+
+    root.mainloop()
+
+def create_backup():
+    """Show backup dialog"""
+    show_backup_dialog()
+
+def validate_backup(zip_path):
+    """Validate backup ZIP structure and return metadata"""
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zipf:
+            # Check for metadata file
+            if 'backup_metadata.json' not in zipf.namelist():
+                return False, "Invalid backup: missing metadata file"
+
+            # Read metadata
+            metadata_str = zipf.read('backup_metadata.json').decode('utf-8')
+            metadata = json.loads(metadata_str)
+
+            # Validate metadata structure
+            required_fields = ['version', 'created', 'source']
+            missing_fields = [f for f in required_fields if f not in metadata]
+
+            if missing_fields:
+                return False, f"Invalid backup: missing metadata fields: {', '.join(missing_fields)}"
+
+            if metadata.get('source') != 'ShippingManagerCoPilot':
+                return False, "Invalid backup: not a ShippingManagerCoPilot backup"
+
+            # Check for userdata directory
+            has_userdata = any('userdata/' in name for name in zipf.namelist())
+            if not has_userdata:
+                return False, "Invalid backup: no userdata folder found"
+
+            return True, metadata
+
+    except zipfile.BadZipFile:
+        return False, "Invalid backup: not a valid ZIP file"
+    except json.JSONDecodeError:
+        return False, "Invalid backup: corrupted metadata"
+    except Exception as e:
+        return False, f"Invalid backup: {str(e)}"
+
+def show_restore_dialog():
+    """Show restore dialog with custom design"""
+    # Dark theme colors
+    bg_color = "#111827"
+    fg_color = "#e0e0e0"
+    accent_color = "#3b82f6"
+    success_color = "#10b981"
+    warning_color = "#f59e0b"
+    error_color = "#ef4444"
+
+    root = tk.Tk()
+    root.withdraw()
+
+    root.title("Shipping Manager CoPilot - Restore")
+    root.resizable(False, False)
+    root.attributes('-topmost', True)
+    set_window_icon(root)
+    root.configure(bg=bg_color)
+
+    # Header
+    header_frame = tk.Frame(root, bg=bg_color)
+    header_frame.pack(pady=(20, 10), padx=30, fill=tk.X)
+
+    title_label = tk.Label(
+        header_frame,
+        text="📦 Restore Backup",
+        font=("Segoe UI", 18, "bold"),
+        bg=bg_color,
+        fg=accent_color
+    )
+    title_label.pack()
+
+    subtitle_label = tk.Label(
+        header_frame,
+        text="Restore userdata from a backup ZIP file",
+        font=("Segoe UI", 10),
+        bg=bg_color,
+        fg="#9ca3af"
+    )
+    subtitle_label.pack(pady=(5, 0))
+
+    # Info frame
+    info_frame = tk.Frame(root, bg=bg_color)
+    info_frame.pack(pady=20, padx=40, fill=tk.X)
+
+    # Backup file label
+    backup_file_label = tk.Label(
+        info_frame,
+        text="No backup file selected",
+        font=("Segoe UI", 10),
+        bg=bg_color,
+        fg="#6b7280",
+        justify=tk.LEFT,
+        wraplength=400
+    )
+    backup_file_label.pack()
+
+    # Backup info label
+    backup_info_label = tk.Label(
+        info_frame,
+        text="",
+        font=("Segoe UI", 9),
+        bg=bg_color,
+        fg="#9ca3af",
+        justify=tk.LEFT,
+        wraplength=400
+    )
+    backup_info_label.pack(pady=(5, 0))
+
+    # Status label
+    status_label = tk.Label(
+        info_frame,
+        text="",
+        font=("Segoe UI", 10, "bold"),
+        bg=bg_color,
+        fg=success_color,
+        justify=tk.LEFT,
+        wraplength=400
+    )
+    status_label.pack(pady=(10, 0))
+
+    # Store selected backup path
+    selected_backup = {'path': None, 'metadata': None}
+
+    def select_backup_file():
+        """Select backup file and validate it"""
+        initial_dir = Path.home() / 'Documents'
+        backup_path = filedialog.askopenfilename(
+            title="Select Backup File",
+            initialdir=initial_dir,
+            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
+            parent=root
+        )
+
+        if not backup_path:
+            return
+
+        backup_path = Path(backup_path)
+
+        # Validate backup
+        print(f"[Restore] Validating backup: {backup_path}", file=sys.stderr)
+        status_label.config(text="Validating backup...", fg=accent_color)
+        root.update()
+
+        is_valid, result = validate_backup(backup_path)
+
+        if not is_valid:
+            status_label.config(text=f"Invalid backup: {result}", fg=error_color)
+            backup_file_label.config(text="No valid backup selected", fg="#6b7280")
+            backup_info_label.config(text="")
+            selected_backup['path'] = None
+            selected_backup['metadata'] = None
+            restore_btn.config(state=tk.DISABLED)
+            return
+
+        # Valid backup
+        metadata = result
+        backup_date = datetime.fromisoformat(metadata['created']).strftime('%Y-%m-%d %H:%M:%S')
+
+        selected_backup['path'] = backup_path
+        selected_backup['metadata'] = metadata
+
+        backup_file_label.config(text=f"Selected: {backup_path.name}", fg=success_color)
+        backup_info_label.config(
+            text=f"Created: {backup_date}\nVersion: {metadata.get('version', 'Unknown')}",
+            fg="#9ca3af"
+        )
+        status_label.config(text="✓ Valid backup file", fg=success_color)
+        restore_btn.config(state=tk.NORMAL)
+
+    def do_restore():
+        """Execute restore"""
+        try:
+            if not selected_backup['path']:
+                status_label.config(text="Please select a backup file first", fg=warning_color)
+                return
+
+            backup_path = selected_backup['path']
+            userdata_path = get_userdata_path()
+
+            # Update status
+            status_label.config(text="Restoring backup...", fg=accent_color)
+            root.update()
+
+            # Create backup of current data before restore
+            print("[Restore] Creating backup of current data before restore...", file=sys.stderr)
+            temp_backup_dir = userdata_path.parent / f'userdata_backup_{int(time.time())}'
+            if userdata_path.exists():
+                shutil.copytree(userdata_path, temp_backup_dir)
+                print(f"[Restore] Current data backed up to: {temp_backup_dir}", file=sys.stderr)
+
+            try:
+                # Extract backup
+                print(f"[Restore] Extracting backup to {userdata_path.parent}...", file=sys.stderr)
+
+                with zipfile.ZipFile(backup_path, 'r') as zipf:
+                    # Get all files except metadata
+                    files_to_extract = [f for f in zipf.namelist() if f != 'backup_metadata.json']
+
+                    for file in files_to_extract:
+                        zipf.extract(file, userdata_path.parent)
+                        print(f"[Restore] Extracted: {file}", file=sys.stderr)
+
+                # Remove temporary backup after successful restore
+                if temp_backup_dir.exists():
+                    shutil.rmtree(temp_backup_dir)
+                    print(f"[Restore] Removed temporary backup", file=sys.stderr)
+
+                print("[Restore] Restore completed successfully", file=sys.stderr)
+                status_label.config(text="✓ Restore complete! Restart recommended.", fg=success_color)
+
+                # Ask to restart
+                restart_confirm = messagebox.askyesno(
+                    "Restart Server",
+                    "Backup restored successfully!\n\n"
+                    "A server restart is recommended to apply changes.\n\n"
+                    "Restart now?",
+                    parent=root
+                )
+
+                if restart_confirm:
+                    settings = load_settings()
+                    root.destroy()
+                    restart_server(settings)
+
+            except Exception as e:
+                # Restore failed - recover from temp backup
+                print(f"[Restore] Error during restore: {e}", file=sys.stderr)
+
+                if temp_backup_dir.exists():
+                    print("[Restore] Restoring from temporary backup...", file=sys.stderr)
+                    if userdata_path.exists():
+                        shutil.rmtree(userdata_path)
+                    shutil.copytree(temp_backup_dir, userdata_path)
+                    shutil.rmtree(temp_backup_dir)
+                    print("[Restore] Recovered from temporary backup", file=sys.stderr)
+
+                raise
+
+        except Exception as e:
+            print(f"[Restore] Error restoring backup: {e}", file=sys.stderr)
+            status_label.config(text=f"Error: {str(e)}", fg=error_color)
+
+    def close_dialog():
+        root.destroy()
+
+    # Button frame
+    button_frame = tk.Frame(root, bg=bg_color)
+    button_frame.pack(pady=20)
+
+    # Select Backup button
+    select_btn = tk.Button(
+        button_frame,
+        text="Select Backup",
+        command=select_backup_file,
+        font=("Segoe UI", 11, "bold"),
+        bg="#6b7280",
+        fg="white",
+        activebackground="#9ca3af",
+        activeforeground="white",
+        relief=tk.RAISED,
+        borderwidth=2,
+        cursor="hand2",
+        width=15,
+        pady=10
+    )
+    select_btn.pack(side=tk.LEFT, padx=8)
+
+    # Restore button (disabled initially)
+    restore_btn = tk.Button(
+        button_frame,
+        text="Restore",
+        command=do_restore,
+        font=("Segoe UI", 11, "bold"),
+        bg=accent_color,
+        fg="white",
+        activebackground="#2563eb",
+        activeforeground="white",
+        relief=tk.RAISED,
+        borderwidth=2,
+        cursor="hand2",
+        width=15,
+        pady=10,
+        state=tk.DISABLED
+    )
+    restore_btn.pack(side=tk.LEFT, padx=8)
+
+    # Close button
+    close_btn = tk.Button(
+        button_frame,
+        text="Close",
+        command=close_dialog,
+        font=("Segoe UI", 11),
+        bg="#4b5563",
+        fg="white",
+        activebackground="#6b7280",
+        activeforeground="white",
+        relief=tk.RAISED,
+        borderwidth=2,
+        cursor="hand2",
+        width=15,
+        pady=10
+    )
+    close_btn.pack(side=tk.LEFT, padx=8)
+
+    # Position window centered in screen
+    root.update_idletasks()
+    width = 550
+    height = 340
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x = (screen_width - width) // 2
+    y = (screen_height - height) // 2
+
+    root.geometry(f"{width}x{height}+{x}+{y}")
+    root.deiconify()
+
+    # Keep on top permanently
+    root.attributes('-topmost', True)
+    root.lift()
+    root.focus_force()
+
+    root.mainloop()
+
+def restore_backup():
+    """Show restore dialog"""
+    show_restore_dialog()
+
+def on_backup_data(icon, item):
+    """Backup menu item clicked"""
+    thread = threading.Thread(target=create_backup, daemon=True)
+    thread.start()
+
+def on_restore_data(icon, item):
+    """Restore menu item clicked"""
+    thread = threading.Thread(target=restore_backup, daemon=True)
+    thread.start()
+
 def on_launch_app(icon, item):
     """Launch App menu item clicked"""
     settings = load_settings()
@@ -1957,6 +2526,17 @@ def on_toggle_debug_mode(icon, item):
                     pystray.MenuItem("Launch App", on_launch_app),
                     pystray.MenuItem("Settings", on_settings),
                     pystray.MenuItem("Restart", on_restart),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem("Backup & Restore", pystray.Menu(
+                        pystray.MenuItem("Create Backup", on_backup_data),
+                        pystray.MenuItem("Restore Backup", on_restore_data)
+                    )),
+                    pystray.Menu.SEPARATOR,
+                    pystray.MenuItem("Certificates", pystray.Menu(
+                        pystray.MenuItem("Install CA Certificate", on_install_certificates),
+                        pystray.MenuItem("Uninstall CA Certificates", on_uninstall_certificates),
+                        pystray.MenuItem("Download CA Certificate", on_download_certificate)
+                    )),
                     pystray.Menu.SEPARATOR,
                     pystray.MenuItem("Debug Mode", on_toggle_debug_mode, checked=debug_mode_checked),
                     pystray.MenuItem("Open Server Log", on_open_server_log),
@@ -2020,6 +2600,148 @@ def on_open_debug_log(icon, item):
         open_file_with_default_app(debug_log)
     else:
         print(f"[SM-CoPilot] Debug log not found: {debug_log}", file=sys.stderr)
+
+def on_install_certificates(icon, item):
+    """Install Certificates menu item clicked"""
+    print("[SM-CoPilot] Install Certificates menu clicked", file=sys.stderr)
+    log_to_server_file('info', 'Install Certificates menu clicked')
+
+    def do_install():
+        try:
+            print("[SM-CoPilot] Starting certificate installation...", file=sys.stderr)
+            log_to_server_file('info', 'Starting certificate installation')
+
+            # Import certificate manager
+            if getattr(sys, 'frozen', False):
+                helper_path = Path(sys._MEIPASS) / 'helper'
+                if str(helper_path) not in sys.path:
+                    sys.path.insert(0, str(helper_path))
+            else:
+                helper_path = PROJECT_ROOT / 'helper'
+                if str(helper_path) not in sys.path:
+                    sys.path.insert(0, str(helper_path))
+
+            print(f"[SM-CoPilot] Importing certificate_manager from {helper_path}", file=sys.stderr)
+            log_to_server_file('info', f'Importing certificate_manager from {helper_path}')
+
+            import certificate_manager
+
+            print("[SM-CoPilot] Calling install_certificate()", file=sys.stderr)
+            log_to_server_file('info', 'Calling install_certificate()')
+
+            success = certificate_manager.install_certificate()
+
+            if success:
+                print("[SM-CoPilot] Certificate installed successfully", file=sys.stderr)
+                log_to_server_file('info', 'Certificate installed successfully')
+            else:
+                print("[SM-CoPilot] Certificate installation cancelled or failed", file=sys.stderr)
+                log_to_server_file('warn', 'Certificate installation cancelled or failed')
+
+        except Exception as e:
+            print(f"[SM-CoPilot] Error installing certificate: {e}", file=sys.stderr)
+            log_to_server_file('error', f'Error installing certificate: {e}')
+            import traceback
+            traceback.print_exc()
+            show_topmost_messagebox(
+                messagebox.showerror,
+                "Installation Error",
+                f"Failed to install certificate:\n{str(e)}"
+            )
+
+    # Run in separate thread to avoid blocking tray icon
+    thread = threading.Thread(target=do_install, daemon=True)
+    thread.start()
+
+def on_uninstall_certificates(icon, item):
+    """Uninstall Certificates menu item clicked"""
+    print("[SM-CoPilot] Uninstall Certificates menu clicked", file=sys.stderr)
+    log_to_server_file('info', 'Uninstall Certificates menu clicked')
+
+    def do_uninstall():
+        try:
+            print("[SM-CoPilot] Starting certificate uninstallation...", file=sys.stderr)
+            log_to_server_file('info', 'Starting certificate uninstallation')
+
+            # Import certificate manager
+            if getattr(sys, 'frozen', False):
+                helper_path = Path(sys._MEIPASS) / 'helper'
+                if str(helper_path) not in sys.path:
+                    sys.path.insert(0, str(helper_path))
+            else:
+                helper_path = PROJECT_ROOT / 'helper'
+                if str(helper_path) not in sys.path:
+                    sys.path.insert(0, str(helper_path))
+
+            print(f"[SM-CoPilot] Importing certificate_manager from {helper_path}", file=sys.stderr)
+            log_to_server_file('info', f'Importing certificate_manager from {helper_path}')
+
+            import certificate_manager
+
+            print("[SM-CoPilot] Calling uninstall_certificates()", file=sys.stderr)
+            log_to_server_file('info', 'Calling uninstall_certificates()')
+
+            success = certificate_manager.uninstall_certificates()
+
+            if success:
+                print("[SM-CoPilot] Certificates uninstalled successfully", file=sys.stderr)
+                log_to_server_file('info', 'Certificates uninstalled successfully')
+            else:
+                print("[SM-CoPilot] Certificate uninstallation cancelled or failed", file=sys.stderr)
+                log_to_server_file('warn', 'Certificate uninstallation cancelled or failed')
+
+        except Exception as e:
+            print(f"[SM-CoPilot] Error uninstalling certificates: {e}", file=sys.stderr)
+            log_to_server_file('error', f'Error uninstalling certificates: {e}')
+            import traceback
+            traceback.print_exc()
+            show_topmost_messagebox(
+                messagebox.showerror,
+                "Uninstallation Error",
+                f"Failed to uninstall certificates:\n{str(e)}"
+            )
+
+    # Run in separate thread to avoid blocking tray icon
+    thread = threading.Thread(target=do_uninstall, daemon=True)
+    thread.start()
+
+def on_download_certificate(icon, item):
+    """Download CA Certificate menu item clicked"""
+    print("[SM-CoPilot] Downloading CA certificate...", file=sys.stderr)
+
+    def do_download():
+        try:
+            # Import certificate manager
+            if getattr(sys, 'frozen', False):
+                helper_path = Path(sys._MEIPASS) / 'helper'
+                if str(helper_path) not in sys.path:
+                    sys.path.insert(0, str(helper_path))
+            else:
+                helper_path = PROJECT_ROOT / 'helper'
+                if str(helper_path) not in sys.path:
+                    sys.path.insert(0, str(helper_path))
+
+            import certificate_manager
+            success = certificate_manager.download_certificate()
+
+            if success:
+                print("[SM-CoPilot] Certificate downloaded successfully", file=sys.stderr)
+            else:
+                print("[SM-CoPilot] Certificate download cancelled", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[SM-CoPilot] Error downloading certificate: {e}", file=sys.stderr)
+            import traceback
+            traceback.print_exc()
+            show_topmost_messagebox(
+                messagebox.showerror,
+                "Download Error",
+                f"Failed to download certificate:\n{str(e)}"
+            )
+
+    # Run in separate thread to avoid blocking tray icon
+    thread = threading.Thread(target=do_download, daemon=True)
+    thread.start()
 
 def debug_mode_checked(item):
     """Check if Debug Mode is enabled (for menu checkmark)"""
@@ -2168,6 +2890,17 @@ def main():
         pystray.MenuItem("Launch App", on_launch_app),
         pystray.MenuItem("Settings", on_settings),
         pystray.MenuItem("Restart", on_restart),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Backup & Restore", pystray.Menu(
+            pystray.MenuItem("Create Backup", on_backup_data),
+            pystray.MenuItem("Restore Backup", on_restore_data)
+        )),
+        pystray.Menu.SEPARATOR,
+        pystray.MenuItem("Certificates", pystray.Menu(
+            pystray.MenuItem("Install CA Certificate", on_install_certificates),
+            pystray.MenuItem("Uninstall CA Certificates", on_uninstall_certificates),
+            pystray.MenuItem("Download CA Certificate", on_download_certificate)
+        )),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Debug Mode", on_toggle_debug_mode, checked=debug_mode_checked),
         pystray.MenuItem("Open Server Log", on_open_server_log),

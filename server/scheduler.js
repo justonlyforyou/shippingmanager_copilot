@@ -52,6 +52,12 @@ function initScheduler() {
       const userId = getUserId();
       if (!userId) return;
 
+      // Skip if autopilot is paused
+      if (autopilot.isAutopilotPaused()) {
+        logger.debug('[Scheduler] Auto-Anchor skipped - Autopilot is PAUSED');
+        return;
+      }
+
       // Skip if server not ready yet (initial data not loaded)
       if (!serverReady) {
         logger.debug('[Scheduler] Auto-Anchor skipped - server not ready');

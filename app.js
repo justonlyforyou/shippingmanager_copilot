@@ -113,6 +113,7 @@ const anchorRoutes = require('./server/routes/anchor');
 const healthRoutes = require('./server/routes/health');
 const logbookRoutes = require('./server/routes/logbook');
 const harborMapRoutes = require('./server/routes/harbor-map');
+const poiRoutes = require('./server/routes/poi');
 
 // Initialize Express app
 const app = express();
@@ -155,17 +156,18 @@ app.use('/api', anchorRoutes);
 app.use('/health', healthRoutes);
 app.use('/api/logbook', logbookRoutes);
 app.use('/api/harbor-map', harborMapRoutes);
+app.use('/api/poi', poiRoutes);
 
 // Autopilot pause/resume endpoint
-app.post('/api/autopilot/toggle', (req, res) => {
+app.post('/api/autopilot/toggle', async (req, res) => {
   const autopilot = require('./server/autopilot');
   const isPaused = autopilot.isAutopilotPaused();
 
   if (isPaused) {
-    autopilot.resumeAutopilot();
+    await autopilot.resumeAutopilot();
     res.json({ success: true, paused: false });
   } else {
-    autopilot.pauseAutopilot();
+    await autopilot.pauseAutopilot();
     res.json({ success: true, paused: true });
   }
 });
@@ -362,6 +364,10 @@ const chatBot = require('./server/chatbot');
   startMessengerAutoRefresh();
   logger.debug('[Alliance Chat] Started 20-second chat polling');
   logger.debug('[Messenger] Started 20-second messenger polling');
+
+  // Initialize POI cache and start automatic refresh
+  await poiRoutes.initializePOICache();
+  poiRoutes.startAutomaticCacheRefresh();
 
   // All automation runs via scheduler.js and autopilot.js
 

@@ -260,7 +260,10 @@ function validateValue(key, value) {
   }
 
   if (defaultType === 'number') {
-    const parsed = parseInt(value);
+    // Remove thousand separators (commas) before parsing
+    // "30,000,000" -> "30000000"
+    const cleanValue = typeof value === 'string' ? value.replace(/,/g, '') : value;
+    const parsed = parseInt(cleanValue);
     if (isNaN(parsed)) {
       logger.warn(`[Settings] Invalid number for "${key}": ${value}, using default: ${defaultValue}`);
       return defaultValue;

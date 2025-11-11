@@ -6,7 +6,7 @@
  * @module harbor-map/port-panel
  */
 
-import { deselectAll, selectVessel } from './map-controller.js';
+import { deselectAll, selectVessel, closeAllPanels } from './map-controller.js';
 
 /**
  * Shows port detail panel with port information and vessel lists
@@ -211,7 +211,8 @@ export async function closePortPanel() {
  * await selectVesselFromPort(1234);
  */
 export async function selectVesselFromPort(vesselId) {
-  hidePortPanel();
+  // Close all panels first, then show vessel panel
+  await closeAllPanels();
   await selectVessel(vesselId);
 }
 

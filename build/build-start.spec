@@ -24,6 +24,7 @@ a = Analysis(
     datas=[
         ('../public/favicon.ico', 'public'),
         ('../helper/get_session_windows.py', 'helper'),  # Only Python module (imported by start.py)
+        ('../helper/certificate_manager.py', 'helper'),  # Certificate management module
         ('../helper/__init__.py', 'helper'),
     ],
     hiddenimports=[

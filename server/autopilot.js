@@ -69,7 +69,8 @@ function initializeAutopilotState(userId) {
  */
 async function pauseAutopilot() {
   autopilotPaused = true;
-  logger.info('[Autopilot] PAUSED - All autopilot functions suspended');
+  logger.info('[Autopilot] ⏸️  PAUSED - All autopilot functions suspended');
+  logger.info(`[Autopilot] Global pause variable set to: ${autopilotPaused}`);
 
   try {
     const userId = getUserId();
@@ -93,7 +94,8 @@ async function pauseAutopilot() {
  */
 async function resumeAutopilot() {
   autopilotPaused = false;
-  logger.info('[Autopilot] RESUMED - All autopilot functions active');
+  logger.info('[Autopilot] ▶️  RESUMED - All autopilot functions active');
+  logger.info(`[Autopilot] Global pause variable set to: ${autopilotPaused}`);
 
   try {
     const userId = getUserId();
@@ -721,10 +723,12 @@ async function mainEventLoop() {
 
     // Skip automation if paused
     if (autopilotPaused) {
-      logger.debug('[Loop] Autopilot paused, skipping automation (badge update completed)');
+      logger.info('[Loop] ⏸️  Autopilot PAUSED - Skipping all automation (badge updates completed)');
       setTimeout(mainEventLoop, LOOP_INTERVAL);
       return;
     }
+
+    logger.debug('[Loop] ▶️  Autopilot RUNNING - Executing automation tasks');
 
     // Auto-rebuy runs EVERY loop
     await autoRebuyAll();

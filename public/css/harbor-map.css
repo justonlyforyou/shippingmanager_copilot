@@ -90,22 +90,28 @@
   flex-direction: row;
   gap: 2px;
   align-items: flex-start;
-  margin-left: 10px !important;
+  margin-left: 0px !important;
 }
 
 /* Make Leaflet zoom controls horizontal and smaller */
 .leaflet-control-zoom {
   display: flex;
   flex-direction: row;
+  gap: 1px;
   margin: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+  left: 4px;
 }
 
 .leaflet-control-zoom a {
   border-bottom: none !important;
-  width: 20px !important;
-  height: 20px !important;
-  line-height: 20px !important;
-  font-size: 14px !important;
+  width: 18px !important;
+  height: 18px !important;
+  line-height: 18px !important;
+  font-size: 13px !important;
 }
 
 .leaflet-control-zoom a:last-child {
@@ -134,6 +140,7 @@
 .leaflet-control-settings,
 .leaflet-control-route-filter {
   border-radius: 4px;
+  margin-left: -5px !important;
 }
 
 .leaflet-control-filter select,
@@ -1074,18 +1081,27 @@
 
 /* Light Theme (Standard Map) */
 .theme-light .leaflet-control-zoom {
-  border: 2px solid rgba(0, 0, 0, 0.2);
-  background: #fff;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .theme-light .leaflet-control-zoom a {
-  border-right: 1px solid rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
   background: #fff !important;
   color: #000 !important;
+  margin-right: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border-radius: 6px !important;
+}
+
+.theme-light .leaflet-control-zoom a:last-child {
+  margin-right: 0;
 }
 
 .theme-light .leaflet-control-zoom a:hover {
   background: #f0f0f0 !important;
+  border-color: rgba(0, 0, 0, 0.25) !important;
 }
 
 .theme-light .leaflet-control-custom {
@@ -1145,18 +1161,27 @@
 
 /* Dark Theme (Dark Mode & Satellite Map) */
 .theme-dark .leaflet-control-zoom {
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: #1f1f1f;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .theme-dark .leaflet-control-zoom a {
-  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   background: #1f1f1f !important;
   color: #fff !important;
+  margin-right: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  border-radius: 6px !important;
+}
+
+.theme-dark .leaflet-control-zoom a:last-child {
+  margin-right: 0;
 }
 
 .theme-dark .leaflet-control-zoom a:hover {
   background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
 }
 
 .theme-dark .leaflet-control-custom {
@@ -1212,6 +1237,150 @@
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+}
+
+/* ========================================
+   SATELLITE THEME STYLES
+   ======================================== */
+
+/* Zoom Controls - Transparent with white border */
+.theme-satellite .leaflet-control-zoom {
+  border: none;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.theme-satellite .leaflet-control-zoom a {
+  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  background: transparent !important;
+  color: #fff !important;
+  box-shadow: none !important;
+  margin-right: 4px;
+  border-radius: 6px !important;
+}
+
+.theme-satellite .leaflet-control-zoom a:last-child {
+  margin-right: 0;
+}
+
+.theme-satellite .leaflet-control-zoom a:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+/* Custom Controls */
+.theme-satellite .leaflet-control-custom {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Filter and Settings Dropdowns */
+.theme-satellite .leaflet-control-filter select,
+.theme-satellite .leaflet-control-settings select,
+.theme-satellite .leaflet-control-route-filter select {
+  color: #fff !important;
+  background: rgba(0, 0, 0, 0.4) !important;
+  border: none !important;
+}
+
+.theme-satellite .leaflet-control-filter select:hover,
+.theme-satellite .leaflet-control-settings select:hover,
+.theme-satellite .leaflet-control-route-filter select:hover {
+  background: rgba(0, 0, 0, 0.6) !important;
+  transform: none !important;
+}
+
+.theme-satellite .leaflet-control-filter select:focus,
+.theme-satellite .leaflet-control-settings select:focus {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.theme-satellite .leaflet-control-filter select option,
+.theme-satellite .leaflet-control-settings select option {
+  background: rgba(31, 31, 31, 0.98) !important;
+  color: #e5e7eb !important;
+  padding: 8px 12px !important;
+  border-radius: 4px !important;
+}
+
+.theme-satellite .leaflet-control-filter select option:hover,
+.theme-satellite .leaflet-control-filter select option:checked,
+.theme-satellite .leaflet-control-settings select option:hover,
+.theme-satellite .leaflet-control-settings select option:checked {
+  background: rgba(55, 65, 81, 0.98) !important;
+  color: #f9fafb !important;
+}
+
+.theme-satellite .leaflet-control-refresh {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.theme-satellite .leaflet-control-refresh button {
+  color: #fff;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Tooltip Styles - Satellite Theme */
+.theme-satellite .leaflet-tooltip {
+  background-color: rgba(31, 31, 31, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  color: #e5e7eb !important;
+  border-radius: 4px !important;
+  padding: 6px 10px !important;
+  font-size: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+.theme-satellite .leaflet-tooltip-left::before,
+.theme-satellite .leaflet-tooltip-right::before,
+.theme-satellite .leaflet-tooltip-top::before,
+.theme-satellite .leaflet-tooltip-bottom::before {
+  border-color: rgba(31, 31, 31, 0.95) !important;
+}
+
+/* Tooltip directional arrows */
+.theme-satellite .leaflet-tooltip-left::before {
+  border-left-color: rgba(31, 31, 31, 0.95) !important;
+}
+
+.theme-satellite .leaflet-tooltip-right::before {
+  border-right-color: rgba(31, 31, 31, 0.95) !important;
+}
+
+.theme-satellite .leaflet-tooltip-top::before {
+  border-top-color: rgba(31, 31, 31, 0.95) !important;
+}
+
+.theme-satellite .leaflet-tooltip-bottom::before {
+  border-bottom-color: rgba(31, 31, 31, 0.95) !important;
+}
+
+/* Popup Styles - Satellite Theme */
+.theme-satellite .leaflet-popup-content-wrapper {
+  background-color: rgba(31, 31, 31, 0.95) !important;
+  color: #e5e7eb !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.theme-satellite .leaflet-popup-tip {
+  background-color: rgba(31, 31, 31, 0.95) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+.theme-satellite .leaflet-popup-close-button {
+  color: #e5e7eb !important;
+}
+
+.theme-satellite .leaflet-popup-close-button:hover {
+  color: #fff !important;
 }
 
 /* Tooltip Styles - Light Theme */
@@ -1407,11 +1576,11 @@
 }
 
 .owm-legend-item {
-  margin: 4px 0 !important;
+  margin: 2px 0 !important;
 }
 
 .owm-legend-item img {
-  max-height: 100px !important;
+  max-height: 200px !important;
   width: auto !important;
   opacity: 0.5 !important;
   clip-path: inset(0 0 0 10px) !important;

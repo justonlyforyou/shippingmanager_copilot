@@ -87,15 +87,20 @@ This installs all required Node.js packages including:
 
 ### Step 3: Install Python Dependencies
 
-**Windows:**
+**All platforms:**
 ```bash
-pip install pywin32 cryptography keyring pystray pillow requests urllib3
+pip install -r requirements.txt
 ```
 
-**Linux/Mac:**
-```bash
-pip install keyring cryptography pystray pillow requests urllib3
-```
+This installs all required Python packages including:
+- `pywin32` (Windows only) - Windows API access
+- `cryptography` - Session encryption
+- `keyring` - OS credential storage
+- `pystray` - System tray icon
+- `pillow` - Image processing
+- `requests` - HTTP client
+- `qrcode[pil]` - QR code generation
+- `psutil` - Process management
 
 **Optional (all platforms):**
 ```bash

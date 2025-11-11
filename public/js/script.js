@@ -2397,6 +2397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     'autoRebuyCO2Threshold',
     'autoRebuyCO2MinCash',
     'autoBulkRepairMinCash',
+    'autoDrydockMinCash',
     'autoCampaignRenewalMinCash',
     'autoAnchorPointMinCash'
   ];
@@ -2425,13 +2426,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   // --- Settings Threshold Event Listeners ---
   // Fuel price alert threshold ($/ton)
   document.getElementById('fuelThreshold').addEventListener('change', function() {
-    settings.fuelThreshold = parseInt(this.value.replace(/\./g, ''));
+    settings.fuelThreshold = parseInt(this.value.replace(/,/g, ''));
     saveSettings(settings);
   });
 
   // CO2 price alert threshold ($/ton)
   document.getElementById('co2Threshold').addEventListener('change', function() {
-    settings.co2Threshold = parseInt(this.value.replace(/\./g, ''));
+    settings.co2Threshold = parseInt(this.value.replace(/,/g, ''));
     saveSettings(settings);
   });
 
@@ -2553,13 +2554,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Custom threshold for auto-rebuy fuel (only used when "use alert" unchecked)
   document.getElementById('autoRebuyFuelThreshold').addEventListener('change', function() {
-    settings.autoRebuyFuelThreshold = parseInt(this.value.replace(/\./g, ''));
+    settings.autoRebuyFuelThreshold = parseInt(this.value.replace(/,/g, ''));
     saveSettings(settings);
   });
 
   // Min cash balance for auto-rebuy fuel
   document.getElementById('autoRebuyFuelMinCash').addEventListener('change', function() {
-    settings.autoRebuyFuelMinCash = parseInt(this.value.replace(/\./g, ''));
+    settings.autoRebuyFuelMinCash = parseInt(this.value.replace(/,/g, ''));
+    this.value = formatNumberWithSeparator(settings.autoRebuyFuelMinCash);
     saveSettings(settings);
   });
 
@@ -2601,13 +2603,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Custom threshold for auto-rebuy CO2 (only used when "use alert" unchecked)
   document.getElementById('autoRebuyCO2Threshold').addEventListener('change', function() {
-    settings.autoRebuyCO2Threshold = parseInt(this.value.replace(/\./g, ''));
+    settings.autoRebuyCO2Threshold = parseInt(this.value.replace(/,/g, ''));
     saveSettings(settings);
   });
 
   // Min cash balance for auto-rebuy CO2
   document.getElementById('autoRebuyCO2MinCash').addEventListener('change', function() {
-    settings.autoRebuyCO2MinCash = parseInt(this.value.replace(/\./g, ''));
+    settings.autoRebuyCO2MinCash = parseInt(this.value.replace(/,/g, ''));
+    this.value = formatNumberWithSeparator(settings.autoRebuyCO2MinCash);
     saveSettings(settings);
   });
 
@@ -2632,7 +2635,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Min cash balance for auto bulk repair
   document.getElementById('autoBulkRepairMinCash').addEventListener('change', function() {
-    settings.autoBulkRepairMinCash = parseInt(this.value.replace(/\./g, ''));
+    settings.autoBulkRepairMinCash = parseInt(this.value.replace(/,/g, ''));
+    this.value = formatNumberWithSeparator(settings.autoBulkRepairMinCash);
     saveSettings(settings);
   });
 
@@ -2659,7 +2663,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Min cash balance for auto drydock
   document.getElementById('autoDrydockMinCash').addEventListener('change', function() {
-    settings.autoDrydockMinCash = parseInt(this.value.replace(/\./g, ''));
+    settings.autoDrydockMinCash = parseInt(this.value.replace(/,/g, ''));
+    this.value = formatNumberWithSeparator(settings.autoDrydockMinCash);
     saveSettings(settings);
   });
 
@@ -2674,7 +2679,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Min cash balance for auto campaign renewal
   document.getElementById('autoCampaignRenewalMinCash').addEventListener('change', function() {
-    settings.autoCampaignRenewalMinCash = parseInt(this.value.replace(/\./g, ''));
+    settings.autoCampaignRenewalMinCash = parseInt(this.value.replace(/,/g, ''));
+    this.value = formatNumberWithSeparator(settings.autoCampaignRenewalMinCash);
     saveSettings(settings);
   });
 
@@ -2707,13 +2713,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Auto-Anchor Point Min Cash
   document.getElementById('autoAnchorPointMinCash').addEventListener('change', function() {
-    const value = parseInt(this.value.replace(/\./g, ''));
+    const value = parseInt(this.value.replace(/,/g, ''));
     if (value >= 0) {
       settings.autoAnchorPointMinCash = value;
+      this.value = formatNumberWithSeparator(settings.autoAnchorPointMinCash);
       saveSettings(settings);
     } else {
       if (settings.autoAnchorPointMinCash !== undefined) {
-        this.value = settings.autoAnchorPointMinCash;
+        this.value = formatNumberWithSeparator(settings.autoAnchorPointMinCash);
       }
     }
   });
@@ -2765,7 +2772,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Minimum fuel threshold for auto-depart
   document.getElementById('minFuelThreshold').addEventListener('change', function() {
-    settings.minFuelThreshold = parseInt(this.value.replace(/\./g, ''));
+    settings.minFuelThreshold = parseInt(this.value.replace(/,/g, ''));
     saveSettings(settings);
   });
 
