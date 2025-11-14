@@ -17,6 +17,51 @@ A comprehensive "Addon" for the beloved game [Shipping Manager](https://shipping
 
 ---
 
+## Table of Contents
+
+- [🛠️ The Bug That Became The Tool](#️-the-bug-that-became-the-tool)
+- [📢 A Message to Trophy Games](#-a-message-to-trophy-games)
+- [🚀 Features](#-features)
+  - [Alliance Chat](#alliance-chat)
+  - [Private Messaging](#private-messaging)
+  - [Fuel Management](#fuel-management)
+  - [CO2 Management](#co2-management)
+  - [Vessel Management](#vessel-management)
+  - [Bulk Repair](#bulk-repair)
+  - [Marketing Campaigns](#marketing-campaigns)
+  - [Vessel Purchase Catalog](#vessel-purchase-catalog)
+  - [Bulk Vessel Purchasing](#bulk-vessel-purchasing)
+  - [Vessel Selling](#vessel-selling)
+  - [Harbor Map](#harbor-map)
+  - [Logbook](#logbook)
+  - [Alliance Cooperation](#alliance-cooperation)
+  - [Hijacking/Piracy Management](#hijackingpiracy-management)
+  - [Forecast Calendar](#forecast-calendar)
+  - [Header Data Display](#header-data-display)
+  - [Notifications System](#notifications-system)
+  - [Anchor Point Management](#anchor-point-management)
+  - [ChatBot](#chatbot)
+  - [Auto-Rebuy Fuel by Barrel Boss](#auto-rebuy-fuel-by-barrel-boss)
+  - [Auto-Rebuy CO2 by Atmosphere Broker](#auto-rebuy-co2-by-atmosphere-broker)
+  - [Auto-Depart All Vessels by Cargo Marshal](#auto-depart-all-vessels-by-cargo-marshal)
+  - [Auto Bulk Repair by Yard Foreman](#auto-bulk-repair-by-yard-foreman)
+  - [Auto Campaign Renewal by Reputation Chief](#auto-campaign-renewal-by-reputation-chief)
+  - [Auto Coop Vessel Sending by Fair Hand](#auto-coop-vessel-sending-by-fair-hand)
+  - [Auto Anchor Point Purchase by Harbormaster](#auto-anchor-point-purchase-by-harbormaster)
+  - [Auto Negotiate Hijacking by Cap'n Blackbeard](#auto-negotiate-hijacking-by-capn-blackbeard)
+  - [HTTPS Support & Certificate Management](#https-support--certificate-management)
+- [Requirements](#requirements)
+- [Documentation](#documentation)
+- [Session Cookie Encryption](#session-cookie-encryption)
+- [Route Optimization Detection & Tracking](#route-optimization-detection--tracking)
+- [Legal Disclaimer & Risk Notice](#legal-disclaimer--risk-notice)
+- [Security Notice](#security-notice)
+- [Privacy & Data Collection](#privacy--data-collection)
+- [License](#license)
+- [Application Preview](#application-preview)
+
+---
+
 ## 🛠️ The Bug That Became The Tool
 
 This project started out of sheer **frustration with persistent bugs** in [Shipping Manager](https://shippingmanager.cc) and the complete lack of ongoing development by the creators.
