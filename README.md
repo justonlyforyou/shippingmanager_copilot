@@ -58,7 +58,7 @@ A comprehensive "Addon" for the beloved game [Shipping Manager](https://shipping
 - [Security Notice](#security-notice)
 - [Privacy & Data Collection](#privacy--data-collection)
 - [License](#license)
-- [Application Preview](#application-preview)
+- [Screenshots](#screenshots)
 
 ---
 
@@ -597,7 +597,7 @@ This software is free to use and modify, but **may not be sold commercially**. S
 
 ***
 
-## Application Preview
+## Screenshots
 
 ![Application Demo](screenshots/demo.gif)
 
