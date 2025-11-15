@@ -58,14 +58,10 @@ jobs:
           ls -la dist/
         shell: bash
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          release_name: ShippingManager CoPilot ${{ github.ref_name }}
+          name: ShippingManager CoPilot ${{ github.ref_name }}
           body: |
             ShippingManager CoPilot ${{ github.ref_name }}
 
@@ -94,23 +90,6 @@ jobs:
             For issues and feedback, visit the GitHub Issues page.
           draft: false
           prerelease: false
-
-      - name: Upload Installer
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/ShippingManagerCoPilot-Installer-v${{ steps.get_version.outputs.VERSION }}.exe
-          asset_name: ShippingManagerCoPilot-Installer-v${{ steps.get_version.outputs.VERSION }}.exe
-          asset_content_type: application/x-msdownload
-
-      - name: Upload Checksums
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./dist/checksums.txt
-          asset_name: checksums.txt
-          asset_content_type: text/plain
+          files: |
+            dist/ShippingManagerCoPilot-Installer-v${{ steps.get_version.outputs.VERSION }}.exe
+            dist/checksums.txt

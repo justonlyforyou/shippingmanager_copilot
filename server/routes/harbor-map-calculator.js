@@ -36,7 +36,11 @@ function calculateVesselPosition(vessel, allPorts) {
   // Ensure progress is between 0 and 1
   const progress = Math.max(0, Math.min(1, (now - departureTime) / totalDuration));
 
-  const path = vessel.active_route.path;
+  // Handle reversed routes - if reversed=true, path direction is opposite
+  const isReversed = vessel.active_route.reversed === true;
+  const path = isReversed
+    ? vessel.active_route.path.slice().reverse()
+    : vessel.active_route.path;
   const pathLength = path.length;
 
   // Calculate index on path

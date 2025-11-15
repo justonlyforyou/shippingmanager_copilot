@@ -1269,7 +1269,7 @@ router.get('/hijacking/get-cases', async (req, res) => {
             values: chat.values,            // Contains case_id, vessel_name, etc.
             caseDetails: details,           // Full case data
             isOpen: isOpen,
-            time_last_message: chat.time_last_message
+            time_last_message: details.registered_at
           };
         } catch (error) {
           logger.error(`[Hijacking] Error fetching case details:`, error.message);

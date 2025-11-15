@@ -327,6 +327,7 @@ const fs = require('fs').promises;
 const logger = require('../utils/logger');
 const autopilot = require('../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
+const { saveHarborFee } = require('../utils/harbor-fee-store');
 
 const router = express.Router();
 
@@ -830,6 +831,16 @@ router.post('/route/depart', async (req, res) => {
           'WARNING',
           SOURCES.MANUAL
         );
+      }
+
+      // Save harbor fees for vessel history display
+      const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      for (const vessel of result.departedVessels) {
+        try {
+          await saveHarborFee(userId, vessel.vesselId, timestamp, vessel.harborFee);
+        } catch (error) {
+          logger.error(`[Depart API] Failed to save harbor fee for vessel ${vessel.vesselId}:`, error.message);
+        }
       }
     }
 

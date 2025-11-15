@@ -475,6 +475,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
           // Successfully departed
           const vesselData = {
+            vesselId: vessel.id,
             name: result.vesselName,
             destination: result.destination,
             capacity: vesselCapacity,

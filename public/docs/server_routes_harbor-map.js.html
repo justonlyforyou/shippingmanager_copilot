@@ -553,7 +553,9 @@ router.get('/vessel/:vesselId/reachable-ports', async (req, res) => {
         : (vessel.active_route.destination_port_code || vessel.active_route.destination);
 
       route = {
-        path: vessel.active_route.path,
+        path: isReversed
+          ? vessel.active_route.path.slice().reverse()
+          : vessel.active_route.path,
         origin: actualOrigin,
         destination: actualDestination
       };
