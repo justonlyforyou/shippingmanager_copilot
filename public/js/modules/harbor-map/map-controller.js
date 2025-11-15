@@ -1314,7 +1314,9 @@ function addCustomControls() {
     options: { position: 'topleft' },
     onAdd: function() {
       const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-settings-btn');
+      container.style.position = 'relative';
       container.innerHTML = '<button title="Settings">⚙️</button>';
+      container.innerHTML += '<span class="update-indicator hidden" id="settingsUpdateIndicator"></span>';
       L.DomEvent.disableClickPropagation(container);
       container.querySelector('button').addEventListener('click', () => {
         if (window.showSettings) window.showSettings();

@@ -1814,4 +1814,105 @@ router.post('/game/index', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/version/check - Check for updates from GitHub
+ *
+ * Fetches latest release from GitHub and compares with current version
+ * Caches result for 15 minutes to avoid hitting GitHub API rate limits
+ */
+let versionCheckCache = null;
+let versionCheckCacheTime = 0;
+const VERSION_CACHE_DURATION = 15 * 60 * 1000; // 15 minutes
+
+router.get('/version/check', async (req, res) => {
+  try {
+    // Check if cache is still valid
+    const now = Date.now();
+    if (versionCheckCache && (now - versionCheckCacheTime) < VERSION_CACHE_DURATION) {
+      return res.json(versionCheckCache);
+    }
+
+    // Read current version from package.json
+    const packageJson = JSON.parse(await fs.readFile('./package.json', 'utf8'));
+    const currentVersion = packageJson.version;
+
+    // Fetch latest release from GitHub
+    const axios = require('axios');
+    const githubResponse = await axios.get(
+      'https://api.github.com/repos/sitzmoebelchronograph/shippingmanager_copilot/releases/latest',
+      {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'User-Agent': 'ShippingManager-CoPilot'
+        },
+        timeout: 5000
+      }
+    );
+
+    const latestRelease = githubResponse.data;
+    const latestVersion = latestRelease.tag_name.replace(/^v/, ''); // Remove 'v' prefix if present
+
+    // Find the installer asset (usually .exe or .zip)
+    const installerAsset = latestRelease.assets.find(asset =>
+      asset.name.includes('Setup') || asset.name.endsWith('.exe') || asset.name.endsWith('.zip')
+    );
+
+    // Compare versions
+    const updateAvailable = compareVersions(latestVersion, currentVersion) > 0;
+
+    const result = {
+      currentVersion,
+      latestVersion,
+      updateAvailable,
+      downloadUrl: installerAsset ? installerAsset.browser_download_url : latestRelease.html_url,
+      releaseUrl: latestRelease.html_url,
+      releaseName: latestRelease.name,
+      releaseNotes: latestRelease.body
+    };
+
+    // Cache the result
+    versionCheckCache = result;
+    versionCheckCacheTime = now;
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Error checking version:', error);
+
+    // Return current version even if GitHub check fails
+    try {
+      const packageJson = JSON.parse(await fs.readFile('./package.json', 'utf8'));
+      res.json({
+        currentVersion: packageJson.version,
+        latestVersion: packageJson.version,
+        updateAvailable: false,
+        error: 'Failed to check for updates'
+      });
+    } catch (fallbackError) {
+      res.status(500).json({ error: 'Failed to check version' });
+    }
+  }
+});
+
+/**
+ * Compare two semantic version strings
+ * @param {string} v1 - First version (e.g., "0.1.5.0")
+ * @param {string} v2 - Second version (e.g., "0.1.4.3")
+ * @returns {number} - 1 if v1 > v2, -1 if v1 < v2, 0 if equal
+ */
+function compareVersions(v1, v2) {
+  const parts1 = v1.split('.').map(Number);
+  const parts2 = v2.split('.').map(Number);
+  const maxLength = Math.max(parts1.length, parts2.length);
+
+  for (let i = 0; i < maxLength; i++) {
+    const num1 = parts1[i] || 0;
+    const num2 = parts2[i] || 0;
+
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+
+  return 0;
+}
+
 module.exports = router;

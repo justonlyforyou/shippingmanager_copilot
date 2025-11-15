@@ -3570,6 +3570,81 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Frontend only loads initial data on page load, then receives all updates via WebSocket.
   // This eliminates duplicate API calls (frontend + backend both polling same endpoints).
 
+  // ===== STEP 9.5: Version Update Check =====
+  // Check for updates on startup and every 15 minutes
+  let updateCheckData = null;
+
+  /**
+   * Check for updates from GitHub
+   * @async
+   */
+  const checkForUpdates = async () => {
+    try {
+      const response = await fetch(apiUrl('/api/version/check'));
+      const data = await response.json();
+      updateCheckData = data;
+
+      // Update Information section in settings
+      const currentVersionEl = document.getElementById('currentVersion');
+      if (currentVersionEl) {
+        currentVersionEl.textContent = `v${data.currentVersion}`;
+      }
+
+      if (data.updateAvailable) {
+        // Show update available message
+        const updateContainer = document.getElementById('updateStatusContainer');
+        const upToDateContainer = document.getElementById('upToDateContainer');
+        const latestVersionEl = document.getElementById('latestVersion');
+        const downloadLink = document.getElementById('downloadLink');
+
+        if (updateContainer) updateContainer.classList.remove('hidden');
+        if (upToDateContainer) upToDateContainer.classList.add('hidden');
+        if (latestVersionEl) latestVersionEl.textContent = `v${data.latestVersion}`;
+        if (downloadLink) downloadLink.href = data.downloadUrl;
+
+        // Show pulsing dot on settings icon
+        const updateIndicator = document.getElementById('settingsUpdateIndicator');
+        if (updateIndicator) {
+          updateIndicator.classList.remove('hidden');
+        }
+
+        if (DEBUG_MODE) {
+          console.log(`[Version] Update available: ${data.currentVersion} → ${data.latestVersion}`);
+        }
+      } else {
+        // Show up-to-date message
+        const updateContainer = document.getElementById('updateStatusContainer');
+        const upToDateContainer = document.getElementById('upToDateContainer');
+
+        if (updateContainer) updateContainer.classList.add('hidden');
+        if (upToDateContainer) upToDateContainer.classList.remove('hidden');
+
+        // Hide pulsing dot on settings icon
+        const updateIndicator = document.getElementById('settingsUpdateIndicator');
+        if (updateIndicator) {
+          updateIndicator.classList.add('hidden');
+        }
+
+        if (DEBUG_MODE) {
+          console.log(`[Version] Up to date: v${data.currentVersion}`);
+        }
+      }
+    } catch (error) {
+      console.error('[Version] Failed to check for updates:', error);
+      // Don't show error to user, just log it
+    }
+  };
+
+  // Initial check on startup
+  await checkForUpdates();
+
+  // Check every 15 minutes
+  setInterval(checkForUpdates, 15 * 60 * 1000);
+
+  // Expose function for settings dialog to refresh
+  window.checkForUpdates = checkForUpdates;
+  window.getUpdateCheckData = () => updateCheckData;
+
   // ===== STEP 10: Page Visibility API =====
   // Refresh chat messages when page becomes visible again.
   // Badge data comes from WebSocket which maintains connection automatically.

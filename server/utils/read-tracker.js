@@ -145,16 +145,21 @@ function saveReadTrackingFile(data) {
  *
  * Why This Function:
  * - Used by GET /api/chat to calculate unread count
- * - Returns 0 for new users (treats all messages as unread initially)
+ * - Returns current time for new users (treats existing messages as already read)
  * - Cached lookups are fast (no file I/O after initial load)
+ *
+ * New User Behavior:
+ * - First time a user is seen, auto-initializes timestamp to NOW
+ * - This prevents showing hundreds of old messages as "unread" after fresh install
+ * - Only NEW messages (after first access) will show as unread
  *
  * @function getLastReadTimestamp
  * @param {number} userId - User's unique identifier
- * @returns {number} Unix timestamp in milliseconds, or 0 if user has never read chat
+ * @returns {number} Unix timestamp in milliseconds, or current time if user never seen before
  *
  * @example
  * const lastRead = getLastReadTimestamp(12345);
- * // Returns: 1699876543000 (or 0 if user never read chat)
+ * // Returns: 1699876543000 (or Date.now() for new users)
  */
 function getLastReadTimestamp(userId) {
   const data = ensureReadTrackingFile();
@@ -164,8 +169,12 @@ function getLastReadTimestamp(userId) {
     return data[userIdStr].allianceChatLastRead;
   }
 
-  // User has never read chat, return 0 (epoch start)
-  return 0;
+  // User has never read chat - initialize to NOW and save
+  // This prevents showing old messages as unread after fresh install
+  const now = Date.now();
+  updateLastReadTimestamp(userId, now);
+  logger.debug(`[Read Tracker] New user ${userId} - initialized last read timestamp to NOW`);
+  return now;
 }
 
 /**

@@ -512,6 +512,43 @@
             </div>
             <div class="messenger-feed" style="padding: 10px; overflow-y: auto;">
                 <div style="width: 100%; margin: 0 auto;">
+                    <!-- Information Section -->
+                    <div class="settings-section">
+                        <h3 onclick="toggleSection('informationContent')" class="settings-section-header">
+                            <span>💝 Designed with love and AI</span>
+                            <span id="informationToggle" class="settings-section-toggle">➖</span>
+                        </h3>
+                        <div class="settings-section-divider"></div>
+                        <div id="informationContent" data-display-mode="block">
+                            <div class="info-section">
+                                <p class="info-text">
+                                    📦 Current Version <span id="currentVersion" class="info-version">Loading...</span>
+                                </p>
+                                <p class="info-text">
+                                    ShippingManager <a href="https://github.com/sitzmoebelchronograph/shippingmanager_copilot" target="_blank" class="info-link">CoPilot on Github</a> / <a href="https://shippingmanager-forecast.pages.dev/" target="_blank" class="info-link">Public Forecast</a>
+                                </p>
+                            </div>
+
+                            <div id="updateStatusContainer" class="update-available hidden">
+                                <div class="update-title">
+                                    🎉 New Version Available!
+                                </div>
+                                <div class="update-version-text">
+                                    Version <span id="latestVersion" class="info-version"></span> is available
+                                </div>
+                                <a id="downloadLink" href="#" target="_blank" class="update-download-btn">
+                                    ⬇️ Download Update
+                                </a>
+                            </div>
+
+                            <div id="upToDateContainer" class="up-to-date hidden">
+                                <div class="up-to-date-text">
+                                    ✅ You're running the latest version
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Price Alerts Section -->
                     <div style="margin-bottom: 25px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
                         <h3 onclick="toggleSection('priceAlertsContent')" style="margin: 0 0 10px 0; font-size: 16px; color: #e0e0e0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
