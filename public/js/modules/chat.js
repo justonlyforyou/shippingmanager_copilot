@@ -2072,8 +2072,8 @@ function handleBunkerUpdate(data) {
     pointsDisplay.textContent = formatNumber(points);
   }
 
-  // Cache bunker values for next page load
-  if (window.saveBadgeCache) {
+  // Cache bunker values for next page load (only if valid numbers)
+  if (window.saveBadgeCache && maxFuel > 0 && maxCO2 > 0) {
     window.saveBadgeCache({ bunker: { fuel, co2, cash, points, maxFuel, maxCO2 } });
   }
 }

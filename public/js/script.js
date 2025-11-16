@@ -629,14 +629,14 @@ function loadCache() {
       const fuelDisplay = document.getElementById('fuelDisplay');
       const fuelFill = document.getElementById('fuelFill');
       const fuelBtn = document.getElementById('fuelBtn');
-      if (fuelDisplay && fuel !== undefined && maxFuel !== undefined && (maxFuel > 0 || fuel <= 0)) {
-        const maxFuelText = maxFuel > 0 ? Math.floor(maxFuel).toLocaleString('en-US') : '--';
-        fuelDisplay.innerHTML = `${Math.floor(fuel).toLocaleString('en-US')} <b>t</b> <b>/</b> ${maxFuelText} <b>t</b>`;
+      // Only update if we have valid capacity - fuel can be 0 (empty tank)
+      if (fuelDisplay && fuel !== undefined && maxFuel > 0) {
+        fuelDisplay.innerHTML = `${Math.floor(fuel).toLocaleString('en-US')} <b>t</b> <b>/</b> ${Math.floor(maxFuel).toLocaleString('en-US')} <b>t</b>`;
 
 
         // Update fill bar and button styling with CSS classes
         if (fuelFill && fuelBtn) {
-          const fuelPercent = maxFuel > 0 ? Math.min(100, Math.max(0, (fuel / maxFuel) * 100)) : 0;
+          const fuelPercent = Math.min(100, Math.max(0, (fuel / maxFuel) * 100));
           fuelFill.style.width = `${fuelPercent}%`;
 
           // Determine fill level class based on tank percentage
@@ -690,15 +690,15 @@ function loadCache() {
       const co2Display = document.getElementById('co2Display');
       const co2Fill = document.getElementById('co2Fill');
       const co2Btn = document.getElementById('co2Btn');
-      if (co2Display && co2 !== undefined && maxCO2 !== undefined && (maxCO2 > 0 || co2 < 0)) {
+      // Only update if maxCO2 is valid (co2 can be negative when over quota)
+      if (co2Display && co2 !== undefined && maxCO2 > 0) {
         const co2Value = co2 < 0 ? `-${Math.floor(Math.abs(co2)).toLocaleString('en-US')}` : Math.floor(co2).toLocaleString('en-US');
-        const maxCO2Text = maxCO2 > 0 ? Math.floor(maxCO2).toLocaleString('en-US') : '--';
-        co2Display.innerHTML = `${co2Value} <b>t</b> <b>/</b> ${maxCO2Text} <b>t</b>`;
+        co2Display.innerHTML = `${co2Value} <b>t</b> <b>/</b> ${Math.floor(maxCO2).toLocaleString('en-US')} <b>t</b>`;
 
 
         // Update fill bar and button styling with CSS classes
         if (co2Fill && co2Btn) {
-          const co2Percent = maxCO2 > 0 ? Math.min(100, Math.max(0, (co2 / maxCO2) * 100)) : 0;
+          const co2Percent = Math.min(100, Math.max(0, (co2 / maxCO2) * 100));
           co2Fill.style.width = `${co2Percent}%`;
 
           // Determine fill level class based on tank percentage

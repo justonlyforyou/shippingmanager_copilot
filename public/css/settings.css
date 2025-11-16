@@ -38,6 +38,42 @@
 }
 
 /* ============================================
+   RADIO GROUP INLINE
+   ============================================ */
+
+.radio-group-inline {
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin-bottom: var(--spacing-8);
+}
+
+.radio-group-label {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-12);
+  margin: 0;
+  white-space: nowrap;
+  display: inline !important;
+}
+
+.radio-option {
+  display: inline-flex !important;
+  align-items: center;
+  gap: var(--spacing-4);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  white-space: nowrap;
+}
+
+.radio-option input[type="radio"] {
+  margin: 0;
+  cursor: pointer;
+}
+
+/* ============================================
    AGENT NOTIFICATION HINT
    ============================================ */
 
