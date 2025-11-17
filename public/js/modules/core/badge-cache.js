@@ -349,6 +349,15 @@ function loadBunkerStatus(data, settings) {
 
   const { fuel, co2, cash, maxFuel, maxCO2, points } = data.bunker;
 
+  // CRITICAL: Don't load cache if BOTH fuel AND co2 are 0 - this is likely stale/invalid data
+  // Real data will have at least some fuel or CO2 in tanks
+  if (fuel === 0 && co2 === 0) {
+    if (window.DEBUG_MODE) {
+      console.log('[Cache] Bunker cache skipped - both fuel and co2 are 0');
+    }
+    return;
+  }
+
   // Load capacity values from cache if available
   if (maxFuel !== undefined && maxFuel > 0 && maxCO2 !== undefined && maxCO2 > 0) {
     import('../bunker-management.js').then(module => {

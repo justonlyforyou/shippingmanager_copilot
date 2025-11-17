@@ -15,6 +15,8 @@ A comprehensive "Addon" for the beloved game [Shipping Manager](https://shipping
 
 ...and much more!
 
+Join the discord community [SM-Coplit](https://discord.gg/rw4yKxp7Mv)
+
 ---
 
 ## Table of Contents

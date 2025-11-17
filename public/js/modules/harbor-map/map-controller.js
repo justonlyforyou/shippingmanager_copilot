@@ -2870,7 +2870,7 @@ function updateRouteDropdown() {
  * @example
  * await setRouteFilter('Hamburg - New York');
  */
-async function setRouteFilter(routeName) {
+export async function setRouteFilter(routeName) {
   currentRouteFilter = routeName || null;
 
   // Save to localStorage
@@ -2878,6 +2878,12 @@ async function setRouteFilter(routeName) {
     localStorage.setItem('harborMapRouteFilter', currentRouteFilter);
   } else {
     localStorage.removeItem('harborMapRouteFilter');
+  }
+
+  // Update the dropdown to reflect the new selection
+  const routeSelect = document.getElementById('routeFilterSelect');
+  if (routeSelect && routeSelect.value !== (routeName || '')) {
+    routeSelect.value = routeName || '';
   }
 
   console.log(`[Harbor Map] Route filter changed to: ${currentRouteFilter || 'All Routes'}`);

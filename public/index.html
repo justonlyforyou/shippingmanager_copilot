@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/css/overlays.css">
     <link rel="stylesheet" href="/css/notifications.css">
     <link rel="stylesheet" href="/css/vessels.css">
+    <link rel="stylesheet" href="/css/depart-manager.css">
     <link rel="stylesheet" href="/css/price-display.css">
     <link rel="stylesheet" href="/css/autopilot.css">
     <link rel="stylesheet" href="/css/campaigns.css">
@@ -209,6 +210,23 @@
             <!-- Route Vessels Panel (slides in from right) -->
             <div id="route-vessels-panel" class="detail-panel route-panel">
                 <!-- Route vessels list populated by route-vessels-panel.js -->
+            </div>
+
+            <!-- Depart Manager Panel (draggable, transparent) -->
+            <div id="departManagerPanel" class="depart-manager-panel hidden">
+                <div class="depart-manager-header">
+                    <h3>🚢 Depart Manager</h3>
+                    <button class="close-btn depart-manager-close"><span>×</span></button>
+                </div>
+                <div class="depart-manager-actions">
+                    <button id="departAllFromPanel" class="vessel-filter-btn depart-primary-btn" title="Depart selected vessels">🚢 Depart Selected (0)</button>
+                    <button id="selectAllVesselsBtn" class="vessel-filter-btn" title="Select all vessels">✓ All</button>
+                    <button id="unselectAllVesselsBtn" class="vessel-filter-btn" title="Unselect all vessels">✗ None</button>
+                    <button id="refreshDepartListBtn" class="vessel-filter-btn" title="Refresh vessel list">🔄</button>
+                </div>
+                <div class="depart-manager-content">
+                    <!-- Future: Vessel list, filters, etc. -->
+                </div>
             </div>
 
         </div> <!-- End chat-area-wrapper -->

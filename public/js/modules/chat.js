@@ -1553,10 +1553,8 @@ async function handleVesselsDeparted(data) {
     showSideNotification(message, 'success', 15000);
   }
 
-  // Force immediate vessel count update (bypasses anti-flicker logic)
-  if (window.updateVesselCount) {
-    await window.updateVesselCount();
-  }
+  // Badge update is handled by vessel_count_update WS event from backend
+  // No need to call updateVesselCount() here (it would make an unnecessary API call)
 
   // Refresh vessel selling overlay if open
   await refreshVesselsForSale();
@@ -2103,8 +2101,11 @@ function handleBunkerUpdate(data) {
   }
 
   // Cache bunker values for next page load (only if valid numbers)
-  if (window.saveBadgeCache && maxFuel > 0 && maxCO2 > 0) {
+  // CRITICAL: Don't cache if BOTH fuel AND co2 are 0 - this is highly suspicious
+  if (window.saveBadgeCache && maxFuel > 0 && maxCO2 > 0 && !(fuel === 0 && co2 === 0)) {
     window.saveBadgeCache({ bunker: { fuel, co2, cash, points, maxFuel, maxCO2 } });
+  } else if (fuel === 0 && co2 === 0 && window.DEBUG_MODE) {
+    console.log('[Bunker Update] NOT caching - both fuel and co2 are 0');
   }
 }
 

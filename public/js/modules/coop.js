@@ -183,7 +183,31 @@ export async function showCoopOverlay() {
         const hasBlockingRestrictions = member.restrictions.some(r => {
           // Blocking types: no_vessels, low_fuel, time_restriction (when outside time range)
           // Non-blocking types: time_setting (inside range), capacity_setting (just a filter)
-          return r.blocking === true || r.type === 'low_fuel' || r.type === 'time_restriction' || r.type === 'no_vessels';
+          if (r.blocking === true || r.type === 'low_fuel' || r.type === 'time_restriction' || r.type === 'no_vessels') {
+            return true;
+          }
+
+          // Check if time_setting is currently blocking (outside acceptance window)
+          if (r.type === 'time_setting' && r.startHourUTC !== undefined && r.endHourUTC !== undefined) {
+            const now = new Date();
+            const currentHourUTC = now.getUTCHours();
+
+            // Check if current time is within acceptance window
+            // Handle overnight ranges (e.g., 23:00-07:00 = 23,24,0,1,2,3,4,5,6)
+            let isWithinWindow = false;
+            if (r.startHourUTC <= r.endHourUTC) {
+              // Normal range (e.g., 09:00-17:00)
+              isWithinWindow = currentHourUTC >= r.startHourUTC && currentHourUTC < r.endHourUTC;
+            } else {
+              // Overnight range (e.g., 23:00-07:00)
+              isWithinWindow = currentHourUTC >= r.startHourUTC || currentHourUTC < r.endHourUTC;
+            }
+
+            // If NOT within window, it's blocking
+            return !isWithinWindow;
+          }
+
+          return false;
         });
 
         if (hasBlockingRestrictions) {
@@ -330,7 +354,9 @@ export async function sendCoopMax(userId) {
       showSideNotification(`Successfully sent ${departed} coop vessel${departed !== 1 ? 's' : ''}${partial}`, 'success');
     }
 
-    // Note: Badge/header updated automatically via WebSocket broadcast from backend
+    // Update badge immediately (don't wait for WebSocket)
+    await updateCoopBadge();
+
     // Refresh overlay to show updated counts
     await showCoopOverlay();
 

@@ -43,7 +43,7 @@ function handleIconAction(action) {
   // Map actions to their corresponding functions
   // These functions are exposed on window object by script.js
   const actionHandlers = {
-    'departAll': window.departAllVessels,
+    'departAll': window.openDepartManager,
     'anchor': window.showAnchorInfo,
     'repairAll': () => window.openRepairAndDrydockDialog(window.getSettings ? window.getSettings() : {}),
     'buyVessels': window.showBuyVesselsOverlay,

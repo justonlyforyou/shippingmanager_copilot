@@ -138,17 +138,20 @@ function initWebSocket() {
             }));
             logger.debug('[WebSocket] OK Prices sent');
           } else if (prices) {
-            logger.warn(`[WebSocket] ✗ Prices NOT sent - invalid values: fuel=${prices.fuel}, co2=${prices.co2}`);
+            logger.warn(`[WebSocket] Prices NOT sent - invalid values: fuel=${prices.fuel}, co2=${prices.co2}`);
           }
 
           // Bunker state (fuel, CO2, cash, points)
+          // CRITICAL: Only send if bunker data has VALID values (not 0 defaults from empty cache)
           const bunker = state.getBunkerState(userId);
-          if (bunker) {
+          if (bunker && bunker.cash !== undefined && bunker.maxFuel > 0 && bunker.maxCO2 > 0) {
             ws.send(JSON.stringify({
               type: 'bunker_update',
               data: bunker
             }));
             logger.debug('[WebSocket] OK Bunker state sent');
+          } else {
+            logger.warn('[WebSocket] Bunker state NOT sent - no valid cached data (waiting for autopilot loop)');
           }
 
           // Vessel counts
@@ -159,7 +162,7 @@ function initWebSocket() {
               const vesselsResponse = await apiCall('/game/index', 'GET');
               if (vesselsResponse?.vessels) {
                 const readyToDepart = vesselsResponse.vessels.filter(v =>
-                  v.status === 'ready' && v.maintenance > 0
+                  v.status === 'port' && !v.is_parked
                 ).length;
                 const atAnchor = vesselsResponse.vessels.filter(v =>
                   v.status === 'anchor'
@@ -197,7 +200,7 @@ function initWebSocket() {
                 const maintenanceThreshold = userSettings?.maintenanceThreshold;
                 if (maintenanceThreshold !== undefined) {
                   repairCount = vesselsResponse.vessels.filter(v =>
-                    v.status === 'ready' && v.maintenance < maintenanceThreshold
+                    v.status === 'port' && !v.is_parked && v.maintenance < maintenanceThreshold
                   ).length;
                   state.updateRepairCount(userId, repairCount);
                   logger.debug('[WebSocket] Repair count fetched from API');
@@ -228,7 +231,7 @@ function initWebSocket() {
                 const drydockThreshold = userSettings?.autoDrydockThreshold;
                 if (drydockThreshold !== undefined) {
                   drydockCount = vesselsResponse.vessels.filter(v =>
-                    v.status === 'ready' && v.age >= drydockThreshold
+                    v.status === 'port' && !v.is_parked && v.age >= drydockThreshold
                   ).length;
                   state.updateDrydockCount(userId, drydockCount);
                   logger.debug('[WebSocket] Drydock count fetched from API');

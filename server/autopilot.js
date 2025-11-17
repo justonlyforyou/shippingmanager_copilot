@@ -67,7 +67,7 @@ function initializeAutopilotState(userId) {
  */
 async function pauseAutopilot() {
   autopilotPaused = true;
-  logger.info('[Autopilot] ⏸️  PAUSED - All autopilot functions suspended');
+  logger.info('[Autopilot] PAUSED - All autopilot functions suspended');
   logger.info(`[Autopilot] Global pause variable set to: ${autopilotPaused}`);
 
   try {
@@ -92,7 +92,7 @@ async function pauseAutopilot() {
  */
 async function resumeAutopilot() {
   autopilotPaused = false;
-  logger.info('[Autopilot] ▶️  RESUMED - All autopilot functions active');
+  logger.info('[Autopilot] RESUMED - All autopilot functions active');
   logger.info(`[Autopilot] Global pause variable set to: ${autopilotPaused}`);
 
   try {
@@ -217,7 +217,17 @@ async function updateRepairCount() {
     const threshold = settings.maintenanceThreshold;
 
     const vessels = await gameapi.fetchVessels();
-    const repairCount = vessels.filter(v => v.wear >= threshold).length;
+    if (!vessels || vessels.length === 0) {
+      logger.warn('[Header] Repair count update skipped - no vessel data from API');
+      return;
+    }
+
+    const repairCount = vessels.filter(v =>
+      v.status === 'port' && !v.is_parked && v.maintenance < threshold
+    ).length;
+
+    // Cache the count for reconnecting clients
+    state.updateRepairCount(userId, repairCount);
 
     if (broadcastToUser) {
       broadcastToUser(userId, 'repair_count_update', {
@@ -241,11 +251,19 @@ async function updateDrydockCount() {
     const threshold = settings.autoDrydockThreshold;
 
     const vessels = await gameapi.fetchVessels();
+    if (!vessels || vessels.length === 0) {
+      logger.warn('[Header] Drydock count update skipped - no vessel data from API');
+      return;
+    }
+
     const drydockCount = vessels.filter(v => {
       const hoursUntilCheck = v.hours_until_check !== undefined ? v.hours_until_check : 999;
       const alreadyScheduled = v.next_route_is_maintenance === true;
-      return hoursUntilCheck <= threshold && !alreadyScheduled;
+      return v.status === 'port' && !v.is_parked && hoursUntilCheck <= threshold && !alreadyScheduled;
     }).length;
+
+    // Cache the count for reconnecting clients
+    state.updateDrydockCount(userId, drydockCount);
 
     if (broadcastToUser) {
       broadcastToUser(userId, 'drydock_count_update', {
@@ -378,29 +396,35 @@ async function updateAllData() {
       coopData.data.coop.coop_boost = allianceData.data.alliance.benefit.coop_boost;
     }
 
-    // Update bunker state
-    const newMaxFuel = gameSettings.max_fuel / 1000;
-    const newMaxCO2 = gameSettings.max_co2 / 1000;
+    // Update bunker state - only if data is valid
+    if (!user || user.fuel === undefined || user.co2 === undefined || user.cash === undefined) {
+      logger.warn('[UpdateAll] Bunker update skipped - invalid API response (user data missing)');
+    } else if (!gameSettings || !gameSettings.max_fuel || !gameSettings.max_co2) {
+      logger.warn('[UpdateAll] Bunker update skipped - invalid API response (game settings missing)');
+    } else {
+      const newMaxFuel = gameSettings.max_fuel / 1000;
+      const newMaxCO2 = gameSettings.max_co2 / 1000;
 
-    const bunkerUpdate = {
-      fuel: user.fuel / 1000,        // Convert kg to tons
-      co2: user.co2 / 1000,          // Convert kg to tons
-      cash: user.cash,
-      points: user.points,
-      maxFuel: newMaxFuel,
-      maxCO2: newMaxCO2
-    };
-    state.updateBunkerState(userId, bunkerUpdate);
+      const bunkerUpdate = {
+        fuel: user.fuel / 1000,        // Convert kg to tons
+        co2: user.co2 / 1000,          // Convert kg to tons
+        cash: user.cash,
+        points: user.points,
+        maxFuel: newMaxFuel,
+        maxCO2: newMaxCO2
+      };
+      state.updateBunkerState(userId, bunkerUpdate);
 
-    if (broadcastToUser) {
-      const { broadcastBunkerUpdate } = require('./websocket');
-      broadcastBunkerUpdate(userId, bunkerUpdate);
+      if (broadcastToUser) {
+        const { broadcastBunkerUpdate } = require('./websocket');
+        broadcastBunkerUpdate(userId, bunkerUpdate);
 
-      // Broadcast company_type for vessel purchase restrictions
-      if (user.company_type) {
-        broadcastToUser(userId, 'company_type_update', {
-          company_type: user.company_type
-        });
+        // Broadcast company_type for vessel purchase restrictions
+        if (user.company_type) {
+          broadcastToUser(userId, 'company_type_update', {
+            company_type: user.company_type
+          });
+        }
       }
     }
 
@@ -419,34 +443,38 @@ async function updateAllData() {
       }
     }
 
-    // Update stock and anchor data
-    const stockValue = user.stock_value;
-    const stockTrend = user.stock_trend;
-    const ipo = user.ipo;
-    const maxAnchorPoints = gameSettings.anchor_points;
-    const deliveredVessels = vessels.filter(v => v.status !== 'pending').length;
-    const pendingVessels = vessels.filter(v => v.status === 'pending').length;
-    const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
+    // Update stock and anchor data - only if data is valid
+    if (user && gameSettings && gameSettings.anchor_points !== undefined && vessels) {
+      const stockValue = user.stock_value;
+      const stockTrend = user.stock_trend;
+      const ipo = user.ipo;
+      const maxAnchorPoints = gameSettings.anchor_points;
+      const deliveredVessels = vessels.filter(v => v.status !== 'pending').length;
+      const pendingVessels = vessels.filter(v => v.status === 'pending').length;
+      const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
 
-    const anchorNextBuild = gameSettings.anchor_next_build || null;
-    const now = Math.floor(Date.now() / 1000);
-    // Get pending count from settings (stored during purchase)
-    const settings = state.getSettings(userId);
-    const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? settings.pendingAnchorPoints : 0;
+      const anchorNextBuild = gameSettings.anchor_next_build || null;
+      const now = Math.floor(Date.now() / 1000);
+      // Get pending count from settings (stored during purchase)
+      const settings = state.getSettings(userId);
+      const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? settings.pendingAnchorPoints : 0;
 
-    const headerUpdate = {
-      stock: { value: stockValue, trend: stockTrend, ipo },
-      anchor: {
-        available: availableCapacity,
-        max: maxAnchorPoints,
-        pending: pendingAnchorPoints,
-        nextBuild: anchorNextBuild
+      const headerUpdate = {
+        stock: { value: stockValue, trend: stockTrend, ipo },
+        anchor: {
+          available: availableCapacity,
+          max: maxAnchorPoints,
+          pending: pendingAnchorPoints,
+          nextBuild: anchorNextBuild
+        }
+      };
+      state.updateHeaderData(userId, headerUpdate);
+
+      if (broadcastToUser) {
+        broadcastToUser(userId, 'header_data_update', headerUpdate);
       }
-    };
-    state.updateHeaderData(userId, headerUpdate);
-
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'header_data_update', headerUpdate);
+    } else {
+      logger.warn('[UpdateAll] Header update skipped - invalid API response');
     }
 
     // Update event data
@@ -468,20 +496,24 @@ async function updateAllData() {
     }
 
     // Update vessel counts (triggers Harbor Map refresh if open)
-    // Vessels data already fetched above from /game/index
-    const readyToDepart = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
-    const atAnchor = vessels.filter(v => v.status === 'anchor').length;
-    const pending = vessels.filter(v => v.status === 'pending').length;
+    // Only update if vessels data is valid
+    if (vessels && vessels.length > 0) {
+      const readyToDepart = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
+      const atAnchor = vessels.filter(v => v.status === 'anchor').length;
+      const pending = vessels.filter(v => v.status === 'pending').length;
 
-    const vesselCountUpdate = {
-      readyToDepart,
-      atAnchor,
-      pending
-    };
-    state.updateVesselCounts(userId, vesselCountUpdate);
+      const vesselCountUpdate = {
+        readyToDepart,
+        atAnchor,
+        pending
+      };
+      state.updateVesselCounts(userId, vesselCountUpdate);
 
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'vessel_count_update', vesselCountUpdate);
+      if (broadcastToUser) {
+        broadcastToUser(userId, 'vessel_count_update', vesselCountUpdate);
+      }
+    } else {
+      logger.warn('[UpdateAll] Vessel count update skipped - no vessel data from API');
     }
 
     // Send completion event
@@ -691,6 +723,9 @@ async function mainEventLoop() {
     const atAnchor = vessels.filter(v => v.status === 'anchor').length;
     const pending = vessels.filter(v => v.status === 'pending').length;
 
+    // Update state cache (so reconnecting clients get correct data)
+    state.updateVesselCounts(userId, { readyToDepart, atAnchor, pending });
+
     // Always update vessel count badges
     if (broadcastToUser) {
       broadcastToUser(userId, 'vessel_count_update', {
@@ -716,64 +751,75 @@ async function mainEventLoop() {
       const user = gameIndexData.user;
       const gameSettings = gameIndexData.data.user_settings;
 
-      // Update bunker state (cash, fuel, CO2, points)
-      const bunkerUpdate = {
-        fuel: user.fuel / 1000,        // Convert kg to tons
-        co2: user.co2 / 1000,          // Convert kg to tons
-        cash: user.cash,
-        points: user.points,
-        maxFuel: gameSettings.max_fuel / 1000,
-        maxCO2: gameSettings.max_co2 / 1000
-      };
-      state.updateBunkerState(userId, bunkerUpdate);
+      // CRITICAL: Only update if API returned valid data (not 0, not undefined)
+      if (!user || user.fuel === undefined || user.co2 === undefined || user.cash === undefined) {
+        logger.warn('[Loop] Bunker update skipped - invalid API response (user data missing)');
+      } else if (!gameSettings || !gameSettings.max_fuel || !gameSettings.max_co2) {
+        logger.warn('[Loop] Bunker update skipped - invalid API response (game settings missing)');
+      } else {
+        // Update bunker state (cash, fuel, CO2, points)
+        const bunkerUpdate = {
+          fuel: user.fuel / 1000,        // Convert kg to tons
+          co2: user.co2 / 1000,          // Convert kg to tons
+          cash: user.cash,
+          points: user.points,
+          maxFuel: gameSettings.max_fuel / 1000,
+          maxCO2: gameSettings.max_co2 / 1000
+        };
+        state.updateBunkerState(userId, bunkerUpdate);
 
-      if (broadcastToUser) {
-        const { broadcastBunkerUpdate } = require('./websocket');
-        broadcastBunkerUpdate(userId, bunkerUpdate);
-      }
-
-      // Update header data (stock, anchor slots)
-      const stockValue = user.stock_value;
-      const stockTrend = user.stock_trend;
-      const ipo = user.ipo;
-      const maxAnchorPoints = gameSettings.anchor_points;
-      const deliveredVessels = vessels.filter(v => v.status !== 'pending').length;
-      const pendingVessels = vessels.filter(v => v.status === 'pending').length;
-      const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
-
-      const anchorNextBuild = gameSettings.anchor_next_build || null;
-      const now = Math.floor(Date.now() / 1000);
-      // (using settings from outer scope - already loaded on line 669)
-      const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? settings.pendingAnchorPoints : 0;
-
-      const headerUpdate = {
-        stock: { value: stockValue, trend: stockTrend, ipo },
-        anchor: {
-          available: availableCapacity,
-          max: maxAnchorPoints,
-          pending: pendingAnchorPoints,
-          nextBuild: anchorNextBuild
+        if (broadcastToUser) {
+          const { broadcastBunkerUpdate } = require('./websocket');
+          broadcastBunkerUpdate(userId, bunkerUpdate);
         }
-      };
-      state.updateHeaderData(userId, headerUpdate);
-
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'header_data_update', headerUpdate);
       }
 
-      logger.debug('[Loop] Header/bunker data updated (cash: $' + Math.floor(bunkerUpdate.cash).toLocaleString() + ')');
+      // Update header data (stock, anchor slots) - only if data is valid
+      if (user && gameSettings && gameSettings.anchor_points !== undefined) {
+        const stockValue = user.stock_value;
+        const stockTrend = user.stock_trend;
+        const ipo = user.ipo;
+        const maxAnchorPoints = gameSettings.anchor_points;
+        const deliveredVessels = vessels.filter(v => v.status !== 'pending').length;
+        const pendingVessels = vessels.filter(v => v.status === 'pending').length;
+        const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
+
+        const anchorNextBuild = gameSettings.anchor_next_build || null;
+        const now = Math.floor(Date.now() / 1000);
+        // (using settings from outer scope - already loaded on line 669)
+        const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? settings.pendingAnchorPoints : 0;
+
+        const headerUpdate = {
+          stock: { value: stockValue, trend: stockTrend, ipo },
+          anchor: {
+            available: availableCapacity,
+            max: maxAnchorPoints,
+            pending: pendingAnchorPoints,
+            nextBuild: anchorNextBuild
+          }
+        };
+        state.updateHeaderData(userId, headerUpdate);
+
+        if (broadcastToUser) {
+          broadcastToUser(userId, 'header_data_update', headerUpdate);
+        }
+
+        logger.debug('[Loop] Header data updated');
+      } else {
+        logger.warn('[Loop] Header update skipped - invalid API response');
+      }
     } catch (error) {
       logger.error('[Loop] Failed to update header/bunker data:', error.message);
     }
 
     // Skip automation if paused
     if (autopilotPaused) {
-      logger.info('[Loop] ⏸️  Autopilot PAUSED - Skipping all automation (badge updates completed)');
+      logger.info('[Loop] Autopilot PAUSED - Skipping all automation (badge updates completed)');
       setTimeout(mainEventLoop, LOOP_INTERVAL);
       return;
     }
 
-    logger.debug('[Loop] ▶️  Autopilot RUNNING - Executing automation tasks');
+    logger.debug('[Loop] Autopilot RUNNING - Executing automation tasks');
 
     // Auto-rebuy runs EVERY loop
     await autoRebuyAll();

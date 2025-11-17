@@ -6,9 +6,10 @@
  * @module harbor-map-init
  */
 
-import { initMap, loadOverview, updateWeatherDataSetting } from './harbor-map/map-controller.js';
+import { initMap, loadOverview, updateWeatherDataSetting, setRouteFilter } from './harbor-map/map-controller.js';
 import { prefetchHarborMapData, invalidateOverviewCache } from './harbor-map/api-client.js';
 import { initializeMapIconBar } from './map-icon-bar.js';
+import { initializeDepartManager, openDepartManager } from './depart-manager.js';
 
 let mapInitialized = false;
 let autoUpdateInterval = null;
@@ -151,6 +152,12 @@ export async function initHarborMap() {
   // Initialize floating icon bar
   initializeMapIconBar();
 
+  // Initialize depart manager panel
+  initializeDepartManager();
+
+  // Export openDepartManager to window for map-icon-bar.js
+  window.openDepartManager = openDepartManager;
+
   // Load data
   await loadOverview();
 }
@@ -259,3 +266,4 @@ window.harborMap.getVesselById = getVesselByIdWrapper;
 window.harborMap.updateVesselMarker = updateVesselMarkerWrapper;
 window.harborMap.departVessel = departVesselWrapper;
 window.harborMap.sellVesselFromPanel = sellVesselFromPanelWrapper;
+window.harborMap.selectRoute = setRouteFilter;
