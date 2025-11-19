@@ -38,10 +38,6 @@ function getAppDataDir() {
   }
 }
 
-// Bunker price bug logging directory (for time slot mismatches)
-const BUNKER_PRICE_BUG_DIR = process.pkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'logs', 'bunkerpricebug')
-  : path.join(__dirname, '..', '..', 'userdata', 'logs', 'bunkerpricebug');
 
 /**
  * Fetches current fuel and CO2 prices from the game API.
@@ -111,20 +107,7 @@ async function fetchPrices() {
     logger.error(`  Available slots: ${prices.map(p => p.time).join(', ')}`);
     logger.error(`  Event discounts: fuel=${discountedFuel}, co2=${discountedCO2}`);
 
-    // Save full raw response to file for debugging
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `price-response-MISSING-${currentTime.replace(':', '-')}-${timestamp}.json`;
-    const filepath = path.join(BUNKER_PRICE_BUG_DIR, filename);
-
-    try {
-      fs.mkdirSync(BUNKER_PRICE_BUG_DIR, { recursive: true });
-      fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-      logger.error(`  Raw API response saved to: ${filepath}`);
-    } catch (err) {
-      logger.error(`  Failed to save response file: ${err.message}`);
-    }
-
-    throw new Error(`Time slot "${currentTime}" not found in API response. Expected this slot to exist. Response saved to ${filepath}`);
+    throw new Error(`Time slot "${currentTime}" not found in API response. Expected this slot to exist.`);
   }
 
   // Use discounted prices if available, otherwise use matched price

@@ -32,15 +32,6 @@ function getAppDataDir() {
   }
 }
 
-// Harbor fee bug logging directory (for game developers)
-const HARBOR_FEE_BUG_DIR = process.pkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'logs', 'harborfeebug')
-  : path.join(__dirname, '..', '..', 'userdata', 'logs', 'harborfeebug');
-
-// Known harbor fee bugs file (for game developers)
-const HARBOR_BUGS_FILE = process.pkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'logs', 'known-harbor-fee-bugs.json')
-  : path.join(__dirname, '..', '..', 'userdata', 'logs', 'known-harbor-fee-bugs.json');
 
 /**
  * Fetches all user vessels from game index.
@@ -120,64 +111,7 @@ async function departVessel(vesselId, speed, guards = 0) {
   const profitCheck = departInfo.depart_income - departInfo.harbor_fee;
   if (profitCheck < 0) {
     const destination = vesselData?.route_destination || 'UNKNOWN';
-
-    // Load known bugs list
-    let knownBugs = { description: "Known harbors with harbor fee calculation bugs. Collected for game developers.", bugs: {} };
-    try {
-      if (fs.existsSync(HARBOR_BUGS_FILE)) {
-        knownBugs = JSON.parse(fs.readFileSync(HARBOR_BUGS_FILE, 'utf8'));
-      }
-    } catch (err) {
-      logger.debug(`[gameapi.departVessel] Failed to load known bugs file: ${err.message}`);
-    }
-
-    // Check if this harbor is already known
-    const isKnownBug = knownBugs.bugs[destination] !== undefined;
-
-    if (!isKnownBug) {
-      // NEW BUG - Log full details and save to file
-      logger.error(`[gameapi.departVessel] HIGH HARBOR FEE detected (NEW HARBOR)!`);
-      logger.error(`  Vessel: ${vesselData?.name} (ID: ${vesselId})`);
-      logger.error(`  Destination: ${destination}`);
-      logger.error(`  Income: $${departInfo.depart_income}`);
-      logger.error(`  Harbor Fee: $${departInfo.harbor_fee}`);
-      logger.error(`  Profitability: $${profitCheck}`);
-
-      // Save full raw response to file for game developers
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const filename = `depart-response-${vesselData?.name || vesselId}-${timestamp}.json`;
-      const filepath = path.join(HARBOR_FEE_BUG_DIR, filename);
-
-      try {
-        // Ensure harbor fee bug directory exists
-        fs.mkdirSync(HARBOR_FEE_BUG_DIR, { recursive: true });
-        fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
-        logger.error(`  Raw API response saved to: ${filepath}`);
-      } catch (err) {
-        logger.error(`  Failed to save response file: ${err.message}`);
-      }
-
-      // Add to known bugs list
-      knownBugs.bugs[destination] = {
-        first_seen: new Date().toISOString(),
-        vessel_name: vesselData?.name,
-        vessel_id: vesselId,
-        income: departInfo.depart_income,
-        harbor_fee: departInfo.harbor_fee,
-        profitability: profitCheck,
-        response_file: filepath
-      };
-
-      try {
-        fs.writeFileSync(HARBOR_BUGS_FILE, JSON.stringify(knownBugs, null, 2));
-        logger.error(`  Harbor ${destination} added to known bugs list`);
-      } catch (err) {
-        logger.error(`  Failed to update known bugs file: ${err.message}`);
-      }
-    } else {
-      // Known bug - just debug log
-      logger.debug(`[gameapi.departVessel] High harbor fee at known harbor: ${destination} (Income: $${departInfo.depart_income}, Fee: $${departInfo.harbor_fee}, Profit: $${profitCheck})`);
-    }
+    logger.warn(`[gameapi.departVessel] High harbor fee detected - Vessel: ${vesselData?.name} (${vesselId}), Destination: ${destination}, Income: $${departInfo.depart_income}, Fee: $${departInfo.harbor_fee}, Profit: $${profitCheck}`);
   }
 
   // Calculate actual cargo loaded from depart_info
