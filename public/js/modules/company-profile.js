@@ -12,7 +12,6 @@ let navigationHistory = [];
 let currentView = 'own'; // 'own', 'search', 'profile'
 let searchResults = [];
 let currentUserId = null;
-let ownUserId = null;
 
 /**
  * Opens the company profile overlay
@@ -28,9 +27,6 @@ export async function openCompanyProfile() {
   overlay.classList.remove('hidden');
   navigationHistory = [];
   currentView = 'own';
-
-  // Get own user ID from settings (may be undefined for own profile)
-  ownUserId = window.settings?.userId || window.userId || null;
 
   // Load own company (null = load own profile)
   await loadCompanyProfile(null, true);
@@ -1153,9 +1149,8 @@ export function initCompanyProfile() {
 /**
  * Opens the company profile overlay directly to a specific player
  * @param {number} userId - User ID to show
- * @param {boolean} fromAlliance - Whether opened from alliance view
  */
-export async function openPlayerProfile(userId, fromAlliance = false) {
+export async function openPlayerProfile(userId) {
   const overlay = document.getElementById('companyProfileOverlay');
   if (!overlay) {
     console.error('[Company Profile] Overlay not found');
@@ -1165,9 +1160,6 @@ export async function openPlayerProfile(userId, fromAlliance = false) {
   overlay.classList.remove('hidden');
   navigationHistory = [];
   currentView = 'profile';
-
-  // Get own user ID from settings
-  ownUserId = window.settings?.userId || window.userId || null;
 
   // Load the specific player's profile
   await loadCompanyProfile(userId, false);
