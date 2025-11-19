@@ -862,7 +862,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         },
         failed: {
           count: failedVessels.length,
-          vessels: []
+          vessels: failedVessels
         },
         bunker: {
           fuel: finalBunkerState.fuel,
