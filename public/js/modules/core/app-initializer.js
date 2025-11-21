@@ -26,6 +26,7 @@ import { closeCoopOverlay, sendCoopMax } from '../coop.js';
 import { showAllianceCoopOverlay, closeAllianceCoopOverlay, initAllianceTabs, updateCoopTabBadge, showAllAllianceUI, hideAllAllianceUI, switchTab, clearAllianceTabCache } from '../alliance-tabs.js';
 import { initForecastCalendar, updateEventDiscount } from '../forecast-calendar.js';
 import { initEventInfo } from '../event-info.js';
+import { initBuildShipModal } from '../vessel-building.js';
 import { initLogbook, prependLogEntry } from '../logbook.js';
 import { initHarborMap } from '../harbor-map-init.js';
 import { initCompanyProfile } from '../company-profile.js';
@@ -128,6 +129,7 @@ export async function initializeApp(apiPrefix) {
 
   // STEP 9: Initialize modules
   initEventInfo();
+  initBuildShipModal();
   initLogbook();
   initCompanyProfile();
   initAllianceTabs();

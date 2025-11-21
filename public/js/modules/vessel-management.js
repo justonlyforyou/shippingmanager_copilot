@@ -1494,7 +1494,9 @@ function loadMorePendingVessels() {
 
   // Insert new vessels before sentinel
   nextBatch.forEach(vessel => {
-    const imageUrl = `/api/vessel-image/${vessel.type}`;
+    const imageUrl = vessel.type_name === 'N/A'
+      ? `/api/vessel-image/custom/${vessel.id}`
+      : `/api/vessel-image/${vessel.type}`;
 
     let timeDisplay = '';
     const remaining = vessel.time_arrival || 0;
@@ -1609,7 +1611,9 @@ export function displayVessels() {
   filtered.forEach(vessel => {
     const selectedItem = selectedVessels.find(v => v.vessel.id === vessel.id);
     const isSelected = !!selectedItem;
-    const imageUrl = `/api/vessel-image/${vessel.type}`;
+    const imageUrl = vessel.type_name === 'N/A'
+      ? `/api/vessel-image/custom/${vessel.id}`
+      : `/api/vessel-image/${vessel.type}`;
 
     // Check if anchor slots are available
     const availableSlots = getAvailableAnchorSlots();
@@ -2738,7 +2742,9 @@ document.addEventListener('DOMContentLoaded', () => {
  * Create a vessel card element with image caching
  */
 function createVesselCard(vessel, isPending = false) {
-  const imageUrl = `/api/vessel-image/${vessel.type}`;
+  const imageUrl = vessel.type_name === 'N/A'
+    ? `/api/vessel-image/custom/${vessel.id}`
+    : `/api/vessel-image/${vessel.type}`;
 
   // Images are preloaded on page load (script.js STEP 8.5)
   // No need to check cache here - all images already loaded
@@ -2806,6 +2812,7 @@ function createVesselCard(vessel, isPending = false) {
         <div class="vessel-spec"><strong>Range:</strong> ${formatNumber(vessel.range)} nm</div>
         <div class="vessel-spec ${co2Class}"><strong>CO2 Factor:</strong> ${vessel.co2_factor}</div>
         <div class="vessel-spec ${fuelClass}"><strong>Fuel Factor:</strong> ${vessel.fuel_factor}</div>
+        ${vessel.fuel_consumption_display ? `<div class="vessel-spec"><strong>Fuel Cons.:</strong> ${escapeHtml(vessel.fuel_consumption_display)}</div>` : ''}
         <div class="vessel-spec"><strong>Fuel Cap.:</strong> ${formatNumber(vessel.fuel_capacity)} t</div>
         <div class="vessel-spec"><strong>Service:</strong> ${vessel.hours_between_service}h</div>
         <div class="vessel-spec"><strong>Engine:</strong> ${escapeHtml(vessel.engine_type)} (${formatNumber(vessel.kw)} kW)</div>

@@ -362,7 +362,9 @@ async function displaySellVessels() {
     const selectedItem = selectedSellVessels.find(v => v.modelKey === modelKey);
     const isSelected = !!selectedItem;
 
-    const imageUrl = `/api/vessel-image/${model.type}`;
+    const imageUrl = model.type_name === 'N/A'
+      ? `/api/vessel-image/custom/${model.id}`
+      : `/api/vessel-image/${model.type}`;
     const capacityDisplay = getCapacityDisplay(model);
     const co2Class = getCO2EfficiencyClass(model.co2_factor);
     const fuelClass = getFuelEfficiencyClass(model.fuel_factor);
@@ -758,8 +760,8 @@ function getCapacityDisplay(vessel) {
   } else if (vessel.capacity_type === 'tanker') {
     const fuel = vessel.capacity_max?.fuel || 0;
     const crude = vessel.capacity_max?.crude_oil || 0;
-    const maxCapacity = Math.max(fuel, crude);
-    return `${formatNumber(maxCapacity)} bbl (${formatNumber(fuel)} bbl fuel / ${formatNumber(crude)} bbl crude)`;
+    const total = fuel + crude;
+    return `${formatNumber(total)} bbl (${formatNumber(fuel)} fuel / ${formatNumber(crude)} crude)`;
   } else {
     // Other vessel types (bulk carriers, etc)
     return `${formatNumber(vessel.capacity_max || 0)}t`;

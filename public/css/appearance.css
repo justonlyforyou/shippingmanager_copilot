@@ -1,0 +1,95 @@
+.appearance-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-20);
+}
+
+.svg-preview-container {
+  background: var(--color-bg-secondary);
+  border-top: var(--border-default);
+  border-bottom: var(--border-default);
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  padding: 0;
+  min-height: 230px;
+  max-height: 270px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+#vesselSvgPreview {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  line-height: 0;
+  font-size: 0;
+}
+
+#vesselSvgPreview svg {
+  width: 100%;
+  height: auto;
+  max-height: 250px;
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+.color-controls-grid {
+  display: flex;
+  gap: var(--spacing-20);
+  justify-content: center;
+  padding-bottom: 5px;
+}
+
+.color-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.color-group-label {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  min-width: 70px;
+}
+
+.color-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.color-control label {
+  font-size: var(--font-size-10);
+  color: var(--color-text-secondary);
+}
+
+.color-control input[type="color"] {
+  width: 32px;
+  height: 32px;
+  border: var(--border-default);
+  border-radius: var(--radius-4);
+  cursor: pointer;
+  background: var(--color-bg-primary);
+  padding: 0;
+}
+
+.color-control input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.color-control input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-2);
+}
+
+.color-control input[type="color"]::-moz-color-swatch {
+  border: none;
+  border-radius: var(--radius-2);
+}

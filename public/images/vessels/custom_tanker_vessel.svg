@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Based on container-ship by jogdragoon (OpenClipart), modified for tanker -->
+<svg
+    xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+    xmlns="http://www.w3.org/2000/svg"
+    xmlns:cc="http://web.resource.org/cc/"
+    xmlns:xlink="http://www.w3.org/1999/xlink"
+    xmlns:dc="http://purl.org/dc/elements/1.1/"
+    xmlns:svg="http://www.w3.org/2000/svg"
+    version="1.1"
+    viewBox="0 0 1019 201.92"
+  >
+  <defs>
+    <linearGradient id="grad_dp_002" y2="304.62" gradientUnits="userSpaceOnUse" x2="843.69" y1="304.66" x1="833.12">
+      <stop stop-color="#272525" offset="0"/>
+      <stop stop-color="#8e5923" offset=".4837"/>
+      <stop stop-color="white" offset="1"/>
+    </linearGradient>
+    <linearGradient id="grad_dp_003" y2="460.36" gradientUnits="userSpaceOnUse" x2="1063.8" y1="463.75" x1="92.935">
+      <stop stop-color="#b30000" offset="0"/>
+      <stop stop-color="#a70000" offset=".1094"/>
+      <stop stop-color="#a70000" offset=".1903"/>
+      <stop stop-color="#b30000" offset=".2794"/>
+      <stop stop-color="#a70000" offset=".3498"/>
+      <stop stop-color="#712121" offset=".4407"/>
+      <stop stop-color="#a70000" offset=".5004"/>
+      <stop stop-color="#712121" offset=".5897"/>
+      <stop stop-color="#a70000" offset=".6399"/>
+      <stop stop-color="#712626" offset=".7293"/>
+      <stop stop-color="#a70000" offset=".8204"/>
+      <stop stop-color="#7e2929" offset=".8701"/>
+      <stop stop-color="#670000" offset="1"/>
+    </linearGradient>
+    <linearGradient id="grad_dp_004" y2="477.49" gradientUnits="userSpaceOnUse" x2="450.08" y1="466.44" x1="450.04">
+      <stop stop-color="white" offset="0"/>
+      <stop stop-color="#137feb" offset=".3709"/>
+      <stop stop-color="white" offset=".6248"/>
+      <stop stop-color="#137feb" offset="1"/>
+    </linearGradient>
+    <linearGradient id="grad_dp_005" y2="449.74" gradientUnits="userSpaceOnUse" x2="1065.5" y1="422.76" x1="69.376">
+      <stop stop-color="#272525" offset="0"/>
+      <stop stop-color="black" offset=".11"/>
+      <stop stop-color="#1e1e1e" offset=".1881"/>
+      <stop stop-color="black" offset=".28"/>
+      <stop stop-color="#272525" offset=".3495"/>
+      <stop stop-color="black" offset=".44"/>
+      <stop stop-color="#272525" offset=".4994"/>
+      <stop stop-color="black" offset=".59"/>
+      <stop stop-color="#272525" offset=".6407"/>
+      <stop stop-color="#272525" offset=".7316"/>
+      <stop stop-color="black" offset=".82"/>
+      <stop stop-color="#272525" offset=".8702"/>
+      <stop stop-color="black" offset="1"/>
+    </linearGradient>
+    <linearGradient id="grad_dp_006" y2="309.13" gradientUnits="userSpaceOnUse" x2="793.51" y1="308.78" x1="800.87">
+      <stop stop-color="white" offset="0"/>
+      <stop stop-color="#7f7f7f" offset="1"/>
+    </linearGradient>
+  </defs>
+  <g
+      id="dp_group001"
+      fill-rule="evenodd"
+      transform="translate(-56.779 -271.17)"
+    >
+    <!-- ========== BACKGROUND LAYER ========== -->
+    <path id="dp_path003" d="m1011.5 435.08l62.3-0.21 0.1 9.9-62.3 0.22z" fill="#636363"/>
+    <path id="dp_path007" d="m857.82 333.06l0.27-15.01-14.38 0.05 0.05 14.7z" fill="black"/>
+    <path id="dp_path008" d="m842.09 310.44l14.69-0.06-2.89-6.7-0.03-7.98h-2.24l-3.5 2.25 0.02 6.71-3.2 0.02h-2.55z" fill="black"/>
+    <path id="dp_path009" d="m836.91 290.96l6.73 5.73-1.27 1.6 0.07 19.81-9.27 0.36-0.07-20.77z" fill="url(#grad_dp_002)"/>
+
+    <!-- Hull -->
+    <path id="dp_path010" d="m93.544 453.67l-0.589 15.71 338.66 2.75 197.45-0.18 266.07-0.93 154.56-1.56 12.1-10.75z" fill="url(#grad_dp_003)"/>
+    <path id="dp_path011" d="m82.884 469.01c4.853-1.62 10.197-2.98 23.976 0.17 9.78-1.86 18.31-4.11 37.24-3.19 14.64-1.31 23.61-0.7 28.06 1.43 9.5-0.92 25.71-0.38 47.46 1.37 6.78-2.03 13.05-4.77 24.74 0.17 3.17-2.63 13.39-1.06 23.48 0.42 2.5-1.47 8.02-2.04 19.38-0.83 8.59-0.47 17.18-0.47 25.77 0.42 9.01-1.25 18.02-1.05 27.04 0.42 10.8-1.54 22.18-0.79 33.67 0.39 9.02 0.01 18.03-0.67 27.05 0.93 3.36-1.49 8.45-1.27 14.54-0.05 6.8-0.31 13.6-0.74 20.41-0.33 13.09-0.94 26.18-0.47 39.28 0.63 7.1-0.16 14.43-0.09 22.2 0.43 7.14-0.73 14.28-0.97 21.43-0.33 3.65-0.48 7.31-0.41 10.97 0.47 3.72-0.88 7.92-1.29 13.01-0.81 8.04-1.36 13.81-0.42 19.13 0.96 15.9-1.01 31.8-1.46 47.7-0.42 14.16-1.47 27.77-1.58 40.57 0.36 15.05-1.04 30.1-0.98 45.15-0.66 2.29-1.48 6.03-1.79 11.73-0.56 10.88-0.91 21.77-0.47 32.66 0.66 5.12-1.48 9.83-1.3 14.28-0.06 14.28-1.19 28.57-1.09 42.86-0.91 12.68-0.87 25.23-1.22 37.25 0.63 8.75-1.25 17.5-1.81 26.27-0.34 6.56-2.05 15.45-2.45 26.78-1.12 7.82-0.93 15.64-1.18 23.47-0.08 8.62-0.55 17.21-1.17 26.53-0.34 4.76-0.28 9.52-0.46 14.29-0.06 8.67-0.7 17.34-1 26.02-0.34 5.35-0.69 10.7-0.9 16.07 0.45 4.59-1.54 9.15-1.73 13.75-0.55 8.9-0.92 17.7-1.56 26.5-1.12 6.3-0.44 12.5-1.02 18.7-0.06 3.6-2.24 7.3-1.47 10.9-0.3 3.2 0.34 5 1.34 5.4 3.05l-84.68 2.59-150.25 0.52-424.24-0.05-321.69-2.45z" stroke="black" stroke-width=".13333" fill="url(#grad_dp_004)"/>
+
+    <!-- Bow mast structure -->
+    <path id="dp_path012" d="m129.85 404.3l0.49-79.59 3.32-0.01-0.49 79.85z" fill="#dbdbdb"/>
+    <path id="dp_path013" d="m125.98 319.12l0.3 11.73 4.59 0.24-0.01-2.05-1.78-0.24-1.31-9.18z" fill="#dbdbdb"/>
+    <path id="dp_path014" d="m128.38 347.42l2.8-0.01-0.64 35.46-1.78 0.01-0.01-2.04h-1.27l0.22-7.4-4.08 0.28v-2.3l3.57-0.01-0.01-1.79h1.28z" fill="#a7a7a7"/>
+    <path id="dp_path015" d="m81.889 403.45l46.991-57.31" stroke="#dbdbdb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path016" d="m97.961 403.4l30.419-56.74" stroke="#cbcbcb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path017" d="m158.67 402.93l-25.45-56.8" stroke="#dbdbdb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path006" d="m133.73 345.88l25.42 47.2" stroke="#cbcbcb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path018" d="m131.1 324.71l0.24-4.59 1.28-0.01 0.02 4.85z" fill="#777777"/>
+
+    <!-- Bridge/superstructure (background parts) -->
+    <path id="dp_path032" d="m801.53 328.74l-0.16 100.01 65.31 0.53-0.82-15.3 2.29-2.05-0.02-5.61-4.11-7.9-5.87 0.03 0.03-66.84-13.02-0.21-0.04-12.76-15.06-0.96 0.02 5.36-15.05 0.05-4.32 5.37z" fill="#dbdbdb"/>
+
+    <!-- Bridge windows -->
+    <path id="dp_path053" d="m806.4 334.09l2.8-0.01 0.02 3.82-2.81 0.01z" fill="black"/>
+    <path id="dp_path054" d="m814.4 334.06l2.8-0.01 0.02 3.83h-2.81z" fill="black"/>
+    <path id="dp_path055" d="m806.49 361.09l2.81-0.01 0.01 3.82-2.81 0.01z" fill="black"/>
+    <path id="dp_path056" d="m814.49 361.06l2.81-0.01 0.01 3.83h-2.81z" fill="black"/>
+    <path id="dp_path057" d="m823.49 361.03l2.81-0.01 0.01 3.82-2.81 0.01z" fill="black"/>
+    <path id="dp_path058" d="m848.85 389.51l2.8-0.01 0.01 3.83-2.8 0.01z" fill="black"/>
+    <path id="dp_path059" d="m813.44 403.15l2.8-0.01 0.01 3.83-2.8 0.01z" fill="black"/>
+    <path id="dp_path060" d="m821.44 403.12h2.8l0.01 3.82-2.8 0.01z" fill="black"/>
+
+    <!-- Bridge stairway windows -->
+    <g id="dp_group061" stroke-width="1.3333">
+      <path id="dp_path062" d="m832.46 346.24l20.92-0.07 0.04 11.22-20.92 0.07z" fill="#b7b7b7"/>
+      <path id="dp_path063" d="m836.54 346.24l11.77 11.19" stroke="#7a7a7a" fill="none"/>
+      <path id="dp_path064" d="m842.43 351.82l-0.02-5.1 5.89 5.86 0.01 4.59" stroke="#7a7a7a" fill="none"/>
+      <path id="dp_path065" d="m845.28 349.46l-0.04 4.92" stroke="#7a7a7a" fill="none"/>
+    </g>
+    <g id="dp_group066" stroke-width="1.3333">
+      <path id="dp_path067" d="m832.51 360.24l20.92-0.07 0.04 11.22-20.92 0.07z" fill="#b7b7b7"/>
+      <path id="dp_path068" d="m836.59 360.24l11.77 11.19" stroke="#7a7a7a" fill="none"/>
+      <path id="dp_path069" d="m842.48 365.82l-0.02-5.1 5.88 5.86 0.02 4.59" stroke="#7a7a7a" fill="none"/>
+      <path id="dp_path070" d="m845.32 363.46l-0.03 4.92" stroke="#7a7a7a" fill="none"/>
+    </g>
+    <g id="dp_group071" stroke-width="1.3333">
+      <path id="dp_path072" d="m832.56 373.5l20.91-0.08 0.04 11.23-20.91 0.07z" fill="#b7b7b7"/>
+      <path id="dp_path073" d="m836.64 373.5l11.77 11.18" stroke="#7a7a7a" fill="none"/>
+      <path id="dp_path074" d="m842.52 379.07l-0.01-5.1 5.88 5.87 0.02 4.59" stroke="#7a7a7a" fill="none"/>
+      <path id="dp_path075" d="m845.37 376.72l-0.03 4.92" stroke="#7a7a7a" fill="none"/>
+    </g>
+
+    <!-- Lifeboat -->
+    <path id="dp_path076" d="m806.08 388.42l2.8-0.01 1.53-1.02 3.06-1.03 13.77-0.05v-1.28l6.89-0.02v1.79l2.31 2.54 0.53 5.61-1.78 3.32-17.35 0.06 0.26-0.77-7.66-0.22-2.56-2.04-2.04-2.03z" fill="#ff7f7f"/>
+    <path id="dp_path077" d="m808.89 391.22l25.77-0.09" stroke="#5b0000" stroke-width="1.3333" fill="#5b0000"/>
+
+    <path id="dp_path084" d="m801.53 329l-4.35-5.6 10.46-0.03-0.03-6.63 22.45-0.08-0.23 6.38-13.01 0.3-5.08 5.62z" fill="#bbbbbb"/>
+    <path id="dp_path085" d="m794.86 318.56l10.46-0.03 2.04-2.05 0.02 6.63-10.97 0.04z" stroke="black" stroke-width="1.3333" fill="red"/>
+    <path id="dp_path086" d="m826.54 330.19l-3.79 12.77" stroke="whitesmoke" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path087" d="m811.78 343.25l4.8-14.05" stroke="whitesmoke" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path088" d="m810.72 328.71l0.01 4.34 5.35-2.83 10.97-0.03 4.34 2.02-0.03-7.39-1.53-1.78-13.27 0.04z" fill="#a7a7a7"/>
+
+    <!-- Deck surface -->
+    <path id="dp_path089" d="m94.237 456.12l966.26 5.24 15.2-18.6-59.6-1.11-2.1-15.23c-153.14-0.46-306.08-1.96-458.57-4.47l-302.37-1.48c-15-0.41-28.72-5.18-30.35-16.49-55.47-0.71-110.36-1.52-165.83-4.27 0.369 0.99 0.977 3.41 1.799 4.59 11.804 17.04 22.233 30.96 35.558 51.82z" stroke="black" stroke-width=".13333" fill="url(#grad_dp_005)"/>
+
+    <!-- ========== OIL TANKS (after deck, before foreground) ========== -->
+    <!-- 7 tanks total, evenly spaced from bow to bridge -->
+
+    <!-- Tank 1 (near bridge) -->
+    <g id="tank_01">
+      <ellipse cx="755" cy="420" rx="35" ry="8" fill="#ff8000"/>
+      <path d="M 720 420 A 35 30 0 0 1 790 420 Z" fill="#ff8000"/>
+      <ellipse cx="745" cy="405" rx="6" ry="3" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Tank 2 -->
+    <g id="tank_02">
+      <ellipse cx="665" cy="420" rx="38" ry="9" fill="blue"/>
+      <path d="M 627 420 A 38 32 0 0 1 703 420 Z" fill="blue"/>
+      <ellipse cx="653" cy="402" rx="7" ry="3.5" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Tank 3 -->
+    <g id="tank_03">
+      <ellipse cx="570" cy="420" rx="38" ry="9" fill="#670000"/>
+      <path d="M 532 420 A 38 32 0 0 1 608 420 Z" fill="#670000"/>
+      <ellipse cx="558" cy="402" rx="7" ry="3.5" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Tank 4 -->
+    <g id="tank_04">
+      <ellipse cx="475" cy="420" rx="38" ry="9" fill="#777777"/>
+      <path d="M 437 420 A 38 32 0 0 1 513 420 Z" fill="#777777"/>
+      <ellipse cx="463" cy="402" rx="7" ry="3.5" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Tank 5 -->
+    <g id="tank_05">
+      <ellipse cx="380" cy="420" rx="38" ry="9" fill="#ff8000"/>
+      <path d="M 342 420 A 38 32 0 0 1 418 420 Z" fill="#ff8000"/>
+      <ellipse cx="368" cy="402" rx="7" ry="3.5" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Tank 6 -->
+    <g id="tank_06">
+      <ellipse cx="285" cy="420" rx="38" ry="9" fill="blue"/>
+      <path d="M 247 420 A 38 32 0 0 1 323 420 Z" fill="blue"/>
+      <ellipse cx="273" cy="402" rx="7" ry="3.5" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Tank 7 (bow area) -->
+    <g id="tank_07">
+      <ellipse cx="195" cy="420" rx="35" ry="8" fill="#670000"/>
+      <path d="M 160 420 A 35 30 0 0 1 230 420 Z" fill="#670000"/>
+      <ellipse cx="183" cy="405" rx="6" ry="3" fill="white" opacity="0.4"/>
+    </g>
+
+    <!-- Pipe manifold on deck connecting tanks -->
+    <line x1="170" y1="425" x2="780" y2="425" stroke="#444" stroke-width="3"/>
+    <line x1="170" y1="425" x2="780" y2="425" stroke="#666" stroke-width="1.5"/>
+
+    <!-- ========== FOREGROUND LAYER (over tanks) ========== -->
+
+    <!-- Deck rails/details -->
+    <path id="dp_path004" d="m229.99 415.45l523.98 2.64 0.03 7.99 8.62-0.03-0.03-7.67 17.89-0.06" stroke="#777777" stroke-width="2" fill="none"/>
+    <path id="dp_path005" d="m866.43 418.34l141.17 2.7" stroke="#777777" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path031" d="m782.73 424.4l0.11-42.78 17.86-0.06-0.36 44.13" stroke="white" stroke-width="2" fill="none"/>
+
+    <!-- Bridge foreground details -->
+    <path id="dp_path052" d="m805.39 410.88l61.73 0.04-1.77 2.55 0.04 12.76-4.08 0.01-0.05-12.75-4.33 0.01 0.05 13.01-3.58 0.01-0.04-13.26-21.68 0.08 0.04 12.5-5.1 0.27-0.05-12.76-6.37 0.03-0.47 12.75-4.85-0.24-0.04-12.5-4.6 0.02 0.05 13.27h-2.04l-0.05-13.26-3.06 0.01z" fill="white"/>
+    <path id="dp_path078" d="m843.61 398.5l20.15-0.07" stroke="white" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path079" d="m805.9 410.62l-0.02-4.59 30.87 0.15" stroke="white" stroke-width=".66667" fill="none"/>
+    <path id="dp_path080" d="m837.02 411.28l-0.3-12.76" stroke="white" stroke-width=".66667" fill="none"/>
+    <path id="dp_path081" d="m842.9 412.53l-0.05-13.77" stroke="white" stroke-width=".66667" fill="none"/>
+    <path id="dp_path082" d="m861.76 409.15l-9.18 0.03-0.26-2.3h2.54l0.26-1.54 6.63-0.02z" fill="white"/>
+    <path id="dp_path083" d="m846.46 410.22l-0.02-4.84 5.34-6.66" stroke="white" stroke-width=".66667" fill="none"/>
+
+    <!-- Bridge top details -->
+    <path id="dp_path160" d="m809.2 316.3l4.72-21.74h-1.6v-1.27l11.18-0.04v1.27l-1.91 0.01 0.01 5.43 6.44 14.04 1.56-10.87 25.56-0.09 0.01 2.56-23 0.08-1.25 9.58 1.6 1.28-6.38 0.02-7.73-16.58-2.88-0.32-3.45 16.63z" fill="#dbdbdb"/>
+    <path id="dp_path161" d="m843.67 305.32l-11.78 11.22" stroke="#dbdbdb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path162" d="m796.71 306.12l0.96 0.64 0.04 11.5 1.91-0.01-0.04-11.5 1.92-0.01 1.27-1.92-0.01-2.88-1.92-2.54-3.52 0.33-1.9 3.2c0.22 2.24 0.22 2.66 1.29 3.19z" fill="url(#grad_dp_006)"/>
+    <path id="dp_path163" d="m842.74 318.42l14.39-0.05-0.03-7.67-14.69 0.05z" fill="#20a8fc"/>
+
+    <!-- Antenna -->
+    <path id="dp_path164" d="m819.59 271.22l0.04 11.5" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path165" d="m826.65 281.1l-7.35 0.02" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path166" d="m824.08 276.31l-5.75 0.02" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path167" d="m825.34 271.84l-6.07 0.02" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path168" d="m819.27 271.54l0.04 11.82" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path169" d="m786.5 402l12.46-0.04" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path170" d="m800.78 374.16l-20.09 11.25 19.81-0.39" stroke="black" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path171" d="m819.23 283.28l0.03 10.2" stroke="#cbcbcb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path172" d="m819.25 289.18l4.34-0.01" stroke="#cbcbcb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path173" d="m825.36 285.13l-6.12 0.03" stroke="#cbcbcb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path174" d="m814.36 276.66l0.06 16.58" stroke="#dbdbdb" stroke-width="1.3333" fill="none"/>
+    <path id="dp_path175" d="m810.02 277.18l7.66-0.02-0.01-1.79-7.65 0.03z" fill="white"/>
+    <path id="dp_path176" d="m810.56 282.8l6.37-0.03v-1.78l-6.38 0.02z" fill="white"/>
+  </g>
+  <metadata>
+    <rdf:RDF>
+      <cc:Work>
+        <dc:format>image/svg+xml</dc:format>
+        <dc:type rdf:resource="http://purl.org/dc/dcmitype/StillImage"/>
+        <cc:license rdf:resource="http://creativecommons.org/licenses/publicdomain/"/>
+        <dc:title>Tanker vessel</dc:title>
+        <dc:description>Oil tanker vessel based on container ship template</dc:description>
+      </cc:Work>
+    </rdf:RDF>
+  </metadata>
+</svg>

@@ -7,6 +7,7 @@
  */
 
 const { calculateVesselPosition, calculateETA, calculateCargoUtilization, formatCargoCapacity } = require('./harbor-map-calculator');
+const { getFuelConsumptionDisplay } = require('../utils/fuel-calculator');
 
 /**
  * Aggregates vessel data with calculated positions and formatted info
@@ -14,12 +15,13 @@ const { calculateVesselPosition, calculateETA, calculateCargoUtilization, format
  *
  * @param {Array<Object>} vessels - Raw vessel objects from API
  * @param {Array<Object>} allPorts - All ports for position fallback
+ * @param {number} [userId] - User ID (required for custom vessel fuel data)
  * @returns {Array<Object>} Vessels with added calculated fields
  * @example
- * const enrichedVessels = aggregateVesselData(vessels, allPorts);
+ * const enrichedVessels = aggregateVesselData(vessels, allPorts, userId);
  * // Returns vessels with .position, .eta, .cargoUtilization, .formattedCargo
  */
-function aggregateVesselData(vessels, allPorts) {
+function aggregateVesselData(vessels, allPorts, userId) {
   const logger = require('../utils/logger');
 
   logger.debug(`[Harbor Map Aggregator] Processing ${vessels.length} vessels with ${allPorts.length} ports`);
@@ -29,6 +31,7 @@ function aggregateVesselData(vessels, allPorts) {
     const eta = calculateETA(vessel);
     const cargoUtilization = calculateCargoUtilization(vessel);
     const formattedCargo = formatCargoCapacity(vessel);
+    const fuelConsumptionDisplay = getFuelConsumptionDisplay(vessel, userId);
 
     if (index === 0) {
       logger.debug(`[Harbor Map Aggregator] Sample vessel: ${vessel.name}, status: ${vessel.status}, position: ${JSON.stringify(position)}`);
@@ -39,7 +42,8 @@ function aggregateVesselData(vessels, allPorts) {
       position,
       eta,
       cargoUtilization,
-      formattedCargo
+      formattedCargo,
+      fuel_consumption_display: fuelConsumptionDisplay
     };
   });
 

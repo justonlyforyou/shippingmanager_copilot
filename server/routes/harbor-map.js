@@ -116,8 +116,11 @@ router.get('/overview', async (req, res) => {
 
     logger.debug(`[Harbor Map] getAllUserVessels response: ${allVessels.length} vessels`);
 
+    // Get userId for custom vessel fuel data lookup
+    const userId = getUserId();
+
     // Aggregate vessel data with calculated positions
-    const vesselsWithPositions = aggregateVesselData(allVessels, allPortsWithDemand);
+    const vesselsWithPositions = aggregateVesselData(allVessels, allPortsWithDemand, userId);
 
     // Fetch assigned ports (for both filters - needed for correct demand data)
     const assignedPortsResponse = await gameapi.getAssignedPorts();
@@ -253,8 +256,11 @@ router.get('/vessel/:vesselId/reachable-ports', async (req, res) => {
       routes_length: vessel.routes ? vessel.routes.length : 0
     });
 
+    // Get userId for custom vessel fuel data lookup
+    const userId = getUserId();
+
     // Aggregate vessel data
-    const [vesselWithPosition] = aggregateVesselData([vessel], allPortsWithDemand);
+    const [vesselWithPosition] = aggregateVesselData([vessel], allPortsWithDemand, userId);
 
     // Fetch reachable ports from API
     const reachableResponse = await gameapi.getVesselPorts(vesselId);
@@ -438,8 +444,11 @@ router.get('/port/:portCode', async (req, res) => {
 
     logger.debug(`[Harbor Map] Fetched ${allVessels.length} vessels from API`);
 
+    // Get userId for custom vessel fuel data lookup
+    const userId = getUserId();
+
     // Aggregate vessel data
-    const vesselsWithPositions = aggregateVesselData(allVessels, allPortsFromIndex);
+    const vesselsWithPositions = aggregateVesselData(allVessels, allPortsFromIndex, userId);
 
     // Categorize vessels by port
     const categorizedVessels = categorizeVesselsByPort(portCode, vesselsWithPositions);

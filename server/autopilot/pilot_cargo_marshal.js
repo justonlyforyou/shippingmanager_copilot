@@ -15,6 +15,7 @@ const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audi
 const { saveHarborFee } = require('../utils/harbor-fee-store');
 const { saveContributionGain } = require('../utils/contribution-store');
 const { fetchUserContribution } = require('../gameapi/alliance');
+const { calculateFuelConsumption } = require('../utils/fuel-calculator');
 
 /**
  * Tracks vessels that failed fuel check to avoid retrying unnecessarily.
@@ -444,32 +445,23 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         }
 
         // PRE-CHECK: Calculate and verify sufficient fuel BEFORE attempting departure
-        // Fuel calculation based on: distance (nm), speed (kn), and fuel_factor
-        // Formula derived from API response analysis:
-        // fuel_usage (kg) = (route_distance / route_speed) * fuel_factor * base_consumption
-        // Base consumption appears to be ~5.37 kg/h for standard vessels
-
+        // Uses actual vessel-specific fuel consumption data (kg/nm at reference speeds)
         let requiredFuel = vessel.route_fuel_required || vessel.fuel_required;
 
-        // If not provided by API, calculate it ourselves
-        if (!requiredFuel && vessel.route_distance && vessel.fuel_factor) {
+        // If not provided by API, calculate it using vessel-specific fuel consumption data
+        if (!requiredFuel && vessel.route_distance) {
           const distance = vessel.route_distance; // nautical miles
-          const fuelFactor = vessel.fuel_factor;
           // Use actual speed (might be reduced from max_speed by settings)
           const actualSpeed = speed || vessel.route_speed || vessel.max_speed;
 
-          // Base fuel consumption rate (kg/hour) - derived from API data analysis
-          // This is an approximation based on typical vessel consumption
-          const baseFuelRate = 5.37; // kg/hour
+          // Calculate fuel using vessel-specific consumption data
+          requiredFuel = calculateFuelConsumption(vessel, distance, actualSpeed, userId);
 
-          // Calculate travel time in hours
-          const travelTimeHours = distance / actualSpeed;
-
-          // Calculate fuel in kg, then convert to tons
-          const fuelKg = travelTimeHours * fuelFactor * baseFuelRate;
-          requiredFuel = fuelKg / 1000; // Convert kg to tons
-
-          logger.debug(`[Depart] ${vessel.name}: Calculated fuel requirement - ${requiredFuel.toFixed(1)}t (${distance}nm @ ${actualSpeed}kn, factor=${fuelFactor})`);
+          // Fallback: If vessel not found in our data, don't block departure
+          if (requiredFuel === null) {
+            logger.warn(`[Depart] ${vessel.name}: No fuel consumption data available - allowing departure without fuel check`);
+            requiredFuel = 0;
+          }
         }
 
         const currentFuel = bunker.fuel;
@@ -577,8 +569,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           // Query contribution AFTER successful departure
           const contributionAfter = await fetchUserContribution(userId);
 
-          // Check for negative net income (harbor fees too high)
-          const hasFeeCalculationBug = result.netIncome < 0;
+          // Check for negative income (harbor fees too high - API bug)
+          const hasFeeCalculationBug = result.income < 0;
 
           // Track vessels with excessive harbor fees (using settings threshold OR negative income)
           // (using settings from outer scope - already loaded on line 96)
@@ -592,7 +584,6 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
               destination: result.destination,
               income: result.income,
               harborFee: result.harborFee,
-              netIncome: result.netIncome,
               feePercentage: Math.round(feePercentage),
               reason: hasFeeCalculationBug ? 'Harbor fee exceeds income' : `Harbor fee ${Math.round(feePercentage)}% (threshold: ${harborFeeThreshold}%)`
             };
@@ -628,7 +619,6 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             guards: result.guards,
             income: result.income,
             harborFee: result.harborFee,
-            netIncome: result.netIncome,
             hasFeeCalculationBug: hasFeeCalculationBug,
             fuelUsed: result.fuelUsed,
             co2Used: result.co2Used,
@@ -744,7 +734,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     }
 
     // Calculate totals from ALL departed vessels (not just last batch)
-    const totalRevenue = allDepartedVessels.reduce((sum, v) => sum + (v.netIncome || 0), 0);
+    const totalRevenue = allDepartedVessels.reduce((sum, v) => sum + (v.income || 0), 0);
     const totalFuelUsed = allDepartedVessels.reduce((sum, v) => sum + (v.fuelUsed || 0), 0);
     const totalCO2Used = allDepartedVessels.reduce((sum, v) => sum + (v.co2Used || 0), 0);
     const totalHarborFees = allDepartedVessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);

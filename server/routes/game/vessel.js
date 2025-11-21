@@ -34,6 +34,7 @@
 
 const express = require('express');
 const fs = require('fs').promises;
+const path = require('path');
 const validator = require('validator');
 const { apiCall, apiCallWithRetry, getUserId } = require('../../utils/api');
 const gameapi = require('../../gameapi');
@@ -41,6 +42,7 @@ const { broadcastToUser } = require('../../websocket');
 const logger = require('../../utils/logger');
 const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
+const { getFuelConsumptionDisplay, addCustomVesselFuelData, removeCustomVesselFuelData } = require('../../utils/fuel-calculator');
 
 const router = express.Router();
 
@@ -92,8 +94,14 @@ router.get('/get-vessels', async (req, res) => {
       }
     }
 
+    // Enrich vessels with fuel consumption data
+    const enrichedVessels = data.data.user_vessels ? data.data.user_vessels.map(vessel => ({
+      ...vessel,
+      fuel_consumption_display: getFuelConsumptionDisplay(vessel, userId)
+    })) : [];
+
     res.json({
-      vessels: data.data.user_vessels,
+      vessels: enrichedVessels,
       experience_points: data.data.experience_points,
       levelup_experience_points: data.data.levelup_experience_points,
       company_type: data.user?.company_type
@@ -117,6 +125,15 @@ router.get('/get-vessels', async (req, res) => {
 router.get('/get-all-acquirable', async (req, res) => {
   try {
     const data = await apiCall('/vessel/get-all-acquirable-vessels', 'POST', {});
+
+    // Enrich vessels with fuel consumption data
+    if (data && data.data && data.data.vessels_for_sale) {
+      data.data.vessels_for_sale = data.data.vessels_for_sale.map(vessel => ({
+        ...vessel,
+        fuel_consumption_display: getFuelConsumptionDisplay(vessel)
+      }));
+    }
+
     res.json(data);
   } catch (error) {
     logger.error('Error getting acquirable vessels:', error);
@@ -225,6 +242,17 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
           } else {
             logger.debug(`[Vessel Sell] Vessel ${vesselId} sold for $${sellPrice.toLocaleString()}`);
           }
+
+          // Delete custom vessel image, appearance data, and fuel consumption entry
+          const svgFile = path.join(__dirname, '../../../userdata/vessel-images', `${userId}_${vesselId}.svg`);
+          const appearanceFile = path.join(__dirname, '../../../userdata/vessel-appearances', `${userId}_${vesselId}.json`);
+
+          // Remove from custom vessel fuel consumption data (uses userId_vesselId)
+          removeCustomVesselFuelData(userId, vesselId);
+
+          await fs.unlink(svgFile).catch(() => {});
+          await fs.unlink(appearanceFile).catch(() => {});
+          logger.debug(`[Vessel Sell] Cleaned up custom vessel files for ${vesselId}`);
         }
       } catch (error) {
         logger.error(`[Vessel Sell] Failed to sell vessel ${vesselId}:`, error.message);
@@ -1012,6 +1040,303 @@ router.post('/resume-parked-vessel', express.json(), async (req, res) => {
   } catch (error) {
     logger.error(`[Resume Parked Vessel] Failed for vessel ${vessel_id}:`, error.message);
     res.status(500).json({ error: 'Failed to resume parked vessel', message: error.message });
+  }
+});
+
+/**
+ * POST /api/vessel/build-vessel
+ * Builds a new custom vessel from scratch
+ *
+ * Allows users to configure:
+ * - Vessel type (container/tanker)
+ * - Capacity (2000-27000 TEU or 148000-1998000 BBL)
+ * - Engine type and power (6 engine options with configurable KW)
+ * - Delivery port (36 shipyard options)
+ * - Perks (antifouling, bulbous bow, propellers, enhanced thrusters)
+ *
+ * @route POST /api/vessel/build-vessel
+ * @body {string} name - Vessel name (1-50 characters)
+ * @body {string} ship_yard - Shipyard port code
+ * @body {string} vessel_model - 'container' or 'tanker'
+ * @body {string} engine_type - Engine model (mih_x1, wartsila_syk_6, man_p22l, mih_xp9, man_p22l_z, mih_cp9)
+ * @body {number} engine_kw - Engine power in kW (within engine's min/max range)
+ * @body {number} capacity - Vessel capacity (TEU or BBL)
+ * @body {string|null} antifouling_model - Antifouling type ('type_a', 'type_b', or null)
+ * @body {number} bulbous - Bulbous bow (0 or 1)
+ * @body {number} enhanced_thrusters - Enhanced thrusters (0 or 1)
+ * @body {number} range - Vessel range in nautical miles
+ * @body {string} propeller_types - Propeller type ('4_blade_propeller', '5_blade_propeller', '6_blade_propeller')
+ *
+ * @returns {object} Build result from game API
+ *
+ * @error 400 - Invalid or missing parameters
+ * @error 500 - Failed to build vessel
+ *
+ * Side effects:
+ * - Sends build notification
+ * - Updates bunker display (cash decreased)
+ * - Updates vessel count badges (pending vessel added)
+ * - Logs build to audit log
+ */
+router.post('/build-vessel', express.json(), async (req, res) => {
+  const {
+    name,
+    ship_yard,
+    vessel_model,
+    engine_type,
+    engine_kw,
+    capacity,
+    antifouling_model,
+    bulbous,
+    enhanced_thrusters,
+    range,
+    speed,
+    fuel_consumption,
+    propeller_types,
+    hull_color,
+    deck_color,
+    bridge_color,
+    container_color_1,
+    container_color_2,
+    container_color_3,
+    container_color_4,
+    name_color
+  } = req.body;
+
+  // Validate required fields
+  if (!name || !ship_yard || !vessel_model || !engine_type || !engine_kw || !capacity || !range || !propeller_types) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  // Validate name
+  if (typeof name !== 'string' || name.length < 1 || name.length > 50) {
+    return res.status(400).json({ error: 'Invalid name. Must be 1-50 characters' });
+  }
+
+  // Validate vessel_model
+  if (!['container', 'tanker'].includes(vessel_model)) {
+    return res.status(400).json({ error: 'Invalid vessel_model. Must be "container" or "tanker"' });
+  }
+
+  // Validate capacity ranges
+  if (vessel_model === 'container' && (capacity < 2000 || capacity > 27000)) {
+    return res.status(400).json({ error: 'Invalid capacity for container. Must be 2000-27000 TEU' });
+  }
+  if (vessel_model === 'tanker' && (capacity < 148000 || capacity > 1998000)) {
+    return res.status(400).json({ error: 'Invalid capacity for tanker. Must be 148000-1998000 BBL' });
+  }
+
+  // Validate engine type and KW ranges
+  const validEngines = {
+    mih_x1: { min: 2500, max: 11000 },
+    wartsila_syk_6: { min: 5000, max: 15000 },
+    man_p22l: { min: 8000, max: 17500 },
+    mih_xp9: { min: 10000, max: 20000 },
+    man_p22l_z: { min: 15000, max: 25000 },
+    mih_cp9: { min: 25000, max: 60000 }
+  };
+
+  if (!validEngines[engine_type]) {
+    return res.status(400).json({ error: 'Invalid engine_type' });
+  }
+
+  const engineLimits = validEngines[engine_type];
+  if (engine_kw < engineLimits.min || engine_kw > engineLimits.max) {
+    return res.status(400).json({
+      error: `Invalid engine_kw for ${engine_type}. Must be ${engineLimits.min}-${engineLimits.max} kW`
+    });
+  }
+
+  // Validate propeller types
+  if (!['4_blade_propeller', '5_blade_propeller', '6_blade_propeller'].includes(propeller_types)) {
+    return res.status(400).json({ error: 'Invalid propeller_types' });
+  }
+
+  // Validate antifouling
+  if (antifouling_model !== null && !['type_a', 'type_b'].includes(antifouling_model)) {
+    return res.status(400).json({ error: 'Invalid antifouling_model' });
+  }
+
+  // Validate bulbous and enhanced_thrusters
+  if (![0, 1].includes(bulbous) || ![0, 1].includes(enhanced_thrusters)) {
+    return res.status(400).json({ error: 'Invalid bulbous or enhanced_thrusters. Must be 0 or 1' });
+  }
+
+  try {
+    const userId = getUserId();
+
+    // Forward build request to game API
+    const data = await apiCall('/vessel/build-vessel', 'POST', {
+      name,
+      ship_yard,
+      vessel_model,
+      engine_type,
+      engine_kw,
+      capacity,
+      antifouling_model,
+      bulbous,
+      enhanced_thrusters,
+      range,
+      propeller_types
+    });
+
+    // Check if API returned an error
+    if (data.error) {
+      logger.warn(`[Build Vessel] API rejected build request: ${data.error}`);
+      return res.status(400).json({ error: data.error });
+    }
+
+    // Verify build was successful - API returns { data: { success: true }, user: {...} }
+    if (!data.data?.success) {
+      logger.error('[Build Vessel] API did not confirm success');
+      return res.status(500).json({ error: 'Build failed - API did not confirm' });
+    }
+
+    logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW)`);
+
+    // Fetch vessel list to get the new vessel's ID (API doesn't return it directly)
+    let newVesselId = null;
+    try {
+      const vesselsData = await apiCall('/vessel/get-vessels', 'GET');
+      const pendingVessel = vesselsData.data?.user_vessels?.find(v =>
+        v.name === name && v.status === 'pending'
+      );
+      if (pendingVessel) {
+        newVesselId = pendingVessel.id;
+        logger.debug(`[Build Vessel] Found new vessel ID: ${newVesselId}`);
+      }
+    } catch (fetchError) {
+      logger.warn('[Build Vessel] Could not fetch vessel ID:', fetchError.message);
+    }
+
+    // Store vessel appearance data if we found the vessel ID
+    if (newVesselId) {
+      try {
+        const appearanceDir = path.join(__dirname, '../../../userdata/vessel-appearances');
+        await fs.mkdir(appearanceDir, { recursive: true });
+
+        const appearanceData = {
+          vesselId: newVesselId,
+          name,
+          vessel_model,
+          capacity,
+          engine_type,
+          engine_kw,
+          range,
+          speed,
+          fuel_consumption,
+          antifouling_model,
+          bulbous,
+          enhanced_thrusters,
+          propeller_types,
+          hull_color: hull_color || '#b30000',
+          deck_color: deck_color || '#272525',
+          bridge_color: bridge_color || '#dbdbdb',
+          container_color_1: container_color_1 || '#ff8000',
+          container_color_2: container_color_2 || '#0000ff',
+          container_color_3: container_color_3 || '#670000',
+          container_color_4: container_color_4 || '#777777',
+          name_color: name_color || '#ffffff'
+        };
+
+        const appearanceFile = path.join(appearanceDir, `${userId}_${newVesselId}.json`);
+        await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
+        logger.debug(`[Build Vessel] Saved appearance data for vessel ${userId}_${newVesselId}`);
+
+        // Add to custom vessel fuel consumption data
+        addCustomVesselFuelData(userId, newVesselId, speed, fuel_consumption, vessel_model);
+      } catch (appearanceError) {
+        logger.error('[Build Vessel] Failed to save appearance/fuel data:', appearanceError.message);
+      }
+    }
+
+    // Broadcast notification
+    if (userId) {
+      const safeVesselName = validator.escape(name);
+      const capacityUnit = vessel_model === 'container' ? 'TEU' : 'BBL';
+
+      broadcastToUser(userId, 'user_action_notification', {
+        type: 'success',
+        message: `🔨 <strong>Vessel Build Started!</strong><br><br>${safeVesselName}<br>${capacity.toLocaleString()} ${capacityUnit}`
+      });
+    }
+
+    // Broadcast bunker update (cash decreased from build)
+    if (userId && data.user) {
+      broadcastToUser(userId, 'bunker_update', {
+        cash: data.user.cash
+      });
+      logger.debug(`[Build Vessel] Broadcast cash update: $${data.user.cash.toLocaleString()}`);
+    }
+
+    // Broadcast vessel count update (pending vessel added)
+    if (userId) {
+      try {
+        const vesselsResponse = await apiCall('/game/index', 'GET');
+        if (vesselsResponse?.vessels) {
+          const readyToDepart = vesselsResponse.vessels.filter(v =>
+            v.status === 'ready' && v.maintenance > 0
+          ).length;
+          const atAnchor = vesselsResponse.vessels.filter(v =>
+            v.status === 'anchor'
+          ).length;
+          const pending = vesselsResponse.vessels.filter(v =>
+            v.status === 'pending'
+          ).length;
+
+          broadcastToUser(userId, 'vessel_count_update', {
+            readyToDepart,
+            atAnchor,
+            pending
+          });
+          logger.debug(`[Build Vessel] Broadcast vessel count update: pending=${pending}`);
+        }
+      } catch (error) {
+        logger.error('[Build Vessel] Failed to broadcast vessel count update:', error.message);
+      }
+    }
+
+    // AUDIT LOG: Vessel build
+    try {
+      await auditLog(
+        userId,
+        CATEGORIES.VESSEL,
+        'Manual Vessel Build',
+        `Built vessel "${name}" (${vessel_model}, ${capacity.toLocaleString()} ${vessel_model === 'container' ? 'TEU' : 'BBL'})`,
+        {
+          name,
+          vessel_model,
+          capacity,
+          engine_type,
+          engine_kw,
+          ship_yard,
+          antifouling_model,
+          bulbous,
+          enhanced_thrusters,
+          propeller_types,
+          range
+        },
+        'SUCCESS',
+        SOURCES.MANUAL
+      );
+    } catch (auditError) {
+      logger.error('[Build Vessel] Audit logging failed:', auditError.message);
+    }
+
+    res.json(data);
+  } catch (error) {
+    logger.error('[Build Vessel] Error:', error);
+
+    const userId = getUserId();
+    if (userId) {
+      const safeErrorMessage = validator.escape(error.message || 'Unknown error');
+      broadcastToUser(userId, 'user_action_notification', {
+        type: 'error',
+        message: `🔨 <strong>Build Failed</strong><br><br>${safeErrorMessage}`
+      });
+    }
+
+    res.status(500).json({ error: 'Failed to build vessel' });
   }
 });
 

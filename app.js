@@ -116,6 +116,7 @@ const logbookRoutes = require('./server/routes/logbook');
 const harborMapRoutes = require('./server/routes/harbor-map');
 const poiRoutes = require('./server/routes/poi');
 const vesselImageRoutes = require('./server/routes/vessel-image');
+const vesselSvgRoutes = require('./server/routes/vessel-svg');
 const allianceLogoRoutes = require('./server/routes/alliance-logo');
 const staffRoutes = require('./server/routes/staff');
 
@@ -163,6 +164,7 @@ app.use('/api/logbook', logbookRoutes);
 app.use('/api/harbor-map', harborMapRoutes);
 app.use('/api/poi', poiRoutes);
 app.use('/api/vessel-image', vesselImageRoutes);
+app.use('/api/vessel-svg', vesselSvgRoutes);
 app.use('/api/alliance-logo', allianceLogoRoutes);
 app.use('/api/staff', staffRoutes);
 

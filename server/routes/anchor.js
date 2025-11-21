@@ -50,12 +50,20 @@ router.get('/anchor/get-price', async (req, res) => {
     const gameData = await apiCall('/game/index', 'POST', {});
     const anchorNextBuild = gameData.data?.user_settings?.anchor_next_build || null;
 
+    // Get pending anchor points from settings (same as header uses)
+    const userId = getUserId();
+    const state = require('../state');
+    const settings = state.getSettings(userId);
+    const now = Math.floor(Date.now() / 1000);
+    const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? (settings.pendingAnchorPoints || 0) : 0;
+
     res.json({
       success: true,
       price: priceData.data.price,
       duration: priceData.data.duration,
       cash: priceData.user.cash,
-      anchor_next_build: anchorNextBuild
+      anchor_next_build: anchorNextBuild,
+      pending_vessels: pendingAnchorPoints
     });
   } catch (error) {
     logger.error('[Anchor] Get price failed:', error);
@@ -143,16 +151,17 @@ router.post('/anchor/purchase', express.json(), async (req, res) => {
         state.updateSettings(userId, settings);
         await saveSettings(userId, settings);
 
-        if (anchorNextBuild) {
-          // Broadcast timer to all connected clients
-          broadcastToUser(userId, 'anchor_purchase_timer', {
-            anchor_next_build: anchorNextBuild,
-            pending_amount: amount
-          });
-        }
-
         // Fetch updated bunker/user data to broadcast header updates
         const gameData = await apiCall('/game/index', 'POST', {});
+
+        if (anchorNextBuild) {
+          // Broadcast timer to all connected clients
+          // Use settings.pendingAnchorPoints (same as header uses)
+          broadcastToUser(userId, 'anchor_purchase_timer', {
+            anchor_next_build: anchorNextBuild,
+            pending_amount: settings.pendingAnchorPoints
+          });
+        }
 
         // Update bunker state with fresh data
         if (gameData.data?.bunker) {

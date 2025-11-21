@@ -48,6 +48,11 @@ export async function showAnchorPurchaseDialog() {
     const buildDuration = data.duration || 0; // Build time in seconds for 1 anchor point
     moduleNextBuild = nextBuild;  // Update module variable
 
+    // Update pending amount from API (pending vessels count)
+    if (data.pending_vessels !== undefined) {
+      modulePendingAmount = data.pending_vessels;
+    }
+
     // Check if timer is active
     const now = Math.floor(Date.now() / 1000);
     timerActive = nextBuild && nextBuild > now;

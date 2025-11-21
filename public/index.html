@@ -26,6 +26,7 @@
     <link rel="stylesheet" href="/css/logbook.css">
     <link rel="stylesheet" href="/css/harbor-map.css">
     <link rel="stylesheet" href="/css/settings.css">
+    <link rel="stylesheet" href="/css/appearance.css">
     <link rel="stylesheet" href="/css/mobile.css">
 </head>
 <body>
@@ -1561,6 +1562,9 @@
 
                     </div>
                 </div>
+                <button id="buildShipBtn" class="vessel-filter-btn">
+                    🔨 Build Ship
+                </button>
                 <button id="sortPriceBtn" class="vessel-filter-btn" data-sort="asc">
                     💰 Price ↑
                 </button>
@@ -1578,6 +1582,99 @@
             <div class="messenger-feed" id="vesselCatalogFeed">
                 <div class="vessel-feed-loading">
                     Loading vessels...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="buildShipOverlay" class="overlay hidden">
+        <div class="build-ship-window">
+            <div class="messenger-header">
+                <h2>🔨 Build Vessel</h2>
+                <button id="closeBuildShipBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+            </div>
+
+            <div class="build-ship-body">
+                <div class="build-ship-left">
+                    <div class="build-steps-indicator">
+                        <div class="build-step-dot active" data-step="1">
+                            <span class="build-step-number">1</span>
+                            <span class="build-step-label">Basics</span>
+                        </div>
+                        <div class="build-step-dot" data-step="2">
+                            <span class="build-step-number">2</span>
+                            <span class="build-step-label">Engine</span>
+                        </div>
+                        <div class="build-step-dot" data-step="3">
+                            <span class="build-step-number">3</span>
+                            <span class="build-step-label">Perks</span>
+                        </div>
+                        <div class="build-step-dot" data-step="4">
+                            <span class="build-step-number">4</span>
+                            <span class="build-step-label">Appearance</span>
+                        </div>
+                    </div>
+
+                    <div id="buildStepContent" class="build-step-content">
+                    </div>
+
+                    <div class="build-ship-footer">
+                        <button id="buildPrevBtn" class="build-nav-btn build-prev-btn hidden">← Previous</button>
+                        <button id="buildNextBtn" class="build-nav-btn build-next-btn">Next →</button>
+                        <button id="buildSubmitBtn" class="build-nav-btn build-submit-btn hidden">🔨 Build Vessel</button>
+                    </div>
+                </div>
+
+                <div class="build-ship-right">
+                    <div id="buildStatsPreview" class="build-stats-preview">
+                        <h3 class="build-stats-title">Vessel Preview</h3>
+                        <div class="build-stats-content">
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Type:</span>
+                                <span id="previewType" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Capacity:</span>
+                                <span id="previewCapacity" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Port:</span>
+                                <span id="previewPort" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Engine:</span>
+                                <span id="previewEngine" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Range:</span>
+                                <span id="previewRange" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Speed:</span>
+                                <span id="previewSpeed" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Fuel:</span>
+                                <span id="previewFuel" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">CO2:</span>
+                                <span id="previewCO2" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Perks:</span>
+                                <span id="previewPerks" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row">
+                                <span class="build-stat-label">Build Time:</span>
+                                <span id="previewBuildTime" class="build-stat-value">-</span>
+                            </div>
+                            <div class="build-stat-row build-stat-price">
+                                <span class="build-stat-label">Total Price:</span>
+                                <span id="previewPrice" class="build-stat-value">-</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

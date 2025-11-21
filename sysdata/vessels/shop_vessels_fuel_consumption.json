@@ -1,0 +1,362 @@
+{
+  "metadata": {
+    "description": "Fuel consumption values (kg/nm) for shop vessels, keyed by image type",
+    "total_models": 59
+  },
+  "by_type": {
+    "compressed/container/20-TEU.jpg": {
+      "name": "COASTAL X",
+      "speed_kn": 8,
+      "kg_per_nm": 2,
+      "capacity_type": "container"
+    },
+    "compressed/container/30-TEU.jpg": {
+      "name": "BLOOM",
+      "speed_kn": 8,
+      "kg_per_nm": 4,
+      "capacity_type": "container"
+    },
+    "compressed/container/45-TEU.jpg": {
+      "name": "M/S DORIT",
+      "speed_kn": 11,
+      "kg_per_nm": 5,
+      "capacity_type": "container"
+    },
+    "compressed/upload/75-TEU.jpg": {
+      "name": "Silver Wave",
+      "speed_kn": 10,
+      "kg_per_nm": 7,
+      "capacity_type": "container"
+    },
+    "compressed/container/90-TEU.jpg": {
+      "name": "Midnight Sun",
+      "speed_kn": 14,
+      "kg_per_nm": 10,
+      "capacity_type": "container"
+    },
+    "compressed/upload/114-TEU.jpg": {
+      "name": "Sea Spirit",
+      "speed_kn": 9,
+      "kg_per_nm": 10,
+      "capacity_type": "container"
+    },
+    "compressed/container/124-TEU.jpg": {
+      "name": "SEAKING",
+      "speed_kn": 12,
+      "kg_per_nm": 12,
+      "capacity_type": "container"
+    },
+    "compressed/container/155-TEU.jpg": {
+      "name": "OCEAN DAME",
+      "speed_kn": 20,
+      "kg_per_nm": 19,
+      "capacity_type": "container"
+    },
+    "compressed/container/150-TEU.jpg": {
+      "name": "SEA QUEEN",
+      "speed_kn": 16,
+      "kg_per_nm": 18,
+      "capacity_type": "container"
+    },
+    "compressed/container/220-TEU.jpg": {
+      "name": "NAVICOM",
+      "speed_kn": 20,
+      "kg_per_nm": 39,
+      "capacity_type": "container"
+    },
+    "compressed/container/180-TEU.jpg": {
+      "name": "WIND PACIFIC",
+      "speed_kn": 8,
+      "kg_per_nm": 14,
+      "capacity_type": "container"
+    },
+    "compressed/container/480-TEU.jpg": {
+      "name": "MV Ancylon",
+      "speed_kn": 18,
+      "kg_per_nm": 56,
+      "capacity_type": "container"
+    },
+    "compressed/container/212-TEU.jpg": {
+      "name": "SEA SAM",
+      "speed_kn": 19,
+      "kg_per_nm": 29,
+      "capacity_type": "container"
+    },
+    "compressed/container/200-TEU.jpg": {
+      "name": "OCEAN TRAIT",
+      "speed_kn": 14,
+      "kg_per_nm": 22,
+      "capacity_type": "container"
+    },
+    "compressed/container/219-TEU.jpg": {
+      "name": "Barzan",
+      "speed_kn": 18,
+      "kg_per_nm": 26,
+      "capacity_type": "container"
+    },
+    "compressed/upload/295-TEU.jpg": {
+      "name": "Atlantic Venture",
+      "speed_kn": 12,
+      "kg_per_nm": 28,
+      "capacity_type": "container"
+    },
+    "compressed/container/332-TEU.jpg": {
+      "name": "STERNWAY",
+      "speed_kn": 22,
+      "kg_per_nm": 55,
+      "capacity_type": "container"
+    },
+    "compressed/container/641-TEU.jpg": {
+      "name": "MV Antenir",
+      "speed_kn": 17,
+      "kg_per_nm": 79,
+      "capacity_type": "container"
+    },
+    "compressed/container/780-TEU.jpg": {
+      "name": "Astronz",
+      "speed_kn": 21,
+      "kg_per_nm": 88,
+      "capacity_type": "container"
+    },
+    "compressed/container/1120-TEU.jpg": {
+      "name": "SS Valley",
+      "speed_kn": 16,
+      "kg_per_nm": 140,
+      "capacity_type": "container"
+    },
+    "compressed/container/930-TEU.jpg": {
+      "name": "MV Tundra",
+      "speed_kn": 17,
+      "kg_per_nm": 124,
+      "capacity_type": "container"
+    },
+    "compressed/container/800-TEU.jpg": {
+      "name": "Triumph",
+      "speed_kn": 22,
+      "kg_per_nm": 94,
+      "capacity_type": "container"
+    },
+    "compressed/container/1152-TEU.jpg": {
+      "name": "SS W.H Naval",
+      "speed_kn": 19,
+      "kg_per_nm": 150,
+      "capacity_type": "container"
+    },
+    "compressed/container/1475-TEU.jpg": {
+      "name": "Aquavita",
+      "speed_kn": 13,
+      "kg_per_nm": 143,
+      "capacity_type": "container"
+    },
+    "compressed/container/1436-TEU.jpg": {
+      "name": "Ever Silver",
+      "speed_kn": 18,
+      "kg_per_nm": 225,
+      "capacity_type": "container"
+    },
+    "compressed/container/2142-TEU.jpg": {
+      "name": "Blue Ocean",
+      "speed_kn": 16,
+      "kg_per_nm": 256,
+      "capacity_type": "container"
+    },
+    "compressed/container/2500-TEU.jpg": {
+      "name": "Saint Fors",
+      "speed_kn": 16,
+      "kg_per_nm": 283,
+      "capacity_type": "container"
+    },
+    "compressed/container/2850-TEU.jpg": {
+      "name": "Madrid Sea",
+      "speed_kn": 21,
+      "kg_per_nm": 405,
+      "capacity_type": "container"
+    },
+    "compressed/upload/3550-TEU.jpg": {
+      "name": "Southern Cross",
+      "speed_kn": 15,
+      "kg_per_nm": 365,
+      "capacity_type": "container"
+    },
+    "compressed/container/4000-TEU.jpg": {
+      "name": "MS Magellan",
+      "speed_kn": 12,
+      "kg_per_nm": 375,
+      "capacity_type": "container"
+    },
+    "compressed/upload/5300-TEU.jpg": {
+      "name": "Mariners Dream",
+      "speed_kn": 13,
+      "kg_per_nm": 488,
+      "capacity_type": "container"
+    },
+    "compressed/container/6050-TEU.jpg": {
+      "name": "Pacific Hope",
+      "speed_kn": 17,
+      "kg_per_nm": 655,
+      "capacity_type": "container"
+    },
+    "compressed/container/7400-TEU.jpg": {
+      "name": "Horizon Seeker",
+      "speed_kn": 15,
+      "kg_per_nm": 753,
+      "capacity_type": "container"
+    },
+    "compressed/container/11000-TEU.jpg": {
+      "name": "GRAND EXPLORER",
+      "speed_kn": 12,
+      "kg_per_nm": 873,
+      "capacity_type": "container"
+    },
+    "compressed/container/13750-TEU.jpg": {
+      "name": "Ocean Mariner",
+      "speed_kn": 13,
+      "kg_per_nm": 1327,
+      "capacity_type": "container"
+    },
+    "compressed/upload/16300-TEU.jpg": {
+      "name": "Pacific Breeze",
+      "speed_kn": 15,
+      "kg_per_nm": 1673,
+      "capacity_type": "container"
+    },
+    "compressed/container/19500-TEU.jpg": {
+      "name": "Santamaria",
+      "speed_kn": 15,
+      "kg_per_nm": 2002,
+      "capacity_type": "container"
+    },
+    "compressed/container/22000-TEU.jpg": {
+      "name": "Ocean Star",
+      "speed_kn": 18,
+      "kg_per_nm": 2427,
+      "capacity_type": "container"
+    },
+    "compressed/container/24500-TEU.jpg": {
+      "name": "Valkyrie",
+      "speed_kn": 15,
+      "kg_per_nm": 2491,
+      "capacity_type": "container"
+    },
+    "compressed/tanker/2900-BBL.jpg": {
+      "name": "Nexus Dex",
+      "speed_kn": 16,
+      "kg_per_nm": 4,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/10000-BBL.jpg": {
+      "name": "Dibra AG",
+      "speed_kn": 16,
+      "kg_per_nm": 15,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/50000-BBL.jpg": {
+      "name": "Dolphins Prize",
+      "speed_kn": 20,
+      "kg_per_nm": 27,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/70000-BBL.jpg": {
+      "name": "MV Wyvern",
+      "speed_kn": 18,
+      "kg_per_nm": 31,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/90000-BBL.jpg": {
+      "name": "world wivenhoe",
+      "speed_kn": 19,
+      "kg_per_nm": 2625,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/100000-BBL.jpg": {
+      "name": "grashopper",
+      "speed_kn": 8,
+      "kg_per_nm": 1561,
+      "capacity_type": "tanker"
+    },
+    "compressed/upload/141000-TEU.jpg": {
+      "name": "sea guardian",
+      "speed_kn": 13,
+      "kg_per_nm": 187,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/150000-BBL.jpg": {
+      "name": "wearty wind",
+      "speed_kn": 18,
+      "kg_per_nm": 2938,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/200000-BBL.jpg": {
+      "name": "trafalgar",
+      "speed_kn": 8,
+      "kg_per_nm": 1822,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/190000-BBL.jpg": {
+      "name": "hallowell",
+      "speed_kn": 22,
+      "kg_per_nm": 3875,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/250000-BBL.jpg": {
+      "name": "Stingray",
+      "speed_kn": 17,
+      "kg_per_nm": 414,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/350000-BBL.jpg": {
+      "name": "snapdragon",
+      "speed_kn": 16,
+      "kg_per_nm": 586,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/400000-BBL.jpg": {
+      "name": "ss journey",
+      "speed_kn": 16,
+      "kg_per_nm": 696,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/425000-BBL.jpg": {
+      "name": "matriarch",
+      "speed_kn": 16,
+      "kg_per_nm": 637,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/465000-BBL.jpg": {
+      "name": "aquilon",
+      "speed_kn": 16,
+      "kg_per_nm": 803,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/500000-BBL.jpg": {
+      "name": "ss audacious",
+      "speed_kn": 11,
+      "kg_per_nm": 577,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/600000-BBL.jpg": {
+      "name": "mv leaminton",
+      "speed_kn": 12,
+      "kg_per_nm": 800,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/700000-BBL.jpg": {
+      "name": "last jewelle",
+      "speed_kn": 15,
+      "kg_per_nm": 1124,
+      "capacity_type": "tanker"
+    },
+    "compressed/tanker/900000-BBL.jpg": {
+      "name": "grand humpback",
+      "speed_kn": 20,
+      "kg_per_nm": 1481,
+      "capacity_type": "tanker"
+    },
+    "compressed/upload/1470000-TEU.jpg": {
+      "name": "ocean emperor",
+      "speed_kn": 11,
+      "kg_per_nm": 2104,
+      "capacity_type": "tanker"
+    }
+  }
+}

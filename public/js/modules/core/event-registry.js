@@ -7,6 +7,7 @@
  */
 
 import { saveSettings, updatePageTitle, showNotification, showSideNotification, requestNotificationPermission, escapeHtml } from '../utils.js';
+import { openBuildShipModal } from '../vessel-building.js';
 
 /**
  * Format number with thousand separators.
@@ -293,6 +294,9 @@ export function registerVesselCatalogEventListeners(handlers, settings) {
 
   // Cart button
   document.getElementById('cartBtn').addEventListener('click', showShoppingCart);
+
+  // Build Ship button
+  document.getElementById('buildShipBtn').addEventListener('click', openBuildShipModal);
 }
 
 /**

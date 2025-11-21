@@ -1,0 +1,1834 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    
+    <meta charset="utf-8">
+    <title>public/js/modules/vessel-building.js - Documentation</title>
+    
+    
+    <script src="scripts/prettify/prettify.js"></script>
+    <script src="scripts/prettify/lang-css.js"></script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
+    <script src="scripts/nav.js" defer></script>
+    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Dark theme matching app style - carefully scoped to not break layout */
+        html, body {
+            background-color: #1a1a1a !important;
+            color: #e0e0e0 !important;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+            overflow-x: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        /* Custom scrollbar styling for all browsers */
+        * {
+            scrollbar-width: thin !important;
+            scrollbar-color: #404040 #1a1a1a !important;
+        }
+
+        /* Webkit browsers (Chrome, Safari, Edge) */
+        *::-webkit-scrollbar {
+            width: 6px !important;
+            height: 6px !important;
+        }
+
+        *::-webkit-scrollbar-track {
+            background: #1a1a1a !important;
+        }
+
+        *::-webkit-scrollbar-thumb {
+            background-color: #404040 !important;
+            border-radius: 3px !important;
+        }
+
+        *::-webkit-scrollbar-thumb:hover {
+            background-color: #505050 !important;
+        }
+
+        /* Navigation sidebar - remove padding and white borders */
+        nav {
+            background-color: #242424 !important;
+            border-right: 1px solid #404040 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow-x: hidden !important;
+        }
+        nav h2, nav h3 {
+            color: #e0e0e0 !important;
+            border-bottom: 1px solid #404040 !important;
+            padding: 10px 15px !important;
+            margin: 0 !important;
+            background-color: #242424 !important;
+            font-size: 14px !important;
+            font-weight: 600 !important;
+        }
+        nav h3 {
+            font-size: 13px !important;
+        }
+        nav ul {
+            padding: 0 !important;
+            margin: 0 !important;
+            background-color: #242424 !important;
+        }
+        nav ul li {
+            list-style: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background-color: #242424 !important;
+        }
+        nav ul li a {
+            color: #c9d1d9 !important;
+            display: block !important;
+            padding: 8px 15px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            background-color: #242424 !important;
+            margin: 0 !important;
+            border: none !important;
+            font-size: 14px !important;
+        }
+        nav ul li a:hover {
+            color: #60a5fa !important;
+            background-color: rgba(96, 165, 250, 0.1) !important;
+        }
+        /* Module links (direct children of nav > ul > li) */
+        nav > ul > li > a {
+            color: #60a5fa !important;
+            font-weight: 600 !important;
+            padding: 10px 15px !important;
+            font-size: 14px !important;
+            border-left: 3px solid #60a5fa !important;
+            padding-left: 12px !important;
+        }
+        nav > ul > li > a:hover {
+            background-color: rgba(96, 165, 250, 0.15) !important;
+        }
+        /* Sub-items (methods/functions) indented */
+        nav ul.methods {
+            padding-left: 15px !important;
+        }
+        nav ul.methods li a {
+            color: #9ca3af !important;
+            font-size: 13px !important;
+            padding: 6px 15px !important;
+            font-weight: 400 !important;
+        }
+        nav ul.methods li a:hover {
+            color: #c9d1d9 !important;
+        }
+        nav > h2:first-child {
+            font-size: 16px !important;
+            font-weight: 700 !important;
+            padding: 12px 15px !important;
+        }
+
+        /* Main content area - dark background */
+        #main {
+            background-color: #1a1a1a !important;
+            padding: 20px !important;
+        }
+
+        /* Article and sections - ensure dark background */
+        article, section, .container-overview, .description {
+            background-color: #1a1a1a !important;
+        }
+
+        /* Images - style demo images */
+        img {
+            max-width: 100% !important;
+            height: auto !important;
+            border: 1px solid #404040 !important;
+            border-radius: 8px !important;
+            margin: 20px 0 !important;
+        }
+
+        /* Links */
+        a {
+            color: #60a5fa !important;
+            text-decoration: none !important;
+        }
+        a:hover {
+            color: #93c5fd !important;
+            text-decoration: underline !important;
+        }
+
+        /* Headings */
+        h1, h2, h3, h4, h5, h6 {
+            color: #e0e0e0 !important;
+            border-bottom-color: #404040 !important;
+            background-color: transparent !important;
+        }
+        h4.name {
+            background-color: #2a2a2a !important;
+            border: 1px solid #404040 !important;
+        }
+
+        /* Code blocks */
+        pre {
+            background-color: #0d1117 !important;
+            border: 1px solid #404040 !important;
+        }
+        pre code {
+            background-color: transparent !important;
+        }
+        code {
+            background-color: #2a2a2a !important;
+            color: #e0e0e0 !important;
+            padding: 2px 6px !important;
+            border-radius: 3px !important;
+        }
+
+        /* Tables */
+        table {
+            border-color: #404040 !important;
+            background-color: #1a1a1a !important;
+        }
+        table thead tr {
+            background-color: #242424 !important;
+        }
+        table tbody tr {
+            background-color: #1a1a1a !important;
+        }
+        table tbody tr:nth-child(even) {
+            background-color: #1f1f1f !important;
+        }
+        table td, table th {
+            border-color: #404040 !important;
+            color: #e0e0e0 !important;
+            background-color: transparent !important;
+        }
+        .params .name, .props .name {
+            color: #10b981 !important;
+            font-family: 'Courier New', monospace !important;
+        }
+
+        /* Descriptions and details */
+        .description, .details, dt, dd, p, ul, ol, dl {
+            color: #e0e0e0 !important;
+            background-color: transparent !important;
+        }
+
+        /* Types */
+        .type-signature {
+            color: #a78bfa !important;
+        }
+
+        /* Source links */
+        .details .details-item-container {
+            border-left-color: #404040 !important;
+        }
+
+        /* Breadcrumbs */
+        .page-title {
+            color: #e0e0e0 !important;
+        }
+
+        /* Search */
+        #nav-search {
+            background-color: #2a2a2a !important;
+            border: 1px solid #404040 !important;
+            color: #e0e0e0 !important;
+        }
+
+        /* Mobile nav trigger */
+        .navicon-button {
+            background-color: #2a2a2a !important;
+        }
+
+        /* Footer */
+        footer {
+            background-color: #1a1a1a !important;
+            color: #9ca3af !important;
+            border-top: 1px solid #404040 !important;
+            text-align: center !important;
+            padding: 20px !important;
+        }
+
+        /* Remove horizontal scrollbar and white borders */
+        * {
+            box-sizing: border-box !important;
+        }
+    </style>
+</head>
+<body>
+
+<input type="checkbox" id="nav-trigger" class="nav-trigger" />
+<label for="nav-trigger" class="navicon-button x">
+  <div class="navicon"></div>
+</label>
+
+<label for="nav-trigger" class="overlay"></label>
+
+<nav >
+    
+    
+    <h2><a href="index.html">README</a></h2><h3>Tutorials</h3><ul><li><a href="tutorial-build-guide.html">Build Guide</a></li><li><a href="tutorial-installation-guide.html">Installation Guide</a></li></ul><h3>Classes</h3><ul><li><a href="module-core_debounced-api.DebouncedAPIManager.html">DebouncedAPIManager</a><ul class='methods'><li data-type='method'><a href="module-core_debounced-api.DebouncedAPIManager.html#call">call</a></li><li data-type='method'><a href="module-core_debounced-api.DebouncedAPIManager.html#cancelAll">cancelAll</a></li><li data-type='method'><a href="module-core_debounced-api.DebouncedAPIManager.html#get">get</a></li><li data-type='method'><a href="module-core_debounced-api.DebouncedAPIManager.html#register">register</a></li></ul></li><li><a href="module-server_chatbot-ChatBot.html">ChatBot</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot-ChatBot.html#initialize">initialize</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#processAllianceMessage">processAllianceMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#processPrivateMessage">processPrivateMessage</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#setupScheduledTasks">setupScheduledTasks</a></li><li data-type='method'><a href="module-server_chatbot-ChatBot.html#updateSettings">updateSettings</a></li></ul></li></ul><h3>Modules</h3><ul><li><a href="module-alliance-tabs.html">alliance-tabs</a><ul class='methods'><li data-type='method'><a href="module-alliance-tabs.html#.clearAllianceTabCache">clearAllianceTabCache</a></li><li data-type='method'><a href="module-alliance-tabs.html#.closeAllianceCoopOverlay">closeAllianceCoopOverlay</a></li><li data-type='method'><a href="module-alliance-tabs.html#.getCurrentTab">getCurrentTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#.hideAllAllianceUI">hideAllAllianceUI</a></li><li data-type='method'><a href="module-alliance-tabs.html#.initAllianceTabs">initAllianceTabs</a></li><li data-type='method'><a href="module-alliance-tabs.html#.refreshCurrentTab">refreshCurrentTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#.showAllAllianceUI">showAllAllianceUI</a></li><li data-type='method'><a href="module-alliance-tabs.html#.showAllianceCoopOverlay">showAllianceCoopOverlay</a></li><li data-type='method'><a href="module-alliance-tabs.html#.switchTab">switchTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#.updateCoopTabBadge">updateCoopTabBadge</a></li><li data-type='method'><a href="module-alliance-tabs.html#~acceptUserToAlliance">acceptUserToAlliance</a></li><li data-type='method'><a href="module-alliance-tabs.html#~appendSearchResults">appendSearchResults</a></li><li data-type='method'><a href="module-alliance-tabs.html#~attachAllianceClickHandlers">attachAllianceClickHandlers</a></li><li data-type='method'><a href="module-alliance-tabs.html#~attachSearchEventListeners">attachSearchEventListeners</a></li><li data-type='method'><a href="module-alliance-tabs.html#~createAllianceRow">createAllianceRow</a></li><li data-type='method'><a href="module-alliance-tabs.html#~declineUserFromAlliance">declineUserFromAlliance</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchAllianceInfo">fetchAllianceInfo</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchAllianceInfoById">fetchAllianceInfoById</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchAllianceMembers">fetchAllianceMembers</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchAllianceMembersById">fetchAllianceMembersById</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchAllianceSettings">fetchAllianceSettings</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchHighScores">fetchHighScores</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchLeagueInfo">fetchLeagueInfo</a></li><li data-type='method'><a href="module-alliance-tabs.html#~fetchQueuePool">fetchQueuePool</a></li><li data-type='method'><a href="module-alliance-tabs.html#~generateAllianceInfoHTML">generateAllianceInfoHTML</a></li><li data-type='method'><a href="module-alliance-tabs.html#~handleJoinAllianceClick">handleJoinAllianceClick</a></li><li data-type='method'><a href="module-alliance-tabs.html#~leaveAlliance">leaveAlliance</a></li><li data-type='method'><a href="module-alliance-tabs.html#~loadTabContent">loadTabContent</a></li><li data-type='method'><a href="module-alliance-tabs.html#~loadWelcomeMessage">loadWelcomeMessage</a></li><li data-type='method'><a href="module-alliance-tabs.html#~normalizeColor">normalizeColor</a></li><li data-type='method'><a href="module-alliance-tabs.html#~performSearch">performSearch</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderAllianzTab">renderAllianzTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderCoopTab">renderCoopTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderHighScoreTab">renderHighScoreTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderLigaTab">renderLigaTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderManagementTab">renderManagementTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderMemberCard">renderMemberCard</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderSearchResults">renderSearchResults</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderSearchTab">renderSearchTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~renderSettingsTab">renderSettingsTab</a></li><li data-type='method'><a href="module-alliance-tabs.html#~saveWelcomeMessage">saveWelcomeMessage</a></li><li data-type='method'><a href="module-alliance-tabs.html#~sendWelcomeMessageToUser">sendWelcomeMessageToUser</a></li><li data-type='method'><a href="module-alliance-tabs.html#~showAllianceDetailsModal">showAllianceDetailsModal</a></li><li data-type='method'><a href="module-alliance-tabs.html#~showDonateDialog">showDonateDialog</a></li><li data-type='method'><a href="module-alliance-tabs.html#~showTextInputDialog">showTextInputDialog</a></li><li data-type='method'><a href="module-alliance-tabs.html#~updateAllianceSettings">updateAllianceSettings</a></li><li data-type='method'><a href="module-alliance-tabs.html#~updateManagementTabVisibility">updateManagementTabVisibility</a></li><li data-type='method'><a href="module-alliance-tabs.html#~updateTabVisibilityForAllianceMembers">updateTabVisibilityForAllianceMembers</a></li><li data-type='method'><a href="module-alliance-tabs.html#~updateTabVisibilityForNonMembers">updateTabVisibilityForNonMembers</a></li><li data-type='method'><a href="module-alliance-tabs.html#~updateUserRole">updateUserRole</a></li><li data-type='method'><a href="module-alliance-tabs.html#~updateWelcomeMessageCharCount">updateWelcomeMessageCharCount</a></li></ul></li><li><a href="module-api.html">api</a><ul class='methods'><li data-type='method'><a href="module-api.html#.activateCampaign">activateCampaign</a></li><li data-type='method'><a href="module-api.html#.deleteAllLogs">deleteAllLogs</a></li><li data-type='method'><a href="module-api.html#.deleteChat">deleteChat</a></li><li data-type='method'><a href="module-api.html#.departAllVessels">departAllVessels</a></li><li data-type='method'><a href="module-api.html#.departVessel">departVessel</a></li><li data-type='method'><a href="module-api.html#.departVessels">departVessels</a></li><li data-type='method'><a href="module-api.html#.doWearMaintenanceBulk">doWearMaintenanceBulk</a></li><li data-type='method'><a href="module-api.html#.downloadLogbookExport">downloadLogbookExport</a></li><li data-type='method'><a href="module-api.html#.fetchAcquirableVessels">fetchAcquirableVessels</a></li><li data-type='method'><a href="module-api.html#.fetchAllianceMembers">fetchAllianceMembers</a></li><li data-type='method'><a href="module-api.html#.fetchAssignedPorts">fetchAssignedPorts</a></li><li data-type='method'><a href="module-api.html#.fetchBunkerPrices">fetchBunkerPrices</a></li><li data-type='method'><a href="module-api.html#.fetchCampaigns">fetchCampaigns</a></li><li data-type='method'><a href="module-api.html#.fetchChat">fetchChat</a></li><li data-type='method'><a href="module-api.html#.fetchContacts">fetchContacts</a></li><li data-type='method'><a href="module-api.html#.fetchLogbookEntries">fetchLogbookEntries</a></li><li data-type='method'><a href="module-api.html#.fetchLogbookFileSize">fetchLogbookFileSize</a></li><li data-type='method'><a href="module-api.html#.fetchMessengerChats">fetchMessengerChats</a></li><li data-type='method'><a href="module-api.html#.fetchMessengerMessages">fetchMessengerMessages</a></li><li data-type='method'><a href="module-api.html#.fetchUserCompany">fetchUserCompany</a></li><li data-type='method'><a href="module-api.html#.fetchUserSettings">fetchUserSettings</a></li><li data-type='method'><a href="module-api.html#.fetchVessels">fetchVessels</a></li><li data-type='method'><a href="module-api.html#.getCompanyNameCached">getCompanyNameCached</a></li><li data-type='method'><a href="module-api.html#.getMaintenanceCost">getMaintenanceCost</a></li><li data-type='method'><a href="module-api.html#.markChatAsRead">markChatAsRead</a></li><li data-type='method'><a href="module-api.html#.purchaseCO2">purchaseCO2</a></li><li data-type='method'><a href="module-api.html#.purchaseFuel">purchaseFuel</a></li><li data-type='method'><a href="module-api.html#.purchaseVessel">purchaseVessel</a></li><li data-type='method'><a href="module-api.html#.searchUsers">searchUsers</a></li><li data-type='method'><a href="module-api.html#.sendChatMessage">sendChatMessage</a></li><li data-type='method'><a href="module-api.html#.sendPrivateMessage">sendPrivateMessage</a></li></ul></li><li><a href="module-app.html">app</a></li><li><a href="module-automation.html">automation</a><ul class='methods'><li data-type='method'><a href="module-automation.html#.initAutomation">initAutomation</a></li><li data-type='method'><a href="module-automation.html#.runAutomationChecks">runAutomationChecks</a></li><li data-type='method'><a href="module-automation.html#.triggerAutoRebuyChecks">triggerAutoRebuyChecks</a></li><li data-type='method'><a href="module-automation.html#~calculateRemainingDemand">calculateRemainingDemand</a></li><li data-type='method'><a href="module-automation.html#~checkAutoCampaignRenewal">checkAutoCampaignRenewal</a></li><li data-type='method'><a href="module-automation.html#~checkAutoDepartAll">checkAutoDepartAll</a></li><li data-type='method'><a href="module-automation.html#~checkAutoRebuyCO2">checkAutoRebuyCO2</a></li><li data-type='method'><a href="module-automation.html#~checkAutoRebuyFuel">checkAutoRebuyFuel</a></li><li data-type='method'><a href="module-automation.html#~getTotalCapacity">getTotalCapacity</a></li><li data-type='method'><a href="module-automation.html#~performAutoRebuyCO2">performAutoRebuyCO2</a></li><li data-type='method'><a href="module-automation.html#~performAutoRebuyFuel">performAutoRebuyFuel</a></li><li data-type='method'><a href="module-automation.html#~updateAutoDepartLabel">updateAutoDepartLabel</a></li></ul></li><li><a href="module-badge-manager.html">badge-manager</a><ul class='methods'><li data-type='method'><a href="module-badge-manager.html#.getBadgeCount">getBadgeCount</a></li><li data-type='method'><a href="module-badge-manager.html#.hideBadge">hideBadge</a></li><li data-type='method'><a href="module-badge-manager.html#.showBadge">showBadge</a></li><li data-type='method'><a href="module-badge-manager.html#.updateBadge">updateBadge</a></li><li data-type='method'><a href="module-badge-manager.html#.updateButtonState">updateButtonState</a></li><li data-type='method'><a href="module-badge-manager.html#.updateButtonTooltip">updateButtonTooltip</a></li><li data-type='method'><a href="module-badge-manager.html#.updateButtonVisibility">updateButtonVisibility</a></li></ul></li><li><a href="module-bunker-management.html">bunker-management</a><ul class='methods'><li data-type='method'><a href="module-bunker-management.html#.buyMaxCO2">buyMaxCO2</a></li><li data-type='method'><a href="module-bunker-management.html#.buyMaxFuel">buyMaxFuel</a></li><li data-type='method'><a href="module-bunker-management.html#.getCurrentBunkerState">getCurrentBunkerState</a></li><li data-type='method'><a href="module-bunker-management.html#.setCapacityFromBunkerUpdate">setCapacityFromBunkerUpdate</a></li><li data-type='method'><a href="module-bunker-management.html#.updateBunkerStatus">updateBunkerStatus</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCurrentCO2">updateCurrentCO2</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCurrentCash">updateCurrentCash</a></li><li data-type='method'><a href="module-bunker-management.html#.updateCurrentFuel">updateCurrentFuel</a></li></ul></li><li><a href="module-chat.html">chat</a><ul class='methods'><li data-type='method'><a href="module-chat.html#.displayMessages">displayMessages</a></li><li data-type='method'><a href="module-chat.html#.handleMessageInput">handleMessageInput</a></li><li data-type='method'><a href="module-chat.html#.initWebSocket">initWebSocket</a></li><li data-type='method'><a href="module-chat.html#.loadAllianceMembers">loadAllianceMembers</a></li><li data-type='method'><a href="module-chat.html#.loadMessages">loadMessages</a></li><li data-type='method'><a href="module-chat.html#.markAllianceChatAsRead">markAllianceChatAsRead</a></li><li data-type='method'><a href="module-chat.html#.parseMessageWithMentions">parseMessageWithMentions</a></li><li data-type='method'><a href="module-chat.html#.sendMessage">sendMessage</a></li><li data-type='method'><a href="module-chat.html#.setChatScrollListener">setChatScrollListener</a></li><li data-type='method'><a href="module-chat.html#~attemptReconnect">attemptReconnect</a></li><li data-type='method'><a href="module-chat.html#~displaySuggestions">displaySuggestions</a></li><li data-type='method'><a href="module-chat.html#~formatLocalTime">formatLocalTime</a></li><li data-type='method'><a href="module-chat.html#~handleAllianceChanged">handleAllianceChanged</a></li><li data-type='method'><a href="module-chat.html#~handleAllianceIndexReady">handleAllianceIndexReady</a></li><li data-type='method'><a href="module-chat.html#~handleAutoCoopComplete">handleAutoCoopComplete</a></li><li data-type='method'><a href="module-chat.html#~handleAutoCoopNoTargets">handleAutoCoopNoTargets</a></li><li data-type='method'><a href="module-chat.html#~handleAutopilotDepartStart">handleAutopilotDepartStart</a></li><li data-type='method'><a href="module-chat.html#~handleBackendAutoRepairComplete">handleBackendAutoRepairComplete</a></li><li data-type='method'><a href="module-chat.html#~handleBunkerUpdate">handleBunkerUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleCO2Purchased">handleCO2Purchased</a></li><li data-type='method'><a href="module-chat.html#~handleCampaignsRenewed">handleCampaignsRenewed</a></li><li data-type='method'><a href="module-chat.html#~handleCompanyTypeUpdate">handleCompanyTypeUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleCoopUpdate">handleCoopUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleDrydockCountUpdate">handleDrydockCountUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleFuelPurchased">handleFuelPurchased</a></li><li data-type='method'><a href="module-chat.html#~handleGenericNotification">handleGenericNotification</a></li><li data-type='method'><a href="module-chat.html#~handleHarborMapRefreshRequired">handleHarborMapRefreshRequired</a></li><li data-type='method'><a href="module-chat.html#~handleHeaderDataUpdate">handleHeaderDataUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleHijackingUpdate">handleHijackingUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleMentionAutocomplete">handleMentionAutocomplete</a></li><li data-type='method'><a href="module-chat.html#~handleMessengerUpdate">handleMessengerUpdate</a></li><li data-type='method'><a href="module-chat.html#~handlePriceAlert">handlePriceAlert</a></li><li data-type='method'><a href="module-chat.html#~handlePriceUpdate">handlePriceUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleRepairCountUpdate">handleRepairCountUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleStaffTrainingPointsUpdate">handleStaffTrainingPointsUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleStaffUpdate">handleStaffUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleUnreadMessagesUpdate">handleUnreadMessagesUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleUserActionNotification">handleUserActionNotification</a></li><li data-type='method'><a href="module-chat.html#~handleVesselCountUpdate">handleVesselCountUpdate</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsDepartBatch">handleVesselsDepartBatch</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsDepartComplete">handleVesselsDepartComplete</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsDeparted">handleVesselsDeparted</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsDrydocked">handleVesselsDrydocked</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsFailed">handleVesselsFailed</a></li><li data-type='method'><a href="module-chat.html#~handleVesselsRepaired">handleVesselsRepaired</a></li><li data-type='method'><a href="module-chat.html#~hideMemberSuggestions">hideMemberSuggestions</a></li><li data-type='method'><a href="module-chat.html#~insertMention">insertMention</a></li><li data-type='method'><a href="module-chat.html#~registerUsernameClickEvents">registerUsernameClickEvents</a></li><li data-type='method'><a href="module-chat.html#~updateAllianceChatBadge">updateAllianceChatBadge</a></li></ul></li><li><a href="module-company-profile.html">company-profile</a><ul class='methods'><li data-type='method'><a href="module-company-profile.html#.closeCompanyProfile">closeCompanyProfile</a></li><li data-type='method'><a href="module-company-profile.html#.initCompanyProfile">initCompanyProfile</a></li><li data-type='method'><a href="module-company-profile.html#.openCompanyProfile">openCompanyProfile</a></li><li data-type='method'><a href="module-company-profile.html#.openPlayerProfile">openPlayerProfile</a></li><li data-type='method'><a href="module-company-profile.html#~adjustSalary">adjustSalary</a></li><li data-type='method'><a href="module-company-profile.html#~attachAllianceClickListener">attachAllianceClickListener</a></li><li data-type='method'><a href="module-company-profile.html#~attachSalaryButtonListeners">attachSalaryButtonListeners</a></li><li data-type='method'><a href="module-company-profile.html#~buildAchievementsSection">buildAchievementsSection</a></li><li data-type='method'><a href="module-company-profile.html#~buildSection">buildSection</a></li><li data-type='method'><a href="module-company-profile.html#~buildStaffSection">buildStaffSection</a></li><li data-type='method'><a href="module-company-profile.html#~formatLabel">formatLabel</a></li><li data-type='method'><a href="module-company-profile.html#~formatMoraleLabel">formatMoraleLabel</a></li><li data-type='method'><a href="module-company-profile.html#~formatPerkName">formatPerkName</a></li><li data-type='method'><a href="module-company-profile.html#~formatValue">formatValue</a></li><li data-type='method'><a href="module-company-profile.html#~generateMoraleSmiley">generateMoraleSmiley</a></li><li data-type='method'><a href="module-company-profile.html#~loadCompanyProfile">loadCompanyProfile</a></li><li data-type='method'><a href="module-company-profile.html#~loadStaffData">loadStaffData</a></li><li data-type='method'><a href="module-company-profile.html#~renderCompanyProfile">renderCompanyProfile</a></li><li data-type='method'><a href="module-company-profile.html#~renderSearchResults">renderSearchResults</a></li><li data-type='method'><a href="module-company-profile.html#~searchPlayers">searchPlayers</a></li><li data-type='method'><a href="module-company-profile.html#~toggleAchievementsList">toggleAchievementsList</a></li><li data-type='method'><a href="module-company-profile.html#~toggleStaffDetails">toggleStaffDetails</a></li><li data-type='method'><a href="module-company-profile.html#~trainPerk">trainPerk</a></li></ul></li><li><a href="module-coop.html">coop</a><ul class='methods'><li data-type='method'><a href="module-coop.html#.closeCoopOverlay">closeCoopOverlay</a></li><li data-type='method'><a href="module-coop.html#.fetchCoopData">fetchCoopData</a></li><li data-type='method'><a href="module-coop.html#.sendCoopMax">sendCoopMax</a></li><li data-type='method'><a href="module-coop.html#.showCoopOverlay">showCoopOverlay</a></li><li data-type='method'><a href="module-coop.html#.updateCoopBadge">updateCoopBadge</a></li><li data-type='method'><a href="module-coop.html#~renderMemberCard">renderMemberCard</a></li></ul></li><li><a href="module-core_app-initializer.html">core/app-initializer</a><ul class='methods'><li data-type='method'><a href="module-core_app-initializer.html#.initializeApp">initializeApp</a></li><li data-type='method'><a href="module-core_app-initializer.html#~createAllianceChatHandler">createAllianceChatHandler</a></li><li data-type='method'><a href="module-core_app-initializer.html#~createBuyVesselsHandler">createBuyVesselsHandler</a></li><li data-type='method'><a href="module-core_app-initializer.html#~createDebouncedFunctions">createDebouncedFunctions</a></li><li data-type='method'><a href="module-core_app-initializer.html#~createForecastHandler">createForecastHandler</a></li><li data-type='method'><a href="module-core_app-initializer.html#~createTestBrowserNotification">createTestBrowserNotification</a></li><li data-type='method'><a href="module-core_app-initializer.html#~exposeGlobalFunctions">exposeGlobalFunctions</a></li><li data-type='method'><a href="module-core_app-initializer.html#~formatNumberWithSeparator">formatNumberWithSeparator</a></li><li data-type='method'><a href="module-core_app-initializer.html#~initializeSettingsUI">initializeSettingsUI</a></li><li data-type='method'><a href="module-core_app-initializer.html#~loadInitialData">loadInitialData</a></li><li data-type='method'><a href="module-core_app-initializer.html#~loadUserSettings">loadUserSettings</a></li><li data-type='method'><a href="module-core_app-initializer.html#~registerAllEventListeners">registerAllEventListeners</a></li><li data-type='method'><a href="module-core_app-initializer.html#~setCheckboxState">setCheckboxState</a></li><li data-type='method'><a href="module-core_app-initializer.html#~setCheckboxValue">setCheckboxValue</a></li><li data-type='method'><a href="module-core_app-initializer.html#~setFormattedInputValue">setFormattedInputValue</a></li><li data-type='method'><a href="module-core_app-initializer.html#~setInputValue">setInputValue</a></li><li data-type='method'><a href="module-core_app-initializer.html#~toggleElementVisibility">toggleElementVisibility</a></li></ul></li><li><a href="module-core_auto-refresh.html">core/auto-refresh</a><ul class='methods'><li data-type='method'><a href="module-core_auto-refresh.html#.getActiveIntervals">getActiveIntervals</a></li><li data-type='method'><a href="module-core_auto-refresh.html#.initNotificationButtonUpdater">initNotificationButtonUpdater</a></li><li data-type='method'><a href="module-core_auto-refresh.html#.initVersionChecker">initVersionChecker</a></li><li data-type='method'><a href="module-core_auto-refresh.html#.initVisibilityHandler">initVisibilityHandler</a></li><li data-type='method'><a href="module-core_auto-refresh.html#.preloadAllImages">preloadAllImages</a></li><li data-type='method'><a href="module-core_auto-refresh.html#.stopAllIntervals">stopAllIntervals</a></li><li data-type='method'><a href="module-core_auto-refresh.html#.stopInterval">stopInterval</a></li></ul></li><li><a href="module-core_badge-cache.html">core/badge-cache</a><ul class='methods'><li data-type='method'><a href="module-core_badge-cache.html#.loadCache">loadCache</a></li><li data-type='method'><a href="module-core_badge-cache.html#.saveBadgeCache">saveBadgeCache</a></li><li data-type='method'><a href="module-core_badge-cache.html#.updateCoopDisplay">updateCoopDisplay</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadBunkerStatus">loadBunkerStatus</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadCampaignsBadge">loadCampaignsBadge</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadCoopData">loadCoopData</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadHijackingBadge">loadHijackingBadge</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadPrices">loadPrices</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadRepairBadges">loadRepairBadges</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadStockAndAnchor">loadStockAndAnchor</a></li><li data-type='method'><a href="module-core_badge-cache.html#~loadVesselBadges">loadVesselBadges</a></li></ul></li><li><a href="module-core_debounced-api.html">core/debounced-api</a><ul class='methods'><li data-type='method'><a href="module-core_debounced-api.html#.cancelAllDebouncedFunctions">cancelAllDebouncedFunctions</a></li><li data-type='method'><a href="module-core_debounced-api.html#.cancelDebouncedFunction">cancelDebouncedFunction</a></li><li data-type='method'><a href="module-core_debounced-api.html#.createDebouncedFunction">createDebouncedFunction</a></li><li data-type='method'><a href="module-core_debounced-api.html#.isDebouncePending">isDebouncePending</a></li></ul></li><li><a href="module-core_event-registry.html">core/event-registry</a><ul class='methods'><li data-type='method'><a href="module-core_event-registry.html#.registerAutoDepartSettingsListeners">registerAutoDepartSettingsListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerAutoPilotFeatureListeners">registerAutoPilotFeatureListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerAutoPilotListeners">registerAutoPilotListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerAutoRebuyCO2Listeners">registerAutoRebuyCO2Listeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerAutoRebuyFuelListeners">registerAutoRebuyFuelListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerBunkerListeners">registerBunkerListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerChatBotSettingsListeners">registerChatBotSettingsListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerChatEventListeners">registerChatEventListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerCustomCommandsListeners">registerCustomCommandsListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerDialogEventListeners">registerDialogEventListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerMessengerEventListeners">registerMessengerEventListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerNotificationPermissionListener">registerNotificationPermissionListener</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerNumberFormatting">registerNumberFormatting</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerSectionToggle">registerSectionToggle</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerSettingsThresholdListeners">registerSettingsThresholdListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#.registerVesselCatalogEventListeners">registerVesselCatalogEventListeners</a></li><li data-type='method'><a href="module-core_event-registry.html#~createCustomCommandElement">createCustomCommandElement</a></li><li data-type='method'><a href="module-core_event-registry.html#~formatNumberWithSeparator">formatNumberWithSeparator</a></li></ul></li><li><a href="module-core_global-exports.html">core/global-exports</a><ul class='methods'><li data-type='method'><a href="module-core_global-exports.html#.exportApiUrl">exportApiUrl</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportAutopilotFunctions">exportAutopilotFunctions</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportCacheKeys">exportCacheKeys</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportDebouncedFunctions">exportDebouncedFunctions</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportDebugMode">exportDebugMode</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportGlobals">exportGlobals</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportLogbookHandler">exportLogbookHandler</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportOverlayFunctions">exportOverlayFunctions</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportSettingsHandler">exportSettingsHandler</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportStorageFunctions">exportStorageFunctions</a></li><li data-type='method'><a href="module-core_global-exports.html#.exportVersionFunctions">exportVersionFunctions</a></li></ul></li><li><a href="module-core_settings-sync.html">core/settings-sync</a><ul class='methods'><li data-type='method'><a href="module-core_settings-sync.html#.handleSettingsUpdate">handleSettingsUpdate</a></li><li data-type='method'><a href="module-core_settings-sync.html#.toggleAutoPilotAgentCheckboxes">toggleAutoPilotAgentCheckboxes</a></li><li data-type='method'><a href="module-core_settings-sync.html#~formatNumberWithSeparator">formatNumberWithSeparator</a></li><li data-type='method'><a href="module-core_settings-sync.html#~updateAutoPilotToggles">updateAutoPilotToggles</a></li><li data-type='method'><a href="module-core_settings-sync.html#~updateAutoRebuyCO2UI">updateAutoRebuyCO2UI</a></li><li data-type='method'><a href="module-core_settings-sync.html#~updateAutoRebuyFuelUI">updateAutoRebuyFuelUI</a></li><li data-type='method'><a href="module-core_settings-sync.html#~updateChatBotSettings">updateChatBotSettings</a></li><li data-type='method'><a href="module-core_settings-sync.html#~updateNotificationSettings">updateNotificationSettings</a></li><li data-type='method'><a href="module-core_settings-sync.html#~updateThresholdInputs">updateThresholdInputs</a></li></ul></li><li><a href="module-core_storage-manager.html">core/storage-manager</a><ul class='methods'><li data-type='method'><a href="module-core_storage-manager.html#.clearUserStorage">clearUserStorage</a></li><li data-type='method'><a href="module-core_storage-manager.html#.getStorage">getStorage</a></li><li data-type='method'><a href="module-core_storage-manager.html#.getUserStorageKey">getUserStorageKey</a></li><li data-type='method'><a href="module-core_storage-manager.html#.getUserStoragePrefix">getUserStoragePrefix</a></li><li data-type='method'><a href="module-core_storage-manager.html#.removeStorage">removeStorage</a></li><li data-type='method'><a href="module-core_storage-manager.html#.setStorage">setStorage</a></li><li data-type='method'><a href="module-core_storage-manager.html#.setUserStoragePrefix">setUserStoragePrefix</a></li></ul></li><li><a href="module-core_websocket-client.html">core/websocket-client</a><ul class='methods'><li data-type='method'><a href="module-core_websocket-client.html#.getWebSocketState">getWebSocketState</a></li><li data-type='method'><a href="module-core_websocket-client.html#.incrementReconnectCounter">incrementReconnectCounter</a></li><li data-type='method'><a href="module-core_websocket-client.html#.initAutopilotControls">initAutopilotControls</a></li><li data-type='method'><a href="module-core_websocket-client.html#.loadAutopilotState">loadAutopilotState</a></li><li data-type='method'><a href="module-core_websocket-client.html#.resetReconnectCounter">resetReconnectCounter</a></li><li data-type='method'><a href="module-core_websocket-client.html#.triggerPriceAlertCheck">triggerPriceAlertCheck</a></li><li data-type='method'><a href="module-core_websocket-client.html#.updateWebSocketState">updateWebSocketState</a></li></ul></li><li><a href="module-depart-manager.html">depart-manager</a><ul class='methods'><li data-type='method'><a href="module-depart-manager.html#.closeDepartManager">closeDepartManager</a></li><li data-type='method'><a href="module-depart-manager.html#.initializeDepartManager">initializeDepartManager</a></li><li data-type='method'><a href="module-depart-manager.html#.openDepartManager">openDepartManager</a></li><li data-type='method'><a href="module-depart-manager.html#.toggleDepartManager">toggleDepartManager</a></li><li data-type='method'><a href="module-depart-manager.html#~departSelectedVessels">departSelectedVessels</a></li><li data-type='method'><a href="module-depart-manager.html#~drag">drag</a></li><li data-type='method'><a href="module-depart-manager.html#~loadDepartableVessels">loadDepartableVessels</a></li><li data-type='method'><a href="module-depart-manager.html#~locateVesselOnMap">locateVesselOnMap</a></li><li data-type='method'><a href="module-depart-manager.html#~selectAllVessels">selectAllVessels</a></li><li data-type='method'><a href="module-depart-manager.html#~selectRouteInMapFilter">selectRouteInMapFilter</a></li><li data-type='method'><a href="module-depart-manager.html#~startDrag">startDrag</a></li><li data-type='method'><a href="module-depart-manager.html#~stopDrag">stopDrag</a></li><li data-type='method'><a href="module-depart-manager.html#~unselectAllVessels">unselectAllVessels</a></li><li data-type='method'><a href="module-depart-manager.html#~updateDepartButtonCount">updateDepartButtonCount</a></li></ul></li><li><a href="module-desktop-notification-templates.html">desktop-notification-templates</a><ul class='methods'><li data-type='method'><a href="module-desktop-notification-templates.html#.createDesktopNotification">createDesktopNotification</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.getDefaultEmoji">getDefaultEmoji</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.getNotificationTypes">getNotificationTypes</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.isValidNotificationType">isValidNotificationType</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifyAlert">notifyAlert</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifyError">notifyError</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifySuccess">notifySuccess</a></li><li data-type='method'><a href="module-desktop-notification-templates.html#.notifyWarning">notifyWarning</a></li></ul></li><li><a href="module-event-info.html">event-info</a><ul class='methods'><li data-type='method'><a href="module-event-info.html#.initEventInfo">initEventInfo</a></li><li data-type='method'><a href="module-event-info.html#.openEventModal">openEventModal</a></li><li data-type='method'><a href="module-event-info.html#.updateEventData">updateEventData</a></li><li data-type='method'><a href="module-event-info.html#~startEventTimer">startEventTimer</a></li></ul></li><li><a href="module-forecast-calendar.html">forecast-calendar</a><ul class='methods'><li data-type='method'><a href="module-forecast-calendar.html#.initForecastCalendar">initForecastCalendar</a></li><li data-type='method'><a href="module-forecast-calendar.html#.updateEventDiscount">updateEventDiscount</a></li><li data-type='method'><a href="module-forecast-calendar.html#~createTableHTML">createTableHTML</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getBrowserTimezone">getBrowserTimezone</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getCo2Class">getCo2Class</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getCurrentVisibleDay">getCurrentVisibleDay</a></li><li data-type='method'><a href="module-forecast-calendar.html#~getFuelClass">getFuelClass</a></li><li data-type='method'><a href="module-forecast-calendar.html#~isEventActiveAtTime">isEventActiveAtTime</a></li><li data-type='method'><a href="module-forecast-calendar.html#~isEventActiveOnDay">isEventActiveOnDay</a></li><li data-type='method'><a href="module-forecast-calendar.html#~loadForecastData">loadForecastData</a></li><li data-type='method'><a href="module-forecast-calendar.html#~preloadMonth">preloadMonth</a></li><li data-type='method'><a href="module-forecast-calendar.html#~renderBook">renderBook</a></li><li data-type='method'><a href="module-forecast-calendar.html#~updateEventBadge">updateEventBadge</a></li></ul></li><li><a href="module-harbor-map-aggregator.html">harbor-map-aggregator</a><ul class='methods'><li data-type='method'><a href="module-harbor-map-aggregator.html#~aggregateReachablePorts">aggregateReachablePorts</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~aggregateVesselData">aggregateVesselData</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~categorizeVesselsByPort">categorizeVesselsByPort</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~extractPortsFromGameIndex">extractPortsFromGameIndex</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~extractVesselsFromGameIndex">extractVesselsFromGameIndex</a></li><li data-type='method'><a href="module-harbor-map-aggregator.html#~filterAssignedPorts">filterAssignedPorts</a></li></ul></li><li><a href="module-harbor-map-calculator.html">harbor-map-calculator</a><ul class='methods'><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateCargoUtilization">calculateCargoUtilization</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateDemandLevel">calculateDemandLevel</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateETA">calculateETA</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~calculateVesselPosition">calculateVesselPosition</a></li><li data-type='method'><a href="module-harbor-map-calculator.html#~formatCargoCapacity">formatCargoCapacity</a></li></ul></li><li><a href="module-harbor-map-init.html">harbor-map-init</a><ul class='methods'><li data-type='method'><a href="module-harbor-map-init.html#.closeHarborMap">closeHarborMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.initHarborMap">initHarborMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.openHarborMap">openHarborMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.preloadHarborMapData">preloadHarborMapData</a></li><li data-type='method'><a href="module-harbor-map-init.html#.refreshHarborMapIfOpen">refreshHarborMapIfOpen</a></li><li data-type='method'><a href="module-harbor-map-init.html#.reloadMap">reloadMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#.startHarborMapAutoUpdate">startHarborMapAutoUpdate</a></li><li data-type='method'><a href="module-harbor-map-init.html#.stopHarborMapAutoUpdate">stopHarborMapAutoUpdate</a></li><li data-type='method'><a href="module-harbor-map-init.html#~departVesselWrapper">departVesselWrapper</a></li><li data-type='method'><a href="module-harbor-map-init.html#~getVesselByIdWrapper">getVesselByIdWrapper</a></li><li data-type='method'><a href="module-harbor-map-init.html#~selectVesselFromMap">selectVesselFromMap</a></li><li data-type='method'><a href="module-harbor-map-init.html#~sellVesselFromPanelWrapper">sellVesselFromPanelWrapper</a></li><li data-type='method'><a href="module-harbor-map-init.html#~updateVesselMarkerWrapper">updateVesselMarkerWrapper</a></li></ul></li><li><a href="module-harbor-map_api-client.html">harbor-map/api-client</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_api-client.html#.clearHarborMapCache">clearHarborMapCache</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.exportVesselHistory">exportVesselHistory</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchHarborMapOverview">fetchHarborMapOverview</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchPortDetails">fetchPortDetails</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchVesselHistory">fetchVesselHistory</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.fetchVesselReachablePorts">fetchVesselReachablePorts</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.getCachedOverview">getCachedOverview</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.invalidateOverviewCache">invalidateOverviewCache</a></li><li data-type='method'><a href="module-harbor-map_api-client.html#.prefetchHarborMapData">prefetchHarborMapData</a></li></ul></li><li><a href="module-harbor-map_filters.html">harbor-map/filters</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_filters.html#.filterPorts">filterPorts</a></li><li data-type='method'><a href="module-harbor-map_filters.html#.filterVessels">filterVessels</a></li><li data-type='method'><a href="module-harbor-map_filters.html#.getPortFilterOptions">getPortFilterOptions</a></li><li data-type='method'><a href="module-harbor-map_filters.html#.getVesselFilterOptions">getVesselFilterOptions</a></li><li data-type='method'><a href="module-harbor-map_filters.html#~calculateVesselUtilization">calculateVesselUtilization</a></li></ul></li><li><a href="module-harbor-map_map-controller.html">harbor-map/map-controller</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_map-controller.html#.clearRoute">clearRoute</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.closeAllPanels">closeAllPanels</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.deselectAll">deselectAll</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.drawRoute">drawRoute</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.getCurrentPorts">getCurrentPorts</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.getMap">getMap</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.getSelectedPortCode">getSelectedPortCode</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.getVesselById">getVesselById</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.initMap">initMap</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.loadOverview">loadOverview</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.renderPorts">renderPorts</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.renderVessels">renderVessels</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.selectPort">selectPort</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.selectVessel">selectVessel</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.setPortFilter">setPortFilter</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.setRouteFilter">setRouteFilter</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.setVesselFilter">setVesselFilter</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.updateVesselMarker">updateVesselMarker</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#.updateWeatherDataSetting">updateWeatherDataSetting</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~addCustomControls">addCustomControls</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~applyFiltersAndRender">applyFiltersAndRender</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~applyMapTheme">applyMapTheme</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~calculateHeading">calculateHeading</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~categorizeVesselsByPortClientSide">categorizeVesselsByPortClientSide</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~changeTileLayer">changeTileLayer</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~createVesselIcon">createVesselIcon</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~getVesselType">getVesselType</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~hideRouteVesselsPanel">hideRouteVesselsPanel</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~showRouteVesselsPanel">showRouteVesselsPanel</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~showWeatherInfo">showWeatherInfo</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~toggleWeatherLayer">toggleWeatherLayer</a></li><li data-type='method'><a href="module-harbor-map_map-controller.html#~updateRouteDropdown">updateRouteDropdown</a></li></ul></li><li><a href="module-harbor-map_panel-drag.html">harbor-map/panel-drag</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_panel-drag.html#.initializePanelDrag">initializePanelDrag</a></li></ul></li><li><a href="module-harbor-map_port-panel.html">harbor-map/port-panel</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_port-panel.html#.closePortPanel">closePortPanel</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#.hidePortPanel">hidePortPanel</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#.selectVesselFromPort">selectVesselFromPort</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#.showPortPanel">showPortPanel</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#~loadPortWeather">loadPortWeather</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#~renderDemandSection">renderDemandSection</a></li><li data-type='method'><a href="module-harbor-map_port-panel.html#~renderVesselList">renderVesselList</a></li></ul></li><li><a href="module-harbor-map_route-vessels-panel.html">harbor-map/route-vessels-panel</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.closeRoutePanel">closeRoutePanel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.hideRoutePanel">hideRoutePanel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.selectRouteVessel">selectRouteVessel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#.showRoutePanel">showRoutePanel</a></li><li data-type='method'><a href="module-harbor-map_route-vessels-panel.html#~storeVessels">storeVessels</a></li></ul></li><li><a href="module-harbor-map_vessel-panel.html">harbor-map/vessel-panel</a><ul class='methods'><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.closeVesselPanel">closeVesselPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.departVessel">departVessel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.exportHistoryFormat">exportHistoryFormat</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.hideVesselPanel">hideVesselPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.sellVesselFromPanel">sellVesselFromPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.showVesselPanel">showVesselPanel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.startRenameVessel">startRenameVessel</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#.toggleExportMenu">toggleExportMenu</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~cancelVesselRename">cancelVesselRename</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~closeExportMenuOnClickOutside">closeExportMenuOnClickOutside</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~getCountryFlag">getCountryFlag</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~getPortCountryCode">getPortCountryCode</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~loadVesselHistory">loadVesselHistory</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~loadVesselWeather">loadVesselWeather</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~openRepairDialog">openRepairDialog</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~processDepartureQueue">processDepartureQueue</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~renderHistoryPage">renderHistoryPage</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~saveVesselRename">saveVesselRename</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~setupInfiniteScroll">setupInfiniteScroll</a></li><li data-type='method'><a href="module-harbor-map_vessel-panel.html#~toggleParkVessel">toggleParkVessel</a></li></ul></li><li><a href="module-logbook.html">logbook</a><ul class='methods'><li data-type='method'><a href="module-logbook.html#.deleteAllLogsConfirmed">deleteAllLogsConfirmed</a></li><li data-type='method'><a href="module-logbook.html#.getLogFileSize">getLogFileSize</a></li><li data-type='method'><a href="module-logbook.html#.initLogbook">initLogbook</a></li><li data-type='method'><a href="module-logbook.html#.prependLogEntry">prependLogEntry</a></li><li data-type='method'><a href="module-logbook.html#~applyFiltersToEntries">applyFiltersToEntries</a></li><li data-type='method'><a href="module-logbook.html#~convertActionFilterToBackend">convertActionFilterToBackend</a></li><li data-type='method'><a href="module-logbook.html#~createLogEntryHTML">createLogEntryHTML</a></li><li data-type='method'><a href="module-logbook.html#~exportLogs">exportLogs</a></li><li data-type='method'><a href="module-logbook.html#~formatDetails">formatDetails</a></li><li data-type='method'><a href="module-logbook.html#~formatTimestamp">formatTimestamp</a></li><li data-type='method'><a href="module-logbook.html#~getTransactionType">getTransactionType</a></li><li data-type='method'><a href="module-logbook.html#~loadLogs">loadLogs</a></li><li data-type='method'><a href="module-logbook.html#~renderLogPage">renderLogPage</a></li><li data-type='method'><a href="module-logbook.html#~renderLogTable">renderLogTable</a></li><li data-type='method'><a href="module-logbook.html#~setupEventListeners">setupEventListeners</a></li><li data-type='method'><a href="module-logbook.html#~updateActionFilter">updateActionFilter</a></li><li data-type='method'><a href="module-logbook.html#~updateLogCount">updateLogCount</a></li></ul></li><li><a href="module-map-icon-bar.html">map-icon-bar</a><ul class='methods'><li data-type='method'><a href="module-map-icon-bar.html#.initializeMapIconBar">initializeMapIconBar</a></li><li data-type='method'><a href="module-map-icon-bar.html#~handleIconAction">handleIconAction</a></li></ul></li><li><a href="module-messenger.html">messenger</a><ul class='methods'><li data-type='method'><a href="module-messenger.html#.closeAllChats">closeAllChats</a></li><li data-type='method'><a href="module-messenger.html#.closeChatSelection">closeChatSelection</a></li><li data-type='method'><a href="module-messenger.html#.openMessenger">openMessenger</a></li><li data-type='method'><a href="module-messenger.html#.openNewChat">openNewChat</a></li><li data-type='method'><a href="module-messenger.html#.showAllChats">showAllChats</a></li><li data-type='method'><a href="module-messenger.html#.updateUnreadBadge">updateUnreadBadge</a></li><li data-type='method'><a href="module-messenger.html#~formatTimestamp">formatTimestamp</a></li><li data-type='method'><a href="module-messenger.html#~loadPrivateMessages">loadPrivateMessages</a></li><li data-type='method'><a href="module-messenger.html#~stopHijackingPolling">stopHijackingPolling</a></li></ul></li><li><a href="module-public_js_modules_hijacking.html">public/js/modules/hijacking</a><ul class='methods'><li data-type='method'><a href="module-public_js_modules_hijacking.html#.closeHijackingInbox">closeHijackingInbox</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#.openHijackingInbox">openHijackingInbox</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#.updateHijackedVesselsDisplay">updateHijackedVesselsDisplay</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#.updateHijackingBadge">updateHijackingBadge</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~deleteCase">deleteCase</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~escapeHtml">escapeHtml</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~formatTimestamp">formatTimestamp</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~openCaseDetails">openCaseDetails</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~refreshHijackingBadge">refreshHijackingBadge</a></li><li data-type='method'><a href="module-public_js_modules_hijacking.html#~renderCaseList">renderCaseList</a></li></ul></li><li><a href="module-server_automation.html">server/automation</a><ul class='methods'><li data-type='method'><a href="module-server_automation.html#~getRandomInterval">getRandomInterval</a></li><li data-type='method'><a href="module-server_automation.html#~initialize">initialize</a></li><li data-type='method'><a href="module-server_automation.html#~loadSettings">loadSettings</a></li><li data-type='method'><a href="module-server_automation.html#~parseInterval">parseInterval</a></li><li data-type='method'><a href="module-server_automation.html#~restartAutoRepair">restartAutoRepair</a></li><li data-type='method'><a href="module-server_automation.html#~runAutoRepair">runAutoRepair</a></li><li data-type='method'><a href="module-server_automation.html#~scheduleAutoRepair">scheduleAutoRepair</a></li></ul></li><li><a href="module-server_autopilot.html">server/autopilot</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot.html#~analyzeVesselDepartures">analyzeVesselDepartures</a></li><li data-type='method'><a href="module-server_autopilot.html#~autoRebuyAll">autoRebuyAll</a></li><li data-type='method'><a href="module-server_autopilot.html#~checkPriceAlerts">checkPriceAlerts</a></li><li data-type='method'><a href="module-server_autopilot.html#~countActiveCampaignTypes">countActiveCampaignTypes</a></li><li data-type='method'><a href="module-server_autopilot.html#~initializeAutopilotState">initializeAutopilotState</a></li><li data-type='method'><a href="module-server_autopilot.html#~isAutopilotPaused">isAutopilotPaused</a></li><li data-type='method'><a href="module-server_autopilot.html#~mainEventLoop">mainEventLoop</a></li><li data-type='method'><a href="module-server_autopilot.html#~pauseAutopilot">pauseAutopilot</a></li><li data-type='method'><a href="module-server_autopilot.html#~resumeAutopilot">resumeAutopilot</a></li><li data-type='method'><a href="module-server_autopilot.html#~setBroadcastFunction">setBroadcastFunction</a></li><li data-type='method'><a href="module-server_autopilot.html#~startMainEventLoop">startMainEventLoop</a></li><li data-type='method'><a href="module-server_autopilot.html#~tryUpdateAllData">tryUpdateAllData</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateAllData">updateAllData</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateCampaigns">updateCampaigns</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateDrydockCount">updateDrydockCount</a></li><li data-type='method'><a href="module-server_autopilot.html#~updatePrices">updatePrices</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateRepairCount">updateRepairCount</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateUnreadMessages">updateUnreadMessages</a></li><li data-type='method'><a href="module-server_autopilot.html#~updateVesselCount">updateVesselCount</a></li></ul></li><li><a href="module-server_autopilot_pilot_atmosphere_broker.html">server/autopilot/pilot_atmosphere_broker</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_atmosphere_broker.html#~autoRebuyCO2">autoRebuyCO2</a></li></ul></li><li><a href="module-server_autopilot_pilot_barrel_boss.html">server/autopilot/pilot_barrel_boss</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_barrel_boss.html#~autoRebuyFuel">autoRebuyFuel</a></li></ul></li><li><a href="module-server_autopilot_pilot_captain_blackbeard.html">server/autopilot/pilot_captain_blackbeard</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~acceptRansomWithRetry">acceptRansomWithRetry</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~autoNegotiateHijacking">autoNegotiateHijacking</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~getCaseWithRetry">getCaseWithRetry</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~processHijackingCase">processHijackingCase</a></li><li data-type='method'><a href="module-server_autopilot_pilot_captain_blackbeard.html#~submitOfferWithRetry">submitOfferWithRetry</a></li></ul></li><li><a href="module-server_autopilot_pilot_cargo_marshal.html">server/autopilot/pilot_cargo_marshal</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~autoDepartVessels">autoDepartVessels</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~calculateRemainingDemand">calculateRemainingDemand</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~departVessels">departVessels</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~getTotalCapacity">getTotalCapacity</a></li><li data-type='method'><a href="module-server_autopilot_pilot_cargo_marshal.html#~resetFuelFailedCacheIfIncreased">resetFuelFailedCacheIfIncreased</a></li></ul></li><li><a href="module-server_autopilot_pilot_drydock_master.html">server/autopilot/pilot_drydock_master</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_drydock_master.html#~autoDrydockVessels">autoDrydockVessels</a></li></ul></li><li><a href="module-server_autopilot_pilot_fair_hand.html">server/autopilot/pilot_fair_hand</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_fair_hand.html#~autoCoop">autoCoop</a></li></ul></li><li><a href="module-server_autopilot_pilot_harbormaster.html">server/autopilot/pilot_harbormaster</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_harbormaster.html#~autoAnchorPointPurchase">autoAnchorPointPurchase</a></li><li data-type='method'><a href="module-server_autopilot_pilot_harbormaster.html#~setBroadcastFunction">setBroadcastFunction</a></li></ul></li><li><a href="module-server_autopilot_pilot_reputation_chief.html">server/autopilot/pilot_reputation_chief</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_reputation_chief.html#~autoCampaignRenewal">autoCampaignRenewal</a></li></ul></li><li><a href="module-server_autopilot_pilot_yard_foreman.html">server/autopilot/pilot_yard_foreman</a><ul class='methods'><li data-type='method'><a href="module-server_autopilot_pilot_yard_foreman.html#~autoRepairVessels">autoRepairVessels</a></li></ul></li><li><a href="module-server_cache.html">server/cache</a><ul class='methods'><li data-type='method'><a href="module-server_cache.html#~clearAllCaches">clearAllCaches</a></li><li data-type='method'><a href="module-server_cache.html#~getAllianceCache">getAllianceCache</a></li><li data-type='method'><a href="module-server_cache.html#~getCampaignCache">getCampaignCache</a></li><li data-type='method'><a href="module-server_cache.html#~getCompanyCache">getCompanyCache</a></li><li data-type='method'><a href="module-server_cache.html#~getCoopCache">getCoopCache</a></li><li data-type='method'><a href="module-server_cache.html#~invalidateCampaignCache">invalidateCampaignCache</a></li><li data-type='method'><a href="module-server_cache.html#~invalidateCoopCache">invalidateCoopCache</a></li><li data-type='method'><a href="module-server_cache.html#~isCacheValid">isCacheValid</a></li><li data-type='method'><a href="module-server_cache.html#~setAllianceCache">setAllianceCache</a></li><li data-type='method'><a href="module-server_cache.html#~setCampaignCache">setCampaignCache</a></li><li data-type='method'><a href="module-server_cache.html#~setCompanyCache">setCompanyCache</a></li><li data-type='method'><a href="module-server_cache.html#~setCoopCache">setCoopCache</a></li></ul></li><li><a href="module-server_certificate.html">server/certificate</a><ul class='methods'><li data-type='method'><a href="module-server_certificate.html#~createHttpsServer">createHttpsServer</a></li><li data-type='method'><a href="module-server_certificate.html#~generateCA">generateCA</a></li><li data-type='method'><a href="module-server_certificate.html#~generateCertificate">generateCertificate</a></li><li data-type='method'><a href="module-server_certificate.html#~getNetworkIPs">getNetworkIPs</a></li><li data-type='method'><a href="module-server_certificate.html#~isCertificateInstalled">isCertificateInstalled</a></li><li data-type='method'><a href="module-server_certificate.html#~loadCertificate">loadCertificate</a></li></ul></li><li><a href="module-server_chatbot.html">server/chatbot</a></li><li><a href="module-server_chatbot_commands.html">server/chatbot/commands</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot_commands.html#~generateForecastText">generateForecastText</a></li><li data-type='method'><a href="module-server_chatbot_commands.html#~handleForecastCommand">handleForecastCommand</a></li><li data-type='method'><a href="module-server_chatbot_commands.html#~handleHelpCommand">handleHelpCommand</a></li><li data-type='method'><a href="module-server_chatbot_commands.html#~handleWelcomeCommand">handleWelcomeCommand</a></li></ul></li><li><a href="module-server_chatbot_executor.html">server/chatbot/executor</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot_executor.html#~executeCommand">executeCommand</a></li></ul></li><li><a href="module-server_chatbot_parser.html">server/chatbot/parser</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot_parser.html#~findCustomCommand">findCustomCommand</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~hasManagementRole">hasManagementRole</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~isCommandAllowedInChannel">isCommandAllowedInChannel</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~isOnCooldown">isOnCooldown</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~processAllianceMessage">processAllianceMessage</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~processPrivateMessage">processPrivateMessage</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~resolveCommandName">resolveCommandName</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~updateCooldown">updateCooldown</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~validateCommandArguments">validateCommandArguments</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~validateForecastArguments">validateForecastArguments</a></li><li data-type='method'><a href="module-server_chatbot_parser.html#~validateWelcomeArguments">validateWelcomeArguments</a></li></ul></li><li><a href="module-server_chatbot_scheduler.html">server/chatbot/scheduler</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot_scheduler.html#~scheduleDailyForecast">scheduleDailyForecast</a></li><li data-type='method'><a href="module-server_chatbot_scheduler.html#~sendDailyForecast">sendDailyForecast</a></li><li data-type='method'><a href="module-server_chatbot_scheduler.html#~setupScheduledTasks">setupScheduledTasks</a></li></ul></li><li><a href="module-server_chatbot_sender.html">server/chatbot/sender</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot_sender.html#~sendAllianceMessage">sendAllianceMessage</a></li><li data-type='method'><a href="module-server_chatbot_sender.html#~sendErrorMessage">sendErrorMessage</a></li><li data-type='method'><a href="module-server_chatbot_sender.html#~sendPrivateMessage">sendPrivateMessage</a></li><li data-type='method'><a href="module-server_chatbot_sender.html#~sendResponse">sendResponse</a></li></ul></li><li><a href="module-server_chatbot_settings.html">server/chatbot/settings</a><ul class='methods'><li data-type='method'><a href="module-server_chatbot_settings.html#~getDefaultChatBotObject">getDefaultChatBotObject</a></li><li data-type='method'><a href="module-server_chatbot_settings.html#~hasManagementRole">hasManagementRole</a></li><li data-type='method'><a href="module-server_chatbot_settings.html#~loadSettings">loadSettings</a></li><li data-type='method'><a href="module-server_chatbot_settings.html#~mapChatBotObjectToFlatSettings">mapChatBotObjectToFlatSettings</a></li><li data-type='method'><a href="module-server_chatbot_settings.html#~mapSettingsToChatBotObject">mapSettingsToChatBotObject</a></li><li data-type='method'><a href="module-server_chatbot_settings.html#~updateSettings">updateSettings</a></li></ul></li><li><a href="module-server_config.html">server/config</a><ul class='methods'><li data-type='method'><a href="module-server_config.html#~getAppDataDir">getAppDataDir</a></li><li data-type='method'><a href="module-server_config.html#~getAppPlatformCookie">getAppPlatformCookie</a></li><li data-type='method'><a href="module-server_config.html#~getAppVersionCookie">getAppVersionCookie</a></li><li data-type='method'><a href="module-server_config.html#~getLocalAppDataDir">getLocalAppDataDir</a></li><li data-type='method'><a href="module-server_config.html#~getLogDir">getLogDir</a></li><li data-type='method'><a href="module-server_config.html#~getSessionCookie">getSessionCookie</a></li><li data-type='method'><a href="module-server_config.html#~getSettingsDir">getSettingsDir</a></li><li data-type='method'><a href="module-server_config.html#~loadStartupSettings">loadStartupSettings</a></li><li data-type='method'><a href="module-server_config.html#~setSessionCookie">setSessionCookie</a></li></ul></li><li><a href="module-server_gameapi.html">server/gameapi</a></li><li><a href="module-server_gameapi_alliance.html">server/gameapi/alliance</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_alliance.html#~fetchUserContribution">fetchUserContribution</a></li></ul></li><li><a href="module-server_gameapi_bunker.html">server/gameapi/bunker</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_bunker.html#~fetchBunkerState">fetchBunkerState</a></li><li data-type='method'><a href="module-server_gameapi_bunker.html#~fetchPrices">fetchPrices</a></li><li data-type='method'><a href="module-server_gameapi_bunker.html#~purchaseCO2">purchaseCO2</a></li><li data-type='method'><a href="module-server_gameapi_bunker.html#~purchaseFuel">purchaseFuel</a></li></ul></li><li><a href="module-server_gameapi_campaign.html">server/gameapi/campaign</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_campaign.html#~activateCampaign">activateCampaign</a></li><li data-type='method'><a href="module-server_gameapi_campaign.html#~fetchCampaigns">fetchCampaigns</a></li></ul></li><li><a href="module-server_gameapi_maintenance.html">server/gameapi/maintenance</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_maintenance.html#~bulkRepairVessels">bulkRepairVessels</a></li><li data-type='method'><a href="module-server_gameapi_maintenance.html#~fetchRepairCount">fetchRepairCount</a></li><li data-type='method'><a href="module-server_gameapi_maintenance.html#~getMaintenanceCost">getMaintenanceCost</a></li></ul></li><li><a href="module-server_gameapi_port.html">server/gameapi/port</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_port.html#~fetchAssignedPorts">fetchAssignedPorts</a></li><li data-type='method'><a href="module-server_gameapi_port.html#~fetchAutoPrice">fetchAutoPrice</a></li><li data-type='method'><a href="module-server_gameapi_port.html#~getAssignedPorts">getAssignedPorts</a></li><li data-type='method'><a href="module-server_gameapi_port.html#~getRoutesByPorts">getRoutesByPorts</a></li><li data-type='method'><a href="module-server_gameapi_port.html#~getVesselPorts">getVesselPorts</a></li></ul></li><li><a href="module-server_gameapi_util.html">server/gameapi/util</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_util.html#~fetchEventData">fetchEventData</a></li><li data-type='method'><a href="module-server_gameapi_util.html#~fetchUnreadMessages">fetchUnreadMessages</a></li><li data-type='method'><a href="module-server_gameapi_util.html#~getGameIndex">getGameIndex</a></li></ul></li><li><a href="module-server_gameapi_vessel.html">server/gameapi/vessel</a><ul class='methods'><li data-type='method'><a href="module-server_gameapi_vessel.html#~departVessel">departVessel</a></li><li data-type='method'><a href="module-server_gameapi_vessel.html#~fetchVessels">fetchVessels</a></li><li data-type='method'><a href="module-server_gameapi_vessel.html#~getAllUserVessels">getAllUserVessels</a></li><li data-type='method'><a href="module-server_gameapi_vessel.html#~getVesselHistory">getVesselHistory</a></li></ul></li><li><a href="module-server_middleware_index.html">server/middleware/index</a><ul class='methods'><li data-type='method'><a href="module-server_middleware_index.html#~setupMiddleware">setupMiddleware</a></li></ul></li><li><a href="module-server_routes_alliance.html">server/routes/alliance</a><ul class='methods'><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-high-scores">GET /api/alliance-high-scores</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-info">GET /api/alliance-info</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-info/:id">GET /api/alliance-info/:id</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-members">GET /api/alliance-members</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-members/:id">GET /api/alliance-members/:id</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/alliance-settings">GET /api/alliance-settings</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/chat">GET /api/chat</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.GET/api/league-info">GET /api/league-info</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/alliance-accept-user">POST /api/alliance-accept-user</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/alliance-decline-user">POST /api/alliance-decline-user</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/alliance-leave">POST /api/alliance-leave</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/alliance-queue-pool">POST /api/alliance-queue-pool</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/alliance-update-user-role">POST /api/alliance-update-user-role</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/chat/mark-read">POST /api/chat/mark-read</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/company-name">POST /api/company-name</a></li><li data-type='method'><a href="module-server_routes_alliance.html#.POST/api/send-message">POST /api/send-message</a></li></ul></li><li><a href="module-server_routes_alliance-logo.html">server/routes/alliance-logo</a></li><li><a href="module-server_routes_alliances.html">server/routes/alliances</a></li><li><a href="module-server_routes_anchor.html">server/routes/anchor</a></li><li><a href="module-server_routes_coop.html">server/routes/coop</a><ul class='methods'><li data-type='method'><a href="module-server_routes_coop.html#.GET/api/coop/data">GET /api/coop/data</a></li><li data-type='method'><a href="module-server_routes_coop.html#.POST/api/coop/send-max">POST /api/coop/send-max</a></li></ul></li><li><a href="module-server_routes_forecast.html">server/routes/forecast</a><ul class='methods'><li data-type='method'><a href="module-server_routes_forecast.html#~convertCESTToTimezone">convertCESTToTimezone</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~generateChatbotText">generateChatbotText</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~generateMetadata">generateMetadata</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getForecastDataPath">getForecastDataPath</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getNextDayData">getNextDayData</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getPreviousDayData">getPreviousDayData</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getServerLocalTimezone">getServerLocalTimezone</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getTimezoneOffsetHours">getTimezoneOffsetHours</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~getValidTimezones">getValidTimezones</a></li><li data-type='method'><a href="module-server_routes_forecast.html#~parseNumericOffset">parseNumericOffset</a></li></ul></li><li><a href="module-server_routes_game.html">server/routes/game</a></li><li><a href="module-server_routes_game_autopilot.html">server/routes/game/autopilot</a></li><li><a href="module-server_routes_game_bunker.html">server/routes/game/bunker</a></li><li><a href="module-server_routes_game_depart.html">server/routes/game/depart</a></li><li><a href="module-server_routes_game_maintenance.html">server/routes/game/maintenance</a></li><li><a href="module-server_routes_game_marketing.html">server/routes/game/marketing</a></li><li><a href="module-server_routes_game_user.html">server/routes/game/user</a><ul class='methods'><li data-type='method'><a href="module-server_routes_game_user.html#~compareVersions">compareVersions</a></li></ul></li><li><a href="module-server_routes_game_vessel.html">server/routes/game/vessel</a></li><li><a href="module-server_routes_harbor-map.html">server/routes/harbor-map</a><ul class='methods'><li data-type='method'><a href="module-server_routes_harbor-map.html#~escapeCSVFormula">escapeCSVFormula</a></li><li data-type='method'><a href="module-server_routes_harbor-map.html#~formatHistoryAsTXT">formatHistoryAsTXT</a></li><li data-type='method'><a href="module-server_routes_harbor-map.html#~getGameIndexCached">getGameIndexCached</a></li></ul></li><li><a href="module-server_routes_health.html">server/routes/health</a></li><li><a href="module-server_routes_messenger.html">server/routes/messenger</a><ul class='methods'><li data-type='method'><a href="module-server_routes_messenger.html#.GET/api/contact/get-contacts">GET /api/contact/get-contacts</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.GET/api/hijacking/get-cases">GET /api/hijacking/get-cases</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.GET/api/messenger/get-chats">GET /api/messenger/get-chats</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/messenger/delete-chat">POST /api/messenger/delete-chat</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/messenger/get-messages">POST /api/messenger/get-messages</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/messenger/send-private">POST /api/messenger/send-private</a></li><li data-type='method'><a href="module-server_routes_messenger.html#.POST/api/user/search">POST /api/user/search</a></li><li data-type='method'><a href="module-server_routes_messenger.html#~ensureHijackHistoryDir">ensureHijackHistoryDir</a></li></ul></li><li><a href="module-server_routes_poi.html">server/routes/poi</a><ul class='methods'><li data-type='method'><a href="module-server_routes_poi.html#~ensureCacheDir">ensureCacheDir</a></li><li data-type='method'><a href="module-server_routes_poi.html#~fetchAllMuseumsFromAPI">fetchAllMuseumsFromAPI</a></li><li data-type='method'><a href="module-server_routes_poi.html#~fetchAllWrecksFromAPI">fetchAllWrecksFromAPI</a></li><li data-type='method'><a href="module-server_routes_poi.html#~filterPOIsByBbox">filterPOIsByBbox</a></li><li data-type='method'><a href="module-server_routes_poi.html#~initializePOICache">initializePOICache</a></li><li data-type='method'><a href="module-server_routes_poi.html#~isCacheValid">isCacheValid</a></li><li data-type='method'><a href="module-server_routes_poi.html#~loadFromCache">loadFromCache</a></li><li data-type='method'><a href="module-server_routes_poi.html#~reduceWreckData">reduceWreckData</a></li><li data-type='method'><a href="module-server_routes_poi.html#~saveToCache">saveToCache</a></li><li data-type='method'><a href="module-server_routes_poi.html#~startAutomaticCacheRefresh">startAutomaticCacheRefresh</a></li></ul></li><li><a href="module-server_routes_settings.html">server/routes/settings</a><ul class='methods'><li data-type='method'><a href="module-server_routes_settings.html#.GET/api/settings">GET /api/settings</a></li><li data-type='method'><a href="module-server_routes_settings.html#.POST/api/settings">POST /api/settings</a></li></ul></li><li><a href="module-server_routes_staff.html">server/routes/staff</a></li><li><a href="module-server_routes_vessel-image.html">server/routes/vessel-image</a></li><li><a href="module-server_scheduler.html">server/scheduler</a><ul class='methods'><li data-type='method'><a href="module-server_scheduler.html#~initScheduler">initScheduler</a></li><li data-type='method'><a href="module-server_scheduler.html#~isServerReady">isServerReady</a></li></ul></li><li><a href="module-server_services_alliance-indexer.html">server/services/alliance-indexer</a></li><li><a href="module-server_settings-schema.html">server/settings-schema</a><ul class='methods'><li data-type='method'><a href="module-server_settings-schema.html#~getDefault">getDefault</a></li><li data-type='method'><a href="module-server_settings-schema.html#~getDefaults">getDefaults</a></li><li data-type='method'><a href="module-server_settings-schema.html#~getRequiredKeys">getRequiredKeys</a></li><li data-type='method'><a href="module-server_settings-schema.html#~getSettingsFilePath">getSettingsFilePath</a></li><li data-type='method'><a href="module-server_settings-schema.html#~initializeSettings">initializeSettings</a></li><li data-type='method'><a href="module-server_settings-schema.html#~saveSettings">saveSettings</a></li><li data-type='method'><a href="module-server_settings-schema.html#~validateSettings">validateSettings</a></li><li data-type='method'><a href="module-server_settings-schema.html#~validateValue">validateValue</a></li></ul></li><li><a href="module-server_state.html">server/state</a><ul class='methods'><li data-type='method'><a href="module-server_state.html#~getAllLocks">getAllLocks</a></li><li data-type='method'><a href="module-server_state.html#~getAutopilotState">getAutopilotState</a></li><li data-type='method'><a href="module-server_state.html#~getBunkerState">getBunkerState</a></li><li data-type='method'><a href="module-server_state.html#~getCampaignStatus">getCampaignStatus</a></li><li data-type='method'><a href="module-server_state.html#~getCoopData">getCoopData</a></li><li data-type='method'><a href="module-server_state.html#~getDrydockCount">getDrydockCount</a></li><li data-type='method'><a href="module-server_state.html#~getEventData">getEventData</a></li><li data-type='method'><a href="module-server_state.html#~getHeaderData">getHeaderData</a></li><li data-type='method'><a href="module-server_state.html#~getLastCO2Alert">getLastCO2Alert</a></li><li data-type='method'><a href="module-server_state.html#~getLastFuelAlert">getLastFuelAlert</a></li><li data-type='method'><a href="module-server_state.html#~getLockStatus">getLockStatus</a></li><li data-type='method'><a href="module-server_state.html#~getPrices">getPrices</a></li><li data-type='method'><a href="module-server_state.html#~getRepairCount">getRepairCount</a></li><li data-type='method'><a href="module-server_state.html#~getSettings">getSettings</a></li><li data-type='method'><a href="module-server_state.html#~getUserState">getUserState</a></li><li data-type='method'><a href="module-server_state.html#~getVesselCounts">getVesselCounts</a></li><li data-type='method'><a href="module-server_state.html#~isAutopilotPaused">isAutopilotPaused</a></li><li data-type='method'><a href="module-server_state.html#~setAutopilotPaused">setAutopilotPaused</a></li><li data-type='method'><a href="module-server_state.html#~setAutopilotState">setAutopilotState</a></li><li data-type='method'><a href="module-server_state.html#~setLastCO2Alert">setLastCO2Alert</a></li><li data-type='method'><a href="module-server_state.html#~setLastFuelAlert">setLastFuelAlert</a></li><li data-type='method'><a href="module-server_state.html#~setLockStatus">setLockStatus</a></li><li data-type='method'><a href="module-server_state.html#~updateBunkerState">updateBunkerState</a></li><li data-type='method'><a href="module-server_state.html#~updateCampaignStatus">updateCampaignStatus</a></li><li data-type='method'><a href="module-server_state.html#~updateCoopData">updateCoopData</a></li><li data-type='method'><a href="module-server_state.html#~updateDrydockCount">updateDrydockCount</a></li><li data-type='method'><a href="module-server_state.html#~updateEventData">updateEventData</a></li><li data-type='method'><a href="module-server_state.html#~updateHeaderData">updateHeaderData</a></li><li data-type='method'><a href="module-server_state.html#~updatePrices">updatePrices</a></li><li data-type='method'><a href="module-server_state.html#~updateRepairCount">updateRepairCount</a></li><li data-type='method'><a href="module-server_state.html#~updateSettings">updateSettings</a></li><li data-type='method'><a href="module-server_state.html#~updateVesselCounts">updateVesselCounts</a></li></ul></li><li><a href="module-server_utils_api.html">server/utils/api</a><ul class='methods'><li data-type='method'><a href="module-server_utils_api.html#~apiCall">apiCall</a></li><li data-type='method'><a href="module-server_utils_api.html#~apiCallWithRetry">apiCallWithRetry</a></li><li data-type='method'><a href="module-server_utils_api.html#~checkAndUpdateAllianceId">checkAndUpdateAllianceId</a></li><li data-type='method'><a href="module-server_utils_api.html#~getAllianceId">getAllianceId</a></li><li data-type='method'><a href="module-server_utils_api.html#~getAllianceName">getAllianceName</a></li><li data-type='method'><a href="module-server_utils_api.html#~getChatFeed">getChatFeed</a></li><li data-type='method'><a href="module-server_utils_api.html#~getCompanyName">getCompanyName</a></li><li data-type='method'><a href="module-server_utils_api.html#~getUserCompanyName">getUserCompanyName</a></li><li data-type='method'><a href="module-server_utils_api.html#~getUserId">getUserId</a></li><li data-type='method'><a href="module-server_utils_api.html#~initializeAlliance">initializeAlliance</a></li><li data-type='method'><a href="module-server_utils_api.html#~setAllianceId">setAllianceId</a></li><li data-type='method'><a href="module-server_utils_api.html#~sleep">sleep</a></li></ul></li><li><a href="module-server_utils_audit-logger.html">server/utils/audit-logger</a><ul class='methods'><li data-type='method'><a href="module-server_utils_audit-logger.html#~auditLog">auditLog</a></li><li data-type='method'><a href="module-server_utils_audit-logger.html#~formatCurrency">formatCurrency</a></li><li data-type='method'><a href="module-server_utils_audit-logger.html#~formatNumber">formatNumber</a></li></ul></li><li><a href="module-server_utils_contribution-store.html">server/utils/contribution-store</a><ul class='methods'><li data-type='method'><a href="module-server_utils_contribution-store.html#~enrichHistoryWithContributions">enrichHistoryWithContributions</a></li><li data-type='method'><a href="module-server_utils_contribution-store.html#~ensureDirectory">ensureDirectory</a></li><li data-type='method'><a href="module-server_utils_contribution-store.html#~getContributionGain">getContributionGain</a></li><li data-type='method'><a href="module-server_utils_contribution-store.html#~getFilePath">getFilePath</a></li><li data-type='method'><a href="module-server_utils_contribution-store.html#~loadContributionGains">loadContributionGains</a></li><li data-type='method'><a href="module-server_utils_contribution-store.html#~saveContributionGain">saveContributionGain</a></li></ul></li><li><a href="module-server_utils_encryption.html">server/utils/encryption</a><ul class='methods'><li data-type='method'><a href="module-server_utils_encryption.html#~decryptData">decryptData</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~deleteEncryptedData">deleteEncryptedData</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~encryptData">encryptData</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~getEncryptionInfo">getEncryptionInfo</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~getMachineKey">getMachineKey</a></li><li data-type='method'><a href="module-server_utils_encryption.html#~isEncrypted">isEncrypted</a></li></ul></li><li><a href="module-server_utils_fuel-calculator.html">server/utils/fuel-calculator</a><ul class='methods'><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~addCustomVesselFuelData">addCustomVesselFuelData</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~calculateFuelConsumption">calculateFuelConsumption</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~getFuelConsumptionDisplay">getFuelConsumptionDisplay</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~getVesselFuelData">getVesselFuelData</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~loadCustomFuelData">loadCustomFuelData</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~loadShopFuelData">loadShopFuelData</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~reloadCustomFuelData">reloadCustomFuelData</a></li><li data-type='method'><a href="module-server_utils_fuel-calculator.html#~removeCustomVesselFuelData">removeCustomVesselFuelData</a></li></ul></li><li><a href="module-server_utils_harbor-fee-store.html">server/utils/harbor-fee-store</a><ul class='methods'><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~enrichHistoryWithFees">enrichHistoryWithFees</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~ensureDirectory">ensureDirectory</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~getFilePath">getFilePath</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~getHarborFee">getHarborFee</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~isMigrationCompleted">isMigrationCompleted</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~loadHarborFees">loadHarborFees</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~markMigrationCompleted">markMigrationCompleted</a></li><li data-type='method'><a href="module-server_utils_harbor-fee-store.html#~saveHarborFee">saveHarborFee</a></li></ul></li><li><a href="module-server_utils_logger.html">server/utils/logger</a><ul class='methods'><li data-type='method'><a href="module-server_utils_logger.html#~debug">debug</a></li><li data-type='method'><a href="module-server_utils_logger.html#~error">error</a></li><li data-type='method'><a href="module-server_utils_logger.html#~info">info</a></li><li data-type='method'><a href="module-server_utils_logger.html#~isDebugMode">isDebugMode</a></li><li data-type='method'><a href="module-server_utils_logger.html#~loadLogLevel">loadLogLevel</a></li><li data-type='method'><a href="module-server_utils_logger.html#~warn">warn</a></li></ul></li><li><a href="module-server_utils_migrate-harbor-fees.html">server/utils/migrate-harbor-fees</a><ul class='methods'><li data-type='method'><a href="module-server_utils_migrate-harbor-fees.html#~migrateAllHarborFees">migrateAllHarborFees</a></li><li data-type='method'><a href="module-server_utils_migrate-harbor-fees.html#~migrateHarborFeesForUser">migrateHarborFeesForUser</a></li><li data-type='method'><a href="module-server_utils_migrate-harbor-fees.html#~resolveVesselNameToId">resolveVesselNameToId</a></li><li data-type='method'><a href="module-server_utils_migrate-harbor-fees.html#~timestampToMySQLDatetime">timestampToMySQLDatetime</a></li></ul></li><li><a href="module-server_utils_read-tracker.html">server/utils/read-tracker</a><ul class='methods'><li data-type='method'><a href="module-server_utils_read-tracker.html#~ensureReadTrackingFile">ensureReadTrackingFile</a></li><li data-type='method'><a href="module-server_utils_read-tracker.html#~getLastReadTimestamp">getLastReadTimestamp</a></li><li data-type='method'><a href="module-server_utils_read-tracker.html#~saveReadTrackingFile">saveReadTrackingFile</a></li><li data-type='method'><a href="module-server_utils_read-tracker.html#~updateLastReadTimestamp">updateLastReadTimestamp</a></li></ul></li><li><a href="module-server_utils_session-manager.html">server/utils/session-manager</a><ul class='methods'><li data-type='method'><a href="module-server_utils_session-manager.html#~deleteSession">deleteSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getAllUserIds">getAllUserIds</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getAvailableSessions">getAvailableSessions</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getSession">getSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~getSessionsPath">getSessionsPath</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~hasSession">hasSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~loadAllSessions">loadAllSessions</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~loadSessions">loadSessions</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~migrateToEncrypted">migrateToEncrypted</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~saveSession">saveSession</a></li><li data-type='method'><a href="module-server_utils_session-manager.html#~saveSessions">saveSessions</a></li></ul></li><li><a href="module-server_websocket.html">server/websocket</a><ul class='methods'><li data-type='method'><a href="module-server_websocket.html#~initWebSocket">initWebSocket</a></li></ul></li><li><a href="module-server_websocket_broadcaster.html">server/websocket/broadcaster</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_broadcaster.html#~broadcast">broadcast</a></li><li data-type='method'><a href="module-server_websocket_broadcaster.html#~broadcastBunkerUpdate">broadcastBunkerUpdate</a></li><li data-type='method'><a href="module-server_websocket_broadcaster.html#~broadcastHarborMapRefresh">broadcastHarborMapRefresh</a></li><li data-type='method'><a href="module-server_websocket_broadcaster.html#~broadcastToUser">broadcastToUser</a></li><li data-type='method'><a href="module-server_websocket_broadcaster.html#~getWebSocketServer">getWebSocketServer</a></li><li data-type='method'><a href="module-server_websocket_broadcaster.html#~setWebSocketServer">setWebSocketServer</a></li></ul></li><li><a href="module-server_websocket_chat-refresh.html">server/websocket/chat-refresh</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_chat-refresh.html#~performChatRefresh">performChatRefresh</a></li><li data-type='method'><a href="module-server_websocket_chat-refresh.html#~setMessengerRefreshFn">setMessengerRefreshFn</a></li><li data-type='method'><a href="module-server_websocket_chat-refresh.html#~startChatAutoRefresh">startChatAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket_chat-refresh.html#~stopChatAutoRefresh">stopChatAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket_chat-refresh.html#~triggerImmediateChatRefresh">triggerImmediateChatRefresh</a></li></ul></li><li><a href="module-server_websocket_hijacking-cache.html">server/websocket/hijacking-cache</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_hijacking-cache.html#~getCachedHijackingCase">getCachedHijackingCase</a></li><li data-type='method'><a href="module-server_websocket_hijacking-cache.html#~invalidateHijackingCase">invalidateHijackingCase</a></li></ul></li><li><a href="module-server_websocket_hijacking-refresh.html">server/websocket/hijacking-refresh</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_hijacking-refresh.html#~performHijackingRefresh">performHijackingRefresh</a></li><li data-type='method'><a href="module-server_websocket_hijacking-refresh.html#~startHijackingAutoRefresh">startHijackingAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket_hijacking-refresh.html#~stopHijackingAutoRefresh">stopHijackingAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket_hijacking-refresh.html#~triggerImmediateHijackingRefresh">triggerImmediateHijackingRefresh</a></li></ul></li><li><a href="module-server_websocket_message-cache.html">server/websocket/message-cache</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_message-cache.html#~getProcessedMessageIds">getProcessedMessageIds</a></li><li data-type='method'><a href="module-server_websocket_message-cache.html#~getProcessedMessagesCachePath">getProcessedMessagesCachePath</a></li><li data-type='method'><a href="module-server_websocket_message-cache.html#~loadProcessedMessageCache">loadProcessedMessageCache</a></li><li data-type='method'><a href="module-server_websocket_message-cache.html#~saveProcessedMessageCache">saveProcessedMessageCache</a></li></ul></li><li><a href="module-server_websocket_messenger-cache.html">server/websocket/messenger-cache</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_messenger-cache.html#~getCachedMessengerChats">getCachedMessengerChats</a></li></ul></li><li><a href="module-server_websocket_messenger-refresh.html">server/websocket/messenger-refresh</a><ul class='methods'><li data-type='method'><a href="module-server_websocket_messenger-refresh.html#~performMessengerRefresh">performMessengerRefresh</a></li><li data-type='method'><a href="module-server_websocket_messenger-refresh.html#~startMessengerAutoRefresh">startMessengerAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket_messenger-refresh.html#~stopMessengerAutoRefresh">stopMessengerAutoRefresh</a></li><li data-type='method'><a href="module-server_websocket_messenger-refresh.html#~triggerImmediateMessengerRefresh">triggerImmediateMessengerRefresh</a></li></ul></li><li><a href="module-ui-dialogs.html">ui-dialogs</a><ul class='methods'><li data-type='method'><a href="module-ui-dialogs.html#.buyCampaign">buyCampaign</a></li><li data-type='method'><a href="module-ui-dialogs.html#.closeCampaignsOverlay">closeCampaignsOverlay</a></li><li data-type='method'><a href="module-ui-dialogs.html#.closeSettings">closeSettings</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showCampaignsOverlay">showCampaignsOverlay</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showConfirmDialog">showConfirmDialog</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showContactList">showContactList</a></li><li data-type='method'><a href="module-ui-dialogs.html#.showSettings">showSettings</a></li></ul></li><li><a href="module-utils.html">utils</a><ul class='methods'><li data-type='method'><a href="module-utils.html#.escapeHtml">escapeHtml</a></li><li data-type='method'><a href="module-utils.html#.formatNumber">formatNumber</a></li><li data-type='method'><a href="module-utils.html#.getCO2PriceClass">getCO2PriceClass</a></li><li data-type='method'><a href="module-utils.html#.getFuelPriceClass">getFuelPriceClass</a></li><li data-type='method'><a href="module-utils.html#.isMobileDevice">isMobileDevice</a></li><li data-type='method'><a href="module-utils.html#.registerServiceWorker">registerServiceWorker</a></li><li data-type='method'><a href="module-utils.html#.renderStars">renderStars</a></li><li data-type='method'><a href="module-utils.html#.requestNotificationPermission">requestNotificationPermission</a></li><li data-type='method'><a href="module-utils.html#.showNotification">showNotification</a></li><li data-type='method'><a href="module-utils.html#.showSideNotification">showSideNotification</a></li></ul></li><li><a href="module-vessel-building.html">vessel-building</a><ul class='methods'><li data-type='method'><a href="module-vessel-building.html#.initBuildShipModal">initBuildShipModal</a></li><li data-type='method'><a href="module-vessel-building.html#.openBuildShipModal">openBuildShipModal</a></li><li data-type='method'><a href="module-vessel-building.html#~applyPerkEffects">applyPerkEffects</a></li><li data-type='method'><a href="module-vessel-building.html#~bilinearInterpolate">bilinearInterpolate</a></li><li data-type='method'><a href="module-vessel-building.html#~calculateBaseStats">calculateBaseStats</a></li><li data-type='method'><a href="module-vessel-building.html#~calculatePrice">calculatePrice</a></li><li data-type='method'><a href="module-vessel-building.html#~calculateRangeForEngine">calculateRangeForEngine</a></li><li data-type='method'><a href="module-vessel-building.html#~calculateSpeedForEngine">calculateSpeedForEngine</a></li><li data-type='method'><a href="module-vessel-building.html#~closeBuildShipModal">closeBuildShipModal</a></li><li data-type='method'><a href="module-vessel-building.html#~formatBuildTime">formatBuildTime</a></li><li data-type='method'><a href="module-vessel-building.html#~generateContainerSvg">generateContainerSvg</a></li><li data-type='method'><a href="module-vessel-building.html#~generateFallbackTankerSvg">generateFallbackTankerSvg</a></li><li data-type='method'><a href="module-vessel-building.html#~generateTankerSvg">generateTankerSvg</a></li><li data-type='method'><a href="module-vessel-building.html#~generateVesselSvg">generateVesselSvg</a></li><li data-type='method'><a href="module-vessel-building.html#~interpolate">interpolate</a></li><li data-type='method'><a href="module-vessel-building.html#~nextStep">nextStep</a></li><li data-type='method'><a href="module-vessel-building.html#~prevStep">prevStep</a></li><li data-type='method'><a href="module-vessel-building.html#~renderCurrentStep">renderCurrentStep</a></li><li data-type='method'><a href="module-vessel-building.html#~renderStep1">renderStep1</a></li><li data-type='method'><a href="module-vessel-building.html#~renderStep3">renderStep3</a></li><li data-type='method'><a href="module-vessel-building.html#~renderStep4">renderStep4</a></li><li data-type='method'><a href="module-vessel-building.html#~renderStep5">renderStep5</a></li><li data-type='method'><a href="module-vessel-building.html#~shadeColor">shadeColor</a></li><li data-type='method'><a href="module-vessel-building.html#~submitBuild">submitBuild</a></li><li data-type='method'><a href="module-vessel-building.html#~updateStatsPreview">updateStatsPreview</a></li><li data-type='method'><a href="module-vessel-building.html#~updateSvgPreview">updateSvgPreview</a></li></ul></li><li><a href="module-vessel-management.html">vessel-management</a><ul class='methods'><li data-type='method'><a href="module-vessel-management.html#.departAllVessels">departAllVessels</a></li><li data-type='method'><a href="module-vessel-management.html#.openRepairAndDrydockDialog">openRepairAndDrydockDialog</a></li><li data-type='method'><a href="module-vessel-management.html#.purchaseSingleVessel">purchaseSingleVessel</a></li><li data-type='method'><a href="module-vessel-management.html#.updateLockStateFromServer">updateLockStateFromServer</a></li><li data-type='method'><a href="module-vessel-management.html#.updateVesselCount">updateVesselCount</a></li><li data-type='method'><a href="module-vessel-management.html#~createVesselCard">createVesselCard</a></li><li data-type='method'><a href="module-vessel-management.html#~displayFilteredVessels">displayFilteredVessels</a></li><li data-type='method'><a href="module-vessel-management.html#~executeDrydock">executeDrydock</a></li><li data-type='method'><a href="module-vessel-management.html#~getAvailableAnchorSlots">getAvailableAnchorSlots</a></li><li data-type='method'><a href="module-vessel-management.html#~getCO2EfficiencyClass">getCO2EfficiencyClass</a></li><li data-type='method'><a href="module-vessel-management.html#~getCapacityDisplay">getCapacityDisplay</a></li><li data-type='method'><a href="module-vessel-management.html#~getFuelEfficiencyClass">getFuelEfficiencyClass</a></li><li data-type='method'><a href="module-vessel-management.html#~loadCartFromStorage">loadCartFromStorage</a></li><li data-type='method'><a href="module-vessel-management.html#~loadMorePendingVessels">loadMorePendingVessels</a></li><li data-type='method'><a href="module-vessel-management.html#~loadMoreVessels">loadMoreVessels</a></li><li data-type='method'><a href="module-vessel-management.html#~populateDynamicFilters">populateDynamicFilters</a></li><li data-type='method'><a href="module-vessel-management.html#~refreshVesselCardsIfVisible">refreshVesselCardsIfVisible</a></li><li data-type='method'><a href="module-vessel-management.html#~renderDrydockTab">renderDrydockTab</a></li><li data-type='method'><a href="module-vessel-management.html#~renderRepairTab">renderRepairTab</a></li><li data-type='method'><a href="module-vessel-management.html#~saveCartToStorage">saveCartToStorage</a></li><li data-type='method'><a href="module-vessel-management.html#~showRepairAndDrydockDialog">showRepairAndDrydockDialog</a></li><li data-type='method'><a href="module-vessel-management.html#~updateCapacityDropdowns">updateCapacityDropdowns</a></li><li data-type='method'><a href="module-vessel-management.html#~vesselPassesFilters">vesselPassesFilters</a></li></ul></li><li><a href="module-vessel-selling.html">vessel-selling</a><ul class='methods'><li data-type='method'><a href="module-vessel-selling.html#.bulkSellVessels">bulkSellVessels</a></li><li data-type='method'><a href="module-vessel-selling.html#.closeSellVesselsOverlay">closeSellVesselsOverlay</a></li><li data-type='method'><a href="module-vessel-selling.html#.openSellVesselsOverlay">openSellVesselsOverlay</a></li><li data-type='method'><a href="module-vessel-selling.html#.refreshVesselsForSale">refreshVesselsForSale</a></li><li data-type='method'><a href="module-vessel-selling.html#.setSellFilter">setSellFilter</a></li><li data-type='method'><a href="module-vessel-selling.html#.showSellCart">showSellCart</a></li><li data-type='method'><a href="module-vessel-selling.html#~clearSellCartCache">clearSellCartCache</a></li><li data-type='method'><a href="module-vessel-selling.html#~displaySellVessels">displaySellVessels</a></li><li data-type='method'><a href="module-vessel-selling.html#~fetchAllSellPrices">fetchAllSellPrices</a></li><li data-type='method'><a href="module-vessel-selling.html#~getCO2EfficiencyClass">getCO2EfficiencyClass</a></li><li data-type='method'><a href="module-vessel-selling.html#~getCapacityDisplay">getCapacityDisplay</a></li><li data-type='method'><a href="module-vessel-selling.html#~getFuelEfficiencyClass">getFuelEfficiencyClass</a></li><li data-type='method'><a href="module-vessel-selling.html#~groupVesselsByModel">groupVesselsByModel</a></li><li data-type='method'><a href="module-vessel-selling.html#~loadSellCartFromCache">loadSellCartFromCache</a></li><li data-type='method'><a href="module-vessel-selling.html#~loadUserVesselsForSale">loadUserVesselsForSale</a></li><li data-type='method'><a href="module-vessel-selling.html#~removeVesselSelectionFromCart">removeVesselSelectionFromCart</a></li><li data-type='method'><a href="module-vessel-selling.html#~saveSellCartToCache">saveSellCartToCache</a></li><li data-type='method'><a href="module-vessel-selling.html#~updateBulkSellButton">updateBulkSellButton</a></li><li data-type='method'><a href="module-vessel-selling.html#~updateSelectButtonState">updateSelectButtonState</a></li><li data-type='method'><a href="module-vessel-selling.html#~updateVesselSelectionInCart">updateVesselSelectionInCart</a></li></ul></li></ul><h3>Global</h3><ul><li><a href="global.html#buildNav">buildNav</a></li><li><a href="global.html#deleteAllLogs">deleteAllLogs</a></li><li><a href="global.html#escapeCSVFormula">escapeCSVFormula</a></li><li><a href="global.html#escapeXml">escapeXml</a></li><li><a href="global.html#express">express</a></li><li><a href="global.html#flushAllToDisk">flushAllToDisk</a></li><li><a href="global.html#formatDetailsAsTXT">formatDetailsAsTXT</a></li><li><a href="global.html#formatFileSize">formatFileSize</a></li><li><a href="global.html#formatLogsAsCSV">formatLogsAsCSV</a></li><li><a href="global.html#formatLogsAsTXT">formatLogsAsTXT</a></li><li><a href="global.html#fs">fs</a></li><li><a href="global.html#generateContainerSvg">generateContainerSvg</a></li><li><a href="global.html#generateTankerSvg">generateTankerSvg</a></li><li><a href="global.html#generateVesselSvg">generateVesselSvg</a></li><li><a href="global.html#getCategoryFromAction">getCategoryFromAction</a></li><li><a href="global.html#getLogEntries">getLogEntries</a></li><li><a href="global.html#getLogFilePath">getLogFilePath</a></li><li><a href="global.html#getLogFileSize">getLogFileSize</a></li><li><a href="global.html#getLogsFromCache">getLogsFromCache</a></li><li><a href="global.html#getSourceFromAction">getSourceFromAction</a></li><li><a href="global.html#getTransactionType">getTransactionType</a></li><li><a href="global.html#initialize">initialize</a></li><li><a href="global.html#isDepartInProgress">isDepartInProgress</a></li><li><a href="global.html#loadBaseContainerSvg">loadBaseContainerSvg</a></li><li><a href="global.html#loadBaseTankerSvg">loadBaseTankerSvg</a></li><li><a href="global.html#loadLogsFromDisk">loadLogsFromDisk</a></li><li><a href="global.html#lockBulkBuyButton">lockBulkBuyButton</a></li><li><a href="global.html#lockCo2Button">lockCo2Button</a></li><li><a href="global.html#lockCoopButtons">lockCoopButtons</a></li><li><a href="global.html#lockDepartButton">lockDepartButton</a></li><li><a href="global.html#lockDrydockButton">lockDrydockButton</a></li><li><a href="global.html#lockFuelButton">lockFuelButton</a></li><li><a href="global.html#lockRepairButton">lockRepairButton</a></li><li><a href="global.html#logAutopilotAction">logAutopilotAction</a></li><li><a href="global.html#publish">publish</a></li><li><a href="global.html#searchInObject">searchInObject</a></li><li><a href="global.html#showAnchorTimer">showAnchorTimer</a></li><li><a href="global.html#shutdown">shutdown</a></li><li><a href="global.html#unlockBulkBuyButton">unlockBulkBuyButton</a></li><li><a href="global.html#unlockCo2Button">unlockCo2Button</a></li><li><a href="global.html#unlockCoopButtons">unlockCoopButtons</a></li><li><a href="global.html#unlockDepartButton">unlockDepartButton</a></li><li><a href="global.html#unlockDrydockButton">unlockDrydockButton</a></li><li><a href="global.html#unlockFuelButton">unlockFuelButton</a></li><li><a href="global.html#unlockRepairButton">unlockRepairButton</a></li><li><a href="global.html#writeLogsToDisk">writeLogsToDisk</a></li></ul>
+    
+</nav>
+
+<div id="main">
+    
+    <h1 class="page-title">public/js/modules/vessel-building.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Vessel Building Module
+ *
+ * Provides UI for building custom vessels from scratch.
+ * Users can select vessel type, capacity, engine, port, and perks.
+ * Real-time preview of vessel stats and pricing.
+ *
+ * @module vessel-building
+ */
+
+import { showSideNotification, formatNumber } from './utils.js';
+import { showConfirmDialog } from './ui-dialogs.js';
+import { getCurrentBunkerState } from './bunker-management.js';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/**
+ * Available engines for vessel building (from /game/index.json)
+ * Stats are based on actual game data for Container vessels
+ */
+const ENGINES = [
+  {
+    type: 'mih_x1',
+    name: 'MIH X1',
+    minKW: 2500,
+    maxKW: 11000,
+    pricePerKW: 833,
+    basePrice: 2082500,
+    sortOrder: 1,
+    default: true,
+    stats: {
+      minCapMinKW: { range: 10000, speed: 10 },
+      minCapMaxKW: { range: 18000, speed: 34 },
+      maxCapMinKW: { range: 741, speed: 28 },
+      maxCapMaxKW: { range: 3260, speed: 30 }
+    }
+  },
+  {
+    type: 'wartsila_syk_6',
+    name: 'Wärtsilä SYK-6',
+    minKW: 5000,
+    maxKW: 15000,
+    pricePerKW: 833,
+    basePrice: 4165000,
+    sortOrder: 2,
+    default: false,
+    stats: {
+      minCapMinKW: { range: 18000, speed: 17 },
+      minCapMaxKW: { range: 18000, speed: 35 },
+      maxCapMinKW: { range: 1482, speed: 29 },
+      maxCapMaxKW: { range: 4445, speed: 31 }
+    }
+  },
+  {
+    type: 'man_p22l',
+    name: 'MAN P22L',
+    minKW: 8000,
+    maxKW: 17500,
+    pricePerKW: 833,
+    basePrice: 6664000,
+    sortOrder: 3,
+    default: false,
+    stats: {
+      minCapMinKW: { range: 18000, speed: 25 },
+      minCapMaxKW: { range: 18000, speed: 35 },
+      maxCapMinKW: { range: 2371, speed: 29 },
+      maxCapMaxKW: { range: 5186, speed: 31 }
+    }
+  },
+  {
+    type: 'mih_xp9',
+    name: 'MIH XP9',
+    minKW: 10000,
+    maxKW: 20000,
+    pricePerKW: 833,
+    basePrice: 8330000,
+    sortOrder: 4,
+    default: false,
+    stats: {
+      minCapMinKW: { range: 18000, speed: 31 },
+      minCapMaxKW: { range: 18000, speed: 35 },
+      maxCapMinKW: { range: 2963, speed: 30 },
+      maxCapMaxKW: { range: 5926, speed: 32 }
+    }
+  },
+  {
+    type: 'man_p22l_z',
+    name: 'MAN P22L-Z',
+    minKW: 15000,
+    maxKW: 25000,
+    pricePerKW: 833,
+    basePrice: 12495000,
+    sortOrder: 5,
+    default: false,
+    stats: {
+      minCapMinKW: { range: 18000, speed: 35 },
+      minCapMaxKW: { range: 18000, speed: 35 },
+      maxCapMinKW: { range: 4445, speed: 31 },
+      maxCapMaxKW: { range: 7408, speed: 33 }
+    }
+  },
+  {
+    type: 'mih_cp9',
+    name: 'MIH CP9',
+    minKW: 25000,
+    maxKW: 60000,
+    pricePerKW: 833,
+    basePrice: 20825000,
+    sortOrder: 6,
+    default: false,
+    stats: {
+      minCapMinKW: { range: 18000, speed: 35 },
+      minCapMaxKW: { range: 18000, speed: 35 },
+      maxCapMinKW: { range: 7408, speed: 33 },
+      maxCapMaxKW: { range: 17778, speed: 35 }
+    }
+  }
+];
+
+/**
+ * Shipyard ports where vessels can be delivered
+ */
+const SHIPYARD_PORTS = [
+  { value: 'port_of_botany_sydney', label: 'Australia, Port Of Botany Sydney' },
+  { value: 'freeport_container_port', label: 'Bahamas, Freeport Container Port' },
+  { value: 'antwerpen', label: 'Belgium, Antwerpen' },
+  { value: 'rio_de_janeiro', label: 'Brazil, Rio De Janeiro' },
+  { value: 'varna', label: 'Bulgaria, Varna' },
+  { value: 'shanghai', label: 'China, Shanghai' },
+  { value: 'tianjin_xin_gang', label: 'China, Tianjin Xin Gang' },
+  { value: 'port_said', label: 'Egypt, Port Said' },
+  { value: 'port_of_le_havre', label: 'France, Port Of Le Havre' },
+  { value: 'rade_de_brest', label: 'France, Rade De Brest' },
+  { value: 'port_of_piraeus', label: 'Greece, Port Of Piraeus' },
+  { value: 'genova', label: 'Italy, Genova' },
+  { value: 'napoli', label: 'Italy, Napoli' },
+  { value: 'porto_di_lido_venezia', label: 'Italy, Porto Di Lido Venezia' },
+  { value: 'nagasaki', label: 'Japan, Nagasaki' },
+  { value: 'osaka', label: 'Japan, Osaka' },
+  { value: 'bayrut', label: 'Lebanon, Bayrut' },
+  { value: 'johor', label: 'Malaysia, Johor' },
+  { value: 'veracruz', label: 'Mexico, Veracruz' },
+  { value: 'auckland', label: 'New zealand, Auckland' },
+  { value: 'gdansk', label: 'Poland, Gdansk' },
+  { value: 'lisboa', label: 'Portugal, Lisboa' },
+  { value: 'port_of_singapore', label: 'Singapore, Port Of Singapore' },
+  { value: 'cape_town', label: 'South africa, Cape Town' },
+  { value: 'durban', label: 'South africa, Durban' },
+  { value: 'pusan', label: 'South Korea, Pusan' },
+  { value: 'stockholm_norvik', label: 'Sweden, Stockholm Norvik' },
+  { value: 'chi_lung', label: 'Taiwan, Chi Lung' },
+  { value: 'belfast', label: 'United kingdom, Belfast' },
+  { value: 'southampton', label: 'United kingdom, Southampton' },
+  { value: 'baltimore', label: 'United states, Baltimore' },
+  { value: 'boston_us', label: 'United states, Boston Us' },
+  { value: 'mobile', label: 'United states, Mobile' },
+  { value: 'oakland', label: 'United states, Oakland' },
+  { value: 'philadelphia', label: 'United states, Philadelphia' }
+];
+
+/**
+ * Capacity ranges for vessel types
+ */
+const CAPACITY_RANGES = {
+  container: {
+    min: 2000,
+    max: 27000,
+    unit: 'TEU',
+    stats: {
+      minRange: 10000,
+      maxRange: 742,
+      minSpeed: 10,
+      maxSpeed: 28,
+      minFuel: 158,
+      maxFuel: 3562,
+      minCO2: 1.87,
+      maxCO2: 0.20
+    },
+    price: {
+      min: 17800000,
+      max: 240300000
+    },
+    buildTime: {
+      min: 24000,
+      max: 172800
+    }
+  },
+  tanker: {
+    min: 148000,
+    max: 1998000,
+    unit: 'BBL',
+    stats: {
+      minRange: 10000,
+      maxRange: 742,
+      minSpeed: 10,
+      maxSpeed: 28,
+      minFuel: 157,
+      maxFuel: 3537,
+      minCO2: 1.90,
+      maxCO2: 0.67
+    },
+    price: {
+      min: 17800000,
+      max: 240300000
+    },
+    buildTime: {
+      min: 24000,
+      max: 172800
+    }
+  }
+};
+
+/**
+ * Vessel perks and their effects (from /game/index.json)
+ */
+const PERKS = {
+  antifouling: {
+    type_a: {
+      name: 'Type A',
+      co2: -0.10,
+      fuel: 0.01,
+      priceFactor: 0.021,
+      buildTime: 500
+    },
+    type_b: {
+      name: 'Type B',
+      co2: 0.10,
+      fuel: -0.01,
+      priceFactor: 0.021,
+      buildTime: 500
+    }
+  },
+  bulbous: {
+    name: 'Bulbous Bow',
+    co2: -0.03,
+    fuel: -0.03,
+    priceFactor: 0.082,
+    buildTime: 800
+  },
+  propellers: {
+    '4_blade_propeller': {
+      name: '4 Blades',
+      speed: 0,
+      priceFactor: 0
+    },
+    '5_blade_propeller': {
+      name: '5 Blades',
+      speed: 0.08,
+      priceFactor: 0.038
+    },
+    '6_blade_propeller': {
+      name: '6 Blades',
+      speed: 0.12,
+      priceFactor: 0.076
+    }
+  },
+  enhanced_thrusters: {
+    name: 'Enhanced Thrusters',
+    fuel: 0.01,
+    price: 140,
+    channelWait: 0.96,
+    dockTime: 0.9
+  }
+};
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+const buildState = {
+  currentStep: 1,
+  vesselType: 'container',
+  capacity: 2000,
+  port: null,
+  engine: null,
+  engineKW: null,
+  antifouling: null,
+  bulbous: false,
+  propellers: '4_blade_propeller',
+  enhancedThrusters: false,
+  vesselName: '',
+  hullColor: '#b30000',
+  deckColor: '#272525',
+  bridgeColor: '#dbdbdb',
+  containerColor1: '#ff8000',
+  containerColor2: '#0000ff',
+  containerColor3: '#670000',
+  containerColor4: '#777777',
+  nameColor: '#ffffff'
+};
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/**
+ * Linear interpolation between two values
+ * @param {number} value - Current value
+ * @param {number} minVal - Minimum input value
+ * @param {number} maxVal - Maximum input value
+ * @param {number} minResult - Minimum output value
+ * @param {number} maxResult - Maximum output value
+ * @returns {number} Interpolated result
+ */
+function interpolate(value, minVal, maxVal, minResult, maxResult) {
+  if (maxVal === minVal) return minResult;
+  const ratio = (value - minVal) / (maxVal - minVal);
+  return minResult + ratio * (maxResult - minResult);
+}
+
+/**
+ * Calculate base vessel stats based on type and capacity
+ * @param {string} vesselType - 'container' or 'tanker'
+ * @param {number} capacity - Vessel capacity
+ * @returns {Object} Base stats (range, speed, fuel, co2, buildTime)
+ */
+function calculateBaseStats(vesselType, capacity) {
+  const config = CAPACITY_RANGES[vesselType];
+
+  const range = interpolate(capacity, config.min, config.max, config.stats.minRange, config.stats.maxRange);
+  const speed = interpolate(capacity, config.min, config.max, config.stats.minSpeed, config.stats.maxSpeed);
+  const fuel = interpolate(capacity, config.min, config.max, config.stats.minFuel, config.stats.maxFuel);
+  const co2 = interpolate(capacity, config.min, config.max, config.stats.minCO2, config.stats.maxCO2);
+  const buildTime = interpolate(capacity, config.min, config.max, config.buildTime.min, config.buildTime.max);
+
+  return { range, speed, fuel, co2, buildTime };
+}
+
+/**
+ * Apply perk multipliers to base stats
+ * @param {Object} stats - Base stats
+ * @param {Object} state - Current build state
+ * @returns {Object} Modified stats
+ */
+function applyPerkEffects(stats, state) {
+  let { range, speed, fuel, co2, buildTime } = { ...stats };
+
+  if (state.antifouling) {
+    const perk = PERKS.antifouling[state.antifouling];
+    co2 *= (1 + perk.co2);
+    fuel *= (1 + perk.fuel);
+    buildTime += perk.buildTime;
+  }
+
+  if (state.bulbous) {
+    co2 *= (1 + PERKS.bulbous.co2);
+    fuel *= (1 + PERKS.bulbous.fuel);
+    buildTime += PERKS.bulbous.buildTime;
+  }
+
+  const propellerPerk = PERKS.propellers[state.propellers];
+  speed *= (1 + propellerPerk.speed);
+
+  if (state.enhancedThrusters) {
+    fuel *= (1 + PERKS.enhanced_thrusters.fuel);
+  }
+
+  return { range, speed, fuel, co2, buildTime };
+}
+
+/**
+ * Calculate total vessel price
+ * @param {Object} state - Current build state
+ * @returns {number} Total price in dollars
+ */
+function calculatePrice(state) {
+  if (!state.vesselType || !state.capacity) return 0;
+
+  const config = CAPACITY_RANGES[state.vesselType];
+
+  const basePrice = interpolate(
+    state.capacity,
+    config.min,
+    config.max,
+    config.price.min,
+    config.price.max
+  );
+
+  let enginePrice = 0;
+
+  if (state.currentStep >= 2 &amp;&amp; state.engine &amp;&amp; state.engineKW) {
+    const selectedEngine = ENGINES.find(e => e.type === state.engine);
+    const extraKW = state.engineKW - selectedEngine.minKW;
+    enginePrice = selectedEngine.basePrice + (extraKW * selectedEngine.pricePerKW);
+  }
+
+  const vesselPrice = basePrice + enginePrice;
+
+  if (state.currentStep &lt; 3) {
+    return vesselPrice;
+  }
+
+  let perkFactor = 0;
+
+  if (state.antifouling) {
+    perkFactor += PERKS.antifouling[state.antifouling].priceFactor;
+  }
+
+  if (state.bulbous) {
+    perkFactor += PERKS.bulbous.priceFactor;
+  }
+
+  const propellerPerk = PERKS.propellers[state.propellers];
+  perkFactor += propellerPerk.priceFactor;
+
+  const perkCosts = vesselPrice * perkFactor;
+  const totalPrice = vesselPrice + perkCosts;
+
+  if (state.enhancedThrusters) {
+    return totalPrice + (state.capacity * PERKS.enhanced_thrusters.price);
+  }
+
+  return totalPrice;
+}
+
+/**
+ * Format build time from seconds to readable string
+ * @param {number} seconds - Build time in seconds
+ * @returns {string} Formatted time (e.g., "6h 40m")
+ */
+function formatBuildTime(seconds) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  return `${hours}h ${minutes}m`;
+}
+
+/**
+ * Bilinear interpolation for engine stats
+ * @param {Object} engine - Engine object with stats
+ * @param {number} capacity - Vessel capacity
+ * @param {number} engineKW - Engine power in kW
+ * @param {string} stat - 'speed' or 'range'
+ * @returns {number} Interpolated stat value
+ */
+function bilinearInterpolate(engine, capacity, engineKW, stat, vesselType) {
+  const containerConfig = CAPACITY_RANGES.container;
+  const currentConfig = CAPACITY_RANGES[vesselType];
+
+  const containerMinCap = containerConfig.min;
+  const containerMaxCap = containerConfig.max;
+
+  const normalizedCap = (capacity - currentConfig.min) / (currentConfig.max - currentConfig.min);
+  const interpolatedCap = containerMinCap + normalizedCap * (containerMaxCap - containerMinCap);
+
+  const minKW = engine.minKW;
+  const maxKW = engine.maxKW;
+
+  const v1 = engine.stats.minCapMinKW[stat];
+  const v2 = engine.stats.minCapMaxKW[stat];
+  const v3 = engine.stats.maxCapMinKW[stat];
+  const v4 = engine.stats.maxCapMaxKW[stat];
+
+  const capRatio = (interpolatedCap - containerMinCap) / (containerMaxCap - containerMinCap);
+  const kwRatio = (engineKW - minKW) / (maxKW - minKW);
+
+  const interpAtMinCap = v1 + (v2 - v1) * kwRatio;
+  const interpAtMaxCap = v3 + (v4 - v3) * kwRatio;
+
+  return interpAtMinCap + (interpAtMaxCap - interpAtMinCap) * capRatio;
+}
+
+/**
+ * Calculate speed for a given engine KW
+ * @param {number} capacity - Vessel capacity
+ * @param {string} vesselType - 'container' or 'tanker'
+ * @param {number} engineKW - Engine power in kW
+ * @param {string} engineType - Engine type (e.g., 'mih_x1')
+ * @returns {number} Speed in knots
+ */
+function calculateSpeedForEngine(capacity, vesselType, engineKW, engineType) {
+  if (!engineType) return 0;
+  const engine = ENGINES.find(e => e.type === engineType);
+  if (!engine) return 0;
+  return bilinearInterpolate(engine, capacity, engineKW, 'speed', vesselType);
+}
+
+/**
+ * Calculate range for a given engine KW
+ * @param {number} capacity - Vessel capacity
+ * @param {string} vesselType - 'container' or 'tanker'
+ * @param {number} engineKW - Engine power in kW
+ * @param {string} engineType - Engine type (e.g., 'mih_x1')
+ * @returns {number} Range in nautical miles
+ */
+function calculateRangeForEngine(capacity, vesselType, engineKW, engineType) {
+  if (!engineType) return 0;
+  const engine = ENGINES.find(e => e.type === engineType);
+  if (!engine) return 0;
+  return bilinearInterpolate(engine, capacity, engineKW, 'range', vesselType);
+}
+
+/**
+ * Update stats preview panel
+ */
+function updateStatsPreview() {
+  document.getElementById('previewType').textContent = buildState.vesselType ? (buildState.vesselType === 'container' ? 'Container' : 'Tanker') : '-';
+
+  const portLabel = buildState.port ? SHIPYARD_PORTS.find(p => p.value === buildState.port)?.label || buildState.port : '-';
+  document.getElementById('previewPort').textContent = portLabel;
+
+  const engineLabel = buildState.engine ? ENGINES.find(e => e.type === buildState.engine)?.name || buildState.engine : '-';
+  const engineKW = buildState.engineKW ? ` (${formatNumber(buildState.engineKW)} kW)` : '';
+  document.getElementById('previewEngine').textContent = buildState.engine ? `${engineLabel}${engineKW}` : '-';
+
+  const perksList = [];
+  if (buildState.antifouling) {
+    const perkName = buildState.antifouling === 'type_a' ? 'Antifouling A' : 'Antifouling B';
+    perksList.push(perkName);
+  }
+  if (buildState.bulbous) {
+    perksList.push('Bulbous Bow');
+  }
+  if (buildState.propellers &amp;&amp; buildState.propellers !== '4_blade') {
+    const propPerk = PERKS.propellers[buildState.propellers];
+    perksList.push(propPerk.name);
+  }
+  document.getElementById('previewPerks').textContent = perksList.length > 0 ? perksList.join(', ') : 'None';
+
+  if (!buildState.vesselType) {
+    document.getElementById('previewCapacity').textContent = '-';
+    document.getElementById('previewRange').textContent = '-';
+    document.getElementById('previewSpeed').textContent = '-';
+    document.getElementById('previewFuel').textContent = '-';
+    document.getElementById('previewCO2').textContent = '-';
+    document.getElementById('previewBuildTime').textContent = '-';
+    document.getElementById('previewPrice').textContent = '$0';
+    return;
+  }
+
+  if (!buildState.capacity) {
+    const config = CAPACITY_RANGES[buildState.vesselType];
+    buildState.capacity = config.min;
+  }
+
+  let range, speed, fuel, co2, buildTime;
+
+  if (buildState.currentStep >= 2 &amp;&amp; buildState.engine &amp;&amp; buildState.engineKW) {
+    range = calculateRangeForEngine(buildState.capacity, buildState.vesselType, buildState.engineKW, buildState.engine);
+    speed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, buildState.engineKW, buildState.engine);
+    const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
+    fuel = baseStats.fuel;
+    co2 = baseStats.co2;
+    buildTime = baseStats.buildTime;
+
+    if (buildState.currentStep >= 3) {
+      const perkStats = applyPerkEffects({ range, speed, fuel, co2, buildTime }, buildState);
+      range = perkStats.range;
+      speed = perkStats.speed;
+      fuel = perkStats.fuel;
+      co2 = perkStats.co2;
+      buildTime = perkStats.buildTime;
+    }
+  } else {
+    const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
+    const stats = applyPerkEffects(baseStats, buildState);
+    range = stats.range;
+    speed = stats.speed;
+    fuel = stats.fuel;
+    co2 = stats.co2;
+    buildTime = stats.buildTime;
+  }
+
+  const price = calculatePrice(buildState);
+
+  const config = CAPACITY_RANGES[buildState.vesselType];
+  const unit = config.unit === 'TEU' ? 'TEU' : 'BBL';
+  const co2Unit = config.unit === 'TEU' ? 'kg/TEU/nm' : 'kg/100bbl/nm';
+
+  document.getElementById('previewCapacity').textContent = `${formatNumber(buildState.capacity)} ${unit}`;
+  document.getElementById('previewRange').textContent = `${Math.round(range)} nm`;
+  document.getElementById('previewSpeed').textContent = `${Math.round(speed)} kn`;
+  document.getElementById('previewFuel').textContent = `${Math.round(fuel)} kg/nm`;
+  document.getElementById('previewCO2').textContent = `${co2.toFixed(2)} ${co2Unit}`;
+  document.getElementById('previewBuildTime').textContent = formatBuildTime(Math.round(buildTime));
+  document.getElementById('previewPrice').textContent = `$${formatNumber(Math.round(price))}`;
+
+  // Disable submit button if not enough cash
+  const submitBtn = document.getElementById('buildSubmitBtn');
+  if (submitBtn) {
+    const bunkerState = getCurrentBunkerState();
+    const currentCash = bunkerState?.currentCash || 0;
+    const canAfford = currentCash >= Math.round(price);
+    submitBtn.disabled = !canAfford;
+    submitBtn.title = canAfford ? '' : `Not enough cash. Need $${formatNumber(Math.round(price))}, have $${formatNumber(currentCash)}`;
+  }
+}
+
+// ============================================================================
+// WIZARD STEP FUNCTIONS
+// ============================================================================
+
+/**
+ * Render Step 1: Basics (Type, Port, Name)
+ */
+function renderStep1() {
+  const config = buildState.vesselType ? CAPACITY_RANGES[buildState.vesselType] : CAPACITY_RANGES.container;
+  if (!buildState.capacity &amp;&amp; buildState.vesselType) {
+    buildState.capacity = config.min;
+  }
+
+  const content = document.getElementById('buildStepContent');
+  content.innerHTML = `
+    &lt;div class="build-step-container">
+      &lt;div class="basics-section">
+        &lt;label class="basics-label">Vessel Type&lt;/label>
+        &lt;div class="vessel-type-options">
+          &lt;label class="vessel-type-option ${buildState.vesselType === 'container' ? 'selected' : ''}">
+            &lt;input type="radio" name="vesselType" value="container" ${buildState.vesselType === 'container' ? 'checked' : ''}>
+            &lt;div class="type-card-horizontal">
+              &lt;div class="type-icon">📦&lt;/div>
+              &lt;div class="type-name">Container&lt;/div>
+              &lt;div class="type-info">2,000 - 27,000 TEU&lt;/div>
+            &lt;/div>
+          &lt;/label>
+          &lt;label class="vessel-type-option ${buildState.vesselType === 'tanker' ? 'selected' : ''}">
+            &lt;input type="radio" name="vesselType" value="tanker" ${buildState.vesselType === 'tanker' ? 'checked' : ''}>
+            &lt;div class="type-card-horizontal">
+              &lt;div class="type-icon">🛢️&lt;/div>
+              &lt;div class="type-name">Tanker&lt;/div>
+              &lt;div class="type-info">148,000 - 1,998,000 BBL&lt;/div>
+            &lt;/div>
+          &lt;/label>
+        &lt;/div>
+      &lt;/div>
+
+      &lt;div class="basics-section capacity-section">
+        &lt;div class="capacity-header">
+          &lt;label class="basics-label">Capacity&lt;/label>
+        &lt;/div>
+        &lt;div class="capacity-slider-container">
+          &lt;input type="range" id="capacitySlider" min="${config.min}" max="${config.max}" value="${buildState.capacity || config.min}" step="${config.min &lt; 10000 ? 100 : 1000}" ${!buildState.vesselType ? 'disabled' : ''}>
+          &lt;div class="slider-labels">
+            &lt;span>${formatNumber(config.min)} ${config.unit}&lt;/span>
+            &lt;span>${formatNumber(config.max)} ${config.unit}&lt;/span>
+          &lt;/div>
+        &lt;/div>
+      &lt;/div>
+
+      &lt;div class="basics-section">
+        &lt;label class="basics-label" for="portSelect">Delivery Port&lt;/label>
+        &lt;select id="portSelect" class="build-select">
+          &lt;option value="" ${!buildState.port ? 'selected' : ''}>-- Select Port --&lt;/option>
+          ${SHIPYARD_PORTS.map(port =>
+            `&lt;option value="${port.value}" ${buildState.port === port.value ? 'selected' : ''}>${port.label}&lt;/option>`
+          ).join('')}
+        &lt;/select>
+      &lt;/div>
+
+      &lt;div class="basics-section">
+        &lt;label class="basics-label" for="vesselNameInput">Vessel Name&lt;/label>
+        &lt;input type="text" id="vesselNameInput" class="build-input" placeholder="Enter vessel name..." value="${buildState.vesselName || ''}" maxlength="50">
+      &lt;/div>
+    &lt;/div>
+  `;
+
+  const radios = content.querySelectorAll('input[name="vesselType"]');
+  radios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      buildState.vesselType = e.target.value;
+
+      const config = CAPACITY_RANGES[buildState.vesselType];
+      buildState.capacity = config.min;
+
+      content.querySelectorAll('.vessel-type-option').forEach(opt => opt.classList.remove('selected'));
+      e.target.closest('.vessel-type-option').classList.add('selected');
+
+      updateStatsPreview();
+      renderStep1();
+    });
+  });
+
+  const capacitySlider = content.querySelector('#capacitySlider');
+  if (capacitySlider) {
+    capacitySlider.addEventListener('input', (e) => {
+      buildState.capacity = parseInt(e.target.value);
+      updateStatsPreview();
+    });
+  }
+
+  const portSelect = content.querySelector('#portSelect');
+  portSelect.addEventListener('change', (e) => {
+    buildState.port = e.target.value;
+    updateStatsPreview();
+  });
+
+  const nameInput = content.querySelector('#vesselNameInput');
+  nameInput.addEventListener('input', (e) => {
+    buildState.vesselName = e.target.value;
+  });
+
+  updateStatsPreview();
+}
+
+/**
+ * Render Step 3: Engine Selection
+ */
+function renderStep3() {
+  if (!buildState.engine) {
+    const defaultEngine = ENGINES.find(e => e.default);
+    buildState.engine = defaultEngine.type;
+    buildState.engineKW = defaultEngine.minKW;
+  }
+
+  const selectedEngine = ENGINES.find(e => e.type === buildState.engine);
+
+  if (!buildState.engineKW || buildState.engineKW &lt; selectedEngine.minKW) {
+    buildState.engineKW = selectedEngine.minKW;
+  }
+
+  const content = document.getElementById('buildStepContent');
+  content.innerHTML = `
+    &lt;div class="build-step-container">
+      &lt;div class="engine-selection">
+        ${ENGINES.map(engine => {
+          const minSpeed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, engine.minKW, engine.type);
+          const maxSpeed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, engine.maxKW, engine.type);
+
+          return `
+          &lt;div class="engine-card ${buildState.engine === engine.type ? 'selected' : ''}" data-engine="${engine.type}">
+            &lt;div class="engine-name">${engine.name}&lt;/div>
+            &lt;div class="engine-price">+$${formatNumber(engine.basePrice)}&lt;/div>
+            &lt;div class="engine-stat">Speed: ${minSpeed.toFixed(1)} - ${maxSpeed.toFixed(1)} kn&lt;/div>
+            &lt;div class="engine-specs">${engine.minKW.toLocaleString()} - ${engine.maxKW.toLocaleString()} kW&lt;/div>
+          &lt;/div>
+          `;
+        }).join('')}
+      &lt;/div>
+      &lt;div class="engine-kw-slider">
+        &lt;label for="engineKWSlider">Engine Power: &lt;span id="kwValue">${formatNumber(buildState.engineKW)}&lt;/span> kW&lt;/label>
+        &lt;input type="range" id="engineKWSlider" min="${selectedEngine.minKW}" max="${selectedEngine.maxKW}" value="${buildState.engineKW}" step="100">
+      &lt;/div>
+    &lt;/div>
+  `;
+
+  const engineCards = content.querySelectorAll('.engine-card');
+  engineCards.forEach(card => {
+    card.addEventListener('click', () => {
+      const engineType = card.dataset.engine;
+      buildState.engine = engineType;
+      const newEngine = ENGINES.find(eng => eng.type === engineType);
+      buildState.engineKW = newEngine.minKW;
+
+      content.querySelectorAll('.engine-card').forEach(c => c.classList.remove('selected'));
+      card.classList.add('selected');
+
+      const kwSlider = content.querySelector('#engineKWSlider');
+      const kwValue = content.querySelector('#kwValue');
+      kwSlider.min = newEngine.minKW;
+      kwSlider.max = newEngine.maxKW;
+      kwSlider.value = newEngine.minKW;
+      kwValue.textContent = formatNumber(newEngine.minKW);
+
+      updateStatsPreview();
+    });
+  });
+
+  const kwSlider = content.querySelector('#engineKWSlider');
+  const kwValue = content.querySelector('#kwValue');
+  kwSlider.addEventListener('input', (e) => {
+    buildState.engineKW = parseInt(e.target.value);
+    kwValue.textContent = formatNumber(buildState.engineKW);
+    updateStatsPreview();
+  });
+
+  updateStatsPreview();
+}
+
+/**
+ * Render Step 4: Perks Selection
+ */
+function renderStep4() {
+  const config = CAPACITY_RANGES[buildState.vesselType];
+  const basePrice = interpolate(
+    buildState.capacity,
+    config.min,
+    config.max,
+    config.price.min,
+    config.price.max
+  );
+
+  const content = document.getElementById('buildStepContent');
+  content.innerHTML = `
+    &lt;div class="build-step-container">
+      &lt;div class="perk-list">
+        &lt;label class="perk-option ${!buildState.antifouling ? 'selected' : ''}">
+          &lt;input type="radio" name="antifouling" value="" ${!buildState.antifouling ? 'checked' : ''}>
+          &lt;div class="perk-card">
+            &lt;div class="perk-name">Antifouling: None&lt;/div>
+            &lt;div class="perk-price">$0&lt;/div>
+            &lt;div class="perk-effect">No effect&lt;/div>
+          &lt;/div>
+        &lt;/label>
+        &lt;label class="perk-option ${buildState.antifouling === 'type_a' ? 'selected' : ''}">
+          &lt;input type="radio" name="antifouling" value="type_a" ${buildState.antifouling === 'type_a' ? 'checked' : ''}>
+          &lt;div class="perk-card">
+            &lt;div class="perk-name">Antifouling: Type A&lt;/div>
+            &lt;div class="perk-price">+$${formatNumber(Math.round(basePrice * PERKS.antifouling.type_a.priceFactor))}&lt;/div>
+            &lt;div class="perk-effect">-10% CO2, +1% Fuel&lt;/div>
+          &lt;/div>
+        &lt;/label>
+        &lt;label class="perk-option ${buildState.antifouling === 'type_b' ? 'selected' : ''}">
+          &lt;input type="radio" name="antifouling" value="type_b" ${buildState.antifouling === 'type_b' ? 'checked' : ''}>
+          &lt;div class="perk-card">
+            &lt;div class="perk-name">Antifouling: Type B&lt;/div>
+            &lt;div class="perk-price">+$${formatNumber(Math.round(basePrice * PERKS.antifouling.type_b.priceFactor))}&lt;/div>
+            &lt;div class="perk-effect">+10% CO2, -1% Fuel&lt;/div>
+          &lt;/div>
+        &lt;/label>
+        &lt;label class="perk-checkbox ${buildState.bulbous ? 'selected' : ''}">
+          &lt;input type="checkbox" id="bulbousCheck" ${buildState.bulbous ? 'checked' : ''}>
+          &lt;div class="perk-card">
+            &lt;div class="perk-name">Bulbous Bow&lt;/div>
+            &lt;div class="perk-price">+$${formatNumber(Math.round(basePrice * PERKS.bulbous.priceFactor))}&lt;/div>
+            &lt;div class="perk-effect">-3% CO2, -3% Fuel&lt;/div>
+          &lt;/div>
+        &lt;/label>
+        ${Object.entries(PERKS.propellers).map(([key, perk]) => {
+          const perkPrice = Math.round(basePrice * perk.priceFactor);
+          return `
+          &lt;label class="perk-option ${buildState.propellers === key ? 'selected' : ''}">
+            &lt;input type="radio" name="propellers" value="${key}" ${buildState.propellers === key ? 'checked' : ''}>
+            &lt;div class="perk-card">
+              &lt;div class="perk-name">Propellers: ${perk.name}&lt;/div>
+              &lt;div class="perk-price">${perkPrice > 0 ? '+$' + formatNumber(perkPrice) : '$0'}&lt;/div>
+              &lt;div class="perk-effect">${perk.speed > 0 ? '+' + Math.round(perk.speed * 100) + '% Speed' : 'Default'}&lt;/div>
+            &lt;/div>
+          &lt;/label>
+          `;
+        }).join('')}
+      &lt;/div>
+    &lt;/div>
+  `;
+
+  const antifoulingRadios = content.querySelectorAll('input[name="antifouling"]');
+  antifoulingRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      buildState.antifouling = e.target.value || null;
+      content.querySelectorAll('input[name="antifouling"]').forEach(r => {
+        r.closest('.perk-option').classList.toggle('selected', r.checked);
+      });
+      updateStatsPreview();
+    });
+  });
+
+  const bulbousCheck = content.querySelector('#bulbousCheck');
+  bulbousCheck.addEventListener('change', (e) => {
+    buildState.bulbous = e.target.checked;
+    e.target.closest('.perk-checkbox').classList.toggle('selected', e.target.checked);
+    updateStatsPreview();
+  });
+
+  const propellerRadios = content.querySelectorAll('input[name="propellers"]');
+  propellerRadios.forEach(radio => {
+    radio.addEventListener('change', (e) => {
+      buildState.propellers = e.target.value;
+      content.querySelectorAll('input[name="propellers"]').forEach(r => {
+        r.closest('.perk-option').classList.toggle('selected', r.checked);
+      });
+      updateStatsPreview();
+    });
+  });
+
+  updateStatsPreview();
+}
+
+/**
+ * Render Step 5: Appearance Customization
+ */
+function renderStep5() {
+  const content = document.getElementById('buildStepContent');
+  content.innerHTML = `
+    &lt;div class="build-step-container">
+      &lt;div class="appearance-section">
+        &lt;div class="svg-preview-container">
+          &lt;div id="vesselSvgPreview">&lt;/div>
+        &lt;/div>
+        &lt;div class="color-controls-grid">
+          &lt;div class="color-control">
+            &lt;label>Hull&lt;/label>
+            &lt;input type="color" id="hullColor" value="${buildState.hullColor}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Deck&lt;/label>
+            &lt;input type="color" id="deckColor" value="${buildState.deckColor}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Bridge&lt;/label>
+            &lt;input type="color" id="bridgeColor" value="${buildState.bridgeColor}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Cargo 1&lt;/label>
+            &lt;input type="color" id="containerColor1" value="${buildState.containerColor1}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Cargo 2&lt;/label>
+            &lt;input type="color" id="containerColor2" value="${buildState.containerColor2}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Cargo 3&lt;/label>
+            &lt;input type="color" id="containerColor3" value="${buildState.containerColor3}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Cargo 4&lt;/label>
+            &lt;input type="color" id="containerColor4" value="${buildState.containerColor4}">
+          &lt;/div>
+          &lt;div class="color-control">
+            &lt;label>Name&lt;/label>
+            &lt;input type="color" id="nameColor" value="${buildState.nameColor}">
+          &lt;/div>
+        &lt;/div>
+      &lt;/div>
+    &lt;/div>
+  `;
+
+  const colorInputs = {
+    hullColor: content.querySelector('#hullColor'),
+    deckColor: content.querySelector('#deckColor'),
+    bridgeColor: content.querySelector('#bridgeColor'),
+    containerColor1: content.querySelector('#containerColor1'),
+    containerColor2: content.querySelector('#containerColor2'),
+    containerColor3: content.querySelector('#containerColor3'),
+    containerColor4: content.querySelector('#containerColor4'),
+    nameColor: content.querySelector('#nameColor')
+  };
+
+  Object.entries(colorInputs).forEach(([key, input]) => {
+    input.addEventListener('input', (e) => {
+      buildState[key] = e.target.value;
+      updateSvgPreview();
+    });
+  });
+
+  updateSvgPreview();
+}
+
+/**
+ * Update SVG preview
+ */
+async function updateSvgPreview() {
+  const container = document.getElementById('vesselSvgPreview');
+  if (!container) return;
+
+  const svg = await generateVesselSvg(buildState);
+  container.innerHTML = svg;
+}
+
+/**
+ * Shade a color by a percentage
+ */
+function shadeColor(color, percent) {
+  const num = parseInt(color.replace('#', ''), 16);
+  const amt = Math.round(2.55 * percent);
+  const R = Math.max(0, Math.min(255, (num >> 16) + amt));
+  const G = Math.max(0, Math.min(255, (num >> 8 &amp; 0x00FF) + amt));
+  const B = Math.max(0, Math.min(255, (num &amp; 0x0000FF) + amt));
+  return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
+}
+
+/**
+ * Generate vessel SVG based on current state
+ */
+async function generateVesselSvg(state) {
+  if (state.vesselType === 'container') {
+    return await generateContainerSvg(state);
+  } else {
+    return await generateTankerSvg(state);
+  }
+}
+
+/**
+ * Generate container ship SVG preview
+ * Loads the professional SVG template and applies colors
+ * Container count reflects capacity - ship size stays constant
+ */
+async function generateContainerSvg(state) {
+  try {
+    const response = await fetch('/images/vessels/custom_cargo_vessel.svg');
+    let svg = await response.text();
+
+    const capacity = state.capacity || 2000;
+    const minCapacity = 2000;
+    const maxCapacity = 27000;
+    const capacityRatio = (capacity - minCapacity) / (maxCapacity - minCapacity);
+
+    const hullColor = state.hullColor || '#b30000';
+    const deckColor = state.deckColor || '#272525';
+    const bridgeColor = state.bridgeColor || '#dbdbdb';
+    const containerColor1 = state.containerColor1 || '#ff8000';
+    const containerColor2 = state.containerColor2 || '#0000ff';
+    const containerColor3 = state.containerColor3 || '#670000';
+    const containerColor4 = state.containerColor4 || '#777777';
+    const nameColor = state.nameColor || '#ffffff';
+    const vesselName = state.vesselName || 'Custom Vessel';
+
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
+    const svgElement = svgDoc.documentElement;
+
+    // Container stacks - each array is a column, ordered from TOP to BOTTOM (top first to remove)
+    // Lower Y value = higher on screen = top of stack
+    // Y coordinates verified from SVG source
+    const containerStacks = [
+      // Stack 1 (X~876, near bridge): 090-095
+      ['dp_path095', 'dp_path094', 'dp_path093', 'dp_path092', 'dp_path091', 'dp_path090'],
+      // Stack 2 (X~910): 097-102
+      ['dp_path102', 'dp_path101', 'dp_path100', 'dp_path099', 'dp_path098', 'dp_path097'],
+      // Stack 3 (X~945): 103-108
+      ['dp_path108', 'dp_path107', 'dp_path106', 'dp_path105', 'dp_path104', 'dp_path103'],
+      // Stack 4 (X~1014): 109-112
+      ['dp_path112', 'dp_path111', 'dp_path110', 'dp_path109'],
+      // Stack 5a (X~713): 113-115
+      ['dp_path115', 'dp_path114', 'dp_path113'],
+      // Stack 5b (X~747): 116-118
+      ['dp_path118', 'dp_path117', 'dp_path116'],
+      // Stack 6 (X~649): 119-124
+      ['dp_path124', 'dp_path123', 'dp_path122', 'dp_path121', 'dp_path120', 'dp_path119'],
+      // Stack 7 (X~578): 125-129
+      ['dp_path129', 'dp_path128', 'dp_path127', 'dp_path126', 'dp_path125'],
+      // Stack 8 (X~510): 130-134
+      ['dp_path134', 'dp_path133', 'dp_path132', 'dp_path131', 'dp_path130'],
+      // Stack 9 (X~437): 135-139 - NOTE: 135 is at TOP (Y=343), 136 is at BOTTOM (Y=397)
+      ['dp_path135', 'dp_path139', 'dp_path138', 'dp_path137', 'dp_path136'],
+      // Stack 10 (X~370): 140-144
+      ['dp_path144', 'dp_path143', 'dp_path142', 'dp_path141', 'dp_path140'],
+      // Stack 11 (X~297): 145-149
+      ['dp_path149', 'dp_path148', 'dp_path147', 'dp_path146', 'dp_path145'],
+      // Stack 12 (X~230): 150-153
+      ['dp_path153', 'dp_path152', 'dp_path151', 'dp_path150'],
+      // Stack 13a (X~158): 154-156
+      ['dp_path156', 'dp_path155', 'dp_path154'],
+      // Stack 13b (X~190): 157-159
+      ['dp_path159', 'dp_path158', 'dp_path157']
+    ];
+
+    // Calculate how many containers to show based on capacity
+    const totalContainers = containerStacks.flat().length;
+    const containersToShow = Math.floor(totalContainers * (0.3 + capacityRatio * 0.7));
+    const containersToRemove = totalContainers - containersToShow;
+
+    // Remove containers from top of each stack, cycling through stacks
+    let removed = 0;
+    let stackIndex = 0;
+    const stackPointers = containerStacks.map(() => 0);
+
+    while (removed &lt; containersToRemove) {
+      const stack = containerStacks[stackIndex];
+      const pointer = stackPointers[stackIndex];
+
+      if (pointer &lt; stack.length) {
+        const id = stack[pointer];
+        const element = svgDoc.getElementById(id);
+        if (element) element.remove();
+        stackPointers[stackIndex]++;
+        removed++;
+      }
+
+      stackIndex = (stackIndex + 1) % containerStacks.length;
+    }
+
+    // Remove the main container shadow path when containers are removed
+    if (containersToRemove > 0) {
+      const shadowPath = svgDoc.getElementById('dp_path002');
+      if (shadowPath) shadowPath.remove();
+    }
+
+    // Calculate display parameters
+    const originalShipWidth = 1019;
+    const originalShipHeight = 202;
+
+    const viewBoxWidth = 750;
+    const viewBoxHeight = 280;
+    const waterLevel = viewBoxHeight * 0.75;
+
+    // Scale to fit
+    const displayScale = (viewBoxWidth - 60) / originalShipWidth;
+
+    const originalShipMinY = 271.17;
+    const originalShipMinX = 56.779;
+    const shipCenterX = originalShipMinX + originalShipWidth / 2;
+
+    const targetShipCenterX = viewBoxWidth / 2;
+    const targetShipBottomY = waterLevel + (originalShipHeight * displayScale) * 0.15;
+
+    const newTranslateX = targetShipCenterX - (shipCenterX * displayScale);
+    const newTranslateY = targetShipBottomY - ((originalShipMinY + originalShipHeight) * displayScale);
+
+    svgElement.setAttribute('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
+    svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+    // Apply transform to main group
+    const mainGroup = svgElement.querySelector('#dp_group001');
+    if (mainGroup) {
+      mainGroup.setAttribute('transform', `translate(${newTranslateX}, ${newTranslateY}) scale(${displayScale})`);
+    }
+
+    // Add background elements
+    const bgDefs = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
+    bgDefs.innerHTML = `
+      &lt;linearGradient id="bgSkyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        &lt;stop offset="0%" style="stop-color:#4a90d9;stop-opacity:1" />
+        &lt;stop offset="100%" style="stop-color:#87ceeb;stop-opacity:1" />
+      &lt;/linearGradient>
+      &lt;linearGradient id="bgWaterGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+        &lt;stop offset="0%" style="stop-color:#1e5a8e;stop-opacity:1" />
+        &lt;stop offset="100%" style="stop-color:#0d3a5f;stop-opacity:1" />
+      &lt;/linearGradient>
+    `;
+    svgElement.insertBefore(bgDefs, svgElement.firstChild);
+
+    const sky = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    sky.setAttribute('x', '-5%');
+    sky.setAttribute('width', '120%');
+    sky.setAttribute('height', waterLevel);
+    sky.setAttribute('fill', 'url(#bgSkyGradient)');
+
+    const water = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    water.setAttribute('x', '-5%');
+    water.setAttribute('y', waterLevel);
+    water.setAttribute('width', '120%');
+    water.setAttribute('height', viewBoxHeight - waterLevel);
+    water.setAttribute('fill', 'url(#bgWaterGradient)');
+
+    const waves = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'path');
+    waves.setAttribute('d', `M 0 ${waterLevel} Q 30 ${waterLevel - 5} 60 ${waterLevel} T 120 ${waterLevel} T 180 ${waterLevel} T 240 ${waterLevel} T 300 ${waterLevel} T 360 ${waterLevel} T 420 ${waterLevel} T 480 ${waterLevel} T 540 ${waterLevel} T 600 ${waterLevel} T 660 ${waterLevel} T 720 ${waterLevel} T 780 ${waterLevel}`);
+    waves.setAttribute('stroke', '#5dade2');
+    waves.setAttribute('stroke-width', '3');
+    waves.setAttribute('fill', 'none');
+    waves.setAttribute('opacity', '0.6');
+
+    if (mainGroup) {
+      svgElement.insertBefore(waves, mainGroup);
+      svgElement.insertBefore(water, waves);
+      svgElement.insertBefore(sky, water);
+    }
+
+    // Remove the old ship name paths (dp_path177-186)
+    for (let i = 177; i &lt;= 186; i++) {
+      const namePathElement = svgDoc.getElementById(`dp_path${i}`);
+      if (namePathElement) namePathElement.remove();
+    }
+
+    // Add vessel name as text element
+    if (vesselName &amp;&amp; mainGroup) {
+      const nameText = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'text');
+      nameText.setAttribute('x', '120');
+      nameText.setAttribute('y', '438');
+      nameText.setAttribute('font-family', 'Arial, sans-serif');
+      nameText.setAttribute('font-size', '12');
+      nameText.setAttribute('font-weight', 'bold');
+      nameText.setAttribute('fill', nameColor);
+      nameText.setAttribute('letter-spacing', '1');
+      nameText.textContent = vesselName.toUpperCase();
+      mainGroup.appendChild(nameText);
+    }
+
+    svg = new XMLSerializer().serializeToString(svgElement);
+
+    // Apply color replacements
+    // Hull colors
+    svg = svg.replace(/#b30000/g, hullColor);
+    svg = svg.replace(/#a70000/g, shadeColor(hullColor, -5));
+    svg = svg.replace(/#712121/g, shadeColor(hullColor, -15));
+    svg = svg.replace(/#712626/g, shadeColor(hullColor, -12));
+    svg = svg.replace(/#7e2929/g, shadeColor(hullColor, -10));
+
+    // Deck colors
+    svg = svg.replace(/#272525/g, deckColor);
+    svg = svg.replace(/#5b5b5b/g, shadeColor(deckColor, 20));
+    svg = svg.replace(/fill="black"/g, `fill="${shadeColor(deckColor, -30)}"`);
+    svg = svg.replace(/stroke="black"/g, `stroke="${shadeColor(deckColor, -30)}"`);
+
+    // Bridge colors
+    svg = svg.replace(/#dbdbdb/g, bridgeColor);
+    svg = svg.replace(/#bbbbbb/g, shadeColor(bridgeColor, -10));
+    svg = svg.replace(/#cbcbcb/g, shadeColor(bridgeColor, -5));
+    svg = svg.replace(/#a7a7a7/g, shadeColor(bridgeColor, -20));
+    svg = svg.replace(/#b7b7b7/g, shadeColor(bridgeColor, -15));
+
+    // Container colors
+    svg = svg.replace(/#ff8000/g, containerColor1);
+    svg = svg.replace(/fill="blue"/g, `fill="${containerColor2}"`);
+    svg = svg.replace(/#670000/g, containerColor3);
+    svg = svg.replace(/#777777/g, containerColor4);
+
+    return svg;
+  } catch (error) {
+    console.error('Failed to load vessel SVG:', error);
+    return `&lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
+      &lt;rect width="400" height="200" fill="#f0f0f0"/>
+      &lt;text x="200" y="100" text-anchor="middle" font-size="16" fill="#666">Loading vessel preview...&lt;/text>
+    &lt;/svg>`;
+  }
+}
+
+/**
+ * Generate tanker ship SVG preview
+ * Loads the professional SVG template and applies colors
+ * Tank count reflects capacity - ship size stays constant
+ */
+async function generateTankerSvg(state) {
+  try {
+    const response = await fetch('/images/vessels/custom_tanker_vessel.svg');
+    let svg = await response.text();
+
+    const capacity = state.capacity || 148000;
+    const minCapacity = 148000;
+    const maxCapacity = 1998000;
+    const capacityRatio = Math.min(1, Math.max(0, (capacity - minCapacity) / (maxCapacity - minCapacity)));
+
+    const hullColor = state.hullColor || '#b30000';
+    const deckColor = state.deckColor || '#272525';
+    const bridgeColor = state.bridgeColor || '#dbdbdb';
+    const tankColor1 = state.containerColor1 || '#ff8000';
+    const tankColor2 = state.containerColor2 || '#0000ff';
+    const tankColor3 = state.containerColor3 || '#670000';
+    const tankColor4 = state.containerColor4 || '#777777';
+    const nameColor = state.nameColor || '#ffffff';
+
+    const parser = new DOMParser();
+    const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
+    const svgElement = svgDoc.documentElement;
+
+    // Hide tanks based on capacity (7 tanks total, show 4-7 based on capacity)
+    const minTanks = 4;
+    const maxTanks = 7;
+    const tanksToShow = Math.floor(minTanks + capacityRatio * (maxTanks - minTanks));
+
+    // Hide tanks from the front (bow) - tank_07 is at bow, tank_01 is near bridge
+    for (let i = 7; i > tanksToShow; i--) {
+      const tankId = i &lt; 10 ? `tank_0${i}` : `tank_${i}`;
+      const tankElement = svgElement.getElementById(tankId);
+      if (tankElement) {
+        tankElement.remove();
+      }
+    }
+
+    // Convert back to string for color replacements
+    svg = new XMLSerializer().serializeToString(svgElement);
+
+    // Hull colors
+    svg = svg.replace(/#b30000/g, hullColor);
+    svg = svg.replace(/#a70000/g, shadeColor(hullColor, -5));
+    svg = svg.replace(/#712121/g, shadeColor(hullColor, -15));
+    svg = svg.replace(/#712626/g, shadeColor(hullColor, -12));
+    svg = svg.replace(/#7e2929/g, shadeColor(hullColor, -10));
+
+    // Deck colors
+    svg = svg.replace(/#272525/g, deckColor);
+    svg = svg.replace(/#5b5b5b/g, shadeColor(deckColor, 20));
+    svg = svg.replace(/fill="black"/g, `fill="${shadeColor(deckColor, -30)}"`);
+    svg = svg.replace(/stroke="black"/g, `stroke="${shadeColor(deckColor, -30)}"`);
+
+    // Bridge colors
+    svg = svg.replace(/#dbdbdb/g, bridgeColor);
+    svg = svg.replace(/#bbbbbb/g, shadeColor(bridgeColor, -10));
+    svg = svg.replace(/#cbcbcb/g, shadeColor(bridgeColor, -5));
+    svg = svg.replace(/#a7a7a7/g, shadeColor(bridgeColor, -20));
+    svg = svg.replace(/#b7b7b7/g, shadeColor(bridgeColor, -15));
+
+    // Tank colors - update gradients and fills
+    svg = svg.replace(/#ff8000/g, tankColor1);
+    svg = svg.replace(/#cc6600/g, shadeColor(tankColor1, -20));
+    svg = svg.replace(/#994d00/g, shadeColor(tankColor1, -40));
+
+    svg = svg.replace(/fill="blue"/g, `fill="${tankColor2}"`);
+    svg = svg.replace(/#4d94ff/g, shadeColor(tankColor2, 30));
+    svg = svg.replace(/#0000b3/g, shadeColor(tankColor2, -30));
+
+    svg = svg.replace(/#670000/g, tankColor3);
+    svg = svg.replace(/#8f0000/g, shadeColor(tankColor3, 20));
+    svg = svg.replace(/#4d0000/g, shadeColor(tankColor3, -20));
+
+    svg = svg.replace(/#777777/g, tankColor4);
+    svg = svg.replace(/#999999/g, shadeColor(tankColor4, 20));
+    svg = svg.replace(/#555555/g, shadeColor(tankColor4, -20));
+
+    // Name color
+    svg = svg.replace(/fill="#ffffff"/gi, `fill="${nameColor}"`);
+    svg = svg.replace(/fill="white"/gi, `fill="${nameColor}"`);
+
+    return svg;
+  } catch (error) {
+    console.error('Failed to load tanker SVG template:', error);
+    return generateFallbackTankerSvg(state);
+  }
+}
+
+/**
+ * Fallback tanker SVG if template fails to load
+ */
+function generateFallbackTankerSvg(state) {
+  const viewBoxWidth = 800;
+  const viewBoxHeight = 400;
+  const shipLength = 500;
+  const shipHeight = 80;
+  const shipX = (viewBoxWidth - shipLength) / 2;
+  const shipY = viewBoxHeight - shipHeight - 100;
+
+  return `
+    &lt;svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}">
+      &lt;rect width="${viewBoxWidth}" height="${viewBoxHeight}" fill="#87ceeb"/>
+      &lt;rect x="0" y="${viewBoxHeight - 100}" width="${viewBoxWidth}" height="100" fill="#1e3a5f"/>
+      &lt;path d="M ${shipX} ${shipY + shipHeight} L ${shipX + shipLength} ${shipY + shipHeight} L ${shipX + shipLength + 20} ${shipY + shipHeight - 20} L ${shipX + shipLength} ${shipY + 10} L ${shipX + 30} ${shipY + 10} L ${shipX} ${shipY + shipHeight - 30} Z" fill="${state.hullColor || '#b30000'}" stroke="#000" stroke-width="2"/>
+      &lt;text x="${viewBoxWidth / 2}" y="${viewBoxHeight / 2}" text-anchor="middle" font-size="16" fill="#fff">Tanker Preview&lt;/text>
+    &lt;/svg>
+  `;
+}
+
+/**
+ * Render current step
+ */
+function renderCurrentStep() {
+  const stepFunctions = [null, renderStep1, renderStep3, renderStep4, renderStep5];
+  stepFunctions[buildState.currentStep]();
+
+  document.querySelectorAll('.build-step-dot').forEach((step, index) => {
+    const stepNumber = index + 1;
+    step.classList.toggle('active', stepNumber === buildState.currentStep);
+    step.classList.toggle('completed', stepNumber &lt; buildState.currentStep);
+  });
+
+  const prevBtn = document.getElementById('buildPrevBtn');
+  const nextBtn = document.getElementById('buildNextBtn');
+  const submitBtn = document.getElementById('buildSubmitBtn');
+
+  prevBtn.classList.toggle('hidden', buildState.currentStep === 1);
+  nextBtn.classList.toggle('hidden', buildState.currentStep === 4);
+  submitBtn.classList.toggle('hidden', buildState.currentStep !== 4);
+}
+
+/**
+ * Go to next step
+ */
+function nextStep() {
+  if (buildState.currentStep === 1 &amp;&amp; !buildState.vesselType) {
+    showSideNotification('Please select a vessel type', 'error');
+    return;
+  }
+  if (buildState.currentStep === 1 &amp;&amp; !buildState.port) {
+    showSideNotification('Please select a delivery port', 'error');
+    return;
+  }
+
+  if (buildState.currentStep &lt; 4) {
+    buildState.currentStep++;
+    renderCurrentStep();
+  }
+}
+
+/**
+ * Go to previous step
+ */
+function prevStep() {
+  if (buildState.currentStep > 1) {
+    buildState.currentStep--;
+    renderCurrentStep();
+  }
+}
+
+/**
+ * Submit build request
+ */
+async function submitBuild() {
+  if (!buildState.vesselName.trim()) {
+    showSideNotification('Please enter a vessel name', 'error');
+    return;
+  }
+
+  const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
+  const stats = applyPerkEffects(baseStats, buildState);
+  const price = calculatePrice(buildState);
+
+  const confirmed = await showConfirmDialog({
+    title: 'Confirm Vessel Build',
+    message: `Build ${buildState.vesselName}?`,
+    details: [
+      { label: 'Type', value: buildState.vesselType === 'container' ? 'Container' : 'Tanker' },
+      { label: 'Capacity', value: `${formatNumber(buildState.capacity)} ${CAPACITY_RANGES[buildState.vesselType].unit}` },
+      { label: 'Engine', value: ENGINES.find(e => e.type === buildState.engine).name },
+      { label: 'Total Price', value: `$${formatNumber(Math.round(price))}` },
+      { label: 'Build Time', value: formatBuildTime(Math.round(stats.buildTime)) }
+    ],
+    confirmText: 'Build Vessel',
+    cancelText: 'Cancel'
+  });
+
+  if (!confirmed) return;
+
+  try {
+    const response = await fetch('/api/vessel/build-vessel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: buildState.vesselName,
+        ship_yard: buildState.port,
+        vessel_model: buildState.vesselType,
+        engine_type: buildState.engine,
+        engine_kw: buildState.engineKW,
+        capacity: buildState.capacity,
+        antifouling_model: buildState.antifouling,
+        bulbous: buildState.bulbous ? 1 : 0,
+        enhanced_thrusters: buildState.enhancedThrusters ? 1 : 0,
+        range: Math.round(stats.range),
+        speed: Math.round(stats.speed * 10) / 10,
+        fuel_consumption: Math.round(stats.fuel),
+        propeller_types: buildState.propellers,
+        hull_color: buildState.hullColor,
+        deck_color: buildState.deckColor,
+        bridge_color: buildState.bridgeColor,
+        container_color_1: buildState.containerColor1,
+        container_color_2: buildState.containerColor2,
+        container_color_3: buildState.containerColor3,
+        container_color_4: buildState.containerColor4,
+        name_color: buildState.nameColor
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to build vessel');
+    }
+
+    showSideNotification(
+      `Vessel "${buildState.vesselName}" is being built!&lt;br>Build time: ${formatBuildTime(Math.round(stats.buildTime))}`,
+      'success',
+      5000
+    );
+
+    closeBuildShipModal();
+
+    if (window.refreshVesselList) {
+      window.refreshVesselList();
+    }
+
+    if (window.updateVesselCount) {
+      await window.updateVesselCount();
+    }
+
+  } catch (error) {
+    console.error('[Build] Error:', error);
+    showSideNotification(`Error: ${error.message}`, 'error');
+  }
+}
+
+// ============================================================================
+// MODAL CONTROL
+// ============================================================================
+
+/**
+ * Open build ship modal
+ */
+export function openBuildShipModal() {
+  const overlay = document.getElementById('buildShipOverlay');
+  if (!overlay) {
+    console.error('[Build] Modal overlay not found');
+    return;
+  }
+
+  buildState.currentStep = 1;
+  buildState.vesselType = 'container';
+  buildState.capacity = 2000;
+  buildState.port = null;
+  buildState.engine = null;
+  buildState.engineKW = null;
+  buildState.antifouling = null;
+  buildState.bulbous = false;
+  buildState.propellers = '4_blade_propeller';
+  buildState.enhancedThrusters = false;
+  buildState.vesselName = '';
+  buildState.hullColor = '#b30000';
+  buildState.deckColor = '#272525';
+  buildState.bridgeColor = '#dbdbdb';
+  buildState.containerColor1 = '#ff8000';
+  buildState.containerColor2 = '#0000ff';
+  buildState.containerColor3 = '#670000';
+  buildState.containerColor4 = '#777777';
+  buildState.nameColor = '#ffffff';
+
+  overlay.classList.remove('hidden');
+  renderCurrentStep();
+}
+
+/**
+ * Close build ship modal
+ */
+function closeBuildShipModal() {
+  const overlay = document.getElementById('buildShipOverlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
+/**
+ * Initialize build ship modal
+ */
+export function initBuildShipModal() {
+  const closeBtn = document.getElementById('closeBuildShipBtn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeBuildShipModal);
+  }
+
+  const prevBtn = document.getElementById('buildPrevBtn');
+  if (prevBtn) {
+    prevBtn.addEventListener('click', prevStep);
+  }
+
+  const nextBtn = document.getElementById('buildNextBtn');
+  if (nextBtn) {
+    nextBtn.addEventListener('click', nextStep);
+  }
+
+  const submitBtn = document.getElementById('buildSubmitBtn');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', submitBuild);
+  }
+
+  console.log('[Build] Vessel building module initialized');
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+    
+    
+</div>
+
+<br class="clear">
+
+<footer>
+    Documentation Version: 0.0.7 - ShippingManager CoPilot
+</footer>
+
+<script>prettyPrint();</script>
+<script src="scripts/polyfill.js"></script>
+<script src="scripts/linenumber.js"></script>
+
+
+
+</body>
+</html>

@@ -40,7 +40,7 @@ async function fetchVessels() {
  * Error Handling Strategy:
  * - Always pass through ACTUAL error message from API (don't mask it)
  * - "Vessel not found" is OK during auto-depart (vessel departed between checks)
- * - Negative netIncome triggers debug logging + saves raw API response to file
+ * - Negative income triggers debug logging + saves raw API response to file
  *
  * Parameters:
  * - speed: Vessel's cruising speed in knots (from vessel specs)
@@ -51,7 +51,7 @@ async function fetchVessels() {
  * @param {number} vesselId - User vessel ID
  * @param {number} speed - Travel speed in knots
  * @param {number} [guards=0] - Number of guards (0 or 10)
- * @returns {Promise<Object>} Departure result: {success, vesselId, income, netIncome, fuelUsed, ...}
+ * @returns {Promise<Object>} Departure result: {success, vesselId, income, harborFee, fuelUsed, ...}
  * @throws {Error} Only on network/critical failures (not on game logic errors)
  */
 async function departVessel(vesselId, speed, guards = 0) {
@@ -122,9 +122,8 @@ async function departVessel(vesselId, speed, guards = 0) {
     distance: vesselData?.route_distance || vesselHistory?.total_distance,
     duration: vesselHistory?.duration,
     routeName: vesselData?.route_name || vesselHistory?.route_name,
-    income: income,
+    income: income, // depart_income is already NET (after harbor fees)
     harborFee: departInfo.harbor_fee,
-    netIncome: income, // depart_income is already NET (after fees)
     fuelUsed: departInfo.fuel_usage / 1000, // kg to tons
     co2Used: departInfo.co2_emission / 1000, // kg to tons,
     speed: speed,

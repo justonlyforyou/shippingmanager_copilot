@@ -1998,7 +1998,7 @@ export async function setVesselFilter(filter) {
  *
  * @returns {Promise<void>}
  */
-async function applyFiltersAndRender() {
+async function applyFiltersAndRender(forceRender = false) {
   // IMPORTANT: Re-read filter values from localStorage to ensure they're up to date
   // This prevents filter state loss during automatic refreshes
   currentVesselFilter = localStorage.getItem('harborMapVesselFilter') || 'all_vessels';
@@ -2046,7 +2046,7 @@ async function applyFiltersAndRender() {
   const hasActiveSelection = selectedVesselId !== null || selectedPortCode !== null ||
                              vesselPanelOpen || portPanelOpen || routePanelOpen;
 
-  if (hasActiveSelection) {
+  if (hasActiveSelection && !forceRender) {
     console.log('[Harbor Map] Active selection detected - skipping render to preserve current view');
 
     // IMPORTANT: Update previousMapState with filtered data
@@ -2704,7 +2704,8 @@ export async function deselectAll() {
 
   // IMPORTANT: Always use applyFiltersAndRender() to ensure filters are applied
   // This ensures that the current filter selection is respected when closing panels
-  await applyFiltersAndRender();
+  // forceRender=true bypasses the active selection check (prevents race condition with panel close)
+  await applyFiltersAndRender(true);
 
   // Restore zoom and center if available
   if (previousZoom && previousCenter) {

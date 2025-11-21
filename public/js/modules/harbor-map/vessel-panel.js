@@ -110,8 +110,8 @@ export async function showVesselPanel(vessel) {
   } else if (vessel.capacity_type === 'tanker' && vessel.capacity_max) {
     const fuel = vessel.capacity_max.fuel;
     const crude = vessel.capacity_max.crude_oil;
-    const maxCapacity = Math.max(fuel, crude);
-    capacityDisplay = `${formatNumber(maxCapacity)} bbl (${formatNumber(fuel)} bbl fuel / ${formatNumber(crude)} bbl crude)`;
+    const total = fuel + crude;
+    capacityDisplay = `${formatNumber(total)} bbl (${formatNumber(fuel)} fuel / ${formatNumber(crude)} crude)`;
   }
 
   // Current cargo loaded (detailed breakdown)
@@ -151,7 +151,13 @@ export async function showVesselPanel(vessel) {
   }
 
   // Vessel image URL (cached via backend proxy)
-  const imageUrl = vessel.type ? `/api/vessel-image/${vessel.type}` : '';
+  // Custom-built vessels have type_name "N/A"
+  let imageUrl = '';
+  if (vessel.type_name === 'N/A') {
+    imageUrl = `/api/vessel-image/custom/${vessel.id}`;
+  } else if (vessel.type) {
+    imageUrl = `/api/vessel-image/${vessel.type}`;
+  }
 
   // Render vessel full info with collapsible sections
   panel.innerHTML = `
@@ -205,7 +211,7 @@ export async function showVesselPanel(vessel) {
         >🔧</span>
         <span
           class="action-emoji${vessel.status !== 'port' && vessel.status !== 'anchor' ? ' disabled' : ''}"
-          onclick="${vessel.status === 'port' || vessel.status === 'anchor' ? `window.harborMap.sellVesselFromPanel(${vessel.id}, '${vessel.name.replace(/'/g, "\\'")}'})` : 'return false'}"
+          onclick="${vessel.status === 'port' || vessel.status === 'anchor' ? `window.harborMap.sellVesselFromPanel(${vessel.id}, '${vessel.name.replace(/'/g, "\\'")}')` : 'return false'}"
           title="${vessel.status === 'port' || vessel.status === 'anchor' ? 'Sell this vessel' : 'Vessel must be in port or anchored to sell'}"
         >💵</span>
       </div>
@@ -332,6 +338,7 @@ export async function showVesselPanel(vessel) {
             <div class="vessel-spec"><strong>Range:</strong> ${formatNumber(vessel.range)} nm</div>
             <div class="vessel-spec ${getCO2Class(vessel.co2_factor)}"><strong>CO2 Factor:</strong> ${vessel.co2_factor || 'N/A'}</div>
             <div class="vessel-spec ${getFuelClass(vessel.fuel_factor)}"><strong>Fuel Factor:</strong> ${vessel.fuel_factor || 'N/A'}</div>
+            ${vessel.fuel_consumption_display ? `<div class="vessel-spec"><strong>Fuel Cons.:</strong> ${vessel.fuel_consumption_display}</div>` : ''}
             <div class="vessel-spec"><strong>Fuel Cap.:</strong> ${formatNumber(vessel.fuel_capacity)} t</div>
             <div class="vessel-spec"><strong>Service:</strong> ${vessel.hours_between_service || 'N/A'}h</div>
             <div class="vessel-spec"><strong>Engine:</strong> ${vessel.engine_type || 'N/A'} (${formatNumber(vessel.kw)} kW)</div>
@@ -520,9 +527,7 @@ async function loadVesselHistory(vesselId) {
           }
         }
         if (hasLoadedCargo) {
-          // Convert km to nautical miles (1 nm = 1.852 km)
-          const distanceNm = newestTrip.distance / 1.852;
-          const revenuePerNm = (newestTrip.profit / distanceNm).toFixed(2);
+          const revenuePerNm = (newestTrip.profit / newestTrip.distance).toFixed(2);
           revenuePerNmElement.innerHTML = `<strong>Revenue per nm:</strong> $${parseFloat(revenuePerNm).toLocaleString()}/nm`;
         } else {
           revenuePerNmElement.remove();
@@ -613,9 +618,7 @@ function renderHistoryPage() {
       }
 
       if (hasLoadedCargo) {
-        // Convert km to nautical miles (1 nm = 1.852 km)
-        const distanceNm = trip.distance / 1.852;
-        revenuePerNm = (trip.profit / distanceNm).toFixed(2);
+        revenuePerNm = (trip.profit / trip.distance).toFixed(2);
       }
     }
 
@@ -663,7 +666,7 @@ function renderHistoryPage() {
           <span>Fuel: ${trip.fuel_used ? Math.round(trip.fuel_used / 1000).toLocaleString() + ' t' : 'N/A'}</span>
         </div>
         <div class="history-row">
-          <span>Distance: ${trip.distance ? trip.distance.toLocaleString() + ' km' : 'N/A'}</span>
+          <span>Distance: ${trip.distance ? Math.round(trip.distance).toLocaleString() + ' nm' : 'N/A'}</span>
         </div>
         <div class="history-row">
           <span>Duration: ${formatDuration(trip.duration)}</span>

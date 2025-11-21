@@ -51,13 +51,19 @@ router.use(async (req, res, next) => {
   // Extract full path from req.url (relative to router mount point /api/vessel-image)
   const vesselImagePath = req.url.startsWith('/') ? req.url.substring(1) : req.url;
 
+  // Check if this is a custom vessel (redirect to SVG generator)
+  if (vesselImagePath.startsWith('custom/')) {
+    const vesselId = vesselImagePath.split('/').pop();
+    return res.redirect(`/api/vessel-svg/${vesselId}`);
+  }
+
   // Validate path (alphanumeric, underscore, hyphen, slash, dot only - prevent directory traversal)
   if (!vesselImagePath || /\.\./.test(vesselImagePath) || !/^[a-zA-Z0-9_\-\/\.]+$/.test(vesselImagePath)) {
     logger.warn(`[VesselImage] Invalid vessel image path requested: ${vesselImagePath}`);
     return res.status(400).json({ error: 'Invalid vessel image path' });
   }
 
-  try {
+  try{
 
   // Build cache file path (preserve directory structure)
   const cacheFilePath = path.join(CACHE_DIR, vesselImagePath);
