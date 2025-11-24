@@ -8,7 +8,7 @@
  * @module vessel-building
  */
 
-import { showSideNotification, formatNumber } from './utils.js';
+import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { getCurrentBunkerState } from './bunker-management.js';
 
@@ -288,7 +288,8 @@ const buildState = {
   containerColor2: '#0000ff',
   containerColor3: '#670000',
   containerColor4: '#777777',
-  nameColor: '#ffffff'
+  nameColor: '#ffffff',
+  customImage: null
 };
 
 // ============================================================================
@@ -873,41 +874,52 @@ function renderStep5() {
   content.innerHTML = `
     <div class="build-step-container">
       <div class="appearance-section">
-        <div class="svg-preview-container">
-          <div id="vesselSvgPreview"></div>
+        <div class="svg-preview-container" id="previewContainer">
+          ${buildState.customImage
+            ? `<img src="${buildState.customImage}" alt="Custom vessel" class="custom-image-full-preview">`
+            : '<div id="vesselSvgPreview"></div>'}
         </div>
-        <div class="color-controls-grid">
+        <div class="custom-image-upload">
+          <div class="custom-image-preview" id="customImagePreview">
+            ${buildState.customImage
+              ? `<img src="${buildState.customImage}" alt="Custom">`
+              : '<span class="upload-icon">+</span><span class="upload-text">Click to upload</span>'}
+          </div>
+          <input type="file" id="customImageInput" accept="image/*" style="display: none;">
+          ${buildState.customImage ? '<button type="button" class="remove-custom-image-btn" id="removeCustomImage">Remove Image</button>' : ''}
+        </div>
+        <div class="color-controls-grid${buildState.customImage ? ' hidden' : ''}">
           <div class="color-control">
-            <label>Hull</label>
             <input type="color" id="hullColor" value="${buildState.hullColor}">
+            <label for="hullColor">Hull</label>
           </div>
           <div class="color-control">
-            <label>Deck</label>
             <input type="color" id="deckColor" value="${buildState.deckColor}">
+            <label for="deckColor">Deck</label>
           </div>
           <div class="color-control">
-            <label>Bridge</label>
             <input type="color" id="bridgeColor" value="${buildState.bridgeColor}">
+            <label for="bridgeColor">Bridge</label>
           </div>
           <div class="color-control">
-            <label>Cargo 1</label>
-            <input type="color" id="containerColor1" value="${buildState.containerColor1}">
-          </div>
-          <div class="color-control">
-            <label>Cargo 2</label>
-            <input type="color" id="containerColor2" value="${buildState.containerColor2}">
-          </div>
-          <div class="color-control">
-            <label>Cargo 3</label>
-            <input type="color" id="containerColor3" value="${buildState.containerColor3}">
-          </div>
-          <div class="color-control">
-            <label>Cargo 4</label>
-            <input type="color" id="containerColor4" value="${buildState.containerColor4}">
-          </div>
-          <div class="color-control">
-            <label>Name</label>
             <input type="color" id="nameColor" value="${buildState.nameColor}">
+            <label for="nameColor">Name</label>
+          </div>
+          <div class="color-control">
+            <input type="color" id="containerColor1" value="${buildState.containerColor1}">
+            <label for="containerColor1">C1</label>
+          </div>
+          <div class="color-control">
+            <input type="color" id="containerColor2" value="${buildState.containerColor2}">
+            <label for="containerColor2">C2</label>
+          </div>
+          <div class="color-control">
+            <input type="color" id="containerColor3" value="${buildState.containerColor3}">
+            <label for="containerColor3">C3</label>
+          </div>
+          <div class="color-control">
+            <input type="color" id="containerColor4" value="${buildState.containerColor4}">
+            <label for="containerColor4">C4</label>
           </div>
         </div>
       </div>
@@ -932,7 +944,67 @@ function renderStep5() {
     });
   });
 
-  updateSvgPreview();
+  // Custom image upload handlers
+  const imagePreview = content.querySelector('#customImagePreview');
+  const imageInput = content.querySelector('#customImageInput');
+  const removeBtn = content.querySelector('#removeCustomImage');
+
+  imagePreview?.addEventListener('click', () => {
+    imageInput?.click();
+  });
+
+  imageInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showSideNotification('Please select an image file', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Resize image
+        const maxWidth = 400;
+        const maxHeight = 240;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = Math.round(height * (maxWidth / width));
+          width = maxWidth;
+        }
+        if (height > maxHeight) {
+          width = Math.round(width * (maxHeight / height));
+          height = maxHeight;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        buildState.customImage = canvas.toDataURL('image/png');
+        renderStep5(); // Re-render to show image
+        showSideNotification('Image uploaded', 'success');
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  removeBtn?.addEventListener('click', () => {
+    buildState.customImage = null;
+    renderStep5(); // Re-render to remove image
+  });
+
+  // Only update SVG preview if no custom image
+  if (!buildState.customImage) {
+    updateSvgPreview();
+  }
 }
 
 /**
@@ -1413,7 +1485,8 @@ async function submitBuild() {
         container_color_2: buildState.containerColor2,
         container_color_3: buildState.containerColor3,
         container_color_4: buildState.containerColor4,
-        name_color: buildState.nameColor
+        name_color: buildState.nameColor,
+        custom_image: buildState.customImage
       })
     });
 
@@ -1441,7 +1514,7 @@ async function submitBuild() {
 
   } catch (error) {
     console.error('[Build] Error:', error);
-    showSideNotification(`Error: ${error.message}`, 'error');
+    showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');
   }
 }
 

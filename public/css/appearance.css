@@ -1,7 +1,7 @@
 .appearance-section {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-20);
+  gap: 1px;
 }
 
 .svg-preview-container {
@@ -38,11 +38,87 @@
   padding: 0;
 }
 
+/* Custom Image Upload in Build Modal */
+.custom-image-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 0;
+}
+
+.custom-image-upload label {
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+}
+
+.custom-image-preview {
+  width: 160px;
+  height: 96px;
+  background: var(--color-bg-secondary);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  overflow: hidden;
+}
+
+.custom-image-preview:hover {
+  border-color: var(--color-info);
+  background: var(--color-bg-card);
+}
+
+.custom-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Full preview image replacing SVG */
+.custom-image-full-preview {
+  width: 100%;
+  height: auto;
+  max-height: 250px;
+  object-fit: contain;
+  display: block;
+}
+
+.custom-image-preview .upload-icon {
+  font-size: var(--font-size-24);
+  color: var(--color-text-tertiary);
+}
+
+.custom-image-preview .upload-text {
+  font-size: var(--font-size-10);
+  color: var(--color-text-tertiary);
+}
+
+.remove-image-btn {
+  background: var(--color-danger-10);
+  border: 1px solid var(--color-danger-30);
+  color: var(--color-danger);
+  padding: var(--spacing-4) var(--spacing-8);
+  border-radius: var(--radius-4);
+  font-size: var(--font-size-11);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.remove-image-btn:hover {
+  background: var(--color-danger-20);
+  border-color: var(--color-danger);
+}
+
 .color-controls-grid {
   display: flex;
-  gap: var(--spacing-20);
+  flex-wrap: wrap;
+  gap: 1px;
   justify-content: center;
-  padding-bottom: 5px;
+  margin: 0 auto;
 }
 
 .color-group {
@@ -62,7 +138,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--spacing-4);
+  gap: 1px;
 }
 
 .color-control label {
@@ -92,4 +168,309 @@
 .color-control input[type="color"]::-moz-color-swatch {
   border: none;
   border-radius: var(--radius-2);
+}
+
+/* ============================================
+   VESSEL APPEARANCE EDITOR MODAL
+   ============================================ */
+
+.vessel-appearance-window {
+  width: 90%;
+  max-width: 420px;
+  min-height: 0;
+  max-height: calc(100vh - 40px);
+}
+
+.vessel-appearance-body {
+  padding: var(--spacing-12);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+  overflow-y: auto;
+}
+
+.vessel-appearance-body .appearance-section {
+  background: var(--color-bg-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-12);
+}
+
+.vessel-appearance-body .appearance-section h3 {
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-info-light);
+  margin: 0 0 var(--spacing-12) 0;
+  padding-bottom: var(--spacing-8);
+  border-bottom: var(--border-light);
+}
+
+/* Name Row - compact inline */
+.appearance-name-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-10);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-bg-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-6);
+}
+
+.appearance-name-row label {
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.appearance-name-row input[type="text"] {
+  flex: 1;
+  padding: var(--spacing-6) var(--spacing-10);
+  background: var(--color-bg-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+}
+
+.appearance-name-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+/* Combined Image Section */
+#appearanceImageSection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.appearance-image-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: var(--spacing-6);
+  position: relative;
+}
+
+.remove-custom-image-btn {
+  display: block;
+  width: 180px;
+  margin: 1px auto 0;
+  padding: var(--spacing-6) var(--spacing-12);
+  border-radius: var(--radius-4);
+  background: var(--color-danger);
+  color: var(--color-white);
+  border: none;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.remove-custom-image-btn:hover {
+  background: var(--color-danger-dark);
+}
+
+.remove-custom-image-btn.hidden {
+  display: none;
+}
+
+.appearance-colors-area {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  margin-top: var(--spacing-12);
+}
+
+/* Image Upload Area */
+.appearance-image-upload {
+  display: flex;
+  justify-content: center;
+}
+
+.appearance-image-preview {
+  width: 180px;
+  height: 108px;
+  background: var(--color-bg-secondary);
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-6);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  overflow: hidden;
+}
+
+.appearance-image-preview:hover {
+  border-color: var(--color-info);
+  background: var(--color-bg-card);
+}
+
+.appearance-image-preview.has-image {
+  border-style: solid;
+  border-color: var(--color-success-30);
+}
+
+.appearance-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.appearance-upload-icon {
+  font-size: var(--font-size-32);
+  color: var(--color-text-tertiary);
+  line-height: 1;
+}
+
+.appearance-upload-text {
+  font-size: var(--font-size-12);
+  color: var(--color-text-tertiary);
+  margin-top: var(--spacing-8);
+}
+
+/* Form Rows */
+.appearance-form-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+  margin-bottom: var(--spacing-10);
+}
+
+.appearance-form-row:last-child {
+  margin-bottom: 0;
+}
+
+.appearance-form-row label {
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  min-width: 90px;
+}
+
+.appearance-form-row select,
+.appearance-form-row input[type="number"] {
+  flex: 1;
+  padding: var(--spacing-8) var(--spacing-10);
+  background: var(--color-bg-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+}
+
+.appearance-form-row select:focus,
+.appearance-form-row input[type="number"]:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+/* Colors Grid - 2x4 compact layout */
+.appearance-colors-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-4);
+}
+
+.appearance-color-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.appearance-color-item label {
+  font-size: var(--font-size-10);
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.appearance-color-item input[type="color"] {
+  width: 24px;
+  height: 24px;
+  border: var(--border-default);
+  border-radius: var(--radius-2);
+  cursor: pointer;
+  background: var(--color-bg-primary);
+  padding: 0;
+}
+
+.appearance-color-item input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 1px;
+}
+
+.appearance-color-item input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: var(--radius-2);
+}
+
+/* Actions - full width buttons stacked */
+.appearance-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.appearance-actions .btn-primary,
+.appearance-actions .btn-secondary {
+  width: 100%;
+  padding: var(--spacing-10);
+  border-radius: var(--radius-6);
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  border: none;
+}
+
+.appearance-actions .btn-primary {
+  background: var(--color-info);
+  color: var(--color-white);
+}
+
+.appearance-actions .btn-primary:hover {
+  background: var(--color-info-dark);
+}
+
+.appearance-actions .btn-secondary {
+  background: var(--color-gray-600);
+  color: var(--color-text-primary);
+}
+
+.appearance-actions .btn-secondary:hover {
+  background: var(--color-text-tertiary);
+}
+
+/* Pencil Edit Icon (fallback for missing vessel images) */
+.vessel-image-edit-fallback {
+  width: 100%;
+  min-height: 120px;
+  aspect-ratio: 5 / 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-4);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.vessel-image-edit-fallback:hover {
+  background: var(--color-bg-card);
+  border-color: var(--color-info);
+}
+
+.vessel-image-edit-fallback .edit-icon {
+  font-size: var(--font-size-24);
+  color: var(--color-text-tertiary);
+}
+
+.vessel-image-edit-fallback:hover .edit-icon {
+  color: var(--color-info-light);
 }

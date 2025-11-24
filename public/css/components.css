@@ -63,11 +63,11 @@ button {
   flex-shrink: 0;
 }
 
-button:hover {
+button:not(.close-btn):not(.remove-btn-small):hover {
   background: var(--color-info-dark);
 }
 
-button:active {
+button:not(.close-btn):not(.remove-btn-small):active {
   background: var(--color-info-darker);
 }
 

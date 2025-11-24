@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="/css/notifications.css">
     <link rel="stylesheet" href="/css/vessels.css">
     <link rel="stylesheet" href="/css/depart-manager.css">
+    <link rel="stylesheet" href="/css/route-planner.css">
     <link rel="stylesheet" href="/css/price-display.css">
     <link rel="stylesheet" href="/css/autopilot.css">
     <link rel="stylesheet" href="/css/campaigns.css">
@@ -122,14 +123,6 @@
                     <span class="header-info-icon">💰</span>
                     <span class="header-info-value" id="cashDisplay"></span>
                 </div>
-                <div class="header-info-item header-info-coop hidden" id="coopContainer">
-                    <span class="header-info-icon">🤝</span>
-                    <span class="header-info-value" id="coopDisplay"></span>
-                </div>
-                <div class="header-info-item header-info-campaigns">
-                    <span class="header-info-icon">📊</span>
-                    <span class="header-info-value" id="campaignsDisplay"></span>
-                </div>
                 <div class="header-info-item header-info-stock" id="stockContainer">
                     <span class="header-info-icon">📈</span>
                     <span class="header-info-value" id="stockDisplay"></span>
@@ -225,14 +218,153 @@
                     <h3>🚢 Depart Manager</h3>
                     <button class="close-btn depart-manager-close"><span>×</span></button>
                 </div>
+                <div class="depart-manager-search">
+                    <input type="text" id="departManagerSearchInput" placeholder="Search vessel..." autocomplete="off">
+                    <button id="departManagerSearchClear" class="close-btn" title="Clear search"><span>×</span></button>
+                </div>
+                <div class="depart-manager-tabs">
+                    <button class="depart-tab-btn active" data-status="port" title="Vessels at port ready to depart">At Port</button>
+                    <button class="depart-tab-btn" data-status="enroute" title="Vessels currently sailing">At Sea</button>
+                    <button class="depart-tab-btn" data-status="pending" title="Vessels pending delivery">Pending</button>
+                    <button class="depart-tab-btn" data-status="maintenance" title="Vessels in drydock">DryDock</button>
+                    <button class="depart-tab-btn" data-status="anchor" title="Vessels at anchor">Anchored</button>
+                    <button class="depart-tab-btn" data-status="mass-moor" title="Moor/resume vessels">Moor</button>
+                </div>
                 <div class="depart-manager-actions">
                     <button id="departAllFromPanel" class="vessel-filter-btn depart-primary-btn" title="Depart selected vessels">🚢 Depart Selected (0)</button>
                     <button id="selectAllVesselsBtn" class="vessel-filter-btn" title="Select all vessels">✓ All</button>
                     <button id="unselectAllVesselsBtn" class="vessel-filter-btn" title="Unselect all vessels">✗ None</button>
+                    <button id="moorAllBtn" class="vessel-filter-btn depart-primary-btn" title="Moor selected vessels" style="display: none;">⛓️ Moor (0)</button>
+                    <button id="resumeAllBtn" class="vessel-filter-btn" title="Resume selected vessels" style="display: none;">🟢 Resume (0)</button>
                     <button id="refreshDepartListBtn" class="vessel-filter-btn" title="Refresh vessel list">🔄</button>
                 </div>
                 <div class="depart-manager-content">
                     <!-- Future: Vessel list, filters, etc. -->
+                </div>
+            </div>
+
+            <!-- Route Planner Panel (draggable) -->
+            <div id="routePlannerPanel" class="route-planner-panel hidden">
+                <div class="route-planner-header">
+                    <h3>Routes for <span class="route-planner-vessel-name">Vessel</span></h3>
+                    <button class="close-btn route-planner-close"><span>x</span></button>
+                </div>
+                <div class="route-planner-tabs">
+                    <button class="route-planner-tab-btn vessel-filter-btn active" data-tab="ports">Ports</button>
+                    <button class="route-planner-tab-btn vessel-filter-btn" data-tab="route">Route</button>
+                </div>
+                <div class="route-planner-content">
+                    <!-- Ports Tab -->
+                    <div class="route-planner-tab-content active" data-tab="ports">
+                        <div class="route-planner-port-filters">
+                            <button class="route-planner-filter-btn vessel-filter-btn" data-filter="local">Local Ports</button>
+                            <button class="route-planner-filter-btn vessel-filter-btn" data-filter="suggested">Suggested Route</button>
+                            <button class="route-planner-filter-btn vessel-filter-btn" data-filter="metropol">Metropol Routes</button>
+                            <button class="route-planner-filter-btn vessel-filter-btn" data-filter="all">All Reachable</button>
+                        </div>
+                        <div class="route-planner-selected-info hidden">
+                            <button id="routePlannerClearRoute" class="close-btn route-planner-clear-btn" title="Clear route selection"><span>×</span></button>
+                            <div class="route-planner-port-name">Select a port</div>
+                            <div class="route-planner-demand-section">
+                                <div class="route-planner-demand-header">Demand Analytics</div>
+                                <div class="route-planner-demand-group" data-demand-type="container">
+                                    <div class="route-planner-demand-inline">
+                                        <span class="route-planner-demand-title">Container:</span>
+                                        <span class="route-planner-demand-values">
+                                            <span>Dry <span class="route-planner-demand-value" data-demand="dry">-</span> TEU</span>
+                                            <span>Ref <span class="route-planner-demand-value" data-demand="refrigerated">-</span> TEU</span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="route-planner-demand-group" data-demand-type="tanker">
+                                    <div class="route-planner-demand-inline">
+                                        <span class="route-planner-demand-title">Tanker:</span>
+                                        <span class="route-planner-demand-values">
+                                            <span>Fuel <span class="route-planner-demand-value" data-demand="fuel">-</span> bbl</span>
+                                            <span>Crude <span class="route-planner-demand-value" data-demand="crude_oil">-</span> bbl</span>
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="route-planner-info-row">
+                                <span class="route-planner-info-label">Distance:</span>
+                                <span class="route-planner-info-value" data-info="distance">-</span>
+                            </div>
+                            <div class="route-planner-info-row">
+                                <span class="route-planner-info-label">Channel Fee:</span>
+                                <span class="route-planner-info-value" data-info="channel-fee">$0</span>
+                            </div>
+                            <div class="route-planner-info-row">
+                                <span class="route-planner-info-label">Travel Time:</span>
+                                <span class="route-planner-info-value" data-info="travel-time">-</span>
+                            </div>
+                            <div class="route-planner-info-row">
+                                <span class="route-planner-info-label">Harbor Fee/TEU:</span>
+                                <span class="route-planner-info-value" data-info="harbor-fee">-</span>
+                            </div>
+                            <div class="route-planner-info-row">
+                                <span class="route-planner-info-label">Fuel Consumption:</span>
+                                <span class="route-planner-info-value" data-info="fuel-consumption">-</span>
+                            </div>
+                            <div class="route-planner-speed-selector">
+                                <span class="route-planner-info-label">Speed:</span>
+                                <input type="range" id="routePlannerPortsSpeedSlider" class="route-planner-mini-slider" min="1" max="30" value="6">
+                                <span id="routePlannerPortsSpeedValue" class="route-planner-speed-value">6 kn</span>
+                            </div>
+                            <div class="route-planner-guards-selector hidden">
+                                <span class="route-planner-info-label">Guards:</span>
+                                <input type="range" id="routePlannerPortsGuardsSlider" class="route-planner-mini-slider" min="0" max="10" value="0">
+                                <span id="routePlannerPortsGuardsValue" class="route-planner-speed-value">0</span>
+                            </div>
+                            <div class="route-planner-guards-cost-row hidden">
+                                <span class="route-planner-info-label">Guards Cost:</span>
+                                <span id="routePlannerPortsGuardsCost" class="route-planner-info-value creation-fee">$0</span>
+                            </div>
+                            <div class="route-planner-piracy-warning hidden">
+                                <div class="route-planner-piracy-header">PIRACY WARNING</div>
+                                <div class="route-planner-piracy-zone">Zone: Unknown</div>
+                                <div class="route-planner-piracy-risk">Risk: 0%</div>
+                            </div>
+                            <div class="route-planner-info-row">
+                                <span class="route-planner-info-label">Creation Fee:</span>
+                                <span class="route-planner-info-value creation-fee" data-info="creation-fee">$0</span>
+                            </div>
+                        </div>
+                        <button id="routePlannerCreateBtn" class="route-planner-save-btn" disabled>Create Route</button>
+                    </div>
+                    <!-- Route Tab -->
+                    <div class="route-planner-tab-content" data-tab="route">
+                        <div class="route-planner-no-route">
+                            <div class="route-planner-no-route-icon">-</div>
+                            <div class="route-planner-no-route-text">No active route assigned to this vessel</div>
+                        </div>
+                        <div class="route-planner-route-settings hidden">
+                            <div class="route-planner-slider-group">
+                                <div class="route-planner-slider-label">
+                                    <span class="route-planner-slider-name">Speed</span>
+                                    <span id="routePlannerSpeedValue" class="route-planner-slider-value">6 kn</span>
+                                </div>
+                                <input type="range" id="routePlannerSpeedSlider" class="route-planner-slider" min="1" max="20" value="6">
+                            </div>
+                            <div class="route-planner-slider-group">
+                                <div class="route-planner-slider-label">
+                                    <span class="route-planner-slider-name">Guards</span>
+                                    <span id="routePlannerGuardsValue" class="route-planner-slider-value">0</span>
+                                </div>
+                                <input type="range" id="routePlannerGuardsSlider" class="route-planner-slider" min="0" max="10" value="0">
+                            </div>
+                            <div class="route-planner-cost-info">
+                                <div class="route-planner-cost-row">
+                                    <span class="route-planner-cost-label">Guard Cost:</span>
+                                    <span id="routePlannerGuardsCost" class="route-planner-cost-value">$0</span>
+                                </div>
+                            </div>
+                            <div class="route-planner-actions">
+                                <button id="routePlannerCancelBtn" class="route-planner-cancel-btn">Cancel</button>
+                                <button id="routePlannerSaveBtn" class="route-planner-save-btn">Save</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -1405,7 +1537,7 @@
     </div>
 
     <div id="buyVesselsOverlay" class="overlay hidden">
-        <div class="messenger-window">
+        <div class="messenger-window messenger-window-sell-vessels">
             <div class="messenger-header">
                 <h2 id="buyVesselsHeader">⛴️ Buy Vessels</h2>
                 <button id="closeBuyVesselsBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
@@ -1688,6 +1820,76 @@
             </div>
             <div class="messenger-feed" id="engineFilterList" style="padding: 20px; overflow-y: auto;">
                 <!-- Engine list will be populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+
+    <div id="vesselAppearanceOverlay" class="overlay hidden">
+        <div class="messenger-window vessel-appearance-window">
+            <div class="messenger-header">
+                <h2>Edit Vessel Appearance</h2>
+                <button id="closeVesselAppearanceBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>x</span></button>
+            </div>
+            <div class="vessel-appearance-body">
+                <input type="hidden" id="appearanceVesselId">
+                <input type="hidden" id="appearanceOriginalName">
+
+                <div class="appearance-name-row" id="appearanceNameSection">
+                    <label>Name</label>
+                    <input type="text" id="appearanceVesselName" maxlength="30">
+                </div>
+
+                <div class="appearance-section" id="appearanceImageSection">
+                    <div class="appearance-image-area">
+                        <div class="appearance-image-preview" id="appearanceImagePreview">
+                            <span class="appearance-upload-icon">+</span>
+                            <span class="appearance-upload-text">Click to upload</span>
+                        </div>
+                        <input type="file" id="appearanceImageInput" accept="image/*" hidden>
+                        <button type="button" id="removeCustomImageBtn" class="remove-custom-image-btn hidden">Remove Image</button>
+                    </div>
+                    <div class="appearance-colors-area" id="appearanceColorsSection">
+                        <div class="appearance-colors-grid">
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceHullColor" value="#b30000">
+                                <label for="appearanceHullColor">Hull</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceDeckColor" value="#272525">
+                                <label for="appearanceDeckColor">Deck</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceBridgeColor" value="#dbdbdb">
+                                <label for="appearanceBridgeColor">Bridge</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceNameColor" value="#ffffff">
+                                <label for="appearanceNameColor">Name</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceContainer1" value="#ff8000">
+                                <label for="appearanceContainer1">C1</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceContainer2" value="#0000ff">
+                                <label for="appearanceContainer2">C2</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceContainer3" value="#670000">
+                                <label for="appearanceContainer3">C3</label>
+                            </div>
+                            <div class="appearance-color-item">
+                                <input type="color" id="appearanceContainer4" value="#777777">
+                                <label for="appearanceContainer4">C4</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="appearance-actions">
+                    <button id="saveAppearanceBtn" class="btn-primary">Save</button>
+                    <button id="cancelAppearanceBtn" class="btn-secondary">Cancel</button>
+                </div>
             </div>
         </div>
     </div>

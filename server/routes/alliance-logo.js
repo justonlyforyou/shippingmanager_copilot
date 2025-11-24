@@ -54,12 +54,22 @@ router.get('/:imageName', async (req, res) => {
       // Decode URL-encoded color (e.g., %23eff5f7 -> #eff5f7)
       const decodedColor = decodeURIComponent(color);
 
+      // Validate hex color format (prevents XSS injection via color parameter)
+      // Accepts: #RGB, #RRGGBB, #RRGGBBAA (with or without #)
+      const hexColorPattern = /^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/;
+      if (!hexColorPattern.test(decodedColor.trim())) {
+        return res.status(400).json({ error: 'Invalid color format. Use hex format like #RRGGBB' });
+      }
+
+      // Normalize to # prefix
+      const normalizedColor = decodedColor.startsWith('#') ? decodedColor : `#${decodedColor}`;
+
       // Replace existing fill attributes in the SVG
-      svgContent = svgContent.replace(/fill="[^"]+"/g, `fill="${decodedColor}"`);
+      svgContent = svgContent.replace(/fill="[^"]+"/g, `fill="${normalizedColor}"`);
 
       // Add fill attribute to <path> elements that don't have one
       // This handles SVGs that use default black fill
-      svgContent = svgContent.replace(/<path(?![^>]*fill=)/g, `<path fill="${decodedColor}" `);
+      svgContent = svgContent.replace(/<path(?![^>]*fill=)/g, `<path fill="${normalizedColor}" `);
     }
 
     // Set cache headers (1 hour since colors might change)

@@ -130,6 +130,11 @@
   --color-purple-lighter: #c4b5fd;
   --color-purple-dark: #7c3aed;
 
+  /* Purple RGBA - Background/Border variants */
+  --color-purple-10: rgba(139, 92, 246, 0.1);
+  --color-purple-20: rgba(139, 92, 246, 0.2);
+  --color-purple-30: rgba(139, 92, 246, 0.3);
+
   /* === Gray Scale === */
   --color-text-primary: #e0e0e0;
   --color-text-secondary: #9ca3af;
@@ -421,4 +426,10 @@
      ============================================ */
   --tooltip-left: 0;
   --tooltip-top: 0;
+
+  /* ============================================
+     LAYOUT DIMENSIONS
+     ============================================ */
+  /* Header height - used for overlay positioning to keep header visible */
+  --header-height: 75px;
 }

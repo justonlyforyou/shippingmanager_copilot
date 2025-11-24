@@ -153,11 +153,12 @@ async function updatePrices() {
  */
 async function checkPriceAlerts(userId, prices) {
   const settings = state.getSettings(userId);
-  if (!settings.enablePriceAlerts) return;
+  if (!settings || !settings.enablePriceAlerts) return;
+  if (!prices) return;
 
   const alerts = [];
 
-  if (prices.fuel <= settings.fuelThreshold) {
+  if (prices.fuel && settings.fuelThreshold && prices.fuel <= settings.fuelThreshold) {
     alerts.push({
       type: 'fuel',
       price: prices.fuel,
@@ -165,7 +166,7 @@ async function checkPriceAlerts(userId, prices) {
     });
   }
 
-  if (prices.co2 <= settings.co2Threshold) {
+  if (prices.co2 && settings.co2Threshold && prices.co2 <= settings.co2Threshold) {
     alerts.push({
       type: 'co2',
       price: prices.co2,

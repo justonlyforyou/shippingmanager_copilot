@@ -35,7 +35,8 @@ const {
   aggregateReachablePorts,
   categorizeVesselsByPort,
   filterAssignedPorts,
-  extractPortsFromGameIndex
+  extractPortsFromGameIndex,
+  groupVesselsByPortPair
 } = require('./harbor-map-aggregator');
 
 const router = express.Router();
@@ -83,6 +84,7 @@ async function getGameIndexCached() {
  * {
  *   vessels: [{ id, name, position: {lat, lon, progress}, eta, status, ... }],
  *   ports: [{ code, lat, lon, demand, demandLevel }],
+ *   portPairGroups: { groups: [...], ungrouped: [...] },
  *   filter: 'my_ports' | 'all_ports'
  * }
  */
@@ -121,6 +123,9 @@ router.get('/overview', async (req, res) => {
 
     // Aggregate vessel data with calculated positions
     const vesselsWithPositions = aggregateVesselData(allVessels, allPortsWithDemand, userId);
+
+    // Build port-pair groups for route filtering (uses raw vessel data with route_origin/route_destination)
+    const portPairGroups = groupVesselsByPortPair(allVessels, allPortsWithDemand);
 
     // Fetch assigned ports (for both filters - needed for correct demand data)
     const assignedPortsResponse = await gameapi.getAssignedPorts();
@@ -199,6 +204,7 @@ router.get('/overview', async (req, res) => {
     res.json({
       vessels: vessels,
       ports,
+      portPairGroups,
       filter
     });
   } catch (error) {

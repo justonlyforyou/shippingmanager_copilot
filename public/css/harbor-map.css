@@ -175,14 +175,15 @@
   font-weight: 500;
   border: none;
   border-radius: 4px;
-  padding: 2px 0 2px 4px;
+  padding: 2px 9px 2px 4px;
   cursor: pointer;
   outline: none;
   height: auto;
   line-height: 1.2;
   display: inline-block;
-  min-width: 80px;
-  max-width: none;
+  width: fit-content !important;
+  min-width: 0 !important;
+  max-width: none !important;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
@@ -738,6 +739,29 @@
   display: block;
 }
 
+/* Vessel specs in panel - single column layout, auto height */
+#vesselPanel .vessel-specs {
+  grid-template-columns: 1fr !important;
+  display: grid !important;
+}
+
+/* Vessel info section - fit content height, no scrollbar */
+.vessel-info-section .section-content {
+  max-height: fit-content;
+  overflow-y: hidden;
+}
+
+.vessel-info-section.collapsed .section-content {
+  max-height: 0;
+  overflow: hidden;
+}
+
+/* Force single column in vessel specs, remove bottom margin */
+.vessel-info-section .vessel-specs {
+  grid-template-columns: 1fr !important;
+  margin-bottom: 0 !important;
+}
+
 /* Action Emojis under image */
 .vessel-action-emojis {
   display: flex;
@@ -838,6 +862,118 @@
   font-size: 13px;
   color: #cbd5e0;
   line-height: 1.4;
+}
+
+.port-location-indent {
+  padding-left: var(--spacing-12);
+}
+
+/* Typical Demand Bar */
+.typical-demand-bar {
+  display: flex;
+  height: 24px;
+  border-radius: var(--radius-6);
+  overflow: hidden;
+  margin-bottom: var(--spacing-8);
+}
+
+.typical-demand-container {
+  background: var(--color-info);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+}
+
+.typical-demand-tanker {
+  background: var(--color-warning);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+}
+
+.typical-demand-label {
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-white);
+  text-transform: uppercase;
+}
+
+.typical-demand-values {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+}
+
+.typical-demand-value.demand-container {
+  color: var(--color-info-light);
+}
+
+.typical-demand-value.demand-tanker {
+  color: var(--color-warning-light);
+}
+
+/* Port Top Alliances Table */
+.port-alliance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-12);
+}
+
+.alliance-row {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.alliance-row:last-child {
+  border-bottom: none;
+}
+
+.alliance-medal {
+  padding: var(--spacing-8) var(--spacing-4) var(--spacing-8) 0;
+  font-size: var(--font-size-12);
+  width: 20px;
+  text-align: left;
+}
+
+.alliance-name-cell {
+  padding: var(--spacing-8) var(--spacing-8) var(--spacing-8) var(--spacing-4);
+}
+
+.alliance-link {
+  color: var(--color-info);
+  text-decoration: none;
+  font-size: var(--font-size-12);
+  cursor: pointer;
+}
+
+.alliance-link:hover {
+  text-decoration: underline;
+  color: var(--color-info-light);
+}
+
+.alliance-stats-cell {
+  padding: var(--spacing-8) 0 var(--spacing-8) var(--spacing-8);
+  text-align: right;
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.loading-placeholder {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-13);
+  padding: var(--spacing-16);
+  text-align: center;
+}
+
+.error-message {
+  color: var(--color-danger);
+  font-size: var(--font-size-13);
+  padding: var(--spacing-16);
+  text-align: center;
 }
 
 /* Vessel Actions */

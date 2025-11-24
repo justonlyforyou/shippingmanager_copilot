@@ -7,8 +7,8 @@
  */
 
 import { fetchVesselHistory, exportVesselHistory } from './api-client.js';
-import { deselectAll, getMap } from './map-controller.js';
-import { isMobileDevice } from '../utils.js';
+import { deselectAll, getMap, getVesselById } from './map-controller.js';
+import { isMobileDevice, escapeHtml, showSideNotification } from '../utils.js';
 
 /**
  * Converts country code to flag emoji
@@ -94,10 +94,11 @@ export async function showVesselPanel(vessel) {
 
   const formatNumber = (num) => Math.floor(num).toLocaleString();
 
-  // Format port name with capital first letter
+  // Format port name with capital first letter (escaped for XSS protection)
   const formatPortName = (portCode) => {
     if (!portCode) return 'N/A';
-    return portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    const formatted = portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    return escapeHtml(formatted);
   };
 
   // Capacity display (max capacity)
@@ -150,20 +151,30 @@ export async function showVesselPanel(vessel) {
     }
   }
 
-  // Vessel image URL (cached via backend proxy)
-  // Custom-built vessels have type_name "N/A"
+  // Vessel image URL logic:
+  // 1. ownImage = true -> user uploaded image from /api/vessel-image/ownimage/{id}
+  // 2. Custom vessel (type_name "N/A") -> SVG from /api/vessel-image/custom/{id}
+  // 3. Shop vessel -> shop image from /api/vessel-image/{type}
   let imageUrl = '';
-  if (vessel.type_name === 'N/A') {
+  const isCustomVessel = vessel.type_name === 'N/A';
+  if (vessel.ownImage) {
+    // Cache buster for own images - ensures fresh image after upload
+    imageUrl = `/api/vessel-image/ownimage/${vessel.id}?t=${Date.now()}`;
+  } else if (isCustomVessel) {
     imageUrl = `/api/vessel-image/custom/${vessel.id}`;
   } else if (vessel.type) {
     imageUrl = `/api/vessel-image/${vessel.type}`;
   }
+  const safeVesselName = (vessel.name || '').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const imageOnerror = isCustomVessel
+    ? `if(window.handleVesselImageError){window.handleVesselImageError(this,${vessel.id},'${safeVesselName}',true)}else{this.style.display='none'}`
+    : `this.style.display='none'`;
 
   // Render vessel full info with collapsible sections
   panel.innerHTML = `
     <div class="panel-header">
       <h3>
-        <span id="vessel-name-display-${vessel.id}" class="vessel-name-display">${vessel.name}</span>
+        <span id="vessel-name-display-${vessel.id}" class="vessel-name-display">${escapeHtml(vessel.name)}</span>
         <input
           type="text"
           id="vessel-name-input-${vessel.id}"
@@ -174,8 +185,10 @@ export async function showVesselPanel(vessel) {
         />
         <button
           class="rename-vessel-btn"
-          onclick="window.harborMap.startRenameVessel(${vessel.id})"
-          title="Rename vessel"
+          onclick="${isCustomVessel
+            ? `window.harborMap.openVesselAppearanceEditor(${vessel.id}, '${safeVesselName}')`
+            : `window.harborMap.startRenameVessel(${vessel.id})`}"
+          title="${isCustomVessel ? 'Edit vessel appearance' : 'Rename vessel'}"
         >✏️</button>
       </h3>
       <button class="close-btn" onclick="window.harborMap.closeVesselPanel()">×</button>
@@ -184,7 +197,7 @@ export async function showVesselPanel(vessel) {
     <div class="panel-body">
       ${imageUrl ? `
         <div class="vessel-image-container">
-          <img src="${imageUrl}" alt="${vessel.type_name}" class="vessel-image" onerror="this.style.display='none'">
+          <img src="${imageUrl}" alt="${vessel.type_name}" class="vessel-image" onerror="${imageOnerror}">
           <div id="vessel-weather-overlay" style="position: absolute; top: 1px; left: 1px; background: rgba(0, 0, 0, 0.185); padding: 3px 5px; border-radius: 3px; font-size: 11px; color: #fff; backdrop-filter: blur(2px);">
             <div style="color: #94a3b8; font-size: 9px;">Loading...</div>
           </div>
@@ -193,17 +206,23 @@ export async function showVesselPanel(vessel) {
 
       <div class="vessel-action-emojis">
         <span
+          class="action-emoji${vessel.status !== 'port' && vessel.status !== 'enroute' && vessel.status !== 'anchor' ? ' disabled' : ''}"
+          onclick="${vessel.status === 'port' || vessel.status === 'enroute' || vessel.status === 'anchor' ? `window.harborMap.openRoutePlanner(${vessel.id}, '${vessel.name.replace(/'/g, "\\'")}')` : 'return false'}"
+          title="Plan route for this vessel"
+        >&#x1F9ED;</span>
+        <span
           class="action-emoji park-toggle-btn${vessel.is_parked ? ' parked' : ' not-parked'}"
           data-vessel-id="${vessel.id}"
           data-is-parked="${vessel.is_parked ? 'true' : 'false'}"
           title="Moor vessel"
           onclick="window.harborMap.toggleParkVessel(this)"
-        >${vessel.is_parked ? '⛓️' : '🟢'}</span>
+        >${vessel.is_parked ? '&#x26D3;&#xFE0F;' : '&#x1F7E2;'}</span>
         <span
-          class="action-emoji${vessel.status !== 'port' ? ' disabled' : ''}"
+          class="action-emoji depart-vessel-btn${vessel.status !== 'port' ? ' disabled' : ''}"
+          data-vessel-id="${vessel.id}"
           onclick="${vessel.status === 'port' ? `window.harborMap.departVessel(${vessel.id})` : 'return false'}"
           title="${vessel.status === 'port' ? 'Depart vessel from port' : 'Vessel must be in port to depart'}"
-        >🏁</span>
+        >&#x1F3C1;</span>
         <span
           class="action-emoji"
           onclick="window.harborMap.openRepairDialog(${vessel.id})"
@@ -333,7 +352,7 @@ export async function showVesselPanel(vessel) {
         </h4>
         <div class="section-content">
           <div class="vessel-specs">
-            <div class="vessel-spec"><strong>Type:</strong> ${vessel.type_name || 'N/A'}</div>
+            <div class="vessel-spec"><strong>Type:</strong> ${vessel.type_name === 'N/A' ? 'Custom' : (vessel.type_name || 'N/A')}</div>
             <div class="vessel-spec"><strong>Capacity:</strong> ${capacityDisplay}</div>
             <div class="vessel-spec"><strong>Range:</strong> ${formatNumber(vessel.range)} nm</div>
             <div class="vessel-spec ${getCO2Class(vessel.co2_factor)}"><strong>CO2 Factor:</strong> ${vessel.co2_factor || 'N/A'}</div>
@@ -559,7 +578,7 @@ function renderHistoryPage() {
   // Format cargo display as HTML list
   const formatCargo = (cargo) => {
     if (!cargo) return '<ul class="cargo-list"><li>N/A</li></ul>';
-    if (typeof cargo === 'string') return `<ul class="cargo-list"><li>${cargo}</li></ul>`;
+    if (typeof cargo === 'string') return `<ul class="cargo-list"><li>${escapeHtml(cargo)}</li></ul>`;
 
     // Container cargo
     if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
@@ -583,7 +602,7 @@ function renderHistoryPage() {
       return `<ul class="cargo-list">${items.join('')}</ul>`;
     }
 
-    return `<ul class="cargo-list"><li>${JSON.stringify(cargo)}</li></ul>`;
+    return `<ul class="cargo-list"><li>${escapeHtml(JSON.stringify(cargo))}</li></ul>`;
   };
 
   // Format duration (seconds to human readable)
@@ -598,10 +617,11 @@ function renderHistoryPage() {
   const nextTrips = allHistoryData.slice(displayedHistoryCount, displayedHistoryCount + HISTORY_PAGE_SIZE);
   displayedHistoryCount += nextTrips.length;
 
-  // Format port name with capital first letter
+  // Format port name with capital first letter (escaped for XSS protection)
   const formatPortName = (portCode) => {
     if (!portCode) return 'N/A';
-    return portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    const formatted = portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    return escapeHtml(formatted);
   };
 
   // Render trips
@@ -641,7 +661,7 @@ function renderHistoryPage() {
       </div>
       <div class="history-details">
         <div class="history-row">
-          <span>Date: ${trip.date ? new Date(trip.date).toLocaleString() : 'N/A'}</span>
+          <span>Date: ${trip.date ? new Date(trip.date + ' UTC').toLocaleString() : 'N/A'}</span>
         </div>
         <div class="history-row">
           <span class="cargo-label">Cargo:</span>
@@ -698,6 +718,11 @@ function renderHistoryPage() {
 export async function closeVesselPanel() {
   hideVesselPanel();
 
+  // Close route planner if it's open (planning mode)
+  if (window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode()) {
+    window.harborMap.closeRoutePlanner();
+  }
+
   // Remove fullscreen on mobile when explicitly closing panel
   if (isMobileDevice()) {
     document.body.classList.remove('map-fullscreen');
@@ -718,6 +743,14 @@ export async function closeVesselPanel() {
 // Queue for individual vessel departures
 const departureQueue = [];
 let isProcessingQueue = false;
+
+/**
+ * Checks if a local departure is in progress (queue not empty or processing)
+ * @returns {boolean} True if local departure is in progress
+ */
+export function isLocalDepartInProgress() {
+  return isProcessingQueue || departureQueue.length > 0;
+}
 
 /**
  * Processes the departure queue one vessel at a time
@@ -763,7 +796,7 @@ async function processDepartureQueue() {
       }
     } catch (error) {
       console.error(`[Vessel Panel] Error departing vessel ${vesselId}:`, error);
-      showSideNotification(`Error departing vessel: ${error.message}`, 'error');
+      showSideNotification(`Error departing vessel: ${escapeHtml(error.message)}`, 'error');
       reject(error);
     }
 
@@ -785,6 +818,19 @@ async function processDepartureQueue() {
  * await departVessel(1234);
  */
 export async function departVessel(vesselId) {
+  // Immediately disable depart button in vessel panel
+  const departBtn = document.querySelector(`.depart-vessel-btn[data-vessel-id="${vesselId}"]`);
+  if (departBtn) {
+    departBtn.classList.add('disabled');
+    departBtn.onclick = null;
+    departBtn.title = 'Departure in progress...';
+  }
+
+  // Update Depart Manager button state immediately
+  if (window.updateDepartManagerLockState) {
+    window.updateDepartManagerLockState();
+  }
+
   return new Promise((resolve, reject) => {
     // Add to queue
     departureQueue.push({ vesselId, resolve, reject });
@@ -796,46 +842,57 @@ export async function departVessel(vesselId) {
     // Success callback
     console.log('[Vessel Panel] Vessel departed successfully');
 
-      // Update vessel count in header
-      if (window.updateVesselCount) {
-        await window.updateVesselCount();
-      }
+    // NOTE: Detailed notification is shown via WebSocket event 'vessels_depart_complete'
+    // which includes income, fuel used, CO2 used, harbor fees, etc.
+    // No simple notification here - let the WebSocket handler in chat.js show the detailed one
 
-      // Wait longer for server to process the departure and update status
-      console.log('[Vessel Panel] Waiting for server to process departure...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
+    // Update vessel count in header
+    if (window.updateVesselCount) {
+      await window.updateVesselCount();
+    }
 
-      // Get updated vessel data with retry logic (fetches fresh data from server)
-      if (window.harborMap && window.harborMap.getVesselById) {
-        let updatedVessel = null;
-        let attempts = 0;
-        const maxAttempts = 3;
+    // Refresh all badges (anchor count, harbor master, etc.)
+    if (window.badgeCache && window.badgeCache.refreshAll) {
+      window.badgeCache.refreshAll();
+    }
 
-        // Retry getting vessel data until status changes or max attempts reached
-        while (attempts < maxAttempts) {
-          updatedVessel = await window.harborMap.getVesselById(vesselId, true); // skipCache = true
+    // Wait longer for server to process the departure and update status
+    console.log('[Vessel Panel] Waiting for server to process departure...');
+    await new Promise(resolve => setTimeout(resolve, 2000));
 
-          if (updatedVessel && updatedVessel.status !== 'port') {
-            console.log('[Vessel Panel] Vessel status updated to:', updatedVessel.status);
-            break;
-          }
+    // Get updated vessel data with retry logic (fetches fresh data from server)
+    if (window.harborMap && window.harborMap.getVesselById) {
+      let updatedVessel = null;
+      let attempts = 0;
+      const maxAttempts = 3;
 
-          attempts++;
-          if (attempts < maxAttempts) {
-            console.log(`[Vessel Panel] Status still 'port', retrying (${attempts}/${maxAttempts})...`);
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            // Next iteration will fetch fresh data from server
-          }
+      // Retry getting vessel data until status changes or max attempts reached
+      while (attempts < maxAttempts) {
+        updatedVessel = await window.harborMap.getVesselById(vesselId, true); // skipCache = true
+
+        if (updatedVessel && updatedVessel.status !== 'port') {
+          console.log('[Vessel Panel] Vessel status updated to:', updatedVessel.status);
+          break;
         }
 
-        if (updatedVessel) {
-          console.log('[Vessel Panel] Vessel departed successfully, status:', updatedVessel.status);
-        } else {
-          console.warn('[Vessel Panel] Could not find vessel after departure:', vesselId);
+        attempts++;
+        if (attempts < maxAttempts) {
+          console.log(`[Vessel Panel] Status still 'port', retrying (${attempts}/${maxAttempts})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          // Next iteration will fetch fresh data from server
         }
       }
 
-      return result;
+      if (updatedVessel) {
+        console.log('[Vessel Panel] Vessel departed successfully, status:', updatedVessel.status);
+        // Re-render the vessel panel with updated data
+        await showVesselPanel(updatedVessel);
+      } else {
+        console.warn('[Vessel Panel] Could not find vessel after departure:', vesselId);
+      }
+    }
+
+    return result;
   }).catch(error => {
     // Error already handled and shown as side notification in processDepartureQueue
     console.error('[Vessel Panel] Departure failed:', error);
@@ -1253,7 +1310,7 @@ async function toggleParkVessel(buttonElement) {
     }
   } catch (error) {
     console.error(`[Toggle Park Vessel] Error:`, error);
-    showSideNotification(`Failed to ${isParked ? 'resume' : 'park'} vessel: ${error.message}`, 'error');
+    showSideNotification(`Failed to ${isParked ? 'resume' : 'park'} vessel: ${escapeHtml(error.message)}`, 'error');
   }
 }
 
@@ -1267,3 +1324,29 @@ window.harborMap.toggleExportMenu = toggleExportMenu;
 window.harborMap.exportHistoryFormat = exportHistoryFormat;
 window.harborMap.startRenameVessel = startRenameVessel;
 window.harborMap.toggleParkVessel = toggleParkVessel;
+window.harborMap.openVesselAppearanceEditor = openVesselAppearanceEditor;
+window.harborMap.getVesselById = getVesselById;
+
+/**
+ * Opens the vessel appearance editor for a custom vessel
+ * @param {number} vesselId - Vessel ID
+ * @param {string} vesselName - Vessel name
+ */
+async function openVesselAppearanceEditor(vesselId, vesselName) {
+  const { openAppearanceEditor } = await import('../vessel-appearance-editor.js');
+
+  // Get vessel data to pass existing values
+  const vesselData = await getVesselById(vesselId);
+
+  // Build existing data object from vessel
+  // Use fuel_ref_speed_kn (from custom data) or fall back to max_speed (from game API)
+  const existingData = vesselData ? {
+    vessel_model: vesselData.capacity_type,
+    speed: vesselData.fuel_ref_speed_kn || vesselData.max_speed,
+    speed_kn: vesselData.fuel_ref_speed_kn || vesselData.max_speed,
+    fuel_consumption: vesselData.fuel_consumption_kg_per_nm,
+    kg_per_nm: vesselData.fuel_consumption_kg_per_nm
+  } : {};
+
+  openAppearanceEditor(vesselId, vesselName, existingData);
+}

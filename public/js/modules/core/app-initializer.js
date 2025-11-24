@@ -30,7 +30,8 @@ import { initBuildShipModal } from '../vessel-building.js';
 import { initLogbook, prependLogEntry } from '../logbook.js';
 import { initHarborMap } from '../harbor-map-init.js';
 import { initCompanyProfile } from '../company-profile.js';
-import { showSideNotification, showNotification } from '../utils.js';
+import { initVesselAppearanceEditor, openVesselAppearanceEditor, handleVesselImageError } from '../vessel-appearance-editor.js';
+import { showSideNotification, showNotification, escapeHtml } from '../utils.js';
 
 /**
  * Format number with thousand separators.
@@ -133,6 +134,7 @@ export async function initializeApp(apiPrefix) {
   initLogbook();
   initCompanyProfile();
   initAllianceTabs();
+  initVesselAppearanceEditor();
 
   // Initialize harbor map (async, don't block)
   initHarborMap().catch(error => {
@@ -520,7 +522,7 @@ function createTestBrowserNotification(settings) {
       showSideNotification(`<strong>Test Alert</strong><br><br>Fuel threshold: $${settings.fuelThreshold}/ton<br>CO2 threshold: $${settings.co2Threshold}/ton`, 'warning', null, true);
     } catch (error) {
       console.error('[Test Alert] Notification error:', error);
-      showSideNotification(`<strong>Failed to send notification</strong><br><br>Error: ${error.message}<br>Permission: ${Notification.permission}<br>Secure: ${window.isSecureContext ? 'Yes' : 'No'}<br>Protocol: ${window.location.protocol}`, 'error', null, true);
+      showSideNotification(`<strong>Failed to send notification</strong><br><br>Error: ${escapeHtml(error.message)}<br>Permission: ${Notification.permission}<br>Secure: ${window.isSecureContext ? 'Yes' : 'No'}<br>Protocol: ${window.location.protocol}`, 'error', null, true);
     }
   };
 }
@@ -643,6 +645,10 @@ function exposeGlobalFunctions(settings, debouncedFunctions) {
 
   // Settings
   window.getSettings = () => settings;
+
+  // Vessel appearance editor
+  window.openVesselAppearanceEditor = openVesselAppearanceEditor;
+  window.handleVesselImageError = handleVesselImageError;
 
   // Logbook
   window.showLogbookOverlay = function() {

@@ -574,6 +574,114 @@ def start_server(settings):
         # Always clear the starting flag
         _server_starting = False
 
+def start_server_no_dialog(settings):
+    """Start the Node.js server without showing a loading dialog (for restart from background thread)"""
+    global server_process, _server_starting
+
+    # Prevent multiple simultaneous starts/restarts
+    if _server_starting:
+        print("[SM-CoPilot] Server is already starting, ignoring duplicate start request", file=sys.stderr)
+        return False
+
+    _server_starting = True
+    try:
+        port = settings['port']
+        host = settings['host']
+
+        if is_port_in_use(port, '0.0.0.0' if host == '0.0.0.0' else host):
+            print(f"[SM-CoPilot] ERROR: Port {port} is already in use", file=sys.stderr)
+            return False
+
+        # Get user ID from existing session (no UI prompts)
+        user_id = None
+        sessions_file = APPDATA_DIR / 'sessions.json' if IS_FROZEN else PROJECT_ROOT / 'userdata' / 'sessions.json'
+        if sessions_file.exists():
+            try:
+                with open(sessions_file, 'r') as f:
+                    sessions_data = json.load(f)
+                    sessions = sessions_data.get('sessions', [])
+                    if sessions:
+                        user_id = sessions[0].get('user_id')
+            except Exception as e:
+                print(f"[SM-CoPilot] Error reading sessions: {e}", file=sys.stderr)
+
+        if not user_id:
+            print("[SM-CoPilot] No session available for restart", file=sys.stderr)
+            return False
+
+        # Set environment variables
+        env = os.environ.copy()
+        env['SELECTED_USER_ID'] = str(user_id)
+        env['DEBUG_MODE'] = 'true' if settings.get('debugMode', False) else 'false'
+
+        print(f"[SM-CoPilot] Starting server on {host}:{port} (no dialog)", file=sys.stderr)
+
+        # Determine server command
+        if getattr(sys, 'frozen', False):
+            server_exe = Path(sys._MEIPASS) / 'ShippingManagerCoPilot-Server.exe'
+            if not server_exe.exists():
+                raise FileNotFoundError(f"Server executable not found at {server_exe}")
+            server_cmd = [str(server_exe)]
+            server_log_path = Path(os.environ.get('LOCALAPPDATA', '')) / 'ShippingManagerCoPilot' / 'userdata' / 'logs' / 'server.log'
+        else:
+            server_cmd = ['node', 'app.js']
+            server_log_path = PROJECT_ROOT / 'userdata' / 'logs' / 'server.log'
+
+        # Start server process
+        server_log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_handle = open(server_log_path, 'a', encoding='utf-8')
+
+        server_process = subprocess.Popen(
+            server_cmd,
+            cwd=str(PROJECT_ROOT),
+            env=env,
+            stdout=log_handle,
+            stderr=log_handle,
+            stdin=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == 'win32' else 0
+        )
+
+        print(f"[SM-CoPilot] Server started (PID: {server_process.pid})", file=sys.stderr)
+
+        # Write PID file
+        try:
+            with open(PID_FILE, 'w') as f:
+                f.write(str(server_process.pid))
+        except Exception:
+            pass
+
+        # Wait for server to be ready (simple polling, no Tkinter)
+        health_url = f"https://{host}:{port}/health"
+        max_wait = 30  # seconds
+        start_time = time.time()
+
+        while time.time() - start_time < max_wait:
+            if server_process.poll() is not None:
+                print("[SM-CoPilot] Server process crashed during startup", file=sys.stderr)
+                return False
+
+            try:
+                response = requests.get(health_url, verify=False, timeout=2)
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get('ready'):
+                        print("[SM-CoPilot] Server is ready", file=sys.stderr)
+                        return True
+            except (requests.exceptions.RequestException, requests.exceptions.Timeout):
+                pass
+
+            time.sleep(0.5)
+
+        print("[SM-CoPilot] Server startup timeout", file=sys.stderr)
+        return False
+
+    except Exception as e:
+        print(f"[SM-CoPilot] Error starting server: {e}", file=sys.stderr)
+        return False
+    finally:
+        _server_starting = False
+
+
 def kill_server_from_pid_file():
     """Kill server process using psutil (cross-platform, kills child processes)"""
     import psutil
@@ -2480,41 +2588,24 @@ def on_settings(icon, item):
 
 def on_restart(icon, item):
     """Restart menu item clicked"""
+    global loading_dialog, settings_window
     print("[SM-CoPilot] Restart requested from tray menu...", file=sys.stderr)
 
+    # Clear global references (don't try to destroy from wrong thread - causes Tcl error)
+    loading_dialog = None
+    settings_window = None
+
     def do_restart():
-        global loading_dialog, settings_window
-
-        # Close ALL open tkinter windows before restart (loading dialog, settings, etc.)
-        if loading_dialog is not None:
-            try:
-                print("[SM-CoPilot] Closing loading dialog...", file=sys.stderr)
-                loading_dialog.quit()
-                loading_dialog.destroy()
-                loading_dialog = None
-            except Exception as e:
-                print(f"[SM-CoPilot] Error closing loading dialog: {e}", file=sys.stderr)
-                loading_dialog = None
-
-        if settings_window is not None:
-            try:
-                print("[SM-CoPilot] Closing settings window...", file=sys.stderr)
-                settings_window.quit()
-                settings_window.destroy()
-                settings_window = None
-            except Exception as e:
-                print(f"[SM-CoPilot] Error closing settings window: {e}", file=sys.stderr)
-                settings_window = None
-
-        # Give tkinter time to cleanup (prevent threading issues)
-        time.sleep(0.5)
-        print("[SM-CoPilot] Windows closed, proceeding with restart...", file=sys.stderr)
-
         # Load current settings
         settings = load_settings()
 
-        # Restart server (will show loading dialog automatically)
-        if restart_server(settings):
+        # Stop server (no Tkinter operations here)
+        stop_server()
+        time.sleep(0.5)
+
+        # Start server without loading dialog (avoid Tkinter from background thread)
+        print("[SM-CoPilot] Starting server...", file=sys.stderr)
+        if start_server_no_dialog(settings):
             print("[SM-CoPilot] Server restarted successfully", file=sys.stderr)
         else:
             print("[SM-CoPilot] Failed to restart server", file=sys.stderr)
@@ -2575,33 +2666,19 @@ def on_toggle_debug_mode(icon, item):
             except Exception as e:
                 print(f"[SM-CoPilot] Error updating menu: {e}", file=sys.stderr)
 
-        # Close ALL open windows before restart (loading dialog, settings, etc.)
-        if loading_dialog is not None:
-            try:
-                print("[SM-CoPilot] Closing loading dialog...", file=sys.stderr)
-                loading_dialog.quit()
-                loading_dialog.destroy()
-                loading_dialog = None
-            except Exception as e:
-                print(f"[SM-CoPilot] Error closing loading dialog: {e}", file=sys.stderr)
-                loading_dialog = None
+        # Clear global references (don't try to destroy from wrong thread)
+        loading_dialog = None
+        settings_window = None
 
-        if settings_window is not None:
-            try:
-                print("[SM-CoPilot] Closing settings window...", file=sys.stderr)
-                settings_window.quit()
-                settings_window.destroy()
-                settings_window = None
-            except Exception as e:
-                print(f"[SM-CoPilot] Error closing settings window: {e}", file=sys.stderr)
-                settings_window = None
+        # Restart server in background thread (no Tkinter)
+        def do_restart():
+            kill_server_from_pid_file()
+            time.sleep(1)  # Wait for port to be released
+            if not start_server_no_dialog(settings):
+                print("[SM-CoPilot] Failed to restart server", file=sys.stderr)
 
-        # Kill and restart server to apply new log level
-        kill_server_from_pid_file()
-        time.sleep(1)  # Wait for port to be released
-
-        if not start_server(settings):
-            print("[SM-CoPilot] Failed to restart server", file=sys.stderr)
+        thread = threading.Thread(target=do_restart, daemon=True)
+        thread.start()
     else:
         print("[SM-CoPilot] Failed to save Debug Mode setting", file=sys.stderr)
 

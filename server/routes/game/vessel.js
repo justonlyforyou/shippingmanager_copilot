@@ -42,9 +42,80 @@ const { broadcastToUser } = require('../../websocket');
 const logger = require('../../utils/logger');
 const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
-const { getFuelConsumptionDisplay, addCustomVesselFuelData, removeCustomVesselFuelData } = require('../../utils/fuel-calculator');
+const { getFuelConsumptionDisplay } = require('../../utils/fuel-calculator');
+const { getAppDataDir } = require('../../config');
+
+// Determine vessel data directories based on environment
+const isPkg = !!process.pkg;
+const VESSEL_APPEARANCES_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-appearances')
+  : path.join(__dirname, '../../../userdata/vessel-appearances');
+const VESSEL_IMAGES_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-images')
+  : path.join(__dirname, '../../../userdata/vessel-images');
 
 const router = express.Router();
+
+// Maximum file size for uploaded images (20MB)
+const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
+
+/**
+ * Validate that uploaded data is actually an image
+ * Checks magic bytes to prevent malicious file uploads
+ * @param {string} base64Data - Base64 encoded image data (with or without data URI prefix)
+ * @returns {{valid: boolean, type: string|null, error: string|null}}
+ */
+function validateImageData(base64Data) {
+  if (!base64Data) {
+    return { valid: false, type: null, error: 'No image data provided' };
+  }
+
+  // Remove data URI prefix if present
+  const base64Only = base64Data.replace(/^data:image\/\w+;base64,/, '');
+
+  // Check base64 length (rough size estimate: base64 is ~33% larger than binary)
+  const estimatedSize = (base64Only.length * 3) / 4;
+  if (estimatedSize > MAX_IMAGE_SIZE) {
+    return { valid: false, type: null, error: `Image too large. Maximum size is ${MAX_IMAGE_SIZE / 1024 / 1024}MB` };
+  }
+
+  // Decode first bytes to check magic numbers
+  let buffer;
+  try {
+    buffer = Buffer.from(base64Only, 'base64');
+  } catch {
+    return { valid: false, type: null, error: 'Invalid base64 encoding' };
+  }
+
+  if (buffer.length < 8) {
+    return { valid: false, type: null, error: 'File too small to be a valid image' };
+  }
+
+  // Check magic bytes for common image formats
+  // JPEG: FF D8 FF
+  if (buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) {
+    return { valid: true, type: 'jpeg', error: null };
+  }
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47 &&
+      buffer[4] === 0x0D && buffer[5] === 0x0A && buffer[6] === 0x1A && buffer[7] === 0x0A) {
+    return { valid: true, type: 'png', error: null };
+  }
+
+  // GIF: 47 49 46 38 (GIF8)
+  if (buffer[0] === 0x47 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x38) {
+    return { valid: true, type: 'gif', error: null };
+  }
+
+  // WebP: 52 49 46 46 ... 57 45 42 50 (RIFF...WEBP)
+  if (buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
+      buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
+    return { valid: true, type: 'webp', error: null };
+  }
+
+  return { valid: false, type: null, error: 'Invalid image format. Supported formats: JPEG, PNG, GIF, WebP' };
+}
 
 /**
  * GET /api/vessel/get-vessels
@@ -243,12 +314,9 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
             logger.debug(`[Vessel Sell] Vessel ${vesselId} sold for $${sellPrice.toLocaleString()}`);
           }
 
-          // Delete custom vessel image, appearance data, and fuel consumption entry
-          const svgFile = path.join(__dirname, '../../../userdata/vessel-images', `${userId}_${vesselId}.svg`);
-          const appearanceFile = path.join(__dirname, '../../../userdata/vessel-appearances', `${userId}_${vesselId}.json`);
-
-          // Remove from custom vessel fuel consumption data (uses userId_vesselId)
-          removeCustomVesselFuelData(userId, vesselId);
+          // Delete custom vessel image and appearance data
+          const svgFile = path.join(VESSEL_IMAGES_DIR, `${userId}_${vesselId}.svg`);
+          const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${vesselId}.json`);
 
           await fs.unlink(svgFile).catch(() => {});
           await fs.unlink(appearanceFile).catch(() => {});
@@ -1100,7 +1168,8 @@ router.post('/build-vessel', express.json(), async (req, res) => {
     container_color_2,
     container_color_3,
     container_color_4,
-    name_color
+    name_color,
+    custom_image
   } = req.body;
 
   // Validate required fields
@@ -1162,6 +1231,15 @@ router.post('/build-vessel', express.json(), async (req, res) => {
     return res.status(400).json({ error: 'Invalid bulbous or enhanced_thrusters. Must be 0 or 1' });
   }
 
+  // Validate custom image if provided
+  if (custom_image && custom_image.startsWith('data:image/')) {
+    const validation = validateImageData(custom_image);
+    if (!validation.valid) {
+      logger.warn(`[Build Vessel] Invalid custom image: ${validation.error}`);
+      return res.status(400).json({ error: validation.error });
+    }
+  }
+
   try {
     const userId = getUserId();
 
@@ -1195,25 +1273,54 @@ router.post('/build-vessel', express.json(), async (req, res) => {
     logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW)`);
 
     // Fetch vessel list to get the new vessel's ID (API doesn't return it directly)
+    // Retry up to 3 times with delay - API sometimes needs time to register the new vessel
     let newVesselId = null;
-    try {
-      const vesselsData = await apiCall('/vessel/get-vessels', 'GET');
-      const pendingVessel = vesselsData.data?.user_vessels?.find(v =>
-        v.name === name && v.status === 'pending'
-      );
-      if (pendingVessel) {
-        newVesselId = pendingVessel.id;
-        logger.debug(`[Build Vessel] Found new vessel ID: ${newVesselId}`);
+    const maxRetries = 3;
+    const retryDelay = 500; // ms
+
+    for (let attempt = 1; attempt <= maxRetries && !newVesselId; attempt++) {
+      try {
+        if (attempt > 1) {
+          logger.debug(`[Build Vessel] Retry ${attempt}/${maxRetries} - waiting ${retryDelay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+        }
+
+        const vesselsData = await apiCall('/vessel/get-vessels', 'GET');
+        const pendingVessels = vesselsData.data?.user_vessels?.filter(v =>
+          v.status === 'pending' || v.status === 'delivery'
+        ) || [];
+
+        // First try exact name match
+        let newVessel = pendingVessels.find(v => v.name === name);
+
+        // If not found by name, take the newest pending vessel (highest ID)
+        if (!newVessel && pendingVessels.length > 0) {
+          newVessel = pendingVessels.reduce((newest, v) =>
+            v.id > newest.id ? v : newest
+          , pendingVessels[0]);
+          logger.debug(`[Build Vessel] Name match failed, using newest pending vessel: ${newVessel.id} (${newVessel.name})`);
+        }
+
+        if (newVessel) {
+          newVesselId = newVessel.id;
+          logger.debug(`[Build Vessel] Found new vessel ID: ${newVesselId} (status: ${newVessel.status}, attempt: ${attempt})`);
+        }
+      } catch (fetchError) {
+        logger.warn(`[Build Vessel] Attempt ${attempt} - Could not fetch vessel ID:`, fetchError.message);
       }
-    } catch (fetchError) {
-      logger.warn('[Build Vessel] Could not fetch vessel ID:', fetchError.message);
+    }
+
+    if (!newVesselId) {
+      logger.error('[Build Vessel] Failed to find new vessel ID after all retries');
     }
 
     // Store vessel appearance data if we found the vessel ID
     if (newVesselId) {
       try {
-        const appearanceDir = path.join(__dirname, '../../../userdata/vessel-appearances');
-        await fs.mkdir(appearanceDir, { recursive: true });
+        await fs.mkdir(VESSEL_APPEARANCES_DIR, { recursive: true });
+
+        // Check if custom image is provided
+        const hasOwnImage = custom_image && custom_image.startsWith('data:image/');
 
         const appearanceData = {
           vesselId: newVesselId,
@@ -1236,17 +1343,33 @@ router.post('/build-vessel', express.json(), async (req, res) => {
           container_color_2: container_color_2 || '#0000ff',
           container_color_3: container_color_3 || '#670000',
           container_color_4: container_color_4 || '#777777',
-          name_color: name_color || '#ffffff'
+          name_color: name_color || '#ffffff',
+          ownImage: hasOwnImage
         };
 
-        const appearanceFile = path.join(appearanceDir, `${userId}_${newVesselId}.json`);
+        const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${newVesselId}.json`);
         await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
         logger.debug(`[Build Vessel] Saved appearance data for vessel ${userId}_${newVesselId}`);
 
-        // Add to custom vessel fuel consumption data
-        addCustomVesselFuelData(userId, newVesselId, speed, fuel_consumption, vessel_model);
+        // Save custom image if provided - to ownimages folder
+        if (hasOwnImage) {
+          const ownImagesDir = path.join(VESSEL_IMAGES_DIR, 'ownimages');
+          await fs.mkdir(ownImagesDir, { recursive: true });
+          const base64Data = custom_image.replace(/^data:image\/\w+;base64,/, '');
+          const imageBuffer = Buffer.from(base64Data, 'base64');
+          const imagePath = path.join(ownImagesDir, `${newVesselId}.png`);
+          await fs.writeFile(imagePath, imageBuffer);
+          logger.info(`[Build Vessel] Saved own image for vessel ${newVesselId}`);
+        } else {
+          // Generate SVG if no custom image
+          const { generateVesselSvg } = require('../../utils/vessel-svg-generator');
+          const svg = generateVesselSvg(appearanceData);
+          const svgFilePath = path.join(VESSEL_IMAGES_DIR, `${userId}_${newVesselId}.svg`);
+          await fs.writeFile(svgFilePath, svg, 'utf8');
+          logger.info(`[Build Vessel] Generated SVG for vessel ${newVesselId}`);
+        }
       } catch (appearanceError) {
-        logger.error('[Build Vessel] Failed to save appearance/fuel data:', appearanceError.message);
+        logger.error('[Build Vessel] Failed to save appearance:', appearanceError.message);
       }
     }
 
@@ -1337,6 +1460,188 @@ router.post('/build-vessel', express.json(), async (req, res) => {
     }
 
     res.status(500).json({ error: 'Failed to build vessel' });
+  }
+});
+
+/**
+ * POST /api/vessel/save-appearance
+ * Save vessel appearance data for custom vessels (image and SVG colors only)
+ *
+ * Note: Fuel/Speed data is no longer needed - calculated from game API data using formula
+ *
+ * @route POST /api/vessel/save-appearance
+ * @body {number} vesselId - Vessel ID
+ * @body {string} name - Vessel name
+ * @body {string} hull_color - Hull color hex
+ * @body {string} deck_color - Deck color hex
+ * @body {string} bridge_color - Bridge color hex
+ * @body {string} name_color - Name color hex
+ * @body {string} container_color_1 - Container color 1 hex
+ * @body {string} container_color_2 - Container color 2 hex
+ * @body {string} container_color_3 - Container color 3 hex
+ * @body {string} container_color_4 - Container color 4 hex
+ * @body {string} [imageData] - Base64 encoded image data
+ *
+ * @returns {object} Result:
+ *   - success {boolean}
+ *   - vesselId {number}
+ *
+ * @error 400 - Missing required fields
+ * @error 500 - Failed to save appearance
+ */
+router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res) => {
+  const {
+    vesselId, name,
+    hull_color, deck_color, bridge_color, name_color,
+    container_color_1, container_color_2, container_color_3, container_color_4,
+    imageData, removeOwnImage
+  } = req.body;
+
+  // Validate required fields
+  if (!vesselId) {
+    return res.status(400).json({ error: 'Vessel ID is required' });
+  }
+
+  const userId = getUserId();
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  try {
+    // Ensure directories exist
+    await fs.mkdir(VESSEL_APPEARANCES_DIR, { recursive: true });
+    await fs.mkdir(VESSEL_IMAGES_DIR, { recursive: true });
+
+    const filePrefix = `${userId}_${vesselId}`;
+
+    // Check if image is being uploaded
+    const hasOwnImage = imageData && imageData.startsWith('data:image/');
+
+    // Validate image data if uploading
+    if (hasOwnImage) {
+      const validation = validateImageData(imageData);
+      if (!validation.valid) {
+        logger.warn(`[Vessel Appearance] Invalid image upload attempt: ${validation.error}`);
+        return res.status(400).json({ error: validation.error });
+      }
+      logger.debug(`[Vessel Appearance] Image validated as ${validation.type}`);
+    }
+
+    // Save appearance JSON - only if we have data to save
+    const hasAppearanceData = hull_color || hasOwnImage || removeOwnImage;
+
+    if (hasAppearanceData) {
+      // Read existing appearance to preserve ownImage flag if not uploading new image
+      let existingData = {};
+      const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
+      try {
+        const existing = await fs.readFile(appearanceFile, 'utf8');
+        existingData = JSON.parse(existing);
+      } catch {
+        // File doesn't exist yet
+      }
+
+      // Determine ownImage flag:
+      // - If uploading new image: true
+      // - If removing image: false
+      // - Otherwise: preserve existing value
+      let ownImageFlag = existingData.ownImage || false;
+      if (hasOwnImage) {
+        ownImageFlag = true;
+      } else if (removeOwnImage) {
+        ownImageFlag = false;
+      }
+
+      const appearanceData = {
+        vesselId: parseInt(vesselId),
+        name: validator.escape(name || ''),
+        hull_color: hull_color || '#b30000',
+        deck_color: deck_color || '#272525',
+        bridge_color: bridge_color || '#dbdbdb',
+        name_color: name_color || '#ffffff',
+        container_color_1: container_color_1 || '#ff8000',
+        container_color_2: container_color_2 || '#0000ff',
+        container_color_3: container_color_3 || '#670000',
+        container_color_4: container_color_4 || '#777777',
+        ownImage: ownImageFlag
+      };
+
+      await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
+      logger.info(`[Vessel Appearance] Saved appearance for ${filePrefix}`);
+    }
+
+    // Save image if provided - to ownimages folder
+    if (hasOwnImage) {
+      const ownImagesDir = path.join(VESSEL_IMAGES_DIR, 'ownimages');
+      await fs.mkdir(ownImagesDir, { recursive: true });
+      const base64Data = imageData.replace(/^data:image\/\w+;base64,/, '');
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+      const imagePath = path.join(ownImagesDir, `${vesselId}.png`);
+      await fs.writeFile(imagePath, imageBuffer);
+      logger.info(`[Vessel Appearance] Saved own image for vessel ${vesselId}`);
+    }
+
+    // If removing own image, generate SVG from appearance data
+    if (removeOwnImage) {
+      const { generateVesselSvg } = require('../../utils/vessel-svg-generator');
+
+      // Read the appearance data we just saved
+      const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
+      try {
+        const appearanceData = JSON.parse(await fs.readFile(appearanceFile, 'utf8'));
+        const svg = generateVesselSvg(appearanceData);
+        const svgFilePath = path.join(VESSEL_IMAGES_DIR, `${filePrefix}.svg`);
+        await fs.writeFile(svgFilePath, svg, 'utf8');
+        logger.info(`[Vessel Appearance] Generated SVG for vessel ${vesselId}`);
+      } catch (err) {
+        logger.warn(`[Vessel Appearance] Could not generate SVG: ${err.message}`);
+      }
+    }
+
+    res.json({ success: true, vesselId: parseInt(vesselId) });
+
+  } catch (error) {
+    logger.error('[Vessel Appearance] Error saving:', error);
+    res.status(500).json({ error: 'Failed to save vessel appearance' });
+  }
+});
+
+/**
+ * DELETE /api/vessel/delete-custom-image/:vesselId
+ * Delete custom vessel image (returns to SVG)
+ */
+router.delete('/delete-custom-image/:vesselId', async (req, res) => {
+  const { vesselId } = req.params;
+
+  if (!vesselId) {
+    return res.status(400).json({ error: 'Vessel ID is required' });
+  }
+
+  const userId = getUserId();
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  try {
+    // Delete from ownimages folder (where user-uploaded images are stored)
+    const ownImagesDir = path.join(VESSEL_IMAGES_DIR, 'ownimages');
+    const imagePath = path.join(ownImagesDir, `${vesselId}.png`);
+
+    try {
+      await fs.unlink(imagePath);
+      logger.info(`[Vessel Appearance] Deleted own image for vessel ${vesselId}`);
+    } catch (err) {
+      if (err.code !== 'ENOENT') {
+        throw err;
+      }
+      // File doesn't exist, that's fine
+    }
+
+    res.json({ success: true, vesselId: parseInt(vesselId) });
+
+  } catch (error) {
+    logger.error('[Vessel Appearance] Error deleting image:', error);
+    res.status(500).json({ error: 'Failed to delete custom image' });
   }
 });
 

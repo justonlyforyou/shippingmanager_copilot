@@ -134,10 +134,9 @@ function loadVesselBadges(data) {
 
   const { readyToDepart, atAnchor, pending } = data.vessels;
 
-  // Ready to depart badge and button
+  // Ready to depart badge (button always enabled - depart manager handles empty state)
   if (readyToDepart !== undefined) {
     updateBadge('vesselCount', readyToDepart, readyToDepart > 0, 'BLUE');
-    updateButtonState('departAll', readyToDepart === 0);
     updateButtonTooltip('departAll',
       readyToDepart > 0
         ? `Depart all ${readyToDepart} vessel${readyToDepart === 1 ? '' : 's'} from harbor`

@@ -34,7 +34,7 @@
  */
 
 import { purchaseFuel, purchaseCO2, fetchVessels, fetchCampaigns, activateCampaign, departVessel, fetchAssignedPorts } from './api.js';
-import { formatNumber, showNotification, showSideNotification, saveSettings } from './utils.js';
+import { formatNumber, showNotification, showSideNotification, saveSettings, escapeHtml } from './utils.js';
 import { getCurrentBunkerState } from './bunker-management.js';
 
 // ============================================================================
@@ -230,7 +230,7 @@ Bought ${formatNumber(amountToBuy)}t @ $${fuelPrice}/t`,
     }
   } catch (error) {
     console.error('[Auto-Rebuy Fuel] Purchase failed:', error);
-    showSideNotification(`⛽ <strong>Auto-Rebuy Failed</strong><br><br>${error.message}`, 'error');
+    showSideNotification(`⛽ <strong>Auto-Rebuy Failed</strong><br><br>${escapeHtml(error.message)}`, 'error');
   } finally {
     isAutoBuying = false;
   }
@@ -367,7 +367,7 @@ Bought ${formatNumber(amountToBuy)}t @ $${co2Price}/t`,
     }
   } catch (error) {
     console.error('[Auto-Rebuy CO2] Purchase failed:', error);
-    showSideNotification(`💨 <strong>Auto-Rebuy Failed</strong><br><br>${error.message}`, 'error');
+    showSideNotification(`💨 <strong>Auto-Rebuy Failed</strong><br><br>${escapeHtml(error.message)}`, 'error');
   } finally {
     isAutoBuying = false;
   }

@@ -7,7 +7,7 @@
  */
 
 import { deselectAll, selectVessel, closeAllPanels, getMap } from './map-controller.js';
-import { isMobileDevice } from '../utils.js';
+import { isMobileDevice, escapeHtml, formatNumber } from '../utils.js';
 
 /**
  * Shows port detail panel with port information and vessel lists
@@ -58,15 +58,28 @@ export function showPortPanel(port, vessels) {
         <h4>Port Information</h4>
         <p><strong>Code:</strong> ${port.code.toUpperCase()}</p>
         <p><strong>Country:</strong> ${port.full_country || 'Unknown'}</p>
-        <p><strong>Location:</strong><br><span style="padding-left: 12px;">Lat ${port.lat}</span><br><span style="padding-left: 12px;">Lon ${port.lon}</span></p>
+        <p><strong>Location:</strong><br><span class="port-location-indent">Lat ${port.lat}</span><br><span class="port-location-indent">Lon ${port.lon}</span></p>
         <p><strong>Size:</strong> ${port.size || 'N/A'}</p>
+        <p><strong>Drydock:</strong> ${port.drydock ? 'Yes (' + port.drydock + ')' : 'No'}</p>
+        <p><strong>Market Price:</strong> ${port.market_price ? port.market_price + '%' : 'N/A'}</p>
       </div>
+
+      ${renderTypicalDemandSection(port)}
 
       ${renderDemandSection(port)}
 
+      <div class="port-info-section collapsible collapsed" id="top-alliances-section">
+        <h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="toggle-icon">▼</span> Top 3 Alliances
+        </h4>
+        <div class="section-content">
+          <div class="loading-placeholder">Loading alliance statistics...</div>
+        </div>
+      </div>
+
       <div class="port-info-section collapsible collapsed">
         <h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
-          <span class="toggle-icon">▼</span> Vessels
+          <span class="toggle-icon">▼</span> Vessels (${(vessels.inPort?.length || 0) + (vessels.toPort?.length || 0) + (vessels.fromPort?.length || 0) + (vessels.pending?.length || 0)})
         </h4>
         <div class="section-content">
           ${vessels.pending && vessels.pending.length > 0 ? `
@@ -101,6 +114,9 @@ export function showPortPanel(port, vessels) {
   // Load weather data for port location
   loadPortWeather(parseFloat(port.lat), parseFloat(port.lon));
 
+  // Load alliance statistics for port
+  loadPortAllianceData(port.code);
+
   // Enable fullscreen on mobile when panel opens
   const isMobile = isMobileDevice();
   console.log('[Port Panel] isMobile:', isMobile, 'window.innerWidth:', window.innerWidth);
@@ -108,6 +124,40 @@ export function showPortPanel(port, vessels) {
     document.body.classList.add('map-fullscreen');
     console.log('[Port Panel] Added map-fullscreen class to body. Classes:', document.body.classList.toString());
   }
+}
+
+/**
+ * Renders typical demand section showing Container vs Tanker percentages
+ * Uses demand_policy data from port
+ *
+ * @param {Object} port - Port object with demand_policy data
+ * @returns {string} HTML string for typical demand section
+ */
+function renderTypicalDemandSection(port) {
+  if (!port.demand_policy) {
+    return '';
+  }
+
+  const containerPct = port.demand_policy.container || 0;
+  const tankerPct = port.demand_policy.tanker || 0;
+
+  return `
+    <div class="port-info-section">
+      <h4>Typical Demand</h4>
+      <div class="typical-demand-bar">
+        <div class="typical-demand-container" style="width: ${containerPct}%">
+          <span class="typical-demand-label">Container</span>
+        </div>
+        <div class="typical-demand-tanker" style="width: ${tankerPct}%">
+          <span class="typical-demand-label">Tanker</span>
+        </div>
+      </div>
+      <div class="typical-demand-values">
+        <span class="typical-demand-value demand-container">${containerPct}%</span>
+        <span class="typical-demand-value demand-tanker">${tankerPct}%</span>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -184,7 +234,7 @@ function renderVesselList(vessels) {
 
         return `
           <li class="vessel-list-item" onclick="window.harborMap.selectVesselFromPort(${vessel.id})">
-            <div class="vessel-name">${vessel.name}</div>
+            <div class="vessel-name">${escapeHtml(vessel.name)}</div>
             <div class="vessel-details">
               ${vessel.eta !== 'N/A' ? `<span>⏱️ ${vessel.eta}</span>` : ''}
               ${cargoDetails ? `<span>📦 ${cargoDetails}</span>` : (vessel.formattedCargo ? `<span>📦 ${vessel.formattedCargo}</span>` : '')}
@@ -247,7 +297,12 @@ export async function closePortPanel() {
     }
   }
 
-  await deselectAll();
+  // If planning mode is active, restore planning state instead of deselecting all
+  if (window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode()) {
+    await window.harborMap.restorePlanningState();
+  } else {
+    await deselectAll();
+  }
 }
 
 /**
@@ -343,7 +398,174 @@ async function loadPortWeather(lat, lon) {
   }
 }
 
+/**
+ * Fetches and updates demand data for a port
+ * Called after showPortPanel to load demand asynchronously
+ *
+ * @param {string} portCode - Port code
+ * @returns {Promise<void>}
+ */
+export async function fetchAndUpdatePortDemand(portCode) {
+  try {
+    const response = await fetch('/api/route/get-port-demand', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port_code: portCode })
+    });
+
+    if (!response.ok) {
+      console.warn(`[Port Panel] Failed to fetch demand for ${portCode}`);
+      return;
+    }
+
+    const data = await response.json();
+    const port = data.port;
+
+    if (!port || !port.demand) {
+      console.log(`[Port Panel] No demand data available for ${portCode}`);
+      return;
+    }
+
+    // Get demand data
+    const demand = port.demand;
+
+    // Find existing demand section and update it
+    const allSections = document.querySelectorAll('#port-detail-panel .port-info-section');
+    let demandSectionFound = false;
+
+    for (const section of allSections) {
+      const header = section.querySelector('h4');
+      if (header && header.textContent === 'Demand Analytics') {
+        // Update existing section content
+        section.innerHTML = `
+          <h4>Demand Analytics</h4>
+          ${demand.container ? `
+            <p><strong>Container:</strong><br>
+            Dry ${demand.container.dry !== undefined ? demand.container.dry.toLocaleString() : '0'} TEU<br>
+            Ref ${demand.container.refrigerated !== undefined ? demand.container.refrigerated.toLocaleString() : '0'} TEU</p>
+          ` : ''}
+          ${demand.tanker ? `
+            <p><strong>Tanker:</strong><br>
+            Fuel: ${demand.tanker.fuel !== undefined ? demand.tanker.fuel.toLocaleString() : '0'} bbl<br>
+            Crude: ${demand.tanker.crude_oil !== undefined ? demand.tanker.crude_oil.toLocaleString() : '0'} bbl</p>
+          ` : ''}
+        `;
+        demandSectionFound = true;
+        break;
+      }
+    }
+
+    // If no demand section exists, create one after first port-info-section
+    if (!demandSectionFound && allSections.length > 0) {
+      const newSection = document.createElement('div');
+      newSection.className = 'port-info-section';
+      newSection.innerHTML = `
+        <h4>Demand Analytics</h4>
+        ${demand.container ? `
+          <p><strong>Container:</strong><br>
+          Dry ${demand.container.dry !== undefined ? demand.container.dry.toLocaleString() : '0'} TEU<br>
+          Ref ${demand.container.refrigerated !== undefined ? demand.container.refrigerated.toLocaleString() : '0'} TEU</p>
+        ` : ''}
+        ${demand.tanker ? `
+          <p><strong>Tanker:</strong><br>
+          Fuel: ${demand.tanker.fuel !== undefined ? demand.tanker.fuel.toLocaleString() : '0'} bbl<br>
+          Crude: ${demand.tanker.crude_oil !== undefined ? demand.tanker.crude_oil.toLocaleString() : '0'} bbl</p>
+        ` : ''}
+      `;
+      allSections[0].after(newSection);
+    }
+
+    console.log(`[Port Panel] Updated demand for ${portCode}:`, demand);
+  } catch (error) {
+    console.error(`[Port Panel] Error fetching demand for ${portCode}:`, error);
+  }
+}
+
+/**
+ * Loads alliance statistics for a port
+ * Fetches top 3 alliances and user's alliance rank
+ *
+ * @param {string} portCode - Port code
+ * @example
+ * loadPortAllianceData('murmansk');
+ */
+async function loadPortAllianceData(portCode) {
+  try {
+    const response = await fetch('/api/alliance/get-alliance-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ port_code: portCode })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+    console.log('[Port Panel] Alliance data response:', result);
+    const { top_alliances, my_alliance } = result.data || {};
+    console.log('[Port Panel] top_alliances:', top_alliances, 'my_alliance:', my_alliance);
+
+    const section = document.getElementById('top-alliances-section');
+    if (!section) return;
+
+    const content = section.querySelector('.section-content');
+    if (!content) return;
+
+    let html = '';
+
+    if (top_alliances && top_alliances.length > 0) {
+      const medals = ['🥇', '🥈', '🥉'];
+
+      html += '<table class="port-alliance-table">';
+
+      top_alliances.forEach((alliance, index) => {
+        html += `
+          <tr class="alliance-row rank-${index + 1}">
+            <td class="alliance-medal">${medals[index]}</td>
+            <td class="alliance-name-cell">
+              <a href="#" class="alliance-link" onclick="window.harborMap.openAllianceModal(${alliance.id}); return false;">
+                ${alliance.name}
+              </a>
+            </td>
+            <td class="alliance-stats-cell">
+              <div>${formatNumber(alliance.teu)} TEU</div>
+              <div>${formatNumber(alliance.bbl)} bbl</div>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += '</table>';
+    } else {
+      html = '<p>No alliance data available for this port.</p>';
+    }
+
+    content.innerHTML = html;
+  } catch (error) {
+    console.error(`[Port Panel] Error fetching alliance data for ${portCode}:`, error);
+    const section = document.getElementById('top-alliances-section');
+    if (section) {
+      const content = section.querySelector('.section-content');
+      if (content) {
+        content.innerHTML = '<p class="error-message">Failed to load alliance statistics.</p>';
+      }
+    }
+  }
+}
+
+/**
+ * Opens alliance details modal
+ * @param {number} allianceId - Alliance ID
+ */
+async function openAllianceModal(allianceId) {
+  const { showAllianceDetailsModal } = await import('../alliance-tabs.js');
+  await showAllianceDetailsModal(allianceId);
+}
+
 // Expose functions to window for onclick handlers
 window.harborMap = window.harborMap || {};
 window.harborMap.closePortPanel = closePortPanel;
 window.harborMap.selectVesselFromPort = selectVesselFromPort;
+window.harborMap.fetchAndUpdatePortDemand = fetchAndUpdatePortDemand;
+window.harborMap.openAllianceModal = openAllianceModal;

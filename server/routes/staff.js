@@ -19,6 +19,30 @@ const logger = require('../utils/logger');
 const router = express.Router();
 
 /**
+ * Valid staff types for salary and training operations
+ * @constant {Set<string>}
+ */
+const VALID_STAFF_TYPES = new Set([
+  'cfo', 'coo', 'cmo', 'cto',
+  'captain', 'first_officer', 'boatswain', 'technical_officer'
+]);
+
+/**
+ * Valid perk types organized by staff type
+ * @constant {Object<string, Set<string>>}
+ */
+const VALID_PERK_TYPES = {
+  cfo: new Set(['shop_cash', 'lower_channel_fees', 'cheap_anchor_points', 'cheap_fuel', 'cheap_co2', 'cheap_harbor_fees', 'cheap_route_creation_fee']),
+  coo: new Set(['happier_staff', 'less_crew', 'improved_staff_negotiations', 'lower_hijacking_chance', 'cheap_guards']),
+  cmo: new Set(['higher_demand', 'cheap_marketing']),
+  cto: new Set(['reduce_co2_consumption', 'reduce_fuel_consumption', 'travel_speed_increase', 'slower_wear', 'cheaper_maintenance']),
+  captain: new Set(['lower_crew_unhappiness']),
+  first_officer: new Set(['less_crew_needed']),
+  boatswain: new Set(['slower_wear_boatswain']),
+  technical_officer: new Set(['less_fuel_consumption'])
+};
+
+/**
  * POST /api/staff/get-user-staff
  * Returns user's staff data including training, morale, and salaries
  *
@@ -48,6 +72,12 @@ router.post('/get-user-staff', express.json(), async (req, res) => {
 router.post('/raise-salary', express.json(), async (req, res) => {
   try {
     const { type } = req.body;
+
+    // Validate staff type
+    if (!type || !VALID_STAFF_TYPES.has(type)) {
+      return res.status(400).json({ error: `Invalid staff type. Must be one of: ${[...VALID_STAFF_TYPES].join(', ')}` });
+    }
+
     const data = await apiCall('/staff/raise-salary', 'POST', { type });
 
     // Broadcast staff update via WebSocket
@@ -85,6 +115,12 @@ router.post('/raise-salary', express.json(), async (req, res) => {
 router.post('/reduce-salary', express.json(), async (req, res) => {
   try {
     const { type } = req.body;
+
+    // Validate staff type
+    if (!type || !VALID_STAFF_TYPES.has(type)) {
+      return res.status(400).json({ error: `Invalid staff type. Must be one of: ${[...VALID_STAFF_TYPES].join(', ')}` });
+    }
+
     const data = await apiCall('/staff/reduce-salary', 'POST', { type });
 
     // Broadcast staff update via WebSocket
@@ -134,6 +170,19 @@ router.post('/reduce-salary', express.json(), async (req, res) => {
 router.post('/spend-training-point', express.json(), async (req, res) => {
   try {
     const { type, perk_type } = req.body;
+
+    // Validate staff type
+    if (!type || !VALID_STAFF_TYPES.has(type)) {
+      return res.status(400).json({ error: `Invalid staff type. Must be one of: ${[...VALID_STAFF_TYPES].join(', ')}` });
+    }
+
+    // Validate perk type for the given staff type
+    const validPerks = VALID_PERK_TYPES[type];
+    if (!perk_type || !validPerks || !validPerks.has(perk_type)) {
+      const availablePerks = validPerks ? [...validPerks].join(', ') : 'none';
+      return res.status(400).json({ error: `Invalid perk type for ${type}. Must be one of: ${availablePerks}` });
+    }
+
     const data = await apiCall('/staff/spend-training-point', 'POST', { type, perk_type });
 
     // Broadcast staff update via WebSocket

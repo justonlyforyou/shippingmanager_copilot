@@ -11,6 +11,7 @@ const logger = require('../utils/logger');
 const fs = require('fs').promises;
 const { getUserId, getAllianceName } = require('../utils/api');
 const { getSettingsFilePath } = require('../settings-schema');
+const { getInternalBaseUrl } = require('../config');
 
 /**
  * Handle forecast command
@@ -104,7 +105,7 @@ async function generateForecastText(day, timezone) {
         }
 
         // Call internal API endpoint
-        const response = await axios.get(`https://localhost:12345/api/forecast?${params.toString()}`, {
+        const response = await axios.get(`${getInternalBaseUrl()}/api/forecast?${params.toString()}`, {
             headers: {
                 'Cookie': `shipping_manager_session=${getSessionCookie()}`
             },

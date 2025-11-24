@@ -95,7 +95,7 @@
   font-weight: var(--font-weight-medium);
   box-shadow: var(--shadow-2xl);
   animation: slideInFromRight var(--transition-medium) ease-out;
-  max-height: calc(100vh - 40px);
+  max-height: 70vh;
   overflow-y: auto;
   position: relative;
   width: 250px;

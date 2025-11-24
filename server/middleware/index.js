@@ -110,8 +110,8 @@ function setupMiddleware(app) {
   }));
 
   // Body parser middleware
-  // Increased limit from 1kb to 50kb for hijacking history storage
-  app.use(express.json({ limit: '50kb' }));
+  // Increased limit for vessel image uploads (base64 encoded images can be large)
+  app.use(express.json({ limit: '20mb' }));
 
   // Static files
   // When running as .exe (pkg), use __dirname which points to snapshot directory

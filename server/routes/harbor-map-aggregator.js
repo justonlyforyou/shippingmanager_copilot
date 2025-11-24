@@ -7,19 +7,35 @@
  */
 
 const { calculateVesselPosition, calculateETA, calculateCargoUtilization, formatCargoCapacity } = require('./harbor-map-calculator');
-const { getFuelConsumptionDisplay } = require('../utils/fuel-calculator');
+const { getFuelConsumptionDisplay, getVesselFuelData } = require('../utils/fuel-calculator');
+const fs = require('fs');
+const path = require('path');
+const { getAppDataDir } = require('../config');
+
+// Determine vessel appearances directory
+const isPkg = !!process.pkg;
+const VESSEL_APPEARANCES_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-appearances')
+  : path.join(__dirname, '../../userdata/vessel-appearances');
+
+/**
+ * Check if vessel has own image flag in appearance file
+ */
+function hasOwnImage(userId, vesselId) {
+  try {
+    const filePath = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${vesselId}.json`);
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      return data.ownImage === true;
+    }
+  } catch {
+    // File doesn't exist or invalid
+  }
+  return false;
+}
 
 /**
  * Aggregates vessel data with calculated positions and formatted info
- * Adds current position, ETA, cargo utilization to each vessel
- *
- * @param {Array<Object>} vessels - Raw vessel objects from API
- * @param {Array<Object>} allPorts - All ports for position fallback
- * @param {number} [userId] - User ID (required for custom vessel fuel data)
- * @returns {Array<Object>} Vessels with added calculated fields
- * @example
- * const enrichedVessels = aggregateVesselData(vessels, allPorts, userId);
- * // Returns vessels with .position, .eta, .cargoUtilization, .formattedCargo
  */
 function aggregateVesselData(vessels, allPorts, userId) {
   const logger = require('../utils/logger');
@@ -32,6 +48,8 @@ function aggregateVesselData(vessels, allPorts, userId) {
     const cargoUtilization = calculateCargoUtilization(vessel);
     const formattedCargo = formatCargoCapacity(vessel);
     const fuelConsumptionDisplay = getFuelConsumptionDisplay(vessel, userId);
+    const fuelData = getVesselFuelData(vessel, userId);
+    const ownImage = hasOwnImage(userId, vessel.id);
 
     if (index === 0) {
       logger.debug(`[Harbor Map Aggregator] Sample vessel: ${vessel.name}, status: ${vessel.status}, position: ${JSON.stringify(position)}`);
@@ -43,7 +61,10 @@ function aggregateVesselData(vessels, allPorts, userId) {
       eta,
       cargoUtilization,
       formattedCargo,
-      fuel_consumption_display: fuelConsumptionDisplay
+      fuel_consumption_display: fuelConsumptionDisplay,
+      fuel_consumption_kg_per_nm: fuelData?.kg_per_nm,
+      fuel_ref_speed_kn: fuelData?.speed_kn,
+      ownImage
     };
   });
 
@@ -55,25 +76,14 @@ function aggregateVesselData(vessels, allPorts, userId) {
 
 /**
  * Aggregates reachable ports with demand data from game/index
- * Combines port coordinates from reachable ports with demand data
- *
- * @param {Array<Object>} reachablePorts - Ports from /route/get-vessel-ports
- * @param {Array<Object>} allPortsWithDemand - All ports from /game/index with demand
- * @param {string} capacityType - Vessel capacity type ('container' | 'tanker')
- * @returns {Array<Object>} Ports with demand data added
- * @example
- * const portsWithDemand = aggregateReachablePorts(reachable, gameIndexPorts, 'container');
- * // Returns: [{ code: 'AUBNE', lat: -27.38, lon: 153.12, demand: {...}, demandLevel: 'high' }]
  */
 function aggregateReachablePorts(reachablePorts, allPortsWithDemand, capacityType) {
   const { calculateDemandLevel } = require('./harbor-map-calculator');
 
   return reachablePorts.map(reachablePort => {
-    // Find matching port in game/index data
     const portWithDemand = allPortsWithDemand.find(p => p.code === reachablePort.code);
 
     if (!portWithDemand) {
-      // Port exists in reachable list but not in game/index - return basic info
       return {
         ...reachablePort,
         demand: null,
@@ -81,7 +91,6 @@ function aggregateReachablePorts(reachablePorts, allPortsWithDemand, capacityTyp
       };
     }
 
-    // Determine demand value based on capacity type
     let demandValue = 0;
     if (capacityType === 'container') {
       demandValue = (portWithDemand.demand?.dry || 0) + (portWithDemand.demand?.refrigerated || 0);
@@ -101,14 +110,6 @@ function aggregateReachablePorts(reachablePorts, allPortsWithDemand, capacityTyp
 
 /**
  * Categorizes all vessels by their relationship to a specific port
- * Splits vessels into four categories: in port, heading to, coming from, pending
- *
- * @param {string} portCode - Port code to categorize vessels for
- * @param {Array<Object>} allVessels - All user vessels
- * @returns {Object} { inPort: [], toPort: [], fromPort: [], pending: [] }
- * @example
- * const categorized = categorizeVesselsByPort('AUBNE', allVessels);
- * // Returns: { inPort: [v1, v2], toPort: [v3], fromPort: [v4, v5], pending: [v6] }
  */
 function categorizeVesselsByPort(portCode, allVessels) {
   const logger = require('../utils/logger');
@@ -117,7 +118,6 @@ function categorizeVesselsByPort(portCode, allVessels) {
   const fromPort = [];
   const pending = [];
 
-  // Debug: Log first vessel structure to understand fields
   if (allVessels.length > 0) {
     const sampleVessel = allVessels[0];
     logger.debug(`[Categorize] Sample vessel fields: current_port_code=${sampleVessel.current_port_code}, status=${sampleVessel.status}, active_route=${JSON.stringify(sampleVessel.active_route)}`);
@@ -125,20 +125,16 @@ function categorizeVesselsByPort(portCode, allVessels) {
   }
 
   allVessels.forEach(vessel => {
-    // Vessels being built/delivered (pending status)
     if ((vessel.status === 'pending' || vessel.status === 'delivery') && vessel.current_port_code === portCode) {
       pending.push(vessel);
     }
-    // Vessels currently in port
     else if (vessel.current_port_code === portCode && vessel.status !== 'enroute') {
       inPort.push(vessel);
     }
-    // Vessels heading to port (check both field names for compatibility)
     else if (vessel.status === 'enroute' &&
              (vessel.active_route?.destination === portCode || vessel.active_route?.destination_port_code === portCode)) {
       toPort.push(vessel);
     }
-    // Vessels coming from port (check both field names for compatibility)
     else if (vessel.status === 'enroute' &&
              (vessel.active_route?.origin === portCode || vessel.active_route?.origin_port_code === portCode)) {
       fromPort.push(vessel);
@@ -152,42 +148,21 @@ function categorizeVesselsByPort(portCode, allVessels) {
 
 /**
  * Filters ports to only user's assigned ports
- * Uses demand data from assigned-ports (which has correct structure)
- * Validates that ports exist in game/index (for coordinates/metadata)
- *
- * @param {Array<Object>} assignedPorts - Ports from /port/get-assigned-ports (has correct demand)
- * @param {Array<Object>} allPortsWithDemand - All ports from /game/index (for validation)
- * @returns {Array<Object>} Assigned ports with demand data (only ports in game/index)
- * @example
- * const myPorts = filterAssignedPorts(assignedPorts, gameIndexPorts);
- * // Returns: assigned ports that exist in game/index
  */
 function filterAssignedPorts(assignedPorts, allPortsWithDemand) {
   return assignedPorts
     .map(assignedPort => {
       const portInGameIndex = allPortsWithDemand.find(p => p.code === assignedPort.code);
-
-      // Skip ports that don't exist in game/index
       if (!portInGameIndex) {
         return null;
       }
-
-      // Use assigned port data (has correct demand structure)
-      // Just validate it exists in game/index
       return assignedPort;
     })
-    .filter(port => port !== null); // Remove null entries
+    .filter(port => port !== null);
 }
 
 /**
  * Extracts all ports with demand data from game/index response
- * Used as source of truth for demand data across all aggregation functions
- *
- * @param {Object} gameIndexData - Full response from /game/index
- * @returns {Array<Object>} All ports with demand data (360 ports)
- * @example
- * const allPorts = extractPortsFromGameIndex(gameIndexData);
- * // Returns: [{ code: 'AUBNE', lat: -27.38, lon: 153.12, demand: {...} }, ...]
  */
 function extractPortsFromGameIndex(gameIndexData) {
   if (!gameIndexData?.ports) return [];
@@ -196,17 +171,80 @@ function extractPortsFromGameIndex(gameIndexData) {
 
 /**
  * Extracts all vessels from game/index response
- * Alternative to /vessel/get-all-user-vessels endpoint
- *
- * @param {Object} gameIndexData - Full response from /game/index
- * @returns {Array<Object>} All user vessels (101 vessels)
- * @example
- * const allVessels = extractVesselsFromGameIndex(gameIndexData);
- * // Returns: [{ id: 1234, name: 'SS Example', ... }, ...]
  */
 function extractVesselsFromGameIndex(gameIndexData) {
   if (!gameIndexData?.vessels) return [];
   return gameIndexData.vessels;
+}
+
+/**
+ * Groups vessels by their port pairs (routes between two ports)
+ * Creates normalized port-pair keys so Hamburg<->NYC = NYC<->Hamburg
+ */
+function groupVesselsByPortPair(vessels, allPorts) {
+  const logger = require('../utils/logger');
+  const portLookup = {};
+  allPorts.forEach(port => {
+    portLookup[port.code] = { code: port.code, country: port.country };
+  });
+
+  const groups = {};
+  const ungrouped = [];
+
+  vessels.forEach(vessel => {
+    const origin = vessel.route_origin;
+    const destination = vessel.route_destination;
+    if (!origin || !destination) { ungrouped.push(vessel); return; }
+
+    const ports = [origin, destination].sort();
+    const pairKey = ports[0] + '<>' + ports[1];
+
+    if (!groups[pairKey]) {
+      const portA = portLookup[ports[0]] || { code: ports[0], country: '??' };
+      const portB = portLookup[ports[1]] || { code: ports[1], country: '??' };
+      const displayA = portA.country + ' ' + formatPortAbbreviation(portA.code);
+      const displayB = portB.country + ' ' + formatPortAbbreviation(portB.code);
+
+      groups[pairKey] = {
+        pairKey: pairKey,
+        displayName: displayA + ' <> ' + displayB,
+        portA: ports[0],
+        portB: ports[1],
+        portACountry: portA.country,
+        portBCountry: portB.country,
+        vessels: []
+      };
+    }
+
+    groups[pairKey].vessels.push({
+      id: vessel.id,
+      name: vessel.name,
+      status: vessel.status,
+      route_origin: vessel.route_origin,
+      route_destination: vessel.route_destination,
+      route_name: vessel.route_name
+    });
+  });
+
+  const groupsArray = Object.values(groups).sort((a, b) => b.vessels.length - a.vessels.length);
+  logger.debug('[Harbor Map Aggregator] Port-pair groups: ' + groupsArray.length + ' groups, ' + ungrouped.length + ' ungrouped');
+  return { groups: groupsArray, ungrouped: ungrouped };
+}
+
+/**
+ * Creates a short abbreviation from a port code
+ */
+function formatPortAbbreviation(portCode) {
+  const abbr = {
+    'hamburg': 'HAM', 'new_york': 'NYC', 'baltimore': 'BAL', 'barcelona': 'BCN',
+    'istanbul': 'IST', 'brisbane': 'BNE', 'port_of_botany_sydney': 'SYD',
+    'melbourne': 'MEL', 'rotterdam': 'RTM', 'antwerp': 'ANT', 'singapore': 'SIN',
+    'shanghai': 'SHA', 'hong_kong': 'HKG', 'los_angeles': 'LAX', 'long_beach': 'LGB',
+    'tokyo': 'TYO', 'busan': 'PUS', 'dubai': 'DXB', 'sydney': 'SYD', 'auckland': 'AKL'
+  };
+  if (abbr[portCode]) return abbr[portCode];
+  const parts = portCode.split('_');
+  return parts[parts.length - 1].substring(0, 3).toUpperCase();
 }
 
 module.exports = {
@@ -215,5 +253,7 @@ module.exports = {
   categorizeVesselsByPort,
   filterAssignedPorts,
   extractPortsFromGameIndex,
-  extractVesselsFromGameIndex
+  extractVesselsFromGameIndex,
+  groupVesselsByPortPair,
+  formatPortAbbreviation
 };

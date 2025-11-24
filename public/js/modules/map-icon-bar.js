@@ -36,10 +36,54 @@ export function initializeMapIconBar() {
 }
 
 /**
+ * Close all modal overlays
+ * Called before opening a new modal to ensure only one is open at a time
+ * Exported on window for use by other modules (Leaflet controls, etc.)
+ */
+export function closeAllModalOverlays() {
+  const modalOverlayIds = [
+    'forecastOverlay',
+    'logbookOverlay',
+    'settingsOverlay',
+    'buyVesselsOverlay',
+    'sellVesselsOverlay',
+    'buildShipOverlay',
+    'messengerOverlay',
+    'hijackOverlay',
+    'campaignsOverlay',
+    'coopOverlay',
+    'allianceChatOverlay',
+    'contactListOverlay',
+    'anchorOverlay',
+    'docsOverlay',
+    'companyProfileOverlay'
+  ];
+
+  modalOverlayIds.forEach(id => {
+    const overlay = document.getElementById(id);
+    if (overlay && !overlay.classList.contains('hidden')) {
+      overlay.classList.add('hidden');
+    }
+  });
+}
+
+/**
  * Handle icon click action
  * @param {string} action - Action name from data-action attribute
  */
 function handleIconAction(action) {
+  // Actions that open modal overlays (need to close others first)
+  const modalActions = [
+    'buyVessels', 'sellVessels', 'messenger', 'hijacking',
+    'campaigns', 'coop', 'allianceChat', 'contactList',
+    'settings', 'forecast', 'logbook', 'docs', 'anchor'
+  ];
+
+  // Close other modals before opening a new one
+  if (modalActions.includes(action)) {
+    closeAllModalOverlays();
+  }
+
   // Map actions to their corresponding functions
   // These functions are exposed on window object by script.js
   const actionHandlers = {

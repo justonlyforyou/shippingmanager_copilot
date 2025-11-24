@@ -44,12 +44,16 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+const { getAppDataDir } = require('../config');
 
 /**
- * Path to the read tracking JSON file
+ * Path to the read tracking JSON file - use AppData when packaged as exe
  * @constant {string}
  */
-const READ_TRACKING_FILE = path.join(__dirname, '..', '..', 'userdata', 'settings', 'read-tracking.json');
+const isPkg = !!process.pkg;
+const READ_TRACKING_FILE = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'settings', 'read-tracking.json')
+  : path.join(__dirname, '..', '..', 'userdata', 'settings', 'read-tracking.json');
 
 /**
  * In-memory cache of read tracking data

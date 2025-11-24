@@ -162,14 +162,28 @@ export async function showAnchorPurchaseDialog() {
               </p>
             </div>
 
-            <div style="padding-top: 1px; margin-bottom: 3px;">
-              <p style="margin: 0; color: #fbbf24; font-size: 12px; line-height: 1.5;">
-                💡 <strong>Reminder:</strong> Don't forget to actually play the game and set your routes manually! 😛
-              </p>
+            <div style="padding-top: 1px; margin-bottom: 3px; text-align: center;">
+              <a href="#" id="openDepartManagerLink" style="margin: 0; color: #3b82f6; font-size: 12px; line-height: 1.5; text-decoration: underline; cursor: pointer;">
+                Open Depart-Manager
+              </a>
             </div>
 
             <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 3px 0;">
           ` : '';
+
+          // Add click handler for Depart-Manager link
+          const departManagerLink = infoSection.querySelector('#openDepartManagerLink');
+          if (departManagerLink) {
+            departManagerLink.addEventListener('click', async (e) => {
+              e.preventDefault();
+              // Close the anchor overlay
+              overlay.classList.add('hidden');
+              // Open Depart Manager with Anchored tab
+              if (window.openDepartManager) {
+                await window.openDepartManager('anchor');
+              }
+            });
+          }
         }
       }
 

@@ -13,6 +13,7 @@
  * - Only the same user on the same machine can decrypt
  * - No master password needed (uses OS authentication)
  * - If file is copied to another machine, data is useless
+ * - NO FALLBACK ENCRYPTION - keytar is required
  *
  * Known Issues & Workarounds:
  * - Python/Node.js keyring incompatibility on Windows: Python's keyring library stores
@@ -25,16 +26,15 @@
  */
 
 const os = require('os');
-const crypto = require('crypto');
 const logger = require('./logger');
 
-// Try to load keytar - it might not be available on all systems
+// Try to load keytar - required for secure credential storage
 let keytar;
 try {
     keytar = require('keytar');
     logger.debug('[Encryption] Using native OS credential storage (keytar)');
 } catch {
-    logger.warn('[Encryption] keytar not available, falling back to local encryption');
+    logger.error('[Encryption] keytar not available - secure credential storage unavailable');
     keytar = null;
 }
 
@@ -45,77 +45,42 @@ try {
 const SERVICE_NAME = 'ShippingManagerCoPilot';
 
 /**
- * Algorithm used for fallback encryption when keytar is unavailable
- * @constant {string}
- */
-const FALLBACK_ALGORITHM = 'aes-256-gcm';
-
-/**
- * Get or create a machine-specific encryption key (fallback mode only)
- * This is less secure than OS keyring but better than plaintext
- *
- * @returns {Buffer} 32-byte encryption key
- */
-function getMachineKey() {
-    // Use machine-specific identifiers to derive a key
-    const machineId = os.hostname() + os.userInfo().username + os.platform();
-    return crypto.createHash('sha256').update(machineId).digest();
-}
-
-/**
- * Encrypt sensitive data using OS-native credential storage or fallback
+ * Encrypt sensitive data using OS-native credential storage
  *
  * @param {string} data - Data to encrypt (will be converted to string if not already)
  * @param {string} accountName - Unique identifier for this data (e.g., 'session_1234567')
- * @returns {Promise<string>} Encrypted data as base64 string
+ * @returns {Promise<string>} Reference to stored credential
+ * @throws {Error} If keytar is not available or storage fails
  *
  * @example
  * const encrypted = await encryptData('my-secret-cookie', 'session_12345');
- * // Returns: "ENCRYPTED:base64data..." or "v1:iv:authTag:encrypted"
+ * // Returns: "KEYRING:session_12345"
  */
 async function encryptData(data, accountName) {
     const dataString = String(data);
 
-    // Try to use OS keyring first (most secure)
-    if (keytar) {
-        try {
-            // Store in OS credential manager
-            await keytar.setPassword(SERVICE_NAME, accountName, dataString);
-
-            // Return a marker that indicates data is in keyring
-            return `KEYRING:${accountName}`;
-        } catch (error) {
-            logger.warn(`[Encryption] Failed to use keyring, falling back: ${error.message}`);
-            // Fall through to fallback encryption
-        }
+    if (!keytar) {
+        throw new Error('Secure credential storage (keytar) is not available. Please ensure keytar is properly installed.');
     }
 
-    // Fallback: AES-256-GCM encryption with machine-specific key
     try {
-        const key = getMachineKey();
-        const iv = crypto.randomBytes(16);
-        const cipher = crypto.createCipheriv(FALLBACK_ALGORITHM, key, iv);
+        // Store in OS credential manager
+        await keytar.setPassword(SERVICE_NAME, accountName, dataString);
 
-        let encrypted = cipher.update(dataString, 'utf8', 'base64');
-        encrypted += cipher.final('base64');
-
-        const authTag = cipher.getAuthTag().toString('base64');
-
-        // Format: version:iv:authTag:encryptedData
-        return `v1:${iv.toString('base64')}:${authTag}:${encrypted}`;
+        // Return a marker that indicates data is in keyring
+        return `KEYRING:${accountName}`;
     } catch (error) {
-        logger.error('[Encryption] Fallback encryption failed:', error);
-        throw new Error('Failed to encrypt data');
+        logger.error(`[Encryption] Failed to store in keyring: ${error.message}`);
+        throw new Error(`Failed to encrypt data: ${error.message}`);
     }
 }
 
 /**
  * Decrypt data that was encrypted with encryptData()
  *
- * Handles three storage formats:
- * 1. OS keyring (KEYRING:account_name) - Most secure, uses Windows DPAPI/macOS Keychain/Linux libsecret
- * 2. Fallback encryption (v1:iv:authTag:data) - AES-256-GCM when keyring unavailable
- * 3. Plaintext (legacy) - For migration from older versions
+ * Handles two storage formats:
+ * 1. OS keyring (KEYRING:account_name) - Uses Windows DPAPI/macOS Keychain/Linux libsecret
+ * 2. Plaintext (legacy) - For migration from older versions
  *
  * IMPORTANT: This function includes a workaround for Python/Node.js keyring incompatibility.
  * Python's keyring library stores credentials as UTF-16 on Windows, which creates null bytes (0x00)
@@ -148,82 +113,61 @@ async function decryptData(encryptedData) {
 
     // Check if data is in OS keyring
     if (encryptedData.startsWith('KEYRING:')) {
-        if (keytar) {
-            try {
-                const storedAccountName = encryptedData.substring(8); // Remove "KEYRING:" prefix
+        if (!keytar) {
+            logger.error('[Encryption] Data is in keyring but keytar not available');
+            return null;
+        }
 
-                // WORKAROUND for Python/Node.js keyring incompatibility:
-                // Use findCredentials() instead of getPassword() because getPassword() returns null
-                // for UTF-16 encoded entries stored by Python's keyring library.
-                // This happens because Python stores as UTF-16 on Windows while Node.js keytar expects UTF-8.
-                const credentials = await keytar.findCredentials(SERVICE_NAME);
-                const credential = credentials.find(c => c.account === storedAccountName);
+        try {
+            const storedAccountName = encryptedData.substring(8); // Remove "KEYRING:" prefix
 
-                if (!credential) {
-                    logger.error(`[Encryption] Credential not found for ${storedAccountName}`);
-                    return null;
-                }
+            // WORKAROUND for Python/Node.js keyring incompatibility:
+            // Use findCredentials() instead of getPassword() because getPassword() returns null
+            // for UTF-16 encoded entries stored by Python's keyring library.
+            // This happens because Python stores as UTF-16 on Windows while Node.js keytar expects UTF-8.
+            const credentials = await keytar.findCredentials(SERVICE_NAME);
+            const credential = credentials.find(c => c.account === storedAccountName);
 
-                let password = credential.password;
-
-                // WORKAROUND: Fix Python's UTF-16 encoding (creates null bytes between characters)
-                // Python's keyring stores "eyJpdiI6..." as "e\0y\0J\0p\0d\0i\0..." (UTF-16 LE)
-                // This doubles the length: 340 chars → 680 chars with null bytes at every odd index
-                // Detection: Check if every 2nd character (index 1, 3, 5...) is 0x00
-                if (password && password.length > 300 && password.length % 2 === 0) {
-                    // Sample first 20 characters to check for UTF-16 pattern
-                    let hasNullBytes = true;
-                    for (let i = 1; i < Math.min(20, password.length); i += 2) {
-                        if (password.charCodeAt(i) !== 0) {
-                            hasNullBytes = false;
-                            break;
-                        }
-                    }
-
-                    if (hasNullBytes) {
-                        // Remove null bytes: keep only even-indexed characters (0, 2, 4, 6...)
-                        // Example: "e\0y\0J\0" -> "eyJ"
-                        const fixed = password.split('').filter((_, i) => i % 2 === 0).join('');
-                        logger.warn(`[Encryption] Fixed Python UTF-16 encoding issue (${password.length} to ${fixed.length} chars)`);
-                        password = fixed;
-                    }
-                }
-                return password;
-            } catch (error) {
-                logger.error(`[Encryption] Failed to retrieve from keyring: ${error.message}`);
+            if (!credential) {
+                logger.error(`[Encryption] Credential not found for ${storedAccountName}`);
                 return null;
             }
-        } else {
-            logger.error('[Encryption] Data is in keyring but keytar not available');
+
+            let password = credential.password;
+
+            // WORKAROUND: Fix Python's UTF-16 encoding (creates null bytes between characters)
+            // Python's keyring stores "eyJpdiI6..." as "e\0y\0J\0p\0d\0i\0..." (UTF-16 LE)
+            // This doubles the length: 340 chars -> 680 chars with null bytes at every odd index
+            // Detection: Check if every 2nd character (index 1, 3, 5...) is 0x00
+            if (password && password.length > 300 && password.length % 2 === 0) {
+                // Sample first 20 characters to check for UTF-16 pattern
+                let hasNullBytes = true;
+                for (let i = 1; i < Math.min(20, password.length); i += 2) {
+                    if (password.charCodeAt(i) !== 0) {
+                        hasNullBytes = false;
+                        break;
+                    }
+                }
+
+                if (hasNullBytes) {
+                    // Remove null bytes: keep only even-indexed characters (0, 2, 4, 6...)
+                    // Example: "e\0y\0J\0" -> "eyJ"
+                    const fixed = password.split('').filter((_, i) => i % 2 === 0).join('');
+                    logger.warn(`[Encryption] Fixed Python UTF-16 encoding issue (${password.length} to ${fixed.length} chars)`);
+                    password = fixed;
+                }
+            }
+            return password;
+        } catch (error) {
+            logger.error(`[Encryption] Failed to retrieve from keyring: ${error.message}`);
             return null;
         }
     }
 
-    // Check if data is fallback-encrypted
+    // Legacy fallback format (v1:...) is no longer supported
     if (encryptedData.startsWith('v1:')) {
-        try {
-            const parts = encryptedData.split(':');
-            if (parts.length !== 4) {
-                throw new Error('Invalid encrypted data format');
-            }
-
-            const [, ivBase64, authTagBase64, encrypted] = parts;
-
-            const key = getMachineKey();
-            const iv = Buffer.from(ivBase64, 'base64');
-            const authTag = Buffer.from(authTagBase64, 'base64');
-
-            const decipher = crypto.createDecipheriv(FALLBACK_ALGORITHM, key, iv);
-            decipher.setAuthTag(authTag);
-
-            let decrypted = decipher.update(encrypted, 'base64', 'utf8');
-            decrypted += decipher.final('utf8');
-
-            return decrypted;
-        } catch (error) {
-            logger.error('[Encryption] Fallback decryption failed:', error.message);
-            return null;
-        }
+        logger.error('[Encryption] Legacy fallback encryption format (v1:) is no longer supported. Please re-authenticate.');
+        return null;
     }
 
     // If data doesn't start with known prefix, assume it's plaintext (for migration)
@@ -241,7 +185,7 @@ function isEncrypted(data) {
     if (!data || typeof data !== 'string') {
         return false;
     }
-    return data.startsWith('KEYRING:') || data.startsWith('v1:');
+    return data.startsWith('KEYRING:');
 }
 
 /**
@@ -276,7 +220,7 @@ function getEncryptionInfo() {
             os.platform() === 'win32' ? 'Windows DPAPI' :
             os.platform() === 'darwin' ? 'macOS Keychain' :
             'Linux libsecret'
-        ) : 'Fallback AES-256-GCM',
+        ) : 'UNAVAILABLE - keytar required',
         secure: !!keytar
     };
 }

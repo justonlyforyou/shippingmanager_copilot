@@ -154,11 +154,20 @@ router.get('/coop/data', async (req, res) => {
           });
         }
 
+        // Check if any restriction is blocking (not just present)
+        // Non-blocking restrictions (time_setting when in range, capacity_setting) should not prevent COOP
+        const hasBlockingRestriction = restrictions.some(r =>
+          r.blocking === true ||
+          r.type === 'no_vessels' ||
+          r.type === 'low_fuel' ||
+          r.type === 'time_restriction'
+        );
+
         return {
           ...member,
           company_name: companyNameMap[member.user_id] || `User ${member.user_id}`,
           restrictions,
-          can_receive_coop: restrictions.length === 0
+          can_receive_coop: !hasBlockingRestriction
         };
       });
     }
@@ -351,7 +360,35 @@ router.post('/coop/send-max', async (req, res) => {
  */
 router.post('/coop/update-settings', async (req, res) => {
   try {
-    const settings = req.body;
+    const { coop_enabled, capacity_min, hhmm_from, hhmm_to, time_range_enabled } = req.body;
+
+    // Validate and whitelist only allowed fields
+    const settings = {};
+
+    if (typeof coop_enabled === 'boolean') {
+      settings.coop_enabled = coop_enabled;
+    }
+
+    if (typeof capacity_min === 'number' && Number.isInteger(capacity_min) && capacity_min >= 0) {
+      settings.capacity_min = capacity_min;
+    }
+
+    if (typeof hhmm_from === 'number' && Number.isInteger(hhmm_from) && hhmm_from >= 0 && hhmm_from <= 23) {
+      settings.hhmm_from = hhmm_from;
+    }
+
+    if (typeof hhmm_to === 'number' && Number.isInteger(hhmm_to) && hhmm_to >= 1 && hhmm_to <= 24) {
+      settings.hhmm_to = hhmm_to;
+    }
+
+    if (typeof time_range_enabled === 'boolean') {
+      settings.time_range_enabled = time_range_enabled;
+    }
+
+    // Ensure at least one valid setting was provided
+    if (Object.keys(settings).length === 0) {
+      return res.status(400).json({ error: 'No valid settings provided' });
+    }
 
     logger.info('[COOP] Updating settings:', settings);
 

@@ -12,6 +12,7 @@ const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES } = require('../utils/audit-logger');
+const { getInternalBaseUrl } = require('../config');
 
 /**
  * Automatically sends available COOP vessels to alliance members.
@@ -55,7 +56,7 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
 
     // Fetch COOP data with restrictions from our own API
     const axios = require('axios');
-    const coopResponse = await axios.get('https://localhost:12345/api/coop/data', {
+    const coopResponse = await axios.get(`${getInternalBaseUrl()}/api/coop/data`, {
       httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
     });
 
@@ -99,7 +100,7 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
     // Send to each eligible member
     for (const member of eligibleMembers) {
       // Refresh COOP data to get current available count
-      const refreshResponse = await axios.get('https://localhost:12345/api/coop/data', {
+      const refreshResponse = await axios.get(`${getInternalBaseUrl()}/api/coop/data`, {
         httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
       });
       const currentAvailable = refreshResponse.data.data?.coop?.available;
@@ -115,7 +116,7 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
 
       try {
         // Send via our own API endpoint
-        const sendResponse = await axios.post('https://localhost:12345/api/coop/send-max', {
+        const sendResponse = await axios.post(`${getInternalBaseUrl()}/api/coop/send-max`, {
           user_id: member.user_id
         }, {
           httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })

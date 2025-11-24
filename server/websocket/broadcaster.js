@@ -11,6 +11,65 @@ const WebSocket = require('ws');
 const logger = require('../utils/logger');
 
 /**
+ * Allowed WebSocket message types (whitelist for security)
+ * Only these types can be broadcast to clients
+ * @constant {Set<string>}
+ */
+const ALLOWED_MESSAGE_TYPES = new Set([
+  // Bunker/Price updates
+  'bunker_update',
+  'price_update',
+  'price_alert',
+  // Vessel operations
+  'vessels_departed',
+  'vessels_failed',
+  'vessels_repaired',
+  'vessel_update',
+  'vessel_count_update',
+  'vessels_depart_complete',
+  'vessels_depart_batch',
+  'autopilot_depart_start',
+  'depart_start',
+  // Purchase events
+  'fuel_purchased',
+  'co2_purchased',
+  'vessel_purchased',
+  'bulk_buy_start',
+  'bulk_buy_complete',
+  // Repair events
+  'repair_start',
+  'repair_complete',
+  // Chat/Notifications
+  'chat_update',
+  'system_notification',
+  'generic_notification',
+  'user_action_notification',
+  'notification',
+  // Messenger
+  'messenger_update',
+  // Autopilot events
+  'autopilot_status',
+  'campaigns_renewed',
+  'auto_coop_no_targets',
+  'auto_coop_complete',
+  'coop_send_complete',
+  'coop_update',
+  // Lock status
+  'lock_status',
+  // Data updates
+  'company_type_update',
+  'staff_training_points_update',
+  'header_data_update',
+  'event_data_update',
+  'campaign_status_update',
+  'all_data_updated',
+  // Harbor map
+  'harbor_map_refresh_required',
+  // Hijacking
+  'hijacking_update'
+]);
+
+/**
  * WebSocket server instance (shared across all connections)
  * @type {WebSocket.Server|null}
  */
@@ -86,15 +145,32 @@ function broadcast(type, data) {
     return;
   }
 
+  // Security: Only allow whitelisted message types
+  if (!ALLOWED_MESSAGE_TYPES.has(type)) {
+    logger.warn(`[WebSocket] Blocked broadcast of unknown type: ${type}`);
+    return;
+  }
+
+  // Security: Validate data is serializable and not null/undefined
+  if (data === undefined) {
+    logger.warn(`[WebSocket] Blocked broadcast with undefined data for type: ${type}`);
+    return;
+  }
+
   const openClients = Array.from(wss.clients).filter(c => c.readyState === WebSocket.OPEN);
 
   logger.debug(`[WebSocket] Broadcasting '${type}' to ${openClients.length} client(s)`);
 
-  wss.clients.forEach(client => {
-    if (client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({ type, data }));
-    }
-  });
+  try {
+    const message = JSON.stringify({ type, data });
+    wss.clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(message);
+      }
+    });
+  } catch (error) {
+    logger.error(`[WebSocket] Failed to serialize broadcast data for type ${type}:`, error.message);
+  }
 }
 
 /**

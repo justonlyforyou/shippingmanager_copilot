@@ -71,6 +71,30 @@ export function formatNumber(num) {
 }
 
 /**
+ * Formats numbers in compact notation (e.g., 3.5k, 16k, 1.2M).
+ * Useful for displaying large numbers in limited space.
+ *
+ * @param {number} num - Number to format
+ * @returns {string} Compact formatted number string
+ *
+ * @example
+ * formatCompactNumber(3500);    // Returns: "3.5k"
+ * formatCompactNumber(16000);   // Returns: "16k"
+ * formatCompactNumber(1200000); // Returns: "1.2M"
+ */
+export function formatCompactNumber(num) {
+  if (num >= 1000000) {
+    const val = num / 1000000;
+    return (val % 1 === 0 ? val : val.toFixed(1)) + 'M';
+  }
+  if (num >= 1000) {
+    const val = num / 1000;
+    return (val % 1 === 0 ? val : val.toFixed(1)) + 'k';
+  }
+  return num.toString();
+}
+
+/**
  * Determines the color class for fuel prices based on thresholds.
  * Central function to ensure consistency across all components.
  *
@@ -428,7 +452,7 @@ export async function showNotification(title, options) {
       }
     }
   } catch (error) {
-    showSideNotification(`🔔 <strong>Notification Error</strong><br><br>${error.message}`, 'error', null, true);
+    showSideNotification(`🔔 <strong>Notification Error</strong><br><br>${escapeHtml(error.message)}`, 'error', null, true);
     throw error;
   }
 }

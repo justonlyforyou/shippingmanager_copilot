@@ -1,0 +1,718 @@
+/**
+ * ROUTE PLANNER PANEL
+ * Draggable panel for planning vessel routes
+ *
+ * Dependencies: variables.css
+ */
+
+/* ============================================
+   MAIN PANEL
+   ============================================ */
+
+.route-planner-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  min-height: 300px;
+  height: auto;
+  max-height: calc(70vh + 40px);
+  width: 320px;
+  min-width: 280px;
+  max-width: 400px;
+  background: rgba(31, 41, 55, 0.92);
+  border-radius: var(--radius-10);
+  box-shadow: var(--shadow-modal-dark);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 1500;
+  cursor: default;
+}
+
+.route-planner-panel.hidden {
+  display: none;
+}
+
+/* ============================================
+   HEADER (Draggable area)
+   ============================================ */
+
+.route-planner-header {
+  background: rgba(55, 65, 81, 0.9);
+  padding: 0 var(--spacing-15);
+  border-radius: var(--radius-10) var(--radius-10) 0 0;
+  border-bottom: var(--border-default);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  cursor: move;
+  user-select: none;
+}
+
+.route-planner-header h3 {
+  margin: 0;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-planner-vessel-name {
+  color: var(--color-info-light);
+  font-weight: var(--font-weight-bold);
+}
+
+/* ============================================
+   TAB BAR
+   ============================================ */
+
+.route-planner-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-6);
+  background: rgba(55, 65, 81, 0.3);
+  border-bottom: var(--border-default);
+}
+
+.route-planner-tab-btn {
+  padding: 2px 2px;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: var(--gray-800-50);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  line-height: 1;
+  height: auto;
+  min-height: 0;
+  white-space: nowrap;
+}
+
+.route-planner-tab-btn:hover {
+  background: var(--gray-800-80);
+  border-color: var(--white-20);
+}
+
+.route-planner-tab-btn.active {
+  background: var(--color-info-20);
+  color: var(--color-info-light);
+  border-color: var(--color-info-40);
+}
+
+/* ============================================
+   CONTENT AREA
+   ============================================ */
+
+.route-planner-content {
+  flex: 1;
+  min-height: 0;
+  padding: var(--spacing-12);
+  overflow-y: auto;
+  color: var(--color-text-secondary);
+}
+
+.route-planner-tab-content {
+  display: none;
+}
+
+.route-planner-tab-content.active {
+  display: block;
+}
+
+/* ============================================
+   PORTS TAB - FILTER BUTTONS (2x2 Grid)
+   ============================================ */
+
+.route-planner-port-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-12);
+}
+
+.route-planner-filter-btn {
+  padding: 2px 2px;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: var(--gray-800-50);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  text-align: center;
+  line-height: 1;
+  height: auto;
+  min-height: 0;
+  white-space: nowrap;
+}
+
+.route-planner-filter-btn:hover {
+  background: var(--gray-800-80);
+  border-color: var(--white-20);
+}
+
+.route-planner-filter-btn.active {
+  background: var(--color-info-20);
+  border-color: var(--color-info-40);
+  color: var(--color-info-light);
+}
+
+.route-planner-filter-btn.loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+/* ============================================
+   SELECTED PORT INFO
+   ============================================ */
+
+.route-planner-selected-info {
+  position: relative;
+  background: rgba(55, 65, 81, 0.5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-12);
+  margin-bottom: var(--spacing-12);
+}
+
+.route-planner-clear-btn {
+  position: absolute;
+  top: var(--spacing-4);
+  right: var(--spacing-4);
+  font-size: var(--font-size-14);
+  height: auto;
+  padding: 0 var(--spacing-4);
+}
+
+.route-planner-selected-info.hidden {
+  display: none;
+}
+
+.route-planner-port-name {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-info-light);
+  margin-bottom: var(--spacing-8);
+}
+
+.route-planner-info-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-12);
+  margin-bottom: var(--spacing-4);
+}
+
+.route-planner-info-label {
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-info-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ============================================
+   PIRACY WARNING
+   ============================================ */
+
+.route-planner-piracy-warning {
+  background: var(--color-danger-10);
+  border: 1px solid var(--color-danger-30);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-10);
+  margin-top: var(--spacing-8);
+}
+
+.route-planner-piracy-warning.hidden {
+  display: none;
+}
+
+.route-planner-piracy-header {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-danger);
+  margin-bottom: var(--spacing-6);
+}
+
+.route-planner-piracy-zone {
+  font-size: var(--font-size-11);
+  color: var(--color-danger-light);
+}
+
+.route-planner-piracy-risk {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-danger);
+}
+
+/* ============================================
+   ROUTE TAB - SLIDERS
+   ============================================ */
+
+.route-planner-slider-group {
+  margin-bottom: var(--spacing-16);
+}
+
+.route-planner-slider-label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-6);
+  font-size: var(--font-size-12);
+}
+
+.route-planner-slider-name {
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-slider-value {
+  color: var(--color-info-light);
+  font-weight: var(--font-weight-bold);
+}
+
+.route-planner-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-3);
+  background: var(--color-border);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.route-planner-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-info);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.route-planner-slider::-webkit-slider-thumb:hover {
+  background: var(--color-info-light);
+  transform: scale(1.1);
+}
+
+.route-planner-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-info);
+  cursor: pointer;
+  border: none;
+}
+
+/* ============================================
+   ROUTE TAB - COST DISPLAY
+   ============================================ */
+
+.route-planner-cost-info {
+  background: rgba(55, 65, 81, 0.5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-12);
+  margin-bottom: var(--spacing-16);
+}
+
+.route-planner-cost-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-12);
+  margin-bottom: var(--spacing-4);
+}
+
+.route-planner-cost-row:last-child {
+  margin-bottom: 0;
+}
+
+.route-planner-cost-label {
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-cost-value {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+.route-planner-cost-value.warning {
+  color: var(--color-warning);
+}
+
+.route-planner-cost-value.cost {
+  color: var(--color-danger);
+}
+
+/* Creation Fee (cost = red) */
+.route-planner-info-value.creation-fee {
+  color: var(--color-danger);
+}
+
+/* ============================================
+   ROUTE TAB - ACTION BUTTONS
+   ============================================ */
+
+.route-planner-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-8);
+}
+
+.route-planner-cancel-btn {
+  padding: var(--spacing-10);
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: rgba(55, 65, 81, 0.6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.route-planner-cancel-btn:hover {
+  background: rgba(55, 65, 81, 0.8);
+  color: var(--color-text-primary);
+}
+
+.route-planner-save-btn {
+  width: 100%;
+  padding: var(--spacing-10);
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-success);
+  background: var(--color-success-dark-20);
+  border: 1px solid var(--color-success-dark-40);
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.route-planner-save-btn:hover {
+  background: var(--color-success-dark-30);
+}
+
+.route-planner-save-btn:disabled {
+  background: var(--color-border);
+  color: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
+/* ============================================
+   LOADING AND EMPTY STATES
+   ============================================ */
+
+.route-planner-loading {
+  text-align: center;
+  padding: var(--spacing-20);
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-empty {
+  text-align: center;
+  padding: var(--spacing-20);
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-12);
+}
+
+.route-planner-error {
+  text-align: center;
+  padding: var(--spacing-12);
+  color: var(--color-danger);
+  font-size: var(--font-size-12);
+}
+
+/* ============================================
+   DRAGGING STATE
+   ============================================ */
+
+.route-planner-panel.dragging {
+  opacity: 0.9;
+  cursor: move;
+}
+
+/* ============================================
+   NO ROUTE MESSAGE (Route Tab)
+   ============================================ */
+
+.route-planner-no-route {
+  text-align: center;
+  padding: var(--spacing-20);
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-no-route-icon {
+  font-size: var(--font-size-24);
+  margin-bottom: var(--spacing-8);
+}
+
+.route-planner-no-route-text {
+  font-size: var(--font-size-12);
+}
+
+/* ============================================
+   DEMAND ANALYTICS SECTION
+   ============================================ */
+
+.route-planner-demand-section {
+  margin-top: var(--spacing-12);
+  padding-top: var(--spacing-12);
+  border-top: 1px solid var(--color-border);
+}
+
+.route-planner-demand-header {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-10);
+}
+
+.route-planner-demand-group {
+  margin-bottom: var(--spacing-10);
+}
+
+.route-planner-demand-group:last-child {
+  margin-bottom: 0;
+}
+
+.route-planner-demand-title {
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-info-light);
+  margin-bottom: var(--spacing-4);
+}
+
+.route-planner-demand-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-11);
+  padding: var(--spacing-2) 0;
+  padding-left: var(--spacing-8);
+}
+
+.route-planner-demand-label {
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-demand-value {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+.route-planner-demand-value.zero {
+  color: var(--color-text-tertiary);
+}
+
+/* Inline demand display (Container/Tanker on one line each) */
+.route-planner-demand-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--spacing-4);
+  font-size: var(--font-size-11);
+  margin-bottom: var(--spacing-6);
+}
+
+.route-planner-demand-inline .route-planner-demand-title {
+  color: var(--color-info-light);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: 0;
+  min-width: 65px;
+}
+
+.route-planner-demand-values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-8);
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-demand-values span {
+  white-space: nowrap;
+}
+
+.route-planner-demand-values .route-planner-demand-value {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ============================================
+   SPEED SELECTOR (Ports Tab)
+   ============================================ */
+
+.route-planner-speed-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+  padding-top: var(--spacing-8);
+  border-top: 1px dashed var(--color-border);
+  font-size: var(--font-size-12);
+}
+
+.route-planner-speed-selector .route-planner-info-label {
+  flex-shrink: 0;
+  min-width: 45px;
+}
+
+.route-planner-mini-slider {
+  flex: 1;
+  height: 4px;
+  border-radius: var(--radius-2);
+  background: var(--color-border);
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.route-planner-mini-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-info);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.route-planner-mini-slider::-webkit-slider-thumb:hover {
+  background: var(--color-info-light);
+  transform: scale(1.1);
+}
+
+.route-planner-mini-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--color-info);
+  cursor: pointer;
+  border: none;
+}
+
+.route-planner-speed-value {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-info-light);
+  min-width: 40px;
+  text-align: right;
+}
+
+/* Guards selector (same styling as speed selector) */
+.route-planner-guards-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+  font-size: var(--font-size-12);
+}
+
+.route-planner-guards-selector.hidden {
+  display: none;
+}
+
+.route-planner-guards-selector .route-planner-info-label {
+  flex-shrink: 0;
+  min-width: 45px;
+}
+
+/* Guards cost row */
+.route-planner-guards-cost-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-12);
+  margin-top: var(--spacing-4);
+}
+
+.route-planner-guards-cost-row.hidden {
+  display: none;
+}
+
+/* ============================================
+   CURRENT ROUTE INFO (Route Tab)
+   ============================================ */
+
+.route-planner-current-route-info {
+  background: rgba(55, 65, 81, 0.5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-12);
+  margin-bottom: var(--spacing-16);
+}
+
+.route-planner-current-route-header {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-10);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.route-planner-current-route-ports {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-12);
+  padding: var(--spacing-8);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: var(--radius-4);
+}
+
+.route-planner-current-route-ports .route-origin,
+.route-planner-current-route-ports .route-destination {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-info-light);
+}
+
+.route-planner-current-route-ports .route-arrow {
+  font-size: var(--font-size-14);
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-current-route-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.route-planner-current-route-details .route-detail-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-12);
+}
+
+.route-planner-current-route-details .route-detail-label {
+  color: var(--color-text-tertiary);
+}
+
+.route-planner-current-route-details .route-detail-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Status-specific colors */
+.route-planner-current-route-details .route-status-port {
+  color: var(--color-success);
+}
+
+.route-planner-current-route-details .route-status-enroute {
+  color: var(--color-info-light);
+}
+
+.route-planner-current-route-details .route-status-anchor {
+  color: var(--color-warning);
+}

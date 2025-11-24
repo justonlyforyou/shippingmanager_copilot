@@ -48,6 +48,17 @@ const logger = require('../utils/logger');
 const router = express.Router();
 
 /**
+ * Valid filter values for alliance queue pool endpoint
+ * @constant {Object}
+ */
+const VALID_POOL_FILTERS = {
+  pool_type: new Set(['direct', 'any']),
+  filter_share_value: new Set(['any', 'low', 'medium', 'high']),
+  filter_fleet_size: new Set(['any', 'small', 'medium', 'large']),
+  filter_experience: new Set(['all', 'beginner', 'intermediate', 'expert'])
+};
+
+/**
  * GET /api/chat - Retrieves alliance chat feed with enriched message data and unread count.
  *
  * This endpoint fetches the alliance chat feed from the game API, transforms
@@ -802,7 +813,7 @@ router.get('/alliance-settings', async (req, res) => {
  * @param {express.Response} res - Express response object
  * @returns {Promise<void>} Sends JSON response with pool data
  */
-router.post('/alliance-queue-pool', async (req, res) => {
+router.post('/alliance-queue-pool', express.json(), async (req, res) => {
   try {
     logger.debug('[Alliance Queue Pool] Request received:', req.body);
 
@@ -817,6 +828,23 @@ router.post('/alliance-queue-pool', async (req, res) => {
       filter_experience = 'all',
       page = 1
     } = req.body;
+
+    // Validate filter parameters
+    if (!VALID_POOL_FILTERS.pool_type.has(pool_type)) {
+      return res.status(400).json({ error: `Invalid pool_type. Must be one of: ${[...VALID_POOL_FILTERS.pool_type].join(', ')}` });
+    }
+    if (!VALID_POOL_FILTERS.filter_share_value.has(filter_share_value)) {
+      return res.status(400).json({ error: `Invalid filter_share_value. Must be one of: ${[...VALID_POOL_FILTERS.filter_share_value].join(', ')}` });
+    }
+    if (!VALID_POOL_FILTERS.filter_fleet_size.has(filter_fleet_size)) {
+      return res.status(400).json({ error: `Invalid filter_fleet_size. Must be one of: ${[...VALID_POOL_FILTERS.filter_fleet_size].join(', ')}` });
+    }
+    if (!VALID_POOL_FILTERS.filter_experience.has(filter_experience)) {
+      return res.status(400).json({ error: `Invalid filter_experience. Must be one of: ${[...VALID_POOL_FILTERS.filter_experience].join(', ')}` });
+    }
+    if (!Number.isInteger(page) || page < 1) {
+      return res.status(400).json({ error: 'Invalid page. Must be a positive integer.' });
+    }
 
     logger.debug('[Alliance Queue Pool] Calling API with pool_type:', pool_type);
 
@@ -1159,6 +1187,54 @@ router.post('/alliance-leave-pool-any', express.json(), async (req, res) => {
     res.json(data);
   } catch (error) {
     logger.error('[Alliance] Error leaving alliance pool:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * Get alliance statistics for a specific port
+ * Returns top 3 alliances and user's alliance rank at the port
+ *
+ * @route POST /api/alliance/get-alliance-data
+ * @param {string} port_code - Port code (e.g., "murmansk", "pob")
+ * @returns {Object} Top alliances and user alliance data
+ * @example
+ * POST /api/alliance/get-alliance-data
+ * Body: { "port_code": "murmansk" }
+ * Response:
+ * {
+ *   "data": {
+ *     "top_alliances": [
+ *       { "id": 8878, "name": "Alliance Name", "teu": 45650418, "bbl": 2080197880, "rank": 1 }
+ *     ],
+ *     "my_alliance": { "id": 6651, "name": "My Alliance", "teu": 7880571, "bbl": 692732965, "rank": 18 }
+ *   }
+ * }
+ */
+router.post('/alliance/get-alliance-data', express.json(), async (req, res) => {
+  try {
+    const { port_code } = req.body;
+
+    if (!port_code) {
+      return res.status(400).json({ error: 'port_code is required' });
+    }
+
+    const data = await apiCall('/port/get-alliance-data', 'POST', { port_code });
+    res.json(data);
+  } catch (error) {
+    logger.error('[Alliance] Error fetching port alliance data:', error);
+
+    // If the port doesn't have alliance data (404), return empty response instead of error
+    if (error.response && error.response.status === 404) {
+      return res.json({
+        data: {
+          top_alliances: [],
+          my_alliance: null
+        },
+        message: 'No alliance data available for this port'
+      });
+    }
+
     res.status(500).json({ error: error.message });
   }
 });

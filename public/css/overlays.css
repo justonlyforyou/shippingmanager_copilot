@@ -15,10 +15,12 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: var(--black-85);
+  background: transparent;
+  pointer-events: none;
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  padding-top: var(--header-height);
   z-index: var(--z-overlay);
   overflow: hidden;
 }
@@ -27,16 +29,25 @@
   display: none;
 }
 
-#coopOverlay,
-#allianceDetailsModal,
-#companyProfileOverlay {
-  background: transparent;
-  pointer-events: none;
+/* All interactive content inside overlays must receive pointer events */
+.overlay .messenger-window,
+.overlay .build-ship-window,
+.overlay .logbook-window,
+.overlay .forecast-window,
+.overlay .event-window,
+.overlay .anchor-purchase-window,
+.overlay .sell-vessels-window,
+.overlay .campaigns-window,
+.overlay .settings-window,
+.overlay .buy-vessels-window,
+.overlay .engine-filter-window,
+.overlay .vessel-appearance-window,
+.overlay > div {
+  pointer-events: auto;
 }
 
-#coopOverlay .messenger-window,
-#allianceDetailsModal .messenger-window,
-#companyProfileOverlay .messenger-window {
+/* Logbook window needs pointer-events for scroll to work (NOT the overlay itself) */
+#logbookOverlay .logbook-window {
   pointer-events: auto;
 }
 
@@ -60,7 +71,7 @@
   width: 90%;
   max-width: 600px;
   min-height: 500px;
-  max-height: calc(100vh - 5px);
+  max-height: calc(100vh - var(--header-height) - 1px);
   display: flex;
   flex-direction: column;
 }
@@ -177,9 +188,11 @@
   background: var(--color-bg-card);
   border-radius: var(--radius-10);
   box-shadow: var(--shadow-modal-dark);
-  width: 90%;
-  max-width: 600px;
-  height: 700px;
+  width: 700px;
+  max-width: 700px;
+  height: calc(100vh - var(--header-height) - 1px);
+  min-height: auto;
+  max-height: calc(100vh - var(--header-height) - 1px);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -261,14 +274,16 @@
   color: var(--color-white);
   border-bottom: 1px solid var(--white-10);
   white-space: nowrap;
+  line-height: 1;
 }
 
 .forecast-table tbody td {
-  padding: 0.2vh;
+  padding: 0 !important;
   text-align: center;
   border-bottom: 1px solid var(--white-05);
   font-size: 1.8vh;
   white-space: nowrap;
+  line-height: 0.8 !important;
 }
 
 .forecast-table tbody tr:hover {
@@ -295,15 +310,14 @@
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  background: var(--gradient-success);
-  color: var(--color-white);
+  background: transparent;
+  color: var(--color-success);
   padding: var(--spacing-6) var(--spacing-12);
   border-radius: var(--radius-8);
   font-size: var(--font-size-12);
   font-weight: var(--font-weight-bold);
   text-align: center;
   line-height: 1;
-  box-shadow: 0 2px 8px var(--color-success-40);
   top: 42px;
   white-space: nowrap;
   z-index: var(--z-above);
@@ -326,7 +340,8 @@
   background: var(--black-85);
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
+  padding-top: var(--header-height);
   z-index: var(--z-modal);
 }
 
@@ -336,8 +351,10 @@
   box-shadow: var(--shadow-modal-dark);
   width: 90%;
   max-width: 490px;
+  max-height: calc(100vh - var(--header-height) - 1px);
   padding: 0;
   border: 2px solid var(--color-border);
+  overflow-y: auto;
 }
 
 .confirm-dialog-narrow {
@@ -962,13 +979,13 @@
 }
 
 .remove-btn-small {
-  width: 14px;
-  height: 14px;
+  width: 24px;
+  height: 24px;
   border: none;
   background: transparent;
   color: var(--color-danger);
   cursor: pointer;
-  font-size: var(--font-size-12);
+  font-size: var(--font-size-16);
   opacity: 0.6;
   transition: opacity 0.2s;
   padding: 0;
@@ -976,6 +993,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  justify-self: center;
 }
 
 .remove-btn-small:hover {
@@ -1032,7 +1050,7 @@
   width: 95%;
   max-width: 850px;
   min-height: 500px;
-  max-height: calc(100vh - 40px);
+  max-height: calc(100vh - var(--header-height) - 1px);
   display: flex;
   flex-direction: column;
 }

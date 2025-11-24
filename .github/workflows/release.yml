@@ -83,7 +83,8 @@ jobs:
             ## Requirements
 
             - Windows 10/11
-            - Active Steam account with Shipping Manager
+            - Modern web browser (Chrome/Chromium recommended)
+            - Active Shipping Manager account (Steam, Browser, or Mobile)
 
             ## Support
 

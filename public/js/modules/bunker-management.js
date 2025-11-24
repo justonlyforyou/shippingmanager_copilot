@@ -22,7 +22,7 @@
  * @requires ui-dialogs - Confirmation dialogs for purchases
  */
 
-import { formatNumber, showSideNotification, getFuelPriceClass, getCO2PriceClass } from './utils.js';
+import { formatNumber, showSideNotification, getFuelPriceClass, getCO2PriceClass, escapeHtml } from './utils.js';
 import { fetchBunkerPrices, purchaseFuel as apiPurchaseFuel, purchaseCO2 as apiPurchaseCO2 } from './api.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 
@@ -412,7 +412,7 @@ export async function buyMaxFuel() {
     if (window.DEBUG_MODE) {
       console.error('[Fuel Purchase] Error details - amountToBuy:', amountToBuy, 'totalCost:', totalCost, 'actualCash:', actualCash, 'displayedPrice:', displayedPrice);
     }
-    showSideNotification(`⛽ Purchase failed: ${error.message}`, 'error');
+    showSideNotification(`⛽ Purchase failed: ${escapeHtml(error.message)}`, 'error');
   }
 }
 
@@ -556,7 +556,7 @@ export async function buyMaxCO2() {
     if (window.DEBUG_MODE) {
       console.error('[CO2 Purchase] Error details - amountToBuy:', amountToBuy, 'totalCost:', totalCost, 'actualCash:', actualCash, 'displayedPrice:', displayedPrice);
     }
-    showSideNotification(`💨 Purchase failed: ${error.message}`, 'error');
+    showSideNotification(`💨 Purchase failed: ${escapeHtml(error.message)}`, 'error');
   }
 }
 

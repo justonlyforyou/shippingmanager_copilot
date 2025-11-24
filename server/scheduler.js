@@ -118,6 +118,11 @@ function initScheduler() {
       // Mark server as ready
       serverReady = true;
 
+      // Broadcast server startup to all clients - triggers cache clear + reload
+      const { broadcast } = require('./websocket/broadcaster');
+      broadcast('server_startup', { timestamp: Date.now() });
+      logger.info('[Scheduler] Broadcasted server_startup to all clients');
+
       // Harbor Fee Migration: Run once automatically on first startup
       logger.info('[Scheduler] Checking harbor fee migration status...');
       try {

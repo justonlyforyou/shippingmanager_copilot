@@ -43,13 +43,39 @@ if (!fs.existsSync(CACHE_DIR)) {
  * Response: Image with Cache-Control: public, max-age=31536000, immutable
  */
 router.use(async (req, res, next) => {
-  // Only handle GET requests
-  if (req.method !== 'GET') {
+  // Only handle GET and HEAD requests
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
     return next();
   }
 
   // Extract full path from req.url (relative to router mount point /api/vessel-image)
   const vesselImagePath = req.url.startsWith('/') ? req.url.substring(1) : req.url;
+
+  // Check if this is an own image (user uploaded)
+  if (vesselImagePath.startsWith('ownimage/')) {
+    const vesselId = vesselImagePath.split('/').pop().replace(/\?.*$/, '');
+    // ownimages are in userdata/vessel-images/ownimages (not in cache folder)
+    const ownImagesDir = process.pkg
+      ? path.join(config.getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-images', 'ownimages')
+      : path.join(__dirname, '..', '..', 'userdata', 'vessel-images', 'ownimages');
+    const ownImagePath = path.join(ownImagesDir, `${vesselId}.png`);
+    logger.debug(`[VesselImage] Looking for own image: ${ownImagePath}`);
+    try {
+      const exists = fs.existsSync(ownImagePath);
+      logger.debug(`[VesselImage] File exists: ${exists}`);
+      if (exists) {
+        res.set({
+          'Content-Type': 'image/png',
+          'Cache-Control': 'no-cache, no-store, must-revalidate'
+        });
+        return res.sendFile(path.resolve(ownImagePath));
+      }
+    } catch (err) {
+      logger.error(`[VesselImage] Error reading own image: ${err.message}`);
+    }
+    logger.warn(`[VesselImage] Own image not found: ${ownImagePath}`);
+    return res.status(404).json({ error: 'Own image not found' });
+  }
 
   // Check if this is a custom vessel (redirect to SVG generator)
   if (vesselImagePath.startsWith('custom/')) {
@@ -82,10 +108,10 @@ router.use(async (req, res, next) => {
 
   // Check if image exists in cache
   if (fs.existsSync(cacheFilePath)) {
-    // Serve from cache with aggressive cache headers
+    // Serve from cache with 1 week cache for shop vessels
     res.set({
       'Content-Type': contentType,
-      'Cache-Control': 'public, max-age=31536000, immutable', // 1 year
+      'Cache-Control': 'public, max-age=604800', // 1 week
       'ETag': vesselImagePath // Simple ETag based on image path
     });
 

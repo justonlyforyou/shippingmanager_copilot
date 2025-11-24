@@ -7,6 +7,8 @@
  * @module event-info
  */
 
+import { escapeHtml } from './utils.js';
+
 let currentEventData = null;
 let timerInterval = null;
 
@@ -42,7 +44,7 @@ export function updateEventData(eventData) {
             <button id="eventBannerBtn" class="event-banner-btn">
                 <div class="event-banner-content">
                     <span class="event-banner-label">Event</span>
-                    <span id="eventBannerText" class="event-banner-name">${formattedName}</span>
+                    <span id="eventBannerText" class="event-banner-name">${escapeHtml(formattedName)}</span>
                 </div>
             </button>
         `;
@@ -129,7 +131,7 @@ export function openEventModal() {
 
     // Title - only show if name exists
     if (currentEventData.name) {
-        html += `<h3 class="event-info-title"><strong>${formatName(currentEventData.name)}</strong></h3>`;
+        html += `<h3 class="event-info-title"><strong>${escapeHtml(formatName(currentEventData.name))}</strong></h3>`;
     }
 
     html += `<div class="event-info-grid">`;
@@ -138,7 +140,7 @@ export function openEventModal() {
     if (currentEventData.type) {
         html += `
                 <span class="event-info-label">Type:</span>
-                <span class="event-info-value">${formatName(currentEventData.type)}</span>
+                <span class="event-info-value">${escapeHtml(formatName(currentEventData.type))}</span>
         `;
     }
 
@@ -146,7 +148,7 @@ export function openEventModal() {
     if (currentEventData.discount_type) {
         html += `
                 <span class="event-info-label">Discount Type:</span>
-                <span class="event-info-value-highlight">${capitalize(currentEventData.discount_type)}</span>
+                <span class="event-info-value-highlight">${escapeHtml(capitalize(currentEventData.discount_type))}</span>
         `;
     }
 
@@ -162,7 +164,7 @@ export function openEventModal() {
     if (currentEventData.capacity_type) {
         html += `
                 <span class="event-info-label">Demand Type:</span>
-                <span class="event-info-value">${capitalize(currentEventData.capacity_type)}</span>
+                <span class="event-info-value">${escapeHtml(capitalize(currentEventData.capacity_type))}</span>
         `;
     }
 

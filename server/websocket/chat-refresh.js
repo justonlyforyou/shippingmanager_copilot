@@ -32,6 +32,19 @@ let isChatRefreshing = false;
 let lastProcessedMessageTime = Date.now() / 1000;
 
 /**
+ * Set of processed alliance message keys to prevent duplicate processing.
+ * Key format: "userId_timeCreated_messageHash"
+ * @type {Set<string>}
+ */
+const processedAllianceMessages = new Set();
+
+/**
+ * Maximum size of processedAllianceMessages set before cleanup.
+ * @type {number}
+ */
+const MAX_PROCESSED_MESSAGES = 500;
+
+/**
  * Reference to performMessengerRefresh function (set by main websocket.js)
  * @type {Function|null}
  */
@@ -87,8 +100,21 @@ async function performChatRefresh() {
         });
 
         // Check if this is a new message for ChatBot processing
-        if (msg.time_created > lastProcessedMessageTime) {
+        // Use unique key to prevent duplicate processing (no message_id in API)
+        const messageKey = `${msg.user_id}_${msg.time_created}_${msg.message.substring(0, 50)}`;
+
+        if (msg.time_created > lastProcessedMessageTime && !processedAllianceMessages.has(messageKey)) {
           hasNewMessages = true;
+
+          // Mark as processed BEFORE calling handler to prevent race conditions
+          processedAllianceMessages.add(messageKey);
+
+          // Cleanup old entries if set is too large
+          if (processedAllianceMessages.size > MAX_PROCESSED_MESSAGES) {
+            const entries = Array.from(processedAllianceMessages);
+            entries.slice(0, 100).forEach(key => processedAllianceMessages.delete(key));
+          }
+
           // Process with ChatBot (async, don't await) - lazy-loaded to avoid circular dependency
           const chatBot = require('../chatbot');
           chatBot.processAllianceMessage(msg.message, msg.user_id, companyName)

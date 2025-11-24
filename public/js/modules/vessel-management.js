@@ -179,10 +179,11 @@ const serverLockState = {
 export function updateLockStateFromServer(locks) {
   if (locks.depart !== undefined) {
     serverLockState.depart = locks.depart;
-    // Update depart button UI based on server lock state and vessel count
-    const countBadge = document.querySelector('.map-icon-item[data-action="departAll"] .map-icon-badge');
-    const hasVessels = countBadge && !countBadge.classList.contains('hidden') && parseInt(countBadge.textContent) > 0;
-    updateButtonState('departAll', locks.depart || !hasVessels);
+    // Icon button always enabled - lock only affects depart button inside depart manager panel
+    // Update depart manager panel button if it's open
+    if (window.updateDepartManagerLockState) {
+      window.updateDepartManagerLockState();
+    }
   }
 
   if (locks.repair !== undefined) {
@@ -285,9 +286,8 @@ export async function updateVesselCount() {
       }
     }
 
-    // Update depart badge and button
+    // Update depart badge (icon button always enabled - depart manager handles state)
     updateBadge('vesselCount', readyToDepart, readyToDepart > 0, 'BLUE');
-    updateButtonState('departAll', readyToDepart === 0 || serverLockState.depart);
     updateButtonTooltip('departAll',
       readyToDepart > 0
         ? `Depart all ${readyToDepart} vessel${readyToDepart === 1 ? '' : 's'} from harbor`
@@ -1531,11 +1531,16 @@ function loadMorePendingVessels() {
       additionalAttrs += `<div class="vessel-spec vessel-spec-fullwidth"><strong>Perks:</strong> ${escapeHtml(vessel.perks)}</div>`;
     }
 
+    const isCustomVessel = vessel.type_name === 'N/A';
+    const imageOnerror = isCustomVessel
+      ? `if(window.handleVesselImageError){window.handleVesselImageError(this,${vessel.id},'${escapeHtml(vessel.name).replace(/'/g, "\\'")}',true)}else{this.style.display='none'}`
+      : `this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>Ship</text></svg>'`;
+
     const card = document.createElement('div');
     card.className = 'vessel-card pending-vessel';
     card.innerHTML = `
       <div class="vessel-image-container">
-        <img src="${imageUrl}" alt="${escapeHtml(vessel.name)}" class="vessel-image" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>⛴️</text></svg>'">
+        <img src="${imageUrl}" alt="${escapeHtml(vessel.name)}" class="vessel-image" onerror="${imageOnerror}">
         ${vessel.only_for_credits ? '<div class="vessel-credits-only-badge">$</div>' : ''}
         <div class="vessel-time-badge">⏱️ ${timeDisplay}</div>
         <div class="vessel-price-badge">$${formatNumber(vessel.price || 0)}</div>
@@ -1634,11 +1639,16 @@ export function displayVessels() {
       additionalAttrs += `<div class="vessel-spec vessel-spec-fullwidth"><strong>Perks:</strong> ${escapeHtml(vessel.perks)}</div>`;
     }
 
+    const isCustomVessel = vessel.type_name === 'N/A';
+    const imageOnerror = isCustomVessel
+      ? `if(window.handleVesselImageError){window.handleVesselImageError(this,${vessel.id},'${escapeHtml(vessel.name).replace(/'/g, "\\'")}',true)}else{this.style.display='none'}`
+      : `this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>Ship</text></svg>'`;
+
     const card = document.createElement('div');
     card.className = 'vessel-card';
     card.innerHTML = `
       <div class="vessel-image-container">
-        <img src="${imageUrl}" alt="${escapeHtml(vessel.name)}" class="vessel-image" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>⛴️</text></svg>'">
+        <img src="${imageUrl}" alt="${escapeHtml(vessel.name)}" class="vessel-image" onerror="${imageOnerror}">
         ${vessel.only_for_credits ? '<div class="vessel-credits-overlay">$</div>' : ''}
       </div>
       <div class="vessel-content">
@@ -1932,7 +1942,7 @@ export function showShoppingCart() {
   });
 
   // Remove buttons
-  dialog.querySelectorAll('.cart-remove-btn').forEach(btn => {
+  dialog.querySelectorAll('.remove-btn-small').forEach(btn => {
     btn.addEventListener('click', () => {
       const vesselId = parseInt(btn.dataset.vesselId);
       removeFromCart(vesselId);
@@ -2263,8 +2273,8 @@ export function getVesselFilter() {
  * @global
  */
 export function lockDepartButton() {
-  updateButtonState('departAll', true);
-  if (window.DEBUG_MODE) console.log('[Depart Button] Locked (UI only) - departure in progress');
+  // Icon button always enabled - this function now only logs for debugging
+  if (window.DEBUG_MODE) console.log('[Depart Button] Departure in progress');
 }
 
 /**
@@ -2274,11 +2284,8 @@ export function lockDepartButton() {
  * @global
  */
 export function unlockDepartButton() {
-  // Check if there are vessels ready to depart
-  const countBadge = document.querySelector('.map-icon-item[data-action="departAll"] .map-icon-badge');
-  const hasVessels = countBadge && !countBadge.classList.contains('hidden') && parseInt(countBadge.textContent) > 0;
-  updateButtonState('departAll', !hasVessels);
-  if (window.DEBUG_MODE) console.log('[Depart Button] Unlocked (UI only) - departure complete');
+  // Icon button always enabled - this function now only logs for debugging
+  if (window.DEBUG_MODE) console.log('[Depart Button] Departure complete');
 }
 
 /**
@@ -2781,11 +2788,16 @@ function createVesselCard(vessel, isPending = false) {
     additionalAttrs += `<div class="vessel-spec vessel-spec-fullwidth"><strong>Perks:</strong> ${escapeHtml(vessel.perks)}</div>`;
   }
 
+  const isCustomVessel = vessel.type_name === 'N/A';
+  const imageOnerror = isCustomVessel
+    ? `if(window.handleVesselImageError){window.handleVesselImageError(this,${vessel.id},'${escapeHtml(vessel.name).replace(/'/g, "\\'")}',true)}else{this.style.display='none'}`
+    : `this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>Ship</text></svg>'`;
+
   const card = document.createElement('div');
   card.className = isPending ? 'vessel-card pending-vessel' : 'vessel-card';
   card.innerHTML = `
     <div class="vessel-image-container">
-      <img src="${imageUrl}" alt="${escapeHtml(vessel.name)}" class="vessel-image" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 400 300%22><rect fill=%22%23374151%22 width=%22400%22 height=%22300%22/><text x=%2250%%22 y=%2250%%22 fill=%22%239ca3af%22 text-anchor=%22middle%22 font-size=%2224%22>⛴️</text></svg>'">
+      <img src="${imageUrl}" alt="${escapeHtml(vessel.name)}" class="vessel-image" onerror="${imageOnerror}">
       ${vessel.only_for_credits ? '<div class="vessel-credits-overlay">$</div>' : ''}
       ${isVesselTypeLocked ? '<div class="vessel-locked-overlay"><div class="vessel-locked-banner">🔒 Locked</div><div class="vessel-locked-text">Unlock ' + escapeHtml(vessel.capacity_type) + ' vessels first</div></div>' : ''}
       ${isPending ? `<div class="vessel-time-badge">⏱️ In Delivery ${(() => {

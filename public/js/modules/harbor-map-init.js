@@ -6,10 +6,11 @@
  * @module harbor-map-init
  */
 
-import { initMap, loadOverview, updateWeatherDataSetting, setRouteFilter } from './harbor-map/map-controller.js';
+import { initMap, loadOverview, updateWeatherDataSetting, setRouteFilter, setVesselFilter, highlightPorts, resetPortDisplay, drawRoute, clearRoute, deselectAll } from './harbor-map/map-controller.js';
 import { prefetchHarborMapData, invalidateOverviewCache } from './harbor-map/api-client.js';
-import { initializeMapIconBar } from './map-icon-bar.js';
-import { initializeDepartManager, openDepartManager } from './depart-manager.js';
+import { initializeMapIconBar, closeAllModalOverlays } from './map-icon-bar.js';
+import { initializeDepartManager, openDepartManager, updateDepartManagerLockState } from './depart-manager.js';
+import { initializeRoutePlanner, openRoutePlanner, closeRoutePlanner, isPlanningMode, selectPortForRoute, restorePlanningState } from './route-planner.js';
 
 let mapInitialized = false;
 let autoUpdateInterval = null;
@@ -31,6 +32,36 @@ export async function preloadHarborMapData() {
 // Rate limiting for Harbor Map refresh
 let lastRefreshTime = 0;
 const REFRESH_COOLDOWN = 30000; // 30 seconds
+
+/**
+ * Force refreshes harbor map immediately (bypasses cooldown)
+ * Use this for user-initiated actions like route creation
+ *
+ * @returns {Promise<void>}
+ */
+export async function forceRefreshMap() {
+  try {
+    // Invalidate cache first
+    invalidateOverviewCache();
+
+    // Fetch fresh data
+    await prefetchHarborMapData('all_ports');
+
+    // Reload overview
+    await loadOverview();
+
+    // Force map size recalculation
+    const { getMap } = await import('./harbor-map/map-controller.js');
+    const mapInstance = getMap();
+    if (mapInstance) {
+      mapInstance.invalidateSize();
+    }
+
+    console.log('[Harbor Map] Force refreshed');
+  } catch (error) {
+    console.error('[Harbor Map] Force refresh failed:', error);
+  }
+}
 
 /**
  * Refreshes harbor map if open (called from external update routines)
@@ -64,23 +95,21 @@ export async function refreshHarborMapIfOpen() {
     // Map is visible - update cache (always fetch ALL data)
     await prefetchHarborMapData('all_ports');
 
-    // Map is open - check if panels are open
+    // Check if any panel or overlay is open - if so, skip ALL visual updates
     const vesselPanel = document.getElementById('vessel-detail-panel');
     const portPanel = document.getElementById('port-detail-panel');
+    const departManagerPanel = document.getElementById('departManagerPanel');
     const isVesselPanelOpen = vesselPanel?.classList.contains('active');
     const isPortPanelOpen = portPanel?.classList.contains('active');
+    const isInPlanningMode = isPlanningMode();
+    const isDepartManagerOpen = departManagerPanel && !departManagerPanel.classList.contains('hidden');
 
-    if (isVesselPanelOpen) {
-      // Vessel panel open - cache already updated, don't refresh display (would disrupt user)
-      console.log('[Harbor Map] Cache updated (vessel panel open, skipping display refresh)');
-    } else if (isPortPanelOpen) {
-      // Port panel open - refresh port panel to show updated vessel lists
-      const { selectPort, getSelectedPortCode } = await import('./harbor-map/map-controller.js');
-      const currentPortCode = getSelectedPortCode();
-      if (currentPortCode) {
-        await selectPort(currentPortCode);
-        console.log('[Harbor Map] Port panel refreshed with new vessel data');
-      }
+    const anyPanelOpen = isVesselPanelOpen || isPortPanelOpen || isInPlanningMode || isDepartManagerOpen;
+
+    if (anyPanelOpen) {
+      // Cache already updated above - skip ALL visual refresh to not disrupt user
+      // When user closes the panel, deselectAll() will display the cached data
+      console.log('[Harbor Map] Cache updated (panel open, skipping visual refresh)');
     } else {
       // No panel open - safe to refresh display
       await loadOverview();
@@ -155,8 +184,15 @@ export async function initHarborMap() {
   // Initialize depart manager panel
   initializeDepartManager();
 
-  // Export openDepartManager to window for map-icon-bar.js
+  // Initialize route planner panel
+  initializeRoutePlanner();
+
+  // Export depart manager functions to window
   window.openDepartManager = openDepartManager;
+  window.updateDepartManagerLockState = updateDepartManagerLockState;
+
+  // Export closeAllModalOverlays for use by Leaflet controls and other modules
+  window.closeAllModalOverlays = closeAllModalOverlays;
 
   // Load data
   await loadOverview();
@@ -260,6 +296,7 @@ window.closeHarborMap = closeHarborMap;
 window.harborMap = window.harborMap || {};
 window.harborMap.selectVesselFromMap = selectVesselFromMap;
 window.harborMap.refreshIfOpen = refreshHarborMapIfOpen;
+window.harborMap.forceRefresh = forceRefreshMap;
 window.harborMap.reloadMap = reloadMap;
 window.harborMap.updateWeatherDataSetting = updateWeatherDataSetting;
 window.harborMap.getVesselById = getVesselByIdWrapper;
@@ -267,3 +304,14 @@ window.harborMap.updateVesselMarker = updateVesselMarkerWrapper;
 window.harborMap.departVessel = departVesselWrapper;
 window.harborMap.sellVesselFromPanel = sellVesselFromPanelWrapper;
 window.harborMap.selectRoute = setRouteFilter;
+window.harborMap.openRoutePlanner = openRoutePlanner;
+window.harborMap.closeRoutePlanner = closeRoutePlanner;
+window.harborMap.isPlanningMode = isPlanningMode;
+window.harborMap.selectPortForRoute = selectPortForRoute;
+window.harborMap.highlightPorts = highlightPorts;
+window.harborMap.resetPortDisplay = resetPortDisplay;
+window.harborMap.restorePlanningState = restorePlanningState;
+window.harborMap.drawRoute = drawRoute;
+window.harborMap.clearRoute = clearRoute;
+window.harborMap.deselectAll = deselectAll;
+window.harborMap.setVesselFilter = setVesselFilter;

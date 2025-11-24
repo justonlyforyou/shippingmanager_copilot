@@ -17,6 +17,13 @@ const { apiCall } = require('../utils/api');
 const logger = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
+const { getAppDataDir } = require('../config');
+
+// Use AppData when packaged as exe
+const isPkg = !!process.pkg;
+const CACHE_FILE_PATH = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'cache', 'alliance_pool.json')
+  : path.join(__dirname, '..', '..', 'userdata', 'cache', 'alliance_pool.json');
 
 class AllianceIndexer {
   constructor() {
@@ -24,7 +31,7 @@ class AllianceIndexer {
     this.isReady = false;
     this.lastUpdate = null;
     this.totalAlliances = 0;
-    this.cacheFilePath = path.join(__dirname, '..', '..', 'userdata', 'cache', 'alliance_pool.json');
+    this.cacheFilePath = CACHE_FILE_PATH;
 
     // Background refresh settings
     this.refreshInterval = null;

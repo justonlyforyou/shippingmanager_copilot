@@ -66,7 +66,7 @@ const config = require('./server/config');
 const { setupMiddleware } = require('./server/middleware');
 const { initializeAlliance } = require('./server/utils/api');
 const { createHttpsServer } = require('./server/certificate');
-const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAutoRefresh } = require('./server/websocket');
+const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAutoRefresh, startHijackingAutoRefresh } = require('./server/websocket');
 const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
@@ -119,6 +119,7 @@ const vesselImageRoutes = require('./server/routes/vessel-image');
 const vesselSvgRoutes = require('./server/routes/vessel-svg');
 const allianceLogoRoutes = require('./server/routes/alliance-logo');
 const staffRoutes = require('./server/routes/staff');
+const routePlannerRoutes = require('./server/routes/route-planner');
 
 // Initialize Express app
 const app = express();
@@ -167,6 +168,7 @@ app.use('/api/vessel-image', vesselImageRoutes);
 app.use('/api/vessel-svg', vesselSvgRoutes);
 app.use('/api/alliance-logo', allianceLogoRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/route', routePlannerRoutes);
 
 // Autopilot pause/resume endpoint
 app.post('/api/autopilot/toggle', async (req, res) => {
@@ -380,11 +382,13 @@ const chatBot = require('./server/chatbot');
     logger.debug(`[ChatBot] DM Commands enabled`);
   }
 
-  // Start chat and messenger polling (both synchronized at 20 seconds)
+  // Start chat, messenger, and hijacking polling
   startChatAutoRefresh();
   startMessengerAutoRefresh();
+  startHijackingAutoRefresh();
   logger.debug('[Alliance Chat] Started 20-second chat polling');
   logger.debug('[Messenger] Started 20-second messenger polling');
+  logger.debug('[Hijacking] Started 60-second hijacking polling');
 
   // Initialize POI cache and start automatic refresh
   await poiRoutes.initializePOICache();

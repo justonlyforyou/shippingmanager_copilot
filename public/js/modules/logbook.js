@@ -459,6 +459,28 @@ function renderLogTable() {
 
   // Setup event listeners for expand/collapse
   setupEventListeners();
+
+  // Ensure container is scrollable - load more if needed
+  ensureScrollable();
+}
+
+/**
+ * Ensures the container has enough content to be scrollable.
+ * If content doesn't fill the container, load more entries until scrollable or no more entries.
+ */
+function ensureScrollable() {
+  const container = document.querySelector('.logbook-table-container');
+  if (!container) return;
+
+  // Check if container needs more content to be scrollable
+  const needsMore = container.scrollHeight <= container.clientHeight;
+  const hasMore = displayedEntryCount < filteredLogEntries.length;
+
+  if (needsMore && hasMore) {
+    renderLogPage();
+    // Check again after render (use requestAnimationFrame to wait for DOM update)
+    requestAnimationFrame(() => ensureScrollable());
+  }
 }
 
 /**

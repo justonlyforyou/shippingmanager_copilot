@@ -38,10 +38,16 @@ import { updateBadge } from './badge-manager.js';
 /**
  * Formats timestamp using browser locale without timezone.
  * @param {number} unixTimestamp - Unix timestamp in seconds
- * @returns {string} Formatted date/time (e.g., "Oct 28, 2025, 18:00:23")
+ * @returns {string} Formatted date/time (e.g., "Oct 28, 2025, 18:00:23") or empty string if invalid
  */
 function formatTimestamp(unixTimestamp) {
+  if (!unixTimestamp || isNaN(unixTimestamp)) {
+    return '';
+  }
   const date = new Date(unixTimestamp * 1000);
+  if (isNaN(date.getTime())) {
+    return '';
+  }
   return date.toLocaleString(undefined, {
     year: 'numeric',
     month: 'short',
@@ -819,18 +825,11 @@ function formatSystemMessage(body, values, subject, caseDetails, messageTimestam
           </div>
           <div id="hijacking-negotiate-${caseId}" style="display: none; margin-top: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 4px;">
             <div style="margin-bottom: 12px; font-weight: bold; text-align: center;">Choose your counter-offer:</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
-              <button class="hijacking-offer-btn" data-case-id="${caseId}" data-fixed-amount="1">
-                <div style="font-weight: bold; margin-bottom: 4px;">A Copper Pot</div>
-                <div style="font-size: 11px; opacity: 0.8;">$1</div>
-              </button>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;">
               <button class="hijacking-offer-btn" data-case-id="${caseId}" data-percentage="0.25">
                 <div style="font-weight: bold; margin-bottom: 4px;">A Tattered Patch</div>
                 <div style="font-size: 11px; opacity: 0.8;">$${Math.floor(requestedAmount * 0.25).toLocaleString()}</div>
               </button>
-            </div>
-            <hr style="border: none; border-top: 1px solid rgba(255, 255, 255, 0.1); margin: 12px 0;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
               <button class="hijacking-offer-btn" data-case-id="${caseId}" data-percentage="0.50">
                 <div style="font-weight: bold; margin-bottom: 4px;">A Fair Trade</div>
                 <div style="font-size: 11px; opacity: 0.8;">$${Math.floor(requestedAmount * 0.50).toLocaleString()}</div>
@@ -1614,7 +1613,8 @@ window.acceptHijackingPrice = async function(caseId, amount) {
 
     // Get the original chat values from the stored data
     const feed = document.getElementById('messengerFeed');
-    const bubble = feed.querySelector('.message-bubble.system');
+    // Hijacking messages use 'hijacking' class, not 'system'
+    const bubble = feed.querySelector('.message-bubble.hijacking') || feed.querySelector('.message-bubble.system');
 
     if (bubble) {
       // Retrieve stored chat values
@@ -1634,54 +1634,54 @@ window.acceptHijackingPrice = async function(caseId, amount) {
 
       // Re-render the message with updated case details
       await displaySystemMessage(chat);
+    }
 
-      // Show notification with verification details if available
-      if (paymentVerification) {
-        if (paymentVerification.verified) {
-          showSideNotification(
-            `<strong>✓ Payment Verified</strong><br><br>` +
-            `Expected: $${paymentVerification.expected_amount.toLocaleString()}<br>` +
-            `Paid: $${paymentVerification.actual_paid.toLocaleString()}<br>` +
-            `Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>` +
-            `Cash After: $${paymentVerification.cash_after.toLocaleString()}`,
-            'success',
-            6000
-          );
-        } else {
-          showSideNotification(
-            `<strong>⚠️ Payment Verification Failed</strong><br><br>` +
-            `Expected: $${paymentVerification.expected_amount.toLocaleString()}<br>` +
-            `Actually Paid: $${paymentVerification.actual_paid.toLocaleString()}<br>` +
-            `Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>` +
-            `Cash After: $${paymentVerification.cash_after.toLocaleString()}`,
-            'error',
-            8000
-          );
-        }
-      } else if (updatedCase.paid_amount !== null || updatedCase.status === 'solved') {
-        const finalAmount = updatedCase.paid_amount || updatedCase.requested_amount;
+    // Show notification with verification details if available (always, even if bubble not found)
+    if (paymentVerification) {
+      if (paymentVerification.verified) {
         showSideNotification(
-          `<strong>✓ Ransom Paid!</strong><br><br>` +
-          `Amount: $${finalAmount.toLocaleString()}<br>` +
-          `Your vessel will be released.`,
+          `<strong>Payment Verified</strong><br><br>` +
+          `Expected: $${paymentVerification.expected_amount.toLocaleString()}<br>` +
+          `Paid: $${paymentVerification.actual_paid.toLocaleString()}<br>` +
+          `Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>` +
+          `Cash After: $${paymentVerification.cash_after.toLocaleString()}`,
           'success',
-          5000
+          6000
         );
       } else {
-        // Payment didn't go through - show current status
         showSideNotification(
-          `<strong>Payment sent</strong><br><br>` +
-          `Your offer: $${amount.toLocaleString()}<br>` +
-          `Current demand: $${updatedCase.requested_amount.toLocaleString()}`,
-          'info',
-          5000
+          `<strong>Payment Verification Failed</strong><br><br>` +
+          `Expected: $${paymentVerification.expected_amount.toLocaleString()}<br>` +
+          `Actually Paid: $${paymentVerification.actual_paid.toLocaleString()}<br>` +
+          `Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>` +
+          `Cash After: $${paymentVerification.cash_after.toLocaleString()}`,
+          'error',
+          8000
         );
       }
+    } else if (updatedCase.paid_amount !== null || updatedCase.status === 'solved') {
+      const finalAmount = updatedCase.paid_amount || updatedCase.requested_amount;
+      showSideNotification(
+        `<strong>Ransom Paid!</strong><br><br>` +
+        `Amount: $${finalAmount.toLocaleString()}<br>` +
+        `Your vessel will be released.`,
+        'success',
+        5000
+      );
+    } else {
+      // Payment didn't go through - show current status
+      showSideNotification(
+        `<strong>Payment sent</strong><br><br>` +
+        `Your offer: $${amount.toLocaleString()}<br>` +
+        `Current demand: $${updatedCase.requested_amount.toLocaleString()}`,
+        'info',
+        5000
+      );
     }
 
   } catch (error) {
     console.error('[Hijacking] Error:', error);
-    showSideNotification(`Error: ${error.message}`, 'error');
+    showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');
 
     // Re-enable buttons on error
     if (actionsDiv) {
@@ -1903,7 +1903,7 @@ window.proposeHijackingPrice = async function(caseId, requestedAmount) {
 
   } catch (error) {
     console.error('[Hijacking] Error:', error);
-    showSideNotification(`Error: ${error.message}`, 'error');
+    showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');
   }
 };
 

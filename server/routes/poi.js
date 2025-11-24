@@ -13,9 +13,13 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
+const { getAppDataDir } = require('../config');
 
-// Cache directory
-const CACHE_DIR = path.join(__dirname, '..', '..', 'userdata', 'cache');
+// Cache directory - use AppData when packaged as exe
+const isPkg = !!process.pkg;
+const CACHE_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'cache')
+  : path.join(__dirname, '..', '..', 'userdata', 'cache');
 const MUSEUMS_CACHE_FILE = path.join(CACHE_DIR, 'museums.json');
 const WRECKS_CACHE_FILE = path.join(CACHE_DIR, 'wrecks.json');
 const CACHE_MAX_AGE = 4 * 60 * 60 * 1000; // 4 hours

@@ -14,7 +14,7 @@
  * @requires badge-manager - Badge updates
  */
 
-import { formatNumber, escapeHtml, showSideNotification, loadSettings } from './utils.js';
+import { formatNumber, formatCompactNumber, escapeHtml, showSideNotification, loadSettings } from './utils.js';
 import { fetchCoopData, lockCoopButtons, unlockCoopButtons } from './coop.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { openPlayerProfile } from './company-profile.js';
@@ -644,11 +644,182 @@ export function initAllianceTabs() {
         searchState.initialized = false;
         await switchTab('search');
       } catch (error) {
-        showSideNotification(`Failed: ${error.message}`, 'error');
+        showSideNotification(`Failed: ${escapeHtml(error.message)}`, 'error');
       }
       return;
     }
   }, { once: false });
+}
+
+/**
+ * Attaches click event listeners to application accept/decline buttons
+ * This needs to be called after the queue content HTML is updated
+ */
+function attachApplicationButtonListeners() {
+  // Add accept button listeners
+  const acceptBtns = document.querySelectorAll('#queuePoolContent .application-accept-btn');
+  acceptBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const userId = parseInt(btn.getAttribute('data-user-id'));
+      const companyName = btn.closest('.queue-pool-item').querySelector('.application-company').textContent;
+
+      btn.disabled = true;
+      btn.textContent = 'Accepting...';
+
+      try {
+        await acceptUserToAlliance(userId);
+        showSideNotification(`Successfully accepted ${companyName} to the alliance`, 'success');
+
+        // Send welcome message to the new member
+        await sendWelcomeMessageToUser(userId, companyName);
+
+        // Remove the application from the UI
+        btn.closest('.queue-pool-item').remove();
+
+        // Check if there are no more applications
+        const remainingItems = document.querySelectorAll('.queue-pool-item');
+        if (remainingItems.length === 0) {
+          document.getElementById('queuePoolContent').innerHTML = '<p class="queue-pool-empty">No applications in queue.</p>';
+        }
+      } catch (error) {
+        showSideNotification(`Failed to accept user: ${escapeHtml(error.message)}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Accept';
+      }
+    });
+  });
+
+  // Add decline button listeners
+  const declineBtns = document.querySelectorAll('#queuePoolContent .application-decline-btn');
+  declineBtns.forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const userId = parseInt(btn.getAttribute('data-user-id'));
+      const companyName = btn.closest('.queue-pool-item').querySelector('.application-company').textContent;
+
+      btn.disabled = true;
+      btn.textContent = 'Declining...';
+
+      try {
+        await declineUserFromAlliance(userId);
+        showSideNotification(`Declined application from ${companyName}`, 'info');
+        // Remove the application from the UI
+        btn.closest('.queue-pool-item').remove();
+
+        // Check if there are no more applications
+        const remainingItems = document.querySelectorAll('.queue-pool-item');
+        if (remainingItems.length === 0) {
+          document.getElementById('queuePoolContent').innerHTML = '<p class="queue-pool-empty">No applications in queue.</p>';
+        }
+      } catch (error) {
+        showSideNotification(`Failed to decline user: ${escapeHtml(error.message)}`, 'error');
+        btn.disabled = false;
+        btn.textContent = 'Decline';
+      }
+    });
+  });
+}
+
+/**
+ * Refreshes only the applications queue content without re-rendering the entire management tab
+ * This preserves filter selections and member management state
+ */
+async function refreshApplicationsQueue() {
+  const queuePoolContent = document.getElementById('queuePoolContent');
+  const poolTypeFilter = document.getElementById('poolTypeFilter');
+
+  // If the management tab is not visible or elements don't exist, skip refresh
+  if (!queuePoolContent || !poolTypeFilter) {
+    return;
+  }
+
+  // Get current filter values
+  const filters = {
+    pool_type: poolTypeFilter.value,
+    filter_share_value: document.getElementById('shareValueFilter')?.value || 'any',
+    filter_fleet_size: document.getElementById('fleetSizeFilter')?.value || 'any',
+    filter_experience: document.getElementById('experienceFilter')?.value || 'all',
+    page: 1
+  };
+
+  try {
+    const newPoolData = await fetchQueuePool(filters);
+    let poolHtml = '';
+
+    // Get items from either direct or any pool based on selected filter
+    let poolItems = newPoolData.direct ? newPoolData.direct : newPoolData.any;
+
+    // Filter by rookie status
+    if (filters.filter_experience === 'rookies_only' && poolItems) {
+      poolItems = poolItems.filter(item => item.user.is_rookie === true);
+    }
+
+    // Filter by share value
+    if (filters.filter_share_value !== 'any' && poolItems) {
+      poolItems = poolItems.filter(item => {
+        const shareValue = item.share_value;
+        if (filters.filter_share_value === 'low') return shareValue > 0 && shareValue < 100000;
+        if (filters.filter_share_value === 'medium') return shareValue >= 100000 && shareValue < 500000;
+        if (filters.filter_share_value === 'high') return shareValue >= 500000;
+        return true;
+      });
+    }
+
+    // Filter by fleet size
+    if (filters.filter_fleet_size !== 'any' && poolItems) {
+      poolItems = poolItems.filter(item => {
+        const fleetSize = item.fleet_size;
+        if (filters.filter_fleet_size === 'small') return fleetSize < 10;
+        if (filters.filter_fleet_size === 'medium') return fleetSize >= 10 && fleetSize < 50;
+        if (filters.filter_fleet_size === 'large') return fleetSize >= 50;
+        return true;
+      });
+    }
+
+    if (poolItems && poolItems.length > 0) {
+      poolItems.forEach(item => {
+        const requestDate = new Date(item.time_requested * 1000).toLocaleString();
+        const shareValueText = item.share_value > 0 ? ` - $${formatNumber(item.share_value)}` : '';
+        const rookieStatus = item.user.is_rookie ? 'Yes' : 'No';
+
+        poolHtml += `
+          <div class="queue-pool-item">
+            <div class="application-header">
+              <span class="application-company">${escapeHtml(item.user.company_name)}</span>
+              <span class="application-id">(${item.user.id})</span>
+              ${shareValueText ? `<span class="application-share">${shareValueText}</span>` : ''}
+              <span class="application-time">${requestDate}</span>
+            </div>
+            <div class="application-stats">
+              <span>Experience: ${item.experience}</span>
+              <span>Is Rookie: ${rookieStatus}</span>
+            </div>
+            <div class="application-stats">
+              <span>Fleet size: ${item.fleet_size}</span>
+              <span>Departures 24h: ${item.user.departures_24h}</span>
+            </div>
+            <div class="application-text">
+              <strong>User application:</strong>
+              <p>${escapeHtml(item.application_text)}</p>
+            </div>
+            <div class="application-actions">
+              <button class="application-decline-btn" data-user-id="${item.user.id}">Decline</button>
+              <button class="application-accept-btn" data-user-id="${item.user.id}">Accept</button>
+            </div>
+          </div>
+        `;
+      });
+    } else {
+      poolHtml = '<p class="queue-pool-empty">No applications in queue.</p>';
+    }
+
+    queuePoolContent.innerHTML = poolHtml;
+
+    // Re-attach button listeners after HTML update
+    attachApplicationButtonListeners();
+  } catch (error) {
+    console.error('[Alliance Tabs] Failed to refresh applications queue:', error);
+    // Don't show error to user for background refresh - just log it
+  }
 }
 
 /**
@@ -697,11 +868,12 @@ export async function switchTab(tabName) {
   }
 
   // Start management tab auto-refresh if switching to management
+  // Only refreshes the applications queue, not the entire tab
   if (tabName === 'management' && !managementTabRefreshInterval) {
     managementTabRefreshInterval = setInterval(async () => {
       if (currentTab === 'management') {
         try {
-          await renderManagementTab();
+          await refreshApplicationsQueue();
         } catch (error) {
           console.error('[Alliance Tabs] Management tab refresh error:', error);
         }
@@ -814,99 +986,154 @@ function generateAllianceInfoHTML(data, showJoinButton = false, allianceId = nul
     </div>
 
     <div class="alliance-stats-grid">
-      <div class="alliance-stat-card">
+      <!-- League Info + Benefits Card -->
+      <div class="alliance-stat-card accent-blue">
         <h4>League Info</h4>
-        <div class="stat-row">
-          <span>League Level:</span>
-          <span class="stat-value">${data.league_level}</span>
+
+        <div class="stat-big-numbers">
+          <div class="stat-big-number-group">
+            <div class="stat-big-label">Level</div>
+            <div class="stat-big-value">${data.league_level}</div>
+          </div>
+          <div class="stat-big-number-group align-right">
+            <div class="stat-big-label">Position</div>
+            <div class="stat-big-value highlight-yellow">#${data.group_position}</div>
+          </div>
         </div>
-        <div class="stat-row">
-          <span>Group Position:</span>
-          <span class="stat-value">#${data.group_position}</span>
+
+        <div class="stat-progress-section">
+          <div class="stat-progress-header">
+            <span class="stat-progress-label">Coop Status</span>
+            <span class="stat-progress-value ${data.coop.used >= data.coop.needed ? '' : 'incomplete'}">${formatNumber(data.coop.used)} / ${formatNumber(data.coop.needed)} ${data.coop.used >= data.coop.needed ? '(Done)' : ''}</span>
+          </div>
+          <div class="stat-progress-bar">
+            <div class="stat-progress-fill ${data.coop.used >= data.coop.needed ? '' : 'incomplete'}" style="width: ${Math.min(100, (data.coop.used / data.coop.needed) * 100)}%"></div>
+          </div>
         </div>
-        <div class="stat-row">
-          <span>Promotion:</span>
-          <span class="stat-value ${data.promotion ? 'stat-success' : ''}">${data.promotion ? 'Yes' : 'No'}</span>
+
+        <div class="stat-footer-row">
+          <div class="stat-footer-item">Promotion: <span class="${data.promotion ? 'stat-success' : ''}">${data.promotion ? 'Yes' : 'No'}</span></div>
+          <div class="stat-footer-item">Ends: <span>${seasonEndDate}</span></div>
         </div>
-        <div class="stat-row">
-          <span>Season Ends:</span>
-          <span class="stat-value">${seasonEndDate}</span>
+
+        <!-- Benefits Section -->
+        <div class="stat-section-divider"></div>
+
+        <div class="stat-section-header">
+          <span class="stat-section-icon icon-yellow">&#128081;</span>
+          <span>Benefits (Level ${data.benefit_level})</span>
         </div>
-        <div class="stat-row">
-          <span>Coop Status:</span>
-          <span class="stat-value">${data.coop.used}/${data.coop.needed}</span>
+
+        <div class="stat-benefit-list">
+          <div class="stat-benefit-row">
+            <div class="stat-benefit-left">
+              <span class="stat-benefit-icon">&#128200;</span>
+              <span class="stat-benefit-label">Reputation</span>
+            </div>
+            <span class="stat-benefit-value">+${data.benefit.rep_boost}%</span>
+          </div>
+          <div class="stat-benefit-row">
+            <div class="stat-benefit-left">
+              <span class="stat-benefit-icon">&#128227;</span>
+              <span class="stat-benefit-label">Demand</span>
+            </div>
+            <span class="stat-benefit-value">+${data.benefit.demand_boost}%</span>
+          </div>
+          <div class="stat-benefit-row">
+            <div class="stat-benefit-left">
+              <span class="stat-benefit-icon">&#129309;</span>
+              <span class="stat-benefit-label">Coop Boost</span>
+            </div>
+            <span class="stat-benefit-value">+${data.benefit.coop_boost}</span>
+          </div>
+        </div>
+
+        <div class="stat-summary-grid">
+          <div class="stat-summary-item">
+            <div class="stat-summary-label">Points Spent</div>
+            <div class="stat-summary-value">${formatNumber(data.benefit.points_spend)}</div>
+          </div>
+          <div class="stat-summary-item">
+            <div class="stat-summary-label">Departures</div>
+            <div class="stat-summary-value">${formatNumber(data.benefit.departures)}</div>
+          </div>
         </div>
       </div>
 
-      <div class="alliance-stat-card">
-        <h4>Benefits (Level ${data.benefit_level})</h4>
-        <div class="stat-row">
-          <span>Reputation Boost:</span>
-          <span class="stat-value stat-boost">+${data.benefit.rep_boost}%</span>
-        </div>
-        <div class="stat-row">
-          <span>Demand Boost:</span>
-          <span class="stat-value stat-boost">+${data.benefit.demand_boost}%</span>
-        </div>
-        <div class="stat-row">
-          <span>Coop Boost:</span>
-          <span class="stat-value stat-boost">+${data.benefit.coop_boost}</span>
-        </div>
-        <div class="stat-row">
-          <span>Points Spent:</span>
-          <span class="stat-value">${formatNumber(data.benefit.points_spend)}</span>
-        </div>
-        <div class="stat-row">
-          <span>Departures:</span>
-          <span class="stat-value">${formatNumber(data.benefit.departures)}</span>
-        </div>
-      </div>
-
-      <div class="alliance-stat-card">
+      <!-- Season Stats + Historical Stats Card -->
+      <div class="alliance-stat-card accent-purple">
         <h4>Season Stats</h4>
-        <div class="stat-row">
-          <span>Departures (24h):</span>
-          <span class="stat-value">${formatNumber(data.stats.departures_24h)}</span>
-        </div>
-        <div class="stat-row">
-          <span>Contribution (24h):</span>
-          <span class="stat-value">${formatNumber(data.stats.contribution_score_24h)}</span>
-        </div>
-        <div class="stat-row">
-          <span>Coops (24h):</span>
-          <span class="stat-value">${formatNumber(data.stats.coops_24h)}</span>
-        </div>
-        <div class="stat-row">
-          <span>Season Departures:</span>
-          <span class="stat-value">${formatNumber(data.stats.season_departures)}</span>
-        </div>
-        <div class="stat-row">
-          <span>Season Contribution:</span>
-          <span class="stat-value">${formatNumber(data.stats.season_contribution_score)}</span>
-        </div>
-        <div class="stat-row">
-          <span>Season Coops:</span>
-          <span class="stat-value">${formatNumber(data.stats.season_coops)}</span>
-        </div>
-      </div>
 
-      <div class="alliance-stat-card">
-        <h4>Historical Stats</h4>
-        <div class="stat-row">
-          <span>Total Departures:</span>
-          <span class="stat-value">${formatNumber(data.stats.total_departures)}</span>
+        <div class="stat-mini-grid">
+          <div class="stat-mini-card mini-blue">
+            <div class="stat-mini-label">Dep (24h)</div>
+            <div class="stat-mini-value">${formatCompactNumber(data.stats.departures_24h)}</div>
+          </div>
+          <div class="stat-mini-card mini-purple">
+            <div class="stat-mini-label">Contr (24h)</div>
+            <div class="stat-mini-value">${formatCompactNumber(data.stats.contribution_score_24h)}</div>
+          </div>
+          <div class="stat-mini-card mini-orange">
+            <div class="stat-mini-label">Coops (24h)</div>
+            <div class="stat-mini-value">${formatCompactNumber(data.stats.coops_24h)}</div>
+          </div>
         </div>
-        <div class="stat-row">
-          <span>Total Contribution:</span>
-          <span class="stat-value">${formatNumber(data.stats.total_contribution_score)}</span>
+
+        <div class="stat-simple-list">
+          <div class="stat-simple-row">
+            <span class="stat-simple-label">Season Departures</span>
+            <span class="stat-simple-value">${formatNumber(data.stats.season_departures)}</span>
+          </div>
+          <div class="stat-simple-row">
+            <span class="stat-simple-label">Season Contribution</span>
+            <span class="stat-simple-value">${formatNumber(data.stats.season_contribution_score)}</span>
+          </div>
+          <div class="stat-simple-row">
+            <span class="stat-simple-label">Season Coops</span>
+            <span class="stat-simple-value">${formatNumber(data.stats.season_coops)}</span>
+          </div>
         </div>
-        <div class="stat-row">
-          <span>Total Coops:</span>
-          <span class="stat-value">${formatNumber(data.stats.total_coops)}</span>
+
+        <!-- Historical Stats Section -->
+        <div class="stat-section-divider"></div>
+
+        <div class="stat-section-header">
+          <span class="stat-section-icon icon-slate">&#128337;</span>
+          <span>All Time History</span>
         </div>
-        <div class="stat-row">
-          <span>Total Share Value:</span>
-          <span class="stat-value">$${formatNumber(data.total_share_value)}</span>
+
+        <div class="stat-history-list">
+          <div class="stat-history-row">
+            <div class="stat-history-left">
+              <div class="stat-history-icon">&#128674;</div>
+              <span class="stat-history-label">Total Departures</span>
+            </div>
+            <span class="stat-history-value">${formatNumber(data.stats.total_departures)}</span>
+          </div>
+          <div class="stat-history-row">
+            <div class="stat-history-left">
+              <div class="stat-history-icon">&#128176;</div>
+              <span class="stat-history-label">Total Contribution</span>
+            </div>
+            <span class="stat-history-value">${formatNumber(data.stats.total_contribution_score)}</span>
+          </div>
+          <div class="stat-history-row">
+            <div class="stat-history-left">
+              <div class="stat-history-icon">&#128101;</div>
+              <span class="stat-history-label">Total Coops</span>
+            </div>
+            <span class="stat-history-value">${formatNumber(data.stats.total_coops)}</span>
+          </div>
+
+          <div class="stat-history-divider"></div>
+
+          <div class="stat-history-row">
+            <div class="stat-history-left">
+              <div class="stat-history-icon icon-highlight">&#128178;</div>
+              <span class="stat-history-label highlight">Share Value</span>
+            </div>
+            <span class="stat-history-value highlight">$${formatNumber(data.total_share_value)}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -2340,7 +2567,7 @@ async function renderManagementTab() {
           document.getElementById('queuePoolContent').innerHTML = '<p class="queue-pool-empty">No applications in queue.</p>';
         }
       } catch (error) {
-        showSideNotification(`Failed to accept user: ${error.message}`, 'error');
+        showSideNotification(`Failed to accept user: ${escapeHtml(error.message)}`, 'error');
         btn.disabled = false;
         btn.textContent = 'Accept';
       }
@@ -2369,7 +2596,7 @@ async function renderManagementTab() {
           document.getElementById('queuePoolContent').innerHTML = '<p class="queue-pool-empty">No applications in queue.</p>';
         }
       } catch (error) {
-        showSideNotification(`Failed to decline user: ${error.message}`, 'error');
+        showSideNotification(`Failed to decline user: ${escapeHtml(error.message)}`, 'error');
         btn.disabled = false;
         btn.textContent = 'Decline';
       }
@@ -2389,7 +2616,7 @@ async function renderManagementTab() {
         await updateUserRole(userId, newRole);
         showSideNotification(`Role updated successfully`, 'success');
       } catch (error) {
-        showSideNotification(`Failed to update role: ${error.message}`, 'error');
+        showSideNotification(`Failed to update role: ${escapeHtml(error.message)}`, 'error');
       } finally {
         btn.disabled = false;
       }
@@ -2538,7 +2765,7 @@ async function renderSettingsTab() {
         await renderSettingsTab();
       } catch (error) {
         console.error('[Alliance Settings] Save failed:', error);
-        showSideNotification(`Failed to save settings: ${error.message}`, 'error');
+        showSideNotification(`Failed to save settings: ${escapeHtml(error.message)}`, 'error');
       } finally {
         saveBtn.disabled = false;
         saveBtn.textContent = 'Save Settings';
@@ -2594,7 +2821,7 @@ async function renderSettingsTab() {
       } catch (error) {
         console.error('[Alliance] Leave/Close failed:', error);
         const errorMessage = isCeoAction ? 'Failed to close alliance' : 'Failed to leave alliance';
-        showSideNotification(`${errorMessage}: ${error.message}`, 'error');
+        showSideNotification(`${errorMessage}: ${escapeHtml(error.message)}`, 'error');
         leaveBtn.disabled = false;
         leaveBtn.textContent = isCeoAction ? 'Close Alliance' : 'Leave Alliance';
       }
@@ -3121,7 +3348,7 @@ function attachSearchEventListeners() {
         searchState.initialized = false;
         await renderSearchTab();
       } catch (error) {
-        showSideNotification(`Failed to cancel applications: ${error.message}`, 'error');
+        showSideNotification(`Failed to cancel applications: ${escapeHtml(error.message)}`, 'error');
       }
     });
   }
@@ -3171,7 +3398,7 @@ function attachSearchEventListeners() {
         searchState.initialized = false;
         await renderSearchTab();
       } catch (error) {
-        showSideNotification(`Failed to cancel: ${error.message}`, 'error');
+        showSideNotification(`Failed to cancel: ${escapeHtml(error.message)}`, 'error');
       }
     });
   });
@@ -3516,7 +3743,7 @@ async function handleJoinAllianceClick(allianceId, allianceName) {
     await renderSearchTab();
 
   } catch (error) {
-    showSideNotification(`Failed to join alliance: ${error.message}`, 'error');
+    showSideNotification(`Failed to join alliance: ${escapeHtml(error.message)}`, 'error');
   }
 }
 
@@ -3753,7 +3980,7 @@ async function showDonateDialog(userId, userName, totalMembers) {
         pointsDisplay.textContent = newPoints;
       }
     } catch (error) {
-      showSideNotification(`Failed to send donation: ${error.message}`, 'error');
+      showSideNotification(`Failed to send donation: ${escapeHtml(error.message)}`, 'error');
     }
   });
 }

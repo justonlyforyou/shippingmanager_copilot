@@ -4,6 +4,82 @@
   z-index: 10001;
 }
 
+/* Emoji with tooltip */
+.emoji-tooltip {
+  position: relative;
+  display: inline-block;
+  cursor: help;
+}
+
+.emoji-tooltip::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--spacing-4) var(--spacing-8);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-11);
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.emoji-tooltip:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Diagonal strikethrough for inactive emoji indicators */
+.emoji-strikethrough {
+  position: relative;
+  display: inline-block;
+  opacity: 0.5;
+  cursor: help;
+}
+
+.emoji-strikethrough::before {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: var(--spacing-4) var(--spacing-8);
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-11);
+  white-space: nowrap;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s, visibility 0.15s;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.emoji-strikethrough:hover::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+.emoji-strikethrough::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 100%;
+  height: 2px;
+  background: var(--color-danger);
+  transform: rotate(-45deg);
+}
+
 .company-profile-search {
   padding: var(--spacing-12) var(--spacing-16);
   border-bottom: 1px solid var(--color-border);
@@ -61,56 +137,74 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: var(--spacing-16);
   padding-bottom: var(--spacing-12);
+  margin-bottom: var(--spacing-16);
   border-bottom: 1px solid var(--color-border);
 }
 
-/* XP Tacho */
-.xp-tacho-container {
-  margin: 1px;
-  padding: 1px;
+/* Alliance row in company profile - centered layout */
+#companyProfileAllianceRow .league-alliance-row {
+  grid-template-columns: 50px 1fr;
+  justify-content: center;
+  max-width: 400px;
+  margin: 0 auto;
+  cursor: pointer;
+}
+
+#companyProfileAllianceRow .league-alliance-info {
+  text-align: center;
+}
+
+#companyProfileAllianceRow .league-alliance-name {
+  justify-content: center;
+}
+
+#companyProfileAllianceRow .league-alliance-meta {
+  justify-content: center;
+}
+
+/* XP Progress Bar */
+.xp-progress-container {
+  margin: var(--spacing-8) 0;
+  padding: var(--spacing-8);
   background: var(--color-bg-secondary);
   border-radius: var(--radius-sm);
 }
 
-.xp-tacho-svg {
-  width: 100%;
-  max-width: 200px;
-  height: auto;
-  margin: 0 auto;
-  display: block;
-}
-
-.xp-tacho-labels {
-  position: relative;
-  width: 100%;
-  max-width: 200px;
-  margin: var(--spacing-4) auto 0;
-  height: 20px;
+.xp-progress-labels {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
+  margin-bottom: var(--spacing-4);
+  font-size: var(--font-size-11);
 }
 
-.xp-tacho-label-min {
-  position: absolute;
-  left: 10%;
-  font-size: var(--font-size-11);
+.xp-progress-label-left {
   color: var(--color-text-secondary);
 }
 
-.xp-tacho-label-max {
-  position: absolute;
-  right: 10%;
-  font-size: var(--font-size-11);
-  color: var(--color-text-secondary);
-}
-
-.xp-tacho-label-current {
-  font-size: var(--font-size-14);
+.xp-progress-label-center {
+  font-size: var(--font-size-13);
   font-weight: var(--font-weight-bold);
-  color: var(--color-warning);
+  color: var(--color-info);
+}
+
+.xp-progress-label-right {
+  color: var(--color-text-secondary);
+}
+
+.xp-progress-bar {
+  height: 8px;
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.xp-progress-fill {
+  height: 100%;
+  background: var(--color-info);
+  border-radius: var(--radius-sm);
+  transition: width 0.3s ease;
 }
 
 .company-profile-name {
@@ -135,14 +229,19 @@
 
 .company-profile-stats {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--spacing-12);
+}
+
+.company-profile-stats:not(.morale-stats-grid) {
+  width: 100%;
 }
 
 .company-stat {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-4);
+  text-align: center;
 }
 
 .company-stat-label {
@@ -155,6 +254,10 @@
   font-size: var(--font-size-14);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
+}
+
+.company-stat-grayed {
+  opacity: 0.4;
 }
 
 /* Search Results */
@@ -303,11 +406,11 @@
   text-align: right;
 }
 
-/* Morale Stats Grid */
+/* Morale Stats Grid - 2 columns for crew/management */
 .morale-stats-grid {
-  max-width: 600px;
-  margin: 0 auto;
-  justify-content: center;
+  grid-template-columns: 1fr 1fr;
+  max-width: none;
+  width: 100%;
 }
 
 /* Morale Stat */
@@ -421,6 +524,11 @@
   margin-left: var(--spacing-8);
 }
 
+.staff-points-display {
+  margin-left: auto;
+  margin-right: var(--spacing-8);
+}
+
 .collapsible-content {
   transition: all 0.3s ease-out;
   max-height: 5000px;
@@ -440,10 +548,11 @@
 
 .staff-member-locked {
   opacity: 0.7;
+  padding: var(--spacing-4) var(--spacing-12);
 }
 
 .staff-locked-message {
-  padding: var(--spacing-12) var(--spacing-16);
+  padding: var(--spacing-4) var(--spacing-16);
   text-align: center;
   color: var(--color-text-secondary);
   font-size: var(--font-size-13);
@@ -455,6 +564,8 @@
   justify-content: space-between;
   align-items: center;
   margin-bottom: var(--spacing-8);
+  padding-bottom: var(--spacing-8);
+  border-bottom: 1px dashed var(--color-border);
 }
 
 .staff-type {

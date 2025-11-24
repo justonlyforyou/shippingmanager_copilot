@@ -12,7 +12,7 @@ import { showPortPanel, hidePortPanel } from './port-panel.js';
 import { hideRoutePanel } from './route-vessels-panel.js';
 import { initializePanelDrag } from './panel-drag.js';
 import { filterVessels, filterPorts, getVesselFilterOptions, getPortFilterOptions } from './filters.js';
-import { showSideNotification, isMobileDevice } from '../utils.js';
+import { showSideNotification, isMobileDevice, escapeHtml } from '../utils.js';
 
 // Map instance
 let map = null;
@@ -48,6 +48,10 @@ let weatherType = localStorage.getItem('harborMapWeatherType') || 'off'; // 'off
 let rawVessels = [];
 let rawPorts = [];
 
+// Port demand cache - persists across rawPorts refresh
+// Key: port code, Value: { demand } object
+const portDemandCache = new Map();
+
 // Weather control reference
 let weatherControl = null;
 
@@ -62,7 +66,8 @@ let envLayerControl = null;
 // Current data (for route filtering)
 let currentVessels = [];
 let currentPorts = [];
-let currentRouteFilter = localStorage.getItem('harborMapRouteFilter') || null; // null = show all, string = show specific route
+let currentRouteFilter = localStorage.getItem('harborMapRouteFilter') || null; // null = show all, string = port pair key (e.g., "hamburg<>new_york")
+let currentPortPairGroups = null; // Port-pair groups from API (for route filter dropdown)
 
 /**
  * Gets current ports data
@@ -178,8 +183,8 @@ export function initMap(containerId) {
   // Initialize map centered on northern hemisphere
   map = L.map(containerId, {
     center: [20, 0], // Center on northern hemisphere (20° North, 0° longitude)
-    zoom: 1.50,
-    minZoom: 1.50, // Minimum zoom = initial zoom (can't zoom out further)
+    zoom: 1.80,
+    minZoom: 1.80, // Minimum zoom = initial zoom (can't zoom out further)
     maxZoom: 18,
     zoomDelta: 0.1, // Zoom in 0.1 steps instead of 1.0
     zoomSnap: 0.1, // Allow fractional zoom levels (0.1 precision)
@@ -1290,6 +1295,7 @@ function addCustomControls() {
       container.innerHTML = '<button title="Forecast Calendar">📅</button>';
       L.DomEvent.disableClickPropagation(container);
       container.querySelector('button').addEventListener('click', () => {
+        if (window.closeAllModalOverlays) window.closeAllModalOverlays();
         if (window.showForecastOverlay) window.showForecastOverlay();
       });
       return container;
@@ -1306,6 +1312,7 @@ function addCustomControls() {
       container.innerHTML = '<button title="Captain\'s Logbook">📋</button>';
       L.DomEvent.disableClickPropagation(container);
       container.querySelector('button').addEventListener('click', () => {
+        if (window.closeAllModalOverlays) window.closeAllModalOverlays();
         if (window.showLogbookOverlay) window.showLogbookOverlay();
       });
       return container;
@@ -1322,6 +1329,7 @@ function addCustomControls() {
       container.innerHTML += '<span class="update-indicator hidden" id="settingsUpdateIndicator"></span>';
       L.DomEvent.disableClickPropagation(container);
       container.querySelector('button').addEventListener('click', () => {
+        if (window.closeAllModalOverlays) window.closeAllModalOverlays();
         if (window.showSettings) window.showSettings();
       });
       return container;
@@ -1336,6 +1344,7 @@ function addCustomControls() {
       container.innerHTML = '<button title="Documentation">📖</button>';
       L.DomEvent.disableClickPropagation(container);
       container.querySelector('button').addEventListener('click', () => {
+        if (window.closeAllModalOverlays) window.closeAllModalOverlays();
         if (window.showDocsOverlay) window.showDocsOverlay();
       });
       return container;
@@ -1607,7 +1616,7 @@ export function renderVessels(vessels) {
     }
 
     const vesselTooltipContent = `
-      <strong>${vessel.name}</strong><br>
+      <strong>${escapeHtml(vessel.name)}</strong><br>
       Status: ${vessel.status}${vessel.status === 'enroute' && vessel.route_speed ? ` | Speed: ${vessel.route_speed} kn` : ''}${vessel.eta !== 'N/A' ? ` | ETA: ${vessel.eta}` : ''}<br>
       Cargo: ${cargoDisplay}
     `;
@@ -1660,21 +1669,34 @@ export function renderPorts(ports) {
     });
   }
 
+  // Helper to check if demand has actual data (not empty array or object)
+  const hasValidDemand = (d) => {
+    if (!d) return false;
+    if (Array.isArray(d)) return d.length > 0;
+    if (typeof d === 'object') return d.container || d.tanker;
+    return false;
+  };
+
   ports.forEach(port => {
     if (!port.lat || !port.lon) return;
 
+    // Check port demand cache first, then port.demand, then fallback
+    const cachedData = portDemandCache.get(port.code);
+    const demand = cachedData?.demand || port.demand;
+    const hasDemand = hasValidDemand(demand);
+
     // Format demand for tooltip
-    let demandText = 'No active route / Demand unknown';
-    if (port.demand) {
+    let demandText = 'Loading...';
+    if (hasDemand) {
       const parts = [];
-      if (port.demand.container) {
-        const dry = port.demand.container.dry || 0;
-        const ref = port.demand.container.refrigerated || 0;
+      if (demand.container) {
+        const dry = demand.container.dry || 0;
+        const ref = demand.container.refrigerated || 0;
         parts.push(`Container: Dry ${dry.toLocaleString()} TEU / Ref ${ref.toLocaleString()} TEU`);
       }
-      if (port.demand.tanker) {
-        const fuel = port.demand.tanker.fuel || 0;
-        const crude = port.demand.tanker.crude_oil || 0;
+      if (demand.tanker) {
+        const fuel = demand.tanker.fuel || 0;
+        const crude = demand.tanker.crude_oil || 0;
         parts.push(`Tanker: Fuel: ${fuel.toLocaleString()} bbl / Crude: ${crude.toLocaleString()} bbl`);
       }
       if (parts.length > 0) {
@@ -1700,6 +1722,60 @@ export function renderPorts(ports) {
     marker.bindTooltip(portTooltipContent, {
       direction: 'auto',
       offset: [0, -10]
+    });
+
+    // Lazy load demand on first hover (skip if already cached or has valid demand)
+    let demandLoaded = hasDemand;
+    marker.on('mouseover', async () => {
+      if (demandLoaded) {
+        return;
+      }
+      demandLoaded = true; // Prevent multiple fetches
+
+      try {
+        const response = await fetch('/api/route/get-port-demand', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ port_code: port.code })
+        });
+
+        if (!response.ok) {
+          console.warn(`[Harbor Map] Demand fetch failed for ${port.code}: ${response.status}`);
+          return;
+        }
+
+        const data = await response.json();
+        if (!data.port?.demand) {
+          console.warn(`[Harbor Map] No demand in response for ${port.code}`);
+          return;
+        }
+
+        // Cache port demand persistently
+        portDemandCache.set(port.code, {
+          demand: data.port.demand
+        });
+
+        // Also update rawPorts for current session
+        const rawPort = rawPorts.find(p => p.code === port.code);
+        if (rawPort) {
+          rawPort.demand = data.port.demand;
+        }
+
+        // Update tooltip with real demand
+        const fetchedDemand = data.port.demand;
+        const parts = [];
+        if (fetchedDemand.container) {
+          parts.push(`Container: Dry ${(fetchedDemand.container.dry || 0).toLocaleString()} TEU / Ref ${(fetchedDemand.container.refrigerated || 0).toLocaleString()} TEU`);
+        }
+        if (fetchedDemand.tanker) {
+          parts.push(`Tanker: Fuel: ${(fetchedDemand.tanker.fuel || 0).toLocaleString()} bbl / Crude: ${(fetchedDemand.tanker.crude_oil || 0).toLocaleString()} bbl`);
+        }
+
+        const newTooltip = `<strong>${portName}</strong><br>${parts.length > 0 ? parts.join('<br>') : 'No demand'}`;
+        marker.setTooltipContent(newTooltip);
+      } catch (err) {
+        console.warn(`[Harbor Map] Failed to fetch demand for ${port.code}:`, err.message);
+      }
     });
 
     // Click handler - show port detail panel
@@ -2039,12 +2115,17 @@ async function applyFiltersAndRender(forceRender = false) {
   // Update route dropdown
   updateRouteDropdown();
 
-  // Check if there's an active selection (vessel, port, or route panel open)
+  // Check if there's an active selection (any panel open on the map)
   const vesselPanelOpen = document.getElementById('vessel-detail-panel')?.classList.contains('active');
   const portPanelOpen = document.getElementById('port-detail-panel')?.classList.contains('active');
   const routePanelOpen = document.getElementById('route-vessels-panel')?.classList.contains('active');
+  const routePlannerOpen = document.getElementById('routePlannerPanel') &&
+                           !document.getElementById('routePlannerPanel').classList.contains('hidden');
+  const departManagerOpen = document.getElementById('departManagerPanel') &&
+                            !document.getElementById('departManagerPanel').classList.contains('hidden');
   const hasActiveSelection = selectedVesselId !== null || selectedPortCode !== null ||
-                             vesselPanelOpen || portPanelOpen || routePanelOpen;
+                             vesselPanelOpen || portPanelOpen || routePanelOpen ||
+                             routePlannerOpen || departManagerOpen;
 
   if (hasActiveSelection && !forceRender) {
     console.log('[Harbor Map] Active selection detected - skipping render to preserve current view');
@@ -2059,57 +2140,58 @@ async function applyFiltersAndRender(forceRender = false) {
     return;
   }
 
-  // Apply route filter if active
-  const vesselsToRender = currentRouteFilter
-    ? currentVessels.filter(v => v.route_name === currentRouteFilter)
-    : currentVessels;
+  // Apply route filter if active (using port-pair groups)
+  let vesselsToRender = currentVessels;
+  let portPairGroup = null;
+
+  if (currentRouteFilter && currentPortPairGroups && currentPortPairGroups.groups) {
+    portPairGroup = currentPortPairGroups.groups.find(g => g.pairKey === currentRouteFilter);
+    if (portPairGroup) {
+      const vesselIds = new Set(portPairGroup.vessels.map(v => v.id));
+      vesselsToRender = rawVessels.filter(v => vesselIds.has(v.id));
+    }
+  }
 
   // Clear all cluster groups before rendering
   vesselClusterGroup.clearLayers();
   portLocationClusterGroup.clearLayers();
 
   // If route filter is active, restore full route visualization
-  if (currentRouteFilter && vesselsToRender.length > 0) {
-    const firstVessel = vesselsToRender[0];
+  if (currentRouteFilter && portPairGroup && vesselsToRender.length > 0) {
+    const portA = portPairGroup.portA;
+    const portB = portPairGroup.portB;
 
-    // Build route from vessel.active_route
-    if (firstVessel.status === 'enroute' && firstVessel.active_route?.path) {
-      // Handle reversed routes
-      const isReversed = firstVessel.active_route.reversed === true;
-      const actualOrigin = isReversed
-        ? (firstVessel.active_route.destination_port_code || firstVessel.active_route.destination)
-        : (firstVessel.active_route.origin_port_code || firstVessel.active_route.origin);
-      const actualDestination = isReversed
-        ? (firstVessel.active_route.origin_port_code || firstVessel.active_route.origin)
-        : (firstVessel.active_route.destination_port_code || firstVessel.active_route.destination);
+    // Filter ports to show only origin and destination
+    const routePorts = rawPorts.filter(p => p.code === portA || p.code === portB);
 
+    // Render vessels and route ports
+    renderVessels(vesselsToRender);
+    renderPorts(routePorts);
+
+    // Try to draw route from first enroute vessel
+    const enrouteVessel = vesselsToRender.find(v => v.status === 'enroute' && v.active_route?.path);
+    if (enrouteVessel) {
+      const isReversed = enrouteVessel.active_route.reversed === true;
       const route = {
         path: isReversed
-          ? firstVessel.active_route.path.slice().reverse()
-          : firstVessel.active_route.path,
-        origin: actualOrigin,
-        destination: actualDestination
+          ? enrouteVessel.active_route.path.slice().reverse()
+          : enrouteVessel.active_route.path,
+        origin: portA,
+        destination: portB
       };
-
-      // Filter ports to show only origin and destination
-      const routePorts = filteredPorts.filter(p =>
-        p.code === route.origin || p.code === route.destination
-      );
-
-      // Render vessels and route ports
-      renderVessels(vesselsToRender);
-      renderPorts(routePorts);
-
       // Draw route path (WITHOUT auto-zoom during refresh)
       drawRoute(route, currentPorts, false);
-
-      console.log(`[Harbor Map] Route filter restored during refresh: ${route.origin} → ${route.destination}`);
+      console.log(`[Harbor Map] Route filter restored during refresh: ${portA} <> ${portB}`);
     } else {
-      // No active route available, render normally
-      renderVessels(vesselsToRender);
-      renderPorts(filteredPorts);
       clearRoute();
     }
+  } else if (currentRouteFilter && !portPairGroup) {
+    // Route filter set but group not found - clear filter
+    currentRouteFilter = null;
+    localStorage.removeItem('harborMapRouteFilter');
+    renderVessels(vesselsToRender);
+    renderPorts(filteredPorts);
+    clearRoute();
   } else {
     // No route filter active
 
@@ -2167,6 +2249,7 @@ export async function loadOverview() {
       // Store RAW data (unfiltered)
       rawVessels = cachedData.vessels;
       rawPorts = cachedData.ports;
+      currentPortPairGroups = cachedData.portPairGroups;
 
       // Apply filters client-side
       await applyFiltersAndRender();
@@ -2186,6 +2269,7 @@ export async function loadOverview() {
     // Store RAW data (unfiltered)
     rawVessels = data.vessels;
     rawPorts = data.ports;
+    currentPortPairGroups = data.portPairGroups;
 
     // Apply filters client-side
     await applyFiltersAndRender();
@@ -2591,6 +2675,14 @@ export async function selectPort(portCode) {
     selectedPortCode = portCode;
     selectedVesselId = null;
 
+    // If planning mode is active, only select port for route - don't open port panel or zoom
+    if (window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode()) {
+      console.log(`[Harbor Map] Planning mode active, selecting port for route: ${portCode}`);
+      window.harborMap.selectPortForRoute(portCode);
+      // Don't open port panel or change map view - route planner handles everything
+      return;
+    }
+
     // CLIENT-SIDE DATA LOADING (no API call needed!)
     // Find port in rawPorts
     const port = rawPorts.find(p => p.code === portCode);
@@ -2668,6 +2760,11 @@ export async function selectPort(portCode) {
 
     // Show port panel
     showPortPanel(port, vessels);
+
+    // Fetch demand data asynchronously (port data from overview doesn't include demand)
+    if (window.harborMap && window.harborMap.fetchAndUpdatePortDemand) {
+      window.harborMap.fetchAndUpdatePortDemand(portCode);
+    }
   } catch (error) {
     console.error(`Error selecting port ${portCode}:`, error);
   }
@@ -2690,10 +2787,6 @@ export async function deselectAll() {
   portLocationClusterGroup.clearLayers();
   clearRoute();
 
-  // Save zoom and center if we had previous state
-  const previousZoom = previousMapState.zoom;
-  const previousCenter = previousMapState.center;
-
   // Clear previous state
   previousMapState = {
     vessels: [],
@@ -2707,13 +2800,14 @@ export async function deselectAll() {
   // forceRender=true bypasses the active selection check (prevents race condition with panel close)
   await applyFiltersAndRender(true);
 
-  // Restore zoom and center if available
-  if (previousZoom && previousCenter) {
-    map.setView(previousCenter, previousZoom, {
-      animate: true,
-      duration: 0.5
-    });
-  }
+  // Always center map at default zoom (1.8) when closing panels
+  const defaultZoom = 1.8;
+  const defaultCenter = [20, 0];
+
+  map.setView(defaultCenter, defaultZoom, {
+    animate: true,
+    duration: 0.5
+  });
 }
 
 /**
@@ -2802,8 +2896,8 @@ export async function updateVesselMarker(vesselId) {
 }
 
 /**
- * Updates the route dropdown with all unique routes from current vessels
- * Populates the dropdown with route names from vessels with status 'enroute'
+ * Updates the route dropdown with port-pair groups
+ * Groups vessels by origin<>destination port pairs (e.g., "DE HAM <> US NYC")
  *
  * @returns {void}
  * @example
@@ -2816,69 +2910,50 @@ function updateRouteDropdown() {
     return;
   }
 
-  // Extract unique route names from vessels with status 'enroute'
-  const routes = new Set();
-  currentVessels.forEach(vessel => {
-    if (vessel.status === 'enroute' && vessel.route_name) {
-      routes.add(vessel.route_name);
-    }
-  });
-
-  // Sort routes alphabetically
-  const sortedRoutes = Array.from(routes).sort();
-
-  console.log(`[Harbor Map] Found ${sortedRoutes.length} unique routes`);
-
-  // Clear existing options (except "All Routes")
+  // Clear existing options
   routeSelect.innerHTML = '<option value="">All Routes</option>';
 
-  // Add route options
-  sortedRoutes.forEach(routeName => {
+  // Use port-pair groups from API response
+  if (!currentPortPairGroups || !currentPortPairGroups.groups) {
+    console.log('[Harbor Map] No port-pair groups available');
+    return;
+  }
+
+  const groups = currentPortPairGroups.groups;
+  console.log(`[Harbor Map] Found ${groups.length} port-pair groups`);
+
+  // Add port-pair options (already sorted by vessel count from backend)
+  groups.forEach(group => {
     const option = document.createElement('option');
-    option.value = routeName;
-    option.textContent = routeName;
+    option.value = group.pairKey; // e.g., "hamburg<>new_york"
+    option.textContent = `${group.displayName} (${group.vessels.length})`; // e.g., "DE HAM <> US NYC (5)"
     routeSelect.appendChild(option);
   });
 
   // Restore selected route if it exists
-  if (currentRouteFilter && sortedRoutes.includes(currentRouteFilter)) {
+  const pairKeys = groups.map(g => g.pairKey);
+  if (currentRouteFilter && pairKeys.includes(currentRouteFilter)) {
     routeSelect.value = currentRouteFilter;
   } else {
     currentRouteFilter = null;
     routeSelect.value = '';
   }
 
-  // Set width based on longest option text
-  const allOptions = ['All Routes', ...sortedRoutes];
-  let maxWidth = 0;
-  const tempSpan = document.createElement('span');
-  tempSpan.style.cssText = 'position: absolute; visibility: hidden; white-space: nowrap; font-size: 13px; font-weight: 500;';
-  document.body.appendChild(tempSpan);
-
-  allOptions.forEach(text => {
-    tempSpan.textContent = text;
-    const width = tempSpan.offsetWidth;
-    if (width > maxWidth) maxWidth = width;
-  });
-
-  document.body.removeChild(tempSpan);
-
-  // Set width: longest text + 4px left padding + 21px right padding (for space)
-  routeSelect.style.width = `${maxWidth + 25}px`;
+  // Width is handled by CSS (width: fit-content)
 }
 
 /**
  * Sets the route filter and re-renders map with filtered vessels
  * Also opens the route vessels panel if a route is selected
- * When a route is selected, draws the route path and shows only origin/destination ports
+ * When a port-pair is selected, draws the route path and shows only origin/destination ports
  *
- * @param {string} routeName - Route name to filter by (empty string = all routes)
+ * @param {string} pairKey - Port pair key to filter by (e.g., "hamburg<>new_york", empty = all routes)
  * @returns {Promise<void>}
  * @example
- * await setRouteFilter('Hamburg - New York');
+ * await setRouteFilter('hamburg<>new_york');
  */
-export async function setRouteFilter(routeName) {
-  currentRouteFilter = routeName || null;
+export async function setRouteFilter(pairKey) {
+  currentRouteFilter = pairKey || null;
 
   // Save to localStorage
   if (currentRouteFilter) {
@@ -2889,76 +2964,70 @@ export async function setRouteFilter(routeName) {
 
   // Update the dropdown to reflect the new selection
   const routeSelect = document.getElementById('routeFilterSelect');
-  if (routeSelect && routeSelect.value !== (routeName || '')) {
-    routeSelect.value = routeName || '';
+  if (routeSelect && routeSelect.value !== (pairKey || '')) {
+    routeSelect.value = pairKey || '';
   }
 
   console.log(`[Harbor Map] Route filter changed to: ${currentRouteFilter || 'All Routes'}`);
 
-  // Filter vessels - when route is selected, use ALL vessels (ignore vessel filter)
-  const vesselsToRender = currentRouteFilter
-    ? rawVessels.filter(v => v.route_name === currentRouteFilter)
-    : currentVessels;
+  // Find the port pair group if filtering
+  let portPairGroup = null;
+  if (currentRouteFilter && currentPortPairGroups && currentPortPairGroups.groups) {
+    portPairGroup = currentPortPairGroups.groups.find(g => g.pairKey === currentRouteFilter);
+  }
 
-  console.log(`[Harbor Map] Rendering ${vesselsToRender.length} vessels (filtered by route, ignoring vessel filter)`);
+  // Filter vessels by port pair (vessels with matching origin<>destination)
+  let vesselsToRender;
+  if (currentRouteFilter && portPairGroup) {
+    // Get vessel IDs from the port pair group
+    const vesselIds = new Set(portPairGroup.vessels.map(v => v.id));
+    vesselsToRender = rawVessels.filter(v => vesselIds.has(v.id));
+  } else {
+    vesselsToRender = currentVessels;
+  }
 
-  if (currentRouteFilter && vesselsToRender.length > 0) {
+  console.log(`[Harbor Map] Rendering ${vesselsToRender.length} vessels (filtered by port pair)`);
+
+  if (currentRouteFilter && portPairGroup && vesselsToRender.length > 0) {
     // Close all other panels before showing route panel
     await closeAllPanels();
 
-    // Route selected - extract route from first vessel
-    const firstVessel = vesselsToRender[0];
+    // Get port codes from the pair group
+    const portA = portPairGroup.portA;
+    const portB = portPairGroup.portB;
 
-    // Build route from vessel.active_route (same as in vessel click handler)
-    if (firstVessel.status === 'enroute' && firstVessel.active_route?.path) {
-      // Handle reversed routes
-      const isReversed = firstVessel.active_route.reversed === true;
-      const actualOrigin = isReversed
-        ? (firstVessel.active_route.destination_port_code || firstVessel.active_route.destination)
-        : (firstVessel.active_route.origin_port_code || firstVessel.active_route.origin);
-      const actualDestination = isReversed
-        ? (firstVessel.active_route.origin_port_code || firstVessel.active_route.origin)
-        : (firstVessel.active_route.destination_port_code || firstVessel.active_route.destination);
+    // Filter ports to show only origin and destination
+    const routePorts = rawPorts.filter(p => p.code === portA || p.code === portB);
 
+    // Clear all markers before rendering
+    vesselClusterGroup.clearLayers();
+    portLocationClusterGroup.clearLayers();
+
+    // Render vessels and route ports
+    renderVessels(vesselsToRender);
+    renderPorts(routePorts);
+
+    // Try to draw route from first enroute vessel
+    const enrouteVessel = vesselsToRender.find(v => v.status === 'enroute' && v.active_route?.path);
+    if (enrouteVessel) {
+      const isReversed = enrouteVessel.active_route.reversed === true;
       const route = {
         path: isReversed
-          ? firstVessel.active_route.path.slice().reverse()
-          : firstVessel.active_route.path,
-        origin: actualOrigin,
-        destination: actualDestination
+          ? enrouteVessel.active_route.path.slice().reverse()
+          : enrouteVessel.active_route.path,
+        origin: portA,
+        destination: portB
       };
-
-      // Filter ports to show only origin and destination (use rawPorts to get all ports)
-      const routePorts = rawPorts.filter(p =>
-        p.code === route.origin || p.code === route.destination
-      );
-
-      // Clear all markers before rendering
-      vesselClusterGroup.clearLayers();
-      portLocationClusterGroup.clearLayers();
-
-      // Render vessels and route ports
-      renderVessels(vesselsToRender);
-      renderPorts(routePorts);
-
-      // Draw route path (with auto-zoom)
       drawRoute(route, rawPorts, true);
-
-      console.log(`[Harbor Map] Route drawn: ${route.origin} → ${route.destination}, ${route.path.length} points`);
+      console.log(`[Harbor Map] Route drawn: ${portA} <> ${portB}, ${route.path.length} points`);
     } else {
-      console.warn('[Harbor Map] No active route available for vessel');
-
-      // Clear all markers before rendering
-      vesselClusterGroup.clearLayers();
-      portLocationClusterGroup.clearLayers();
-
-      renderVessels(vesselsToRender);
-      renderPorts(currentPorts);
+      // No enroute vessel - just zoom to ports without drawing route
       clearRoute();
+      console.log(`[Harbor Map] No enroute vessel for route path, showing ports: ${portA} <> ${portB}`);
     }
 
-    // Show route vessels panel
-    showRouteVesselsPanel(currentRouteFilter, vesselsToRender);
+    // Show route vessels panel with display name
+    showRouteVesselsPanel(portPairGroup.displayName, vesselsToRender);
   } else {
     // No route selected - show all vessels and ports
     renderVessels(vesselsToRender);
@@ -2988,4 +3057,44 @@ async function showRouteVesselsPanel(routeName, vessels) {
 async function hideRouteVesselsPanel() {
   const { hideRoutePanel } = await import('./route-vessels-panel.js');
   hideRoutePanel();
+}
+
+/**
+ * Highlights specific ports on the map (for route planner)
+ * Shows only the specified ports, hiding all others
+ *
+ * @param {Array<Object>} ports - Array of port objects to highlight
+ * @param {number} vesselId - ID of the vessel for route planning
+ * @returns {void}
+ */
+export function highlightPorts(ports, vesselId) {
+  if (!ports || ports.length === 0) {
+    console.warn('[Harbor Map] No ports to highlight');
+    return;
+  }
+
+  console.log(`[Harbor Map] Highlighting ${ports.length} ports for vessel ${vesselId}`);
+
+  // Clear existing port markers
+  portLocationClusterGroup.clearLayers();
+
+  // Find matching ports in rawPorts (to get full port data)
+  const portCodes = ports.map(p => p.code || p);
+  const fullPorts = rawPorts.filter(p => portCodes.includes(p.code));
+
+  // Render only the highlighted ports
+  renderPorts(fullPorts);
+}
+
+/**
+ * Resets port display to show all ports (called when route planner closes)
+ *
+ * @returns {void}
+ */
+export function resetPortDisplay() {
+  console.log('[Harbor Map] Resetting port display');
+
+  // Clear and re-render all ports
+  portLocationClusterGroup.clearLayers();
+  renderPorts(currentPorts);
 }

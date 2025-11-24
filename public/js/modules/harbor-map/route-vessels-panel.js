@@ -7,7 +7,7 @@
  */
 
 import { getMap, selectVessel } from './map-controller.js';
-import { isMobileDevice } from '../utils.js';
+import { isMobileDevice, escapeHtml } from '../utils.js';
 
 /**
  * Shows the route vessels panel with a list of vessels
@@ -46,7 +46,7 @@ export function showRoutePanel(routeName, vessels) {
     ? vessels.map(vessel => `
         <div class="route-vessel-item" data-vessel-id="${vessel.id}" onclick="window.harborMap.selectRouteVessel(${vessel.id})">
           <div class="route-vessel-header">
-            <span class="route-vessel-name">${vessel.name}</span>
+            <span class="route-vessel-name">${escapeHtml(vessel.name)}</span>
             <span class="route-vessel-status status-${vessel.status}">${vessel.status}</span>
           </div>
           <div class="route-vessel-details">

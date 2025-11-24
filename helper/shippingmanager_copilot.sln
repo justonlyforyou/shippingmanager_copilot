@@ -1,0 +1,36 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "helper", "helper", "{6E3B80E4-E889-6BA4-2A7C-AE44FC211B39}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BrowserLogin", "BrowserLogin\BrowserLogin.csproj", "{668F1CCE-A27F-05FB-60AA-540B83588CC0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShippingManagerCoPilot.Installer", "installer\ShippingManagerCoPilot.Installer.csproj", "{BECA3E10-2B10-A05B-7C1F-A53CE342A7EF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{668F1CCE-A27F-05FB-60AA-540B83588CC0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{668F1CCE-A27F-05FB-60AA-540B83588CC0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{668F1CCE-A27F-05FB-60AA-540B83588CC0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{668F1CCE-A27F-05FB-60AA-540B83588CC0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{BECA3E10-2B10-A05B-7C1F-A53CE342A7EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BECA3E10-2B10-A05B-7C1F-A53CE342A7EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BECA3E10-2B10-A05B-7C1F-A53CE342A7EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BECA3E10-2B10-A05B-7C1F-A53CE342A7EF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{668F1CCE-A27F-05FB-60AA-540B83588CC0} = {6E3B80E4-E889-6BA4-2A7C-AE44FC211B39}
+		{BECA3E10-2B10-A05B-7C1F-A53CE342A7EF} = {6E3B80E4-E889-6BA4-2A7C-AE44FC211B39}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {524464BB-F68C-4256-B8F1-70576FB67CF7}
+	EndGlobalSection
+EndGlobal

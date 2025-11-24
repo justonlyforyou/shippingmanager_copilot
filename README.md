@@ -17,7 +17,7 @@ A comprehensive "Addon" for the beloved game [Shipping Manager](https://shipping
 
 ...and much more!
 
-Join the discord community [SM-Coplit](https://discord.gg/rw4yKxp7Mv)
+[Discord Community](https://discord.gg/rw4yKxp7Mv)!
 
 ---
 
@@ -31,12 +31,15 @@ Join the discord community [SM-Coplit](https://discord.gg/rw4yKxp7Mv)
   - [Fuel Management](#fuel-management)
   - [CO2 Management](#co2-management)
   - [Vessel Management](#vessel-management)
+  - [Vessel Appearance Editor](#vessel-appearance-editor)
+  - [Depart Manager](#depart-manager)
   - [Bulk Repair](#bulk-repair)
   - [Marketing Campaigns](#marketing-campaigns)
   - [Vessel Purchase Catalog](#vessel-purchase-catalog)
   - [Bulk Vessel Purchasing](#bulk-vessel-purchasing)
   - [Vessel Selling](#vessel-selling)
   - [Harbor Map](#harbor-map)
+  - [Route Planner](#route-planner)
   - [Logbook](#logbook)
   - [Alliance Cooperation](#alliance-cooperation)
   - [Hijacking/Piracy Management](#hijackingpiracy-management)
@@ -101,32 +104,22 @@ This **comprehensive standalone web interface** connects directly to the Shippin
 
 Here are the first available features. I'm sure I forgot a few, but you're welcome to explore!
 
-### Alliance Chat
-- **Price Alert**
-- **Member Mentions**
-- **Multi-line Support** (Use Shift+Enter for line breaks)
+### Chat
+- **Advanced Alliance Chat** Features multi-line support, member mentions, and integrated price forecast.
+- **Private Messaging System** Enables direct 1-on-1 conversations with a dedicated inbox and unread message indicators.
 
-### Private Messaging
-- **Private Conversations**: Send and receive private messages to/from other players
-- **Message Inbox**: View all private conversations with unread count badge
-
-### Fuel Management
-- **Current Fuel capacity display**
-- **One-click max fuel purchase** with detailed confirmation dialog
-- **Price per ton display** (colorized like the game)
-
-### CO2 Management
-- **Current CO2 quota and capacity display**
-- **One-click max CO2 purchase** with detailed confirmation dialog
-- **Price per ton display** (colorized like the game)
+### Fuel & CO² Management
+- **Fuel Management:** Displays current capacity and color-coded prices, featuring a one-click option to purchase max fuel with a confirmation dialog.
+- **CO2 Management:** Shows current quota and color-coded prices, featuring a one-click option to purchase max CO2 with a confirmation dialog.
 
 ### Vessel Management
-- **Separate badge for vessels ready to depart & vessels at anchor**
-- **Pending Vessels Badge**: Track vessels under construction with countdown timers
-- **Pending Vessels Filter**: View all vessels being built with completion times
-- **One-click "Depart All"** shows fuel/CO2 consumption and earnings per departure
-  - **Important**: We check the demand per port before sending - vessels are only sent if demand exists at the destination port
-  - **Configurable vessel utilization**: You can set how high the cargo load must be before a vessel will be sent
+- **Smart Vessel Management:** Tracks fleet status and construction timers, featuring a "Depart All" tool that calculates costs and explicitly validates destination demand and configurable cargo utilization before dispatching.
+- **Vessel Appearance Editor:** Enables complete visual customization via secure custom image uploads or detailed SVG color grading (hull, deck, containers), including real-time previews and vessel renaming.
+
+### Depart Manager
+
+- **Fleet Dashboard & Bulk Operations:** Organizes vessels into detailed status tabs (Port, En Route, Maintenance) and provides checkboxes for selective bulk departures and mass mooring management.
+- **Map Integration & UI:** Features a fully draggable panel with tools to instantly locate vessels on the map or filter views by route.
 
 ### Bulk Repair
 - **Automatic detection** of vessels with high wear
@@ -142,232 +135,44 @@ Here are the first available features. I'm sure I forgot a few, but you're welco
 - **Badge shows number** of available campaigns
 
 ### Vessel Purchase Catalog
-- **Browse all available vessels** for purchase
-- **Advanced Filter System** (currently being expanded):
-  - **Vessel Type**: Container/Tanker checkboxes
-  - **Price Range**: Min/Max price filter
-  - **Year Range**: Min/Max build year filter
-  - **Engine Types**: Multi-select engine type filter
-  - **Speed Range**: Min/Max speed filter (knots)
-  - **Service Interval**: Min/Max service interval filter
-  - **Fuel Factor**: Min/Max fuel efficiency filter
-  - **CO2 Factor**: Min/Max CO2 efficiency filter
-  - **Capacity Range**: Min/Max capacity filter (TEU for containers, BBL for tankers)
-  - **Special Filters**: Credits-only vessels, Vessels with perks
-- **Sorted by price** (cheapest first)
-- **Detailed vessel specifications**:
-  - Type, Year, Capacity, Speed, Range
-  - Engine type and power (e.g., "mih_x1 (60,000 kW)")
-  - Length, Fuel capacity
-  - Service interval, Current port
-  - **Efficiency Color Coding**: CO2 and Fuel factors with visual indicators
-    - Green: Factor < 1.0 (efficient, below standard consumption)
-    - Gray: Factor = 1.0 (standard efficiency)
-    - Orange: Factor > 1.0 (inefficient, above standard consumption)
-  - Special features (Gearless, Antifouling)
-  - Width (if applicable), Perks (if available)
-- **Quantity selection** (1-99 vessels per purchase)
-- **Individual vessel purchase** with confirmation
-- **Select multiple vessels** for bulk purchase
-- **Comprehensive purchase confirmation dialogs**
-
-### Bulk Vessel Purchasing
-- **Shopping cart system** with "Add to Cart" button for each vessel
-- **Cart button** shows total vessel count in cart
-- **Shopping cart dialog** shows:
-  - All cart items with quantity controls (+/- buttons)
-  - Remove button for each item
-  - Total items and total cost
-  - Available cash and affordability status
-  - Checkout button to purchase all items
-- **Automatic stop** on vessel limit or insufficient funds
-
-### Vessel Selling
-
-- **Sell individual vessels** from your fleet
-- **Bulk vessel selling** with checkbox-based multi-selection
-- **Shopping cart system** for vessel sales:
-  - Summary-first layout (Total Items, Total Revenue)
-  - Cart items show original price (gray) and sell price (green)
-  - Quantity controls (+/- buttons) for each vessel type
-  - Remove individual items from cart
-- **Direct checkbox controls** for individual vessel selection
-- **Detailed sale confirmation** showing original price and sell price
-- **Filter by vessel type**: Container/Tanker
-- **Mobile-optimized** action buttons with emoji icons (🏁 Depart, 💵 Sell)
-- **API-powered pricing** - real sell prices from game API (no fantasy formulas)
+- **Bulk Purchasing Cart:** Features a full shopping cart system with quantity controls, total cost analysis against available cash, and automatic safeguards for vessel limits or insufficient funds.
+- **Advanced Selling System:** Supports individual and bulk sales via a summary-first cart that displays original vs. API-verified real-time prices, optimized with mobile-friendly controls.
 
 ### Harbor Map
 
-Interactive world map visualization of your fleet, ports, and routes:
+- **Interactive World Map:** Features live fleet tracking, dynamic route lines, and switchable themes (Satellite/Dark), enhanced with real-time weather overlays and POIs like shipwrecks.
+- **Smart Analytics Panels:** Draggable detail views provide deep data on vessels and ports, including real-time demand analysis, route profitability calculations, and direct management actions.
 
-- **Live Fleet Tracking**:
-  - Real-time vessel positions on interactive Leaflet.js map
-  - Color-coded vessel markers (green: in port, blue: at sea, orange: anchored)
-  - Vessel tooltips with name, type, and status
-  - Click vessels to open detailed info panel
-- **Port Visualization**:
-  - All game ports displayed with markers
-  - Port tooltips showing port name and code
-  - Click ports to view demand information
-  - Filter: Show all ports or only your active ports
-- **Route Display**:
-  - Active routes drawn as lines on map
-  - Color-coded by vessel status
-  - Hover routes to see vessel details
-  - Route filter with LocalStorage persistence (remembers your last selection)
-- **Points of Interest (POI)**:
-  - **Maritime Museums**: Toggle display of maritime museums worldwide (🏛️ button)
-  - **Historic Shipwrecks**: Toggle display of documented shipwreck locations (⚓ button)
-  - Real-time POI data from OpenStreetMap via cached API
-  - Detailed tooltips with names, coordinates, and additional information
-  - POI visibility persists across sessions
-  - Automatic cache refresh every 24 hours
-- **Map Themes**:
-  - Standard light theme (default map view)
-  - Dark mode with optimized controls and tooltips
-  - **Satellite imagery** with transparent controls and adapted UI
-  - All themes with optimized control styling and readability
-- **Weather Overlays**:
-  - **Rain radar overlay**: Real-time precipitation visualization
-  - **Temperature overlay**: Global temperature map with color-coded zones
-  - **Wind overlay**: Wind speed and direction visualization
-  - Toggle controls for each overlay layer
-  - Data from OpenWeatherMap
-- **Vessel Detail Panel** (draggable):
-  - Complete vessel specifications (capacity, range, speed, fuel, CO2)
-  - Current position and status
-  - Loaded cargo details with color-coded capacity
-  - Maintenance hours and service info
-  - Direct actions: Depart vessel, Sell vessel, View history
-  - Mobile-optimized with emoji action buttons
-- **Port Detail Panel** (draggable):
-  - Demand information for all cargo types
-  - View all vessels on this route
-  - Route profitability calculations
-- **Route Calculation**:
-  - Automatic profit calculation per route
-  - Fuel and CO2 consumption estimates
-  - Duration calculation
-  - Demand-based route optimization
-- **Map Controls**:
-  - Horizontal zoom controls with individually rounded buttons
-  - Weather radar toggle with visual strike-through indicator when disabled
-  - Theme switching (Standard/Dark/Satellite)
-  - POI layer toggles (Museums/Wrecks)
-  - Mobile swipe support
-  - Zoom level display (bottom-left corner)
-- **Panel Management**:
-  - Drag panels to reposition
-  - Close panels independently
-  - Automatic layout on small screens
+### Route Planner
+
+- **Interactive Route Planner:** Visually selects destinations using smart filters and demand indicators, featuring real-time map previews of the route path.
+- **Precision Calculation & Configuration:** Computes exact game formulas for costs, fuel, and piracy risk, allowing dynamic optimization via speed and guard sliders in a draggable panel.
 
 ### Logbook
 
-Comprehensive event tracking and history management:
+- **Detailed Event Tracking:** Logs comprehensive alliance activities (cooperation, member changes) and vessel operations, capturing specific details like route earnings, maintenance, and hijacking incidents.
+- **History & Analysis:** Features a searchable chronological timeline with CSV/JSON export options, real-time notifications, and statistical insights into event trends.
 
-- **Alliance Events Tracking**:
-  - Member join/leave events
-  - Cooperation vessel sending/receiving
-  - Alliance chat milestones
-  - Fuel and CO2 cooperation activities
-- **Vessel Events Tracking**:
-  - Route completions with earnings
-  - Vessel purchases and sales
-  - Repairs and maintenance
-  - Hijacking incidents
-  - Vessel departures
-- **Event History**:
-  - Chronological event timeline
-  - Detailed event information (timestamp, type, details)
-  - Filter by event type
-  - Search functionality
-  - Export to CSV/JSON
-- **Event Notifications**:
-  - Real-time event notifications
-  - Event badges in UI
-  - Customizable notification settings
-- **Statistics**:
-  - Total events by type
-  - Event trends over time
-  - Most active vessels/routes
-
-### Alliance Cooperation
-
-- **Coop Management Interface**:
-  - Color-coded status: Green when all sent (0 available), Red when vessels need sending
-  - Button badge shows available count only when > 0
-- **Member List**:
-  - Shows only enabled alliance members
-  - Sorted by total vessel count (highest first)
-  - Displays user ID, total vessels, and fuel amount
-- **Coop Actions**:
-  - One-click "Send max" button per member
-  - Fully functional coop vessel sending
+### Alliance Center
+- **Alliance Statistics Dashboard:** Features a modern, real-time updating layout displaying league info, interactive progress bars, and detailed seasonal/historical metrics via WebSocket.
+- **Coop Management System:** Streamlines alliance interactions with a sorted member list and color-coded status indicators, featuring a one-click "Send max" button for efficient vessel dispatch.
 
 ### Hijacking/Piracy Management
 
-- **Ransom Negotiation**:
-  - View all active hijacking cases
-  - **Ransom Reduction Exploit** - Captain Blackbeard will handle this for you :)
+- **Interactive Ransom Management:** Manages active hijackings with multi-tier negotiation offers (25%/50%/75%), visual history tracking, and direct payment integration for immediate vessel release.
+- **Smart Alerts & Automation:** Features real-time desktop notifications for incidents and includes "Captain Blackbeard AutoPilot" to automatically negotiate and resolve cases.
 
 ### Forecast Calendar
 
-Plan your fuel and CO2 purchases strategically with detailed price forecasts:
+Plan your fuel and CO2 purchases strategically with detailed price forecasts!
 
-- **Price Forecast Visualization**:
-  - Calendar-based display of upcoming fuel and CO2 prices
-  - 30-minute interval precision for optimal buying windows
-  - Color-coded pricing: Green for low prices, Yellow for medium, Red for high
-  - Multi-day forecast view to plan ahead
-  - Automatic timezone conversion
-  - **Interactive calendar navigation** (previous/next day - swipe like a book)
-  - Detailed hourly breakdown with exact timestamps
-  - Identify the cheapest times to buy fuel and CO2
-  - Compare prices across different days
+- **Strategic Price Forecasting:** Visualizes future fuel and CO2 prices on a detailed, color-coded calendar with 30-minute precision to pinpoint the cheapest buying windows.
+- **Interactive Multi-Day Planning:** Features intuitive swipe navigation and automatic timezone conversion to easily compare prices and schedule purchases days in advance.
 
 ### Company Profile
 
-View and track your company achievements and statistics:
-
-- **Company Overview**:
-  - Company name and basic information
-  - Achievement progress tracking
-  - Company statistics and milestones
-- **Achievement Tracking**:
-  - Visual achievement table with progress indicators
-  - Achievement types (e.g., revenue, vessels, routes)
-  - Progress bars showing completion status
-  - Completion dates for unlocked achievements
-  - Organized table layout with proper column alignment
-- **Statistics Dashboard**:
-  - Company performance metrics
-  - Historical data and trends
-  - Visual progress tracking
-
-### Header Data Display
-
-Real-time monitoring of critical game metrics in the UI header:
-
-- **Balance Indicators**:
-  - Cash balance (auto-updates every 30s)
-  - Premium points balance (live updates)
-  - CEO level badge with golden star
-- **Stock Market** (only visible if IPO active):
-  - Current stock value
-  - Trend indicator: up (green) for rising, down (red) for falling
-- **Fleet Capacity**:
-  - Anchor slots display (e.g., "7/101")
-  - Shows available vessel capacity = max anchor points - total vessels
-  - Helps plan purchases without hitting limits
-- **Vessel Status Badges**:
-  - Vessels ready to depart (in port)
-  - Vessels at anchor (badge indicator)
-  - Pending vessels under construction (with countdown timers)
-- **Resource Levels**:
-  - Current fuel and capacity display
-  - Current CO2 quota and capacity display
-  - Color-coded pricing
+- **Visual Achievement Tracking:** Displays progress via organized tables and bars, tracking specific milestones (revenue, routes) with completion dates.
+- **Company Analytics Dashboard:** Provides a comprehensive overview of performance metrics, historical data, and long-term trends.
 
 ### Notifications System
 
@@ -383,36 +188,9 @@ Comprehensive notification system for critical events and automation feedback wi
 
 ### ChatBot
 
-Automated assistant for alliance communication and scheduled announcements:
-
-**Alliance Commands**:
-- `!forecast` - Get tomorrow's fuel/CO2 price forecast
-- `!forecast <day>` - Get forecast for specific day (1-31)
-- `!forecast <day> <timezone>` - Get forecast with timezone conversion
-- `!help` - Display available commands and usage
-- `!welcome <userID>` - Send welcome message to new alliance members (Admin only: CEO/COO/Management/Interim CEO)
-- Customizable command prefix (default: !)
-- Configurable cooldown to prevent spam (default: 30 seconds)
-- Commands work in alliance chat and/or private messages (configurable per command)
-- **Smart Validation**: Bot only responds to exact command formats (ignores invalid arguments or random text)
-- **Role-Based Access Control**: Admin commands restricted to CEO, COO, Management, and Interim CEO roles
-
-**Scheduled Messages**:
-- Daily forecast announcements at configured time (UTC)
-- Automatic timezone detection (CEST/CET based on season)
-- Sends forecast for the next day to alliance chat
-- Fully configurable schedule via settings
-
-**Private Message Auto-Reply**:
-- Responds to commands sent via private messages
-- Same commands as alliance chat (configurable per command)
-- Separate enable/disable toggle for DM functionality
-
-**Custom Commands**:
-- Create your own bot commands with custom responses
-- Define response destination (alliance chat, DM, or both)
-- Admin-only commands for restricted access
-- Unlimited custom commands supported
+* **Advanced Command System:** Features built-in commands (e.g., `!forecast`, `!welcome`) with smart syntax validation and strict role-based access control for admins (CEO, COO, Management).
+* **Automated Scheduling:** Handles daily forecast announcements with automatic timezone detection (CEST/CET) and fully configurable execution times.
+* **Customization & Interaction:** Supports unlimited custom commands, configurable prefixes, anti-spam cooldowns, and operates across both Alliance Chat and Private Messages.
 
 ### Auto-Rebuy Fuel by Barrel Boss
 
@@ -510,7 +288,7 @@ Automated assistant for alliance communication and scheduled announcements:
 
 ### Windows End-Users (Using .exe Installer)
 - Modern web browser (Chrome/Chromium recommended)
-- Active Shipping Manager account on Steam (alliance membership optional)
+- Active Shipping Manager account (via Steam, Browser, or Mobile)
 
 That's it! The installer includes everything else you need.
 
@@ -635,8 +413,6 @@ This software is free to use and modify, but **may not be sold commercially**. S
 ***
 
 ## Screenshots
-
-![Application Demo](screenshots/demo.gif)
 
 ### Startup & Overview
 

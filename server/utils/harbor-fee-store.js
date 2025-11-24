@@ -10,8 +10,13 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
+const { getAppDataDir } = require('../config');
 
-const HARBOR_FEES_DIR = path.join(__dirname, '../../userdata/harbor-fees');
+// Use AppData when packaged as exe
+const isPkg = !!process.pkg;
+const HARBOR_FEES_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'harbor-fees')
+  : path.join(__dirname, '../../userdata/harbor-fees');
 const MIGRATION_MARKER_FILE = path.join(HARBOR_FEES_DIR, '.migration-completed');
 
 /**

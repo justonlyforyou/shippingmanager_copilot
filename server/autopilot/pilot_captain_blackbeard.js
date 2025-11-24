@@ -2,7 +2,7 @@
  * @fileoverview Captain Blackbeard - Auto-Negotiate Hijacking Pilot
  *
  * Automatically negotiates hijacked vessels.
- * Offers 1% repeatedly until price is below $20,000, then accepts.
+ * Offers 25% and accepts after 2 pirate counter-offers.
  *
  * @module server/autopilot/pilot_captain_blackbeard
  */

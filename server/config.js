@@ -281,6 +281,17 @@ const config = {
   DEBUG_MODE: startupSettings.debugMode
 };
 
+/**
+ * Get the internal base URL for server-to-server API calls.
+ * Uses localhost if HOST is 0.0.0.0 (all interfaces) or 127.0.0.1,
+ * otherwise uses the configured HOST.
+ * @returns {string} Base URL like https://localhost:12345 or https://192.168.1.100:12345
+ */
+function getInternalBaseUrl() {
+  const host = config.HOST === '0.0.0.0' || config.HOST === '127.0.0.1' ? 'localhost' : config.HOST;
+  return `https://${host}:${config.PORT}`;
+}
+
 module.exports = config;
 module.exports.setSessionCookie = setSessionCookie;
 module.exports.getSessionCookie = getSessionCookie;
@@ -290,3 +301,4 @@ module.exports.getAppDataDir = getAppDataDir;
 module.exports.getLocalAppDataDir = getLocalAppDataDir;
 module.exports.getLogDir = getLogDir;
 module.exports.getSettingsDir = getSettingsDir;
+module.exports.getInternalBaseUrl = getInternalBaseUrl;

@@ -4,5 +4,8 @@
   },
   "build-guide": {
     "title": "Build Guide"
+  },
+  "discovered_formulars": {
+    "title": "Discovered Game Formulas"
   }
 }

@@ -52,6 +52,13 @@ export function getCachedOverview() {
 }
 
 /**
+ * Clears the cached overview data to force a fresh fetch
+ */
+export function clearOverviewCache() {
+  cachedOverviewData = null;
+}
+
+/**
  * Fetches harbor map overview (vessels and ports)
  * Returns all vessels with positions and filtered ports
  *

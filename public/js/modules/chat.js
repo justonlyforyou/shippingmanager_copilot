@@ -280,6 +280,14 @@ export async function displayMessages(messagesToDisplay, chatFeed) {
     return;
   }
 
+  // Check for member_joined events and reload alliance members for @-autocomplete
+  const hasMemberJoined = messagesToDisplay.some(msg =>
+    msg.type === 'feed' && msg.feedType === 'member_joined'
+  );
+  if (hasMemberJoined) {
+    loadAllianceMembers();
+  }
+
   const messageHtmlPromises = messagesToDisplay.map(async msg => {
     if (msg.type === 'chat') {
       const userId = parseInt(msg.user_id);
@@ -368,7 +376,7 @@ export async function sendMessage(messageInput, charCount, sendMessageBtn, chatF
 
     setTimeout(() => loadMessages(chatFeed), 500);
   } catch (error) {
-    showSideNotification(`Error: ${error.message}`, 'error');
+    showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');
   } finally {
     sendMessageBtn.disabled = false;
     messageInput.disabled = false;
@@ -828,6 +836,10 @@ export function initWebSocket() {
         // Server-controlled lock state update (single source of truth)
         // Updates client's READ-ONLY lock state from server
         updateLockStateFromServer(data);
+      } else if (type === 'server_startup') {
+        // Server restarted - reload page
+        console.log('[WebSocket] Server startup detected - reloading...');
+        setTimeout(() => window.location.reload(true), 500);
       }
     };
 
@@ -2158,9 +2170,7 @@ function handleVesselCountUpdate(data) {
   updateButtonTooltip('anchor', anchorTooltip);
   updateButtonTooltip('buyVessels', pending > 0 ? `Vessels in delivery: ${pending}` : 'Buy vessels');
 
-  // Update depart button state and tooltip AFTER badges are updated
-  const departDisabled = readyToDepart === 0;
-  updateButtonState('departAll', departDisabled);
+  // Update depart button tooltip (button always enabled - depart manager handles empty state)
   const departTooltip = readyToDepart > 0
     ? `Depart all ${readyToDepart} vessel${readyToDepart === 1 ? '' : 's'} from harbor`
     : 'No vessels ready to depart';
@@ -3050,7 +3060,13 @@ function handleEventDataUpdate(eventData) {
   updateEventData(eventData);
 
   // Update forecast calendar with full event data
-  if (eventData && eventData.discount_type && eventData.discount_percentage) {
+  // ONLY show discount badge for fuel/co2 events (not speed events, etc.)
+  const isFuelOrCO2Event = eventData &&
+    eventData.discount_type &&
+    eventData.discount_percentage &&
+    (eventData.discount_type === 'fuel' || eventData.discount_type === 'co2');
+
+  if (isFuelOrCO2Event) {
     const eventDiscount = {
       type: eventData.discount_type,
       percentage: eventData.discount_percentage

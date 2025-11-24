@@ -15,13 +15,13 @@
 export function filterVessels(vessels, filterType) {
   if (!vessels || vessels.length === 0) return [];
 
-  console.log(`[Filter] Filtering ${vessels.length} vessels with filter: ${filterType}`);
+  console.log('[Filter] Filtering ' + vessels.length + ' vessels with filter: ' + filterType);
 
   switch (filterType) {
     case 'all_vessels':
       return vessels;
 
-    case 'vessels_arrive_soon':
+    case 'vessels_arrive_soon': {
       // Vessels arriving in less than 10 minutes
       const now = Math.floor(Date.now() / 1000); // Current Unix timestamp
       const arrivingSoon = vessels.filter(v => {
@@ -33,54 +33,62 @@ export function filterVessels(vessels, filterType) {
         const matches = etaMinutes > 0 && etaMinutes < 10;
 
         if (v.status === 'enroute' && etaMinutes < 60) {
-          console.log(`[Filter] Vessel ${v.id} (${v.name}) - ETA: ${etaMinutes} min, Matches: ${matches}`);
+          console.log('[Filter] Vessel ' + v.id + ' (' + v.name + ') - ETA: ' + etaMinutes + ' min, Matches: ' + matches);
         }
         return matches;
       });
-      console.log(`[Filter] Found ${arrivingSoon.length} vessels arriving in <10 min`);
+      console.log('[Filter] Found ' + arrivingSoon.length + ' vessels arriving in <10 min');
       return arrivingSoon;
+    }
 
-    case 'enroute_vessels':
+    case 'enroute_vessels': {
       // Vessels that are currently enroute (have active routes)
       const enrouteVessels = vessels.filter(v => v.status === 'enroute');
-      console.log(`[Filter] Found ${enrouteVessels.length} vessels enroute`);
+      console.log('[Filter] Found ' + enrouteVessels.length + ' vessels enroute');
       return enrouteVessels;
+    }
 
-    case 'arrived_vessels':
+    case 'arrived_vessels': {
       // Vessels that have arrived at port (status: 'port') and are ready to depart (not parked)
       const arrivedVessels = vessels.filter(v => v.status === 'port' && !v.is_parked);
-      console.log(`[Filter] Found ${arrivedVessels.length} arrived vessels (excluding parked)`);
+      console.log('[Filter] Found ' + arrivedVessels.length + ' arrived vessels (excluding parked)');
       return arrivedVessels;
+    }
 
-    case 'anchored_vessels':
+    case 'anchored_vessels': {
       // Vessels that are anchored (status: 'anchor')
       const anchoredVessels = vessels.filter(v => v.status === 'anchor');
-      console.log(`[Filter] Found ${anchoredVessels.length} anchored vessels`);
+      console.log('[Filter] Found ' + anchoredVessels.length + ' anchored vessels');
       return anchoredVessels;
+    }
 
-    case 'vessels_in_drydock':
+    case 'vessels_in_drydock': {
       // Vessels in drydock/maintenance (status: 'maintenance')
       const drydockVessels = vessels.filter(v => v.status === 'maintenance');
-      console.log(`[Filter] Found ${drydockVessels.length} vessels in drydock`);
+      console.log('[Filter] Found ' + drydockVessels.length + ' vessels in drydock');
       return drydockVessels;
+    }
 
-    case 'vessels_in_delivery':
+    case 'vessels_in_delivery': {
       // Vessels being delivered (status: 'delivery' or 'pending')
       const deliveryVessels = vessels.filter(v => v.status === 'delivery' || v.status === 'pending');
-      console.log(`[Filter] Found ${deliveryVessels.length} vessels in delivery (delivery + pending)`);
+      console.log('[Filter] Found ' + deliveryVessels.length + ' vessels in delivery (delivery + pending)');
       return deliveryVessels;
+    }
 
-    case 'tanker_only':
+    case 'tanker_only': {
       const tankers = vessels.filter(v => v.capacity_type === 'tanker');
-      console.log(`[Filter] Found ${tankers.length} tanker vessels`);
+      console.log('[Filter] Found ' + tankers.length + ' tanker vessels');
       return tankers;
+    }
 
-    case 'container_only':
+    case 'container_only': {
       const containers = vessels.filter(v => v.capacity_type === 'container');
-      console.log(`[Filter] Found ${containers.length} container vessels`);
+      console.log('[Filter] Found ' + containers.length + ' container vessels');
       return containers;
+    }
 
-    case 'low_utilization':
+    case 'low_utilization': {
       // Vessels with utilization below settings threshold (default 30%)
       const settings = window.getSettings ? window.getSettings() : {};
       const minUtilization = settings.minCargoUtilization !== null && settings.minCargoUtilization !== undefined
@@ -89,16 +97,17 @@ export function filterVessels(vessels, filterType) {
 
       const lowUtil = vessels.filter(v => {
         if (!v.capacity || !v.capacity_max) {
-          console.log(`[Filter] Vessel ${v.id} has no capacity data`);
+          console.log('[Filter] Vessel ' + v.id + ' has no capacity data');
           return false;
         }
         const utilization = calculateVesselUtilization(v);
         const matches = utilization < minUtilization;
-        console.log(`[Filter] Vessel ${v.id} (${v.name}) - Type: ${v.capacity_type}, Utilization: ${utilization.toFixed(1)}%, Threshold: ${minUtilization}%, Matches: ${matches}`);
+        console.log('[Filter] Vessel ' + v.id + ' (' + v.name + ') - Type: ' + v.capacity_type + ', Utilization: ' + utilization.toFixed(1) + '%, Threshold: ' + minUtilization + '%, Matches: ' + matches);
         return matches;
       });
-      console.log(`[Filter] Found ${lowUtil.length} vessels with utilization <${minUtilization}%`);
+      console.log('[Filter] Found ' + lowUtil.length + ' vessels with utilization <' + minUtilization + '%');
       return lowUtil;
+    }
 
     default:
       return vessels;
@@ -124,33 +133,37 @@ export function filterPorts(ports, vessels, filterType) {
     case 'all_ports':
       return ports;
 
-    case 'my_ports_with_arrived_vessels':
+    case 'my_ports_with_arrived_vessels': {
       // Only assigned ports with vessels in 'port' status
       const portsWithArrivedVessels = new Set(
         vessels.filter(v => v.status === 'port' && v.current_port_code).map(v => v.current_port_code)
       );
       return ports.filter(p => p.isAssigned && portsWithArrivedVessels.has(p.code));
+    }
 
-    case 'my_ports_with_anchored_vessels':
+    case 'my_ports_with_anchored_vessels': {
       // Only assigned ports with vessels in 'anchor' status
       const portsWithAnchoredVessels = new Set(
         vessels.filter(v => v.status === 'anchor' && v.current_port_code).map(v => v.current_port_code)
       );
       return ports.filter(p => p.isAssigned && portsWithAnchoredVessels.has(p.code));
+    }
 
-    case 'my_ports_with_vessels_in_maint':
+    case 'my_ports_with_vessels_in_maint': {
       // Only assigned ports with vessels in 'maintenance' status
       const portsWithMaintenanceVessels = new Set(
         vessels.filter(v => v.status === 'maintenance' && v.current_port_code).map(v => v.current_port_code)
       );
       return ports.filter(p => p.isAssigned && portsWithMaintenanceVessels.has(p.code));
+    }
 
-    case 'my_ports_with_pending_vessels':
+    case 'my_ports_with_pending_vessels': {
       // Only assigned ports with vessels in 'pending' or 'delivery' status
       const portsWithPendingVessels = new Set(
         vessels.filter(v => (v.status === 'pending' || v.status === 'delivery') && v.current_port_code).map(v => v.current_port_code)
       );
       return ports.filter(p => p.isAssigned && portsWithPendingVessels.has(p.code));
+    }
 
     case 'my_ports_cargo_demand_very_low':
       // Cargo demand <= 10,000 TEU
@@ -169,7 +182,7 @@ export function filterPorts(ports, vessels, filterType) {
           return false;
         }
         const totalCargo = (p.demand.container.dry || 0) + (p.demand.container.refrigerated || 0);
-        console.log(`[Filter] Port ${p.code} cargo demand: ${totalCargo} TEU`);
+        console.log('[Filter] Port ' + p.code + ' cargo demand: ' + totalCargo + ' TEU');
         return totalCargo > 0 && totalCargo <= 50000;
       });
 
@@ -190,7 +203,7 @@ export function filterPorts(ports, vessels, filterType) {
         const totalOil = (p.demand.tanker.fuel || 0) + (p.demand.tanker.crude_oil || 0);
         const matches = totalOil > 0 && totalOil <= 50000;
         if (p.isAssigned && p.demand.tanker) {
-          console.log(`[Filter] Port ${p.code} oil demand: ${totalOil} bbl, Matches: ${matches}`);
+          console.log('[Filter] Port ' + p.code + ' oil demand: ' + totalOil + ' bbl, Matches: ' + matches);
         }
         return matches;
       });
@@ -253,7 +266,7 @@ export function getVesselFilterOptions() {
     { value: 'vessels_in_delivery', label: 'Vessels in Delivery' },
     { value: 'tanker_only', label: 'Tanker Only' },
     { value: 'container_only', label: 'Container Only' },
-    { value: 'low_utilization', label: `Utilization < ${minUtilization}%` }
+    { value: 'low_utilization', label: 'Utilization < ' + minUtilization + '%' }
   ];
 }
 
@@ -266,10 +279,52 @@ export function getPortFilterOptions() {
   return [
     { value: 'my_ports', label: 'My Ports' },
     { value: 'all_ports', label: 'All Ports' },
-    { value: 'my_ports_cargo_demand_very_low', label: 'Demand ≤ 10k TEU' },
-    { value: 'my_ports_cargo_demand_low', label: 'Demand ≤ 50k TEU' },
-    { value: 'my_ports_cargo_demand_medium', label: 'Demand ≤ 100k TEU' },
-    { value: 'my_ports_oil_demand_low', label: 'Demand ≤ 50k bbl' },
-    { value: 'my_ports_oil_demand_medium', label: 'Demand ≤ 100k bbl' }
+    { value: 'my_ports_cargo_demand_very_low', label: 'Demand <= 10k TEU' },
+    { value: 'my_ports_cargo_demand_low', label: 'Demand <= 50k TEU' },
+    { value: 'my_ports_cargo_demand_medium', label: 'Demand <= 100k TEU' },
+    { value: 'my_ports_oil_demand_low', label: 'Demand <= 50k bbl' },
+    { value: 'my_ports_oil_demand_medium', label: 'Demand <= 100k bbl' }
   ];
+}
+
+/**
+ * Filters vessels by port-pair (route)
+ * Returns only vessels that have the specified port-pair as their route
+ *
+ * @param {Array<Object>} vessels - All vessels
+ * @param {string} pairKey - Port-pair key like "hamburg<>new_york" (alphabetically sorted)
+ * @returns {Array<Object>} Filtered vessels on this route
+ */
+export function filterVesselsByPortPair(vessels, pairKey) {
+  if (!vessels || vessels.length === 0) return [];
+  if (!pairKey) return vessels;
+
+  const filtered = vessels.filter(v => {
+    if (!v.route_origin || !v.route_destination) return false;
+    const ports = [v.route_origin, v.route_destination].sort();
+    const vesselPairKey = ports[0] + '<>' + ports[1];
+    return vesselPairKey === pairKey;
+  });
+
+  console.log('[Filter] Filtered by port-pair ' + pairKey + ': ' + filtered.length + ' vessels');
+  return filtered;
+}
+
+/**
+ * Filters ports to only show ports involved in a specific port-pair route
+ *
+ * @param {Array<Object>} ports - All ports
+ * @param {string} pairKey - Port-pair key like "hamburg<>new_york"
+ * @returns {Array<Object>} Filtered ports (the two ports in the pair)
+ */
+export function filterPortsByPortPair(ports, pairKey) {
+  if (!ports || ports.length === 0) return [];
+  if (!pairKey) return ports;
+
+  const portCodes = pairKey.split('<>');
+  if (portCodes.length !== 2) return ports;
+
+  const filtered = ports.filter(p => portCodes.includes(p.code));
+  console.log('[Filter] Filtered ports by port-pair ' + pairKey + ': ' + filtered.length + ' ports');
+  return filtered;
 }

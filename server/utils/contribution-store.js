@@ -11,8 +11,13 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
+const { getAppDataDir } = require('../config');
 
-const CONTRIBUTIONS_DIR = path.join(__dirname, '../../userdata/contributions');
+// Use AppData when packaged as exe
+const isPkg = !!process.pkg;
+const CONTRIBUTIONS_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'contributions')
+  : path.join(__dirname, '../../userdata/contributions');
 
 /**
  * Ensures contributions directory exists

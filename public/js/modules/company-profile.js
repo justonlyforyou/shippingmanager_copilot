@@ -6,7 +6,7 @@
  * @module company-profile
  */
 
-import { showSideNotification, formatNumber } from './utils.js';
+import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
 
 let navigationHistory = [];
 let currentView = 'own'; // 'own', 'search', 'profile'
@@ -79,7 +79,8 @@ async function loadCompanyProfile(userId, isOwn = false) {
     // Render company data
     renderCompanyProfile(data, isOwn);
 
-    // Attach alliance link listeners
+    // Load alliance details asynchronously and attach click listeners
+    loadAllianceDetails();
     attachAllianceClickListener();
 
     // If own profile, also load staff data
@@ -193,6 +194,75 @@ function attachAllianceClickListener() {
       }
     });
   });
+}
+
+/**
+ * Normalizes a color string to hex format
+ * @param {string} color - Color string (hex with or without #)
+ * @returns {string} Normalized hex color with #
+ */
+function normalizeColor(color) {
+  if (!color) return '#FFFFFF';
+  return color.startsWith('#') ? color : `#${color}`;
+}
+
+/**
+ * Loads and displays alliance details in the company profile
+ */
+async function loadAllianceDetails() {
+  const container = document.getElementById('companyProfileAllianceRow');
+  if (!container) return;
+
+  const allianceId = container.dataset.allianceId;
+  const allianceName = container.dataset.allianceName;
+  if (!allianceId) return;
+
+  try {
+    const response = await fetch(window.apiUrl(`/api/alliance-info/${allianceId}`));
+    if (!response.ok) return;
+
+    const data = await response.json();
+    const alliance = data.alliance || data;
+
+    const primaryColor = normalizeColor(alliance.image_colors?.primary);
+    const secondaryColors = alliance.image_colors?.secondary || ['FFFFFF', 'FFFFFF'];
+    const gradientColor1 = normalizeColor(secondaryColors[0]);
+    const gradientColor2 = normalizeColor(secondaryColors[1] || secondaryColors[0]);
+    const gradient = `linear-gradient(${gradientColor1} 0%, ${gradientColor2} 100%)`;
+
+    const logoInitials = allianceName.substring(0, 2).toUpperCase();
+    const languageFlag = alliance.language ? alliance.language.substring(3, 5).toUpperCase() : '';
+
+    const { formatNumber } = await import('./utils.js');
+
+    container.innerHTML = `
+      <div class="league-alliance-row alliance-result-item" data-alliance-id="${allianceId}">
+        <div class="league-alliance-logo">
+          <div class="alliance-logo-wrapper" style="background: ${gradient};">
+            <img src="/api/alliance-logo/${alliance.image}?color=${encodeURIComponent(primaryColor)}" alt="${allianceName}" class="alliance-logo-svg" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+            <span class="alliance-logo-text" style="color: ${primaryColor}; display: none;">${logoInitials}</span>
+          </div>
+        </div>
+        <div class="league-alliance-info">
+          <div class="league-alliance-name clickable" data-alliance-id="${allianceId}">
+            ${allianceName}
+            ${languageFlag ? `<span class="league-language-flag">${languageFlag}</span>` : ''}
+          </div>
+          <div class="league-alliance-meta">
+            <span>Level ${alliance.benefit_level || 0}</span>
+            <span>${alliance.members || 0}/50</span>
+            <span>$${formatNumber(alliance.total_share_value || 0)}</span>
+            <span>League ${alliance.league_level || 0}</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Re-attach click listener
+    attachAllianceClickListener();
+  } catch (error) {
+    console.error('[Company Profile] Failed to load alliance details:', error);
+  }
 }
 
 /**
@@ -322,7 +392,7 @@ async function adjustSalary(staffType, action) {
   } catch (error) {
     console.error(`[Salary Adjust] Error ${action}ing salary:`, error);
     if (showSideNotification) {
-      showSideNotification(`Failed to adjust salary: ${error.message}`, 'error');
+      showSideNotification(`Failed to adjust salary: ${escapeHtml(error.message)}`, 'error');
     }
   }
 }
@@ -378,9 +448,9 @@ async function trainPerk(staffType, perkType) {
     // Update training points display
     const trainingPoints = result.user?.staff_training_points;
     if (trainingPoints !== undefined) {
-      const trainingPointsElement = document.querySelector('.company-profile-section-title span[style*="float: right"]');
-      if (trainingPointsElement && trainingPointsElement.textContent.includes('💪')) {
-        trainingPointsElement.textContent = `💪 ${trainingPoints}`;
+      const trainingPointsValue = document.querySelector('.staff-points-value');
+      if (trainingPointsValue) {
+        trainingPointsValue.textContent = trainingPoints;
       }
     }
 
@@ -402,17 +472,26 @@ async function trainPerk(staffType, perkType) {
         }
       }
 
-      // Disable button if max level reached or no more training points
-      if (perkInfo?.level >= perkInfo?.max_level || trainingPoints === 0) {
+      // Disable button if max level reached
+      if (perkInfo?.level >= perkInfo?.max_level) {
         perkButton.classList.add('disabled');
         perkButton.disabled = true;
       }
     }
 
+    // If no more training points, disable ALL training buttons
+    if (trainingPoints === 0) {
+      const allTrainingButtons = document.querySelectorAll('.training-level-btn:not(.disabled)');
+      allTrainingButtons.forEach(btn => {
+        btn.classList.add('disabled');
+        btn.disabled = true;
+      });
+    }
+
   } catch (error) {
     console.error('[Train Perk] Error training perk:', error);
     if (showSideNotification) {
-      showSideNotification(`Training failed: ${error.message}`, 'error');
+      showSideNotification(`Training failed: ${escapeHtml(error.message)}`, 'error');
     }
   }
 }
@@ -460,16 +539,20 @@ function renderCompanyProfile(responseData, isOwn) {
   const achievements = data.achievements || {};
   const user = responseData.user || {};
 
-  // Get company name, ID, and level for header
+  // Get company name, ID, level, and difficulty for header
   // For own profile: user contains YOUR data
-  // For other profiles: company contains THEIR data, user contains YOUR data (not theirs)
+  // For other profiles: company contains THEIR data, user contains YOUR data
   const companyName = isOwn ? (user.company_name || 'Unknown Company') : (company.company_name || 'Unknown Company');
-  const companyId = isOwn ? user.id : company.id;
+  const companyId = isOwn ? user.id : (company.id || currentUserId);
   const level = isOwn ? user.ceo_level : company.level;
+  const difficulty = isOwn ? user.difficulty : company.difficulty;
+  const companyType = isOwn ? user.company_type : company.company_type;
+  const madePurchase = isOwn ? user.made_purchase : company.made_purchase;
+  const isAdmin = isOwn ? user.is_admin : company.is_admin;
+  const isGuest = isOwn ? user.is_guest : company.is_guest;
+  const ipo = isOwn ? user.ipo : company.ipo;
 
-  // Get XP data for progress fill and tacho
-  // XP data is ONLY available in user object, and only for own profile
-  // For other profiles, user contains YOUR info (not theirs), so XP data is not available
+  // Get XP data for progress fill and tacho (only available for own profile)
   const experiencePoints = isOwn ? user.experience_points : undefined;
   const levelupXp = isOwn ? user.levelup_experience_points : undefined;
   const currentLevelXp = isOwn ? user.current_level_experience_points : undefined;
@@ -487,29 +570,31 @@ function renderCompanyProfile(responseData, isOwn) {
   // Build sections (excluding achievements - they go after staff)
   let sectionsHtml = '';
 
-  // User section first (this is the main account info for own profile ONLY)
-  // For other players, user contains YOUR info, not theirs, so skip it
-  if (isOwn && Object.keys(user).length > 0) {
-    sectionsHtml += buildSection('', user);
+  // Merge user and company data into one section
+  // For own profile: merge user + company. For other profiles: only company data
+  const mergedData = isOwn ? { ...user, ...company } : { ...company };
+  if (Object.keys(mergedData).length > 0) {
+    sectionsHtml += buildSection('', mergedData);
   }
 
-  // Company section (for other players, this is their company)
-  if (Object.keys(company).length > 0) {
-    sectionsHtml += buildSection('Company Stats', company);
-  }
-
-  // Alliance section - custom rendering with clickable alliance name (search result style)
+  // Alliance row - integrated into stats section (no title/divider)
   if (alliance && alliance.name) {
     const allianceId = alliance.id;
-    const allianceName = alliance.name;
+    const allianceName = escapeHtml(alliance.name);
 
+    // Create placeholder for alliance row that will be populated async
     sectionsHtml += `
-      <div class="company-profile-section">
-        <h4 class="company-profile-section-title">Alliance</h4>
-        <div class="search-results-list">
-          ${allianceId ? `<div class="search-result-item alliance-result-item" data-alliance-id="${allianceId}">
-            <span class="search-result-name">${allianceName}</span>
-          </div>` : `<div class="search-result-item"><span class="search-result-name">${allianceName}</span></div>`}
+      <div id="companyProfileAllianceRow" class="league-standings" data-alliance-id="${allianceId}" data-alliance-name="${allianceName}">
+        <div class="league-alliance-row alliance-result-item" data-alliance-id="${allianceId}">
+          <div class="league-alliance-logo">
+            <div class="alliance-logo-wrapper" style="background: var(--color-bg-tertiary);">
+              <span class="alliance-logo-text">${allianceName.substring(0, 2).toUpperCase()}</span>
+            </div>
+          </div>
+          <div class="league-alliance-info">
+            <div class="league-alliance-name clickable">${allianceName}</div>
+            <div class="league-alliance-meta"><span>Loading...</span></div>
+          </div>
         </div>
       </div>
     `;
@@ -547,41 +632,64 @@ function renderCompanyProfile(responseData, isOwn) {
     </span>
   ` : '';
 
-  // Generate XP Tacho if XP data is available (only for own profile)
-  let xpTachoHtml = '';
+  // Generate XP Progress Bar if XP data is available (only for own profile)
+  let xpProgressHtml = '';
   if (experiencePoints !== undefined && levelupXp !== undefined && currentLevelXp !== undefined) {
-    const tachoPercent = xpFillPercent;
-    const needleRotation = -90 + (tachoPercent / 100 * 180);
+    const nextLevel = level + 1;
 
-    xpTachoHtml = `
-      <div class="xp-tacho-container">
-        <svg viewBox="0 0 200 120" class="xp-tacho-svg">
-          <!-- Background arc (gray) -->
-          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--color-border)" stroke-width="12" stroke-linecap="round"/>
-          <!-- Progress arc (colored) -->
-          <path d="M 20 100 A 80 80 0 0 1 180 100" fill="none" stroke="var(--color-warning)" stroke-width="12" stroke-linecap="round" stroke-dasharray="${tachoPercent * 2.51} 251.2" />
-          <!-- Center circle -->
-          <circle cx="100" cy="100" r="8" fill="var(--color-bg-secondary)" stroke="var(--color-text-primary)" stroke-width="2"/>
-          <!-- Needle -->
-          <line x1="100" y1="100" x2="100" y2="35" stroke="var(--color-danger)" stroke-width="3" stroke-linecap="round" transform="rotate(${needleRotation} 100 100)"/>
-        </svg>
-        <div class="xp-tacho-labels">
-          <span class="xp-tacho-label-min">${currentLevelXp.toLocaleString('en-US')}</span>
-          <span class="xp-tacho-label-current">${experiencePoints.toLocaleString('en-US')}</span>
-          <span class="xp-tacho-label-max">${levelupXp.toLocaleString('en-US')}</span>
+    xpProgressHtml = `
+      <div class="xp-progress-container">
+        <div class="xp-progress-labels">
+          <span class="xp-progress-label-left">XP Level ${level} (${currentLevelXp.toLocaleString('en-US')})</span>
+          <span class="xp-progress-label-center">${experiencePoints.toLocaleString('en-US')}</span>
+          <span class="xp-progress-label-right">Next XP Level ${nextLevel} (${levelupXp.toLocaleString('en-US')})</span>
+        </div>
+        <div class="xp-progress-bar">
+          <div class="xp-progress-fill" style="width: ${xpFillPercent}%"></div>
         </div>
       </div>
     `;
   }
 
+  // Generate admin prefix
+  const adminPrefix = isAdmin ? '<span class="admin-warning emoji-tooltip" data-tooltip="Game Admin">⚠️ ADMIN - </span>' : '';
+
+  // Generate company type emojis
+  let companyTypeHtml = '';
+  if (companyType && Array.isArray(companyType)) {
+    const typeEmojis = companyType.map(type => {
+      if (type === 'container') return '<span class="emoji-tooltip" data-tooltip="Container">📦</span>';
+      if (type === 'tanker') return '<span class="emoji-tooltip" data-tooltip="Tanker">🛢️</span>';
+      return '';
+    }).join('');
+    companyTypeHtml = typeEmojis;
+  }
+
+  // Generate difficulty emoji
+  let difficultyHtml = '';
+  if (difficulty === 'easy') {
+    difficultyHtml = '<span class="emoji-tooltip" data-tooltip="Easy Mode">✌️</span>';
+  } else if (difficulty === 'hard') {
+    difficultyHtml = '<span class="emoji-tooltip" data-tooltip="Hard Mode">🤟</span>';
+  }
+
+  // Generate made purchase emoji
+  const purchaseHtml = madePurchase ? '<span class="emoji-tooltip" data-tooltip="Made Purchase">💸</span>' : '';
+
+  // Generate IPO emoji (diagonal strikethrough if 0)
+  const ipoHtml = ipo ? '<span class="emoji-tooltip" data-tooltip="IPO Active">📈</span>' : '<span class="emoji-strikethrough" data-tooltip="No IPO">📈</span>';
+
+  // Generate guest emoji (diagonal strikethrough if not guest)
+  const guestHtml = isGuest ? '<span class="emoji-tooltip" data-tooltip="Guest Account">👋</span>' : '<span class="emoji-strikethrough" data-tooltip="Not a Guest">👋</span>';
+
   content.innerHTML = `
     <div class="company-profile-card">
       <div class="company-profile-header">
-        <h3 class="company-profile-name">${companyName} ${companyId ? `(ID ${companyId})` : ''}</h3>
+        <h3 class="company-profile-name">${adminPrefix}${escapeHtml(companyName)} ${companyId ? `(ID ${companyId})` : ''}${companyTypeHtml}${difficultyHtml}${purchaseHtml}${ipoHtml}${guestHtml}</h3>
         ${ceoBadgeHtml}
       </div>
 
-      ${xpTachoHtml}
+      ${xpProgressHtml}
 
       ${sectionsHtml}
     </div>
@@ -595,36 +703,83 @@ function renderCompanyProfile(responseData, isOwn) {
  * @returns {string} HTML string for the section
  */
 function buildSection(title, data) {
-  const stats = [];
+  // Skip fields shown elsewhere
+  const skipFields = [
+    'staff_training_points',
+    'id', 'company_name', 'ceo_level', 'difficulty', 'company_type', 'made_purchase', 'is_admin',
+    'experience_points', 'levelup_experience_points', 'current_level_experience_points',
+    'level', // shown in star badge and XP bar
+    'ipo', 'is_guest' // shown as emojis in header
+  ];
 
-  // Recursively process all keys
+  // Define field order for grouping related fields together
+  const fieldOrder = [
+    // Row 1
+    'cash', 'status', 'points',
+    // Row 2
+    'checklist_done', 'language', 'hub',
+    // Row 3
+    'reputation', 'stock_value', 'stock_trend',
+    // Row 4
+    'stock_for_sale', 'stock_total', 'fuel',
+    // Row 5
+    'fuel_capacity', 'co2', 'co2_capacity',
+    // Row 6
+    'total_vessels', 'total_routes', 'total_departures',
+    // Row 7
+    'total_teus', 'total_barrels', 'created_at'
+  ];
+
+  // Stock fields that should be grayed out when IPO is null/0
+  const stockFields = ['stock_value', 'stock_trend', 'stock_for_sale', 'stock_total'];
+  const hasIpo = data.ipo && data.ipo !== 0;
+
+  // Collect all stats
+  const statsMap = new Map();
+
   for (const key of Object.keys(data)) {
-    // Skip staff_training_points as it's shown in Staff Morale title
-    if (key === 'staff_training_points') continue;
-
-    // Skip id, company_name, and ceo_level as they're shown in header
-    if (key === 'id' || key === 'company_name' || key === 'ceo_level') continue;
-
-    // Skip XP fields as they're shown in tacho
-    if (key === 'experience_points' || key === 'levelup_experience_points' || key === 'current_level_experience_points') continue;
+    if (skipFields.includes(key)) continue;
 
     const value = data[key];
     const label = formatLabel(key);
     const formattedValue = formatValue(value);
 
     if (formattedValue !== null) {
-      stats.push(`
-        <div class="company-stat">
-          <span class="company-stat-label">${label}</span>
-          <span class="company-stat-value">${formattedValue}</span>
-        </div>
-      `);
+      const isStockField = stockFields.includes(key);
+      const isGrayed = isStockField && !hasIpo;
+
+      statsMap.set(key, {
+        label,
+        formattedValue,
+        isGrayed
+      });
     }
   }
 
+  // Sort stats by field order, unknown fields go at the end
+  const sortedKeys = Array.from(statsMap.keys()).sort((a, b) => {
+    const indexA = fieldOrder.indexOf(a);
+    const indexB = fieldOrder.indexOf(b);
+    if (indexA === -1 && indexB === -1) return 0;
+    if (indexA === -1) return 1;
+    if (indexB === -1) return -1;
+    return indexA - indexB;
+  });
+
+  const stats = sortedKeys.map(key => {
+    const stat = statsMap.get(key);
+    const grayedClass = stat.isGrayed ? ' company-stat-grayed' : '';
+    return `
+      <div class="company-stat${grayedClass}">
+        <span class="company-stat-label">${stat.label}</span>
+        <span class="company-stat-value">${stat.formattedValue}</span>
+      </div>
+    `;
+  });
+
   return `
     <div class="company-profile-section">
-      ${title ? `<h4 class="company-profile-section-title">${title}</h4>` : '<div class="company-profile-section-divider"></div>'}
+      ${title ? `<h4 class="company-profile-section-title">${title}</h4>` : ''}
       <div class="company-profile-stats">
         ${stats.join('')}
       </div>
@@ -970,7 +1125,7 @@ function buildStaffSection(staffData, userData) {
 
   return `
     <div class="company-profile-section">
-      <h4 class="company-profile-section-title">Staff Morale <span style="float: right;">💪 ${trainingPoints}</span></h4>
+      <h4 class="company-profile-section-title" style="text-align: center; padding-top: 10px;">Staff Morale</h4>
       <div class="company-profile-stats morale-stats-grid">
         ${moraleSummary.join('')}
       </div>
@@ -978,6 +1133,7 @@ function buildStaffSection(staffData, userData) {
     <div class="company-profile-section">
       <h4 class="company-profile-section-title collapsible-title" onclick="toggleStaffDetails(this)">
         Staff Details
+        <span class="staff-points-display">Staff Points 💪 <span class="staff-points-value">${trainingPoints}</span></span>
         <span class="collapse-arrow">▼</span>
       </h4>
       <div class="staff-list collapsible-content">
