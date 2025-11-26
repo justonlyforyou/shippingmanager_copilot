@@ -112,6 +112,12 @@ const SETTINGS_SCHEMA = {
   // Notifications
   enableDesktopNotifications: true,
   autoPilotNotifications: true,      // Master toggle for ALL autopilot notifications (in-app + desktop)
+  enableInboxNotifications: true,    // Show notifications for new private messages
+
+  // IPO Alerts
+  enableIpoAlerts: false,            // Enable IPO alert notifications for fresh accounts
+  ipoAlertMaxAgeDays: 7,             // Max account age in days (1, 7, 30, 180)
+  ipoAlertSendToAllianceChat: false, // Send IPO alerts to alliance chat (requires alliance membership)
 
   // Barrel Boss (Fuel Auto-Rebuy) Notifications
   notifyBarrelBossInApp: true,
@@ -259,6 +265,23 @@ function validateValue(key, value) {
 
     if (!allowedThresholds.includes(parsed)) {
       throw new Error(`Invalid maintenance threshold: ${parsed}%. Must be one of: 2%, 3%, 4%, 5%, 10%, 15%, 20%, 25%`);
+    }
+
+    return parsed;
+  }
+
+  // Special validation for ipoAlertMaxAgeDays - only allow specific values (in DAYS)
+  // UI shows: One Day (1), One Week (7), One Month (30), 6 Months (180)
+  if (key === 'ipoAlertMaxAgeDays') {
+    const allowedDays = [1, 7, 30, 180]; // Days
+    const parsed = parseInt(value);
+
+    if (isNaN(parsed)) {
+      throw new Error(`Invalid IPO alert max age: "${value}" is not a number. Must be one of: 1, 7, 30, 180 days`);
+    }
+
+    if (!allowedDays.includes(parsed)) {
+      throw new Error(`Invalid IPO alert max age: ${parsed} days. Must be one of: 1, 7, 30, 180 days`);
     }
 
     return parsed;

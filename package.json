@@ -1,6 +1,6 @@
 {
   "name": "shippingmanager-copilot",
-  "version": "0.1.5.0",
+  "version": "0.1.5.1",
   "description": "Standalone web interface for Shipping Manager chat and game management",
   "main": "app.js",
   "bin": "app.js",
@@ -76,6 +76,7 @@
     "leaflet": "^1.9.4",
     "leaflet-environmental-layers": "^2.4.9",
     "leaflet.markercluster": "^1.5.3",
+    "lightweight-charts": "^5.0.9",
     "page-flip": "^2.0.7",
     "react-pageflip": "^2.0.3"
   }

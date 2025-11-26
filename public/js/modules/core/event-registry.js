@@ -598,6 +598,37 @@ export function registerAutoPilotFeatureListeners(settings) {
     settings.enableInboxNotifications = this.checked;
     saveSettings(settings);
   });
+
+  // IPO alerts
+  const enableIpoAlertsCheckbox = document.getElementById('enableIpoAlerts');
+  const ipoAlertOptions = document.getElementById('ipoAlertOptions');
+  const ipoAlertMaxAge = document.getElementById('ipoAlertMaxAge');
+
+  if (enableIpoAlertsCheckbox) {
+    enableIpoAlertsCheckbox.addEventListener('change', function() {
+      settings.enableIpoAlerts = this.checked;
+      if (ipoAlertOptions) {
+        ipoAlertOptions.classList.toggle('hidden', !this.checked);
+      }
+      saveSettings(settings);
+    });
+  }
+
+  if (ipoAlertMaxAge) {
+    ipoAlertMaxAge.addEventListener('change', function() {
+      settings.ipoAlertMaxAgeDays = parseInt(this.value, 10);
+      saveSettings(settings);
+    });
+  }
+
+  // IPO Alert - Send to Alliance Chat
+  const ipoAlertSendToAllianceChatCheckbox = document.getElementById('ipoAlertSendToAllianceChat');
+  if (ipoAlertSendToAllianceChatCheckbox) {
+    ipoAlertSendToAllianceChatCheckbox.addEventListener('change', function() {
+      settings.ipoAlertSendToAllianceChat = this.checked;
+      saveSettings(settings);
+    });
+  }
 }
 
 /**

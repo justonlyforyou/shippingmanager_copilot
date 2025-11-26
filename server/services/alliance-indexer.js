@@ -438,6 +438,28 @@ class AllianceIndexer {
   }
 
   /**
+   * Get alliance by ID from cache
+   * @param {number} allianceId - Alliance ID to lookup
+   * @returns {Object|null} Alliance object or null if not found
+   */
+  async getById(allianceId) {
+    if (!this.isReady) {
+      return null;
+    }
+
+    try {
+      const data = await fs.readFile(this.cacheFilePath, 'utf8');
+      const cache = JSON.parse(data);
+      const alliances = cache.alliances || [];
+
+      return alliances.find(a => a.id === allianceId) || null;
+    } catch (error) {
+      logger.error('[AllianceIndexer] Error looking up alliance by ID:', error.message);
+      return null;
+    }
+  }
+
+  /**
    * Stop indexer
    */
   stop() {

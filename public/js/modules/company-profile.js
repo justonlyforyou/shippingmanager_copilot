@@ -7,6 +7,7 @@
  */
 
 import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
+import { showPurchaseDialog } from './ui-dialogs.js';
 
 let navigationHistory = [];
 let currentView = 'own'; // 'own', 'search', 'profile'
@@ -22,6 +23,12 @@ export async function openCompanyProfile() {
   if (!overlay) {
     console.error('[Company Profile] Overlay not found');
     return;
+  }
+
+  // Close stock manager if open (own profile opened from header star)
+  const stockOverlay = document.getElementById('stockManagerOverlay');
+  if (stockOverlay && !stockOverlay.classList.contains('hidden')) {
+    stockOverlay.classList.add('hidden');
   }
 
   overlay.classList.remove('hidden');
@@ -78,6 +85,18 @@ async function loadCompanyProfile(userId, isOwn = false) {
 
     // Render company data
     renderCompanyProfile(data, isOwn);
+
+    // Load stock chart if company has IPO (stock_total > 0)
+    // API structure: data.user = YOUR info, data.data.company = TARGET company info
+    const companyData = data.data?.company || data.company || {};
+    const hasIpo = isOwn ? data.user?.ipo : (companyData.stock_total > 0);
+    const targetUserId = isOwn ? data.user?.id : (userId || companyData.id || currentUserId);
+
+    console.log('[Company Profile] IPO check:', { isOwn, hasIpo, targetUserId, stockTotal: companyData.stock_total });
+
+    if (hasIpo && targetUserId) {
+      loadStockSection(targetUserId, isOwn);
+    }
 
     // Load alliance details asynchronously and attach click listeners
     loadAllianceDetails();
@@ -174,6 +193,394 @@ function attachSalaryButtonListeners() {
 }
 
 /**
+ * Loads stock section with chart and buy/sell buttons for companies with IPO
+ * @param {number} userId - The user ID of the company to load stock data for
+ * @param {boolean} isOwnProfile - Whether this is the user's own profile
+ */
+async function loadStockSection(userId, isOwnProfile = false) {
+  try {
+    const { getStockFinanceOverview, purchaseStock } = await import('./api.js');
+    const { renderChartSection, calculatePriceStats, initializeChart, CHART_COLORS } = await import('./stock-manager.js');
+
+    // Fetch viewed company's stock data (for chart and buy info)
+    const data = await getStockFinanceOverview(userId);
+
+    if (!data || !data.data || !data.data.stock) {
+      console.log('[Company Profile] No stock data available');
+      return;
+    }
+
+    const stock = data.data.stock;
+    const investors = data.data.investors || {};
+
+    // Get OUR user ID and company name to check if we own shares of this company
+    const ownUserId = window.getSettings?.()?.userId;
+    const ownCompanyName = window.getSettings?.()?.company_name;
+    let ourShares = 0;
+    let availableToSell = 0;
+    let nextSaleTime = 0;
+    let nextSaleAmount = 0;
+
+    // Check if we're listed in this company's investors (quick check from viewed data)
+    if (ownCompanyName && investors[ownCompanyName]) {
+      ourShares = investors[ownCompanyName].total_shares || 0;
+    }
+
+    // If we own shares, fetch our own finance data for sell availability details
+    if (ourShares > 0 && ownUserId) {
+      try {
+        const ourData = await getStockFinanceOverview(ownUserId);
+        const ourInvestments = ourData?.data?.investments || {};
+
+        // Find our investment in this company for sell timing data
+        for (const [, inv] of Object.entries(ourInvestments)) {
+          if (inv.id === userId) {
+            availableToSell = parseInt(inv.available_to_sell, 10) || 0;
+            nextSaleTime = parseInt(inv.next_available_sale_time, 10) || 0;
+            nextSaleAmount = parseInt(inv.next_available_sale_amount, 10) || 0;
+            break;
+          }
+        }
+      } catch (err) {
+        console.warn('[Company Profile] Could not fetch own investments:', err);
+        // Fallback: assume all shares are available if we can't fetch details
+        availableToSell = ourShares;
+      }
+    }
+
+    // Calculate stats for chart
+    const stats = calculatePriceStats(stock.history || []);
+    const trend = stock.stock_trend || 'same';
+    const stockForSale = stock.stock_for_sale || 0;
+    const stockTotal = stock.stock_total || 0;
+
+    // Build stock section HTML using stock-manager's renderChartSection
+    const canBuy = !isOwnProfile && stockForSale > 0;
+    const canSell = availableToSell > 0;
+    const now = Math.floor(Date.now() / 1000);
+    const hasLockedShares = nextSaleTime > now && nextSaleAmount > 0;
+    const showButtons = canBuy || canSell || hasLockedShares;
+
+    const companyName = stock.company_name || '';
+
+    // Build sell button/timer HTML
+    let sellButtonHtml = '';
+    if (canSell && hasLockedShares) {
+      // Some shares available, some locked - show button + timer
+      sellButtonHtml = `
+        <button class="stock-action-btn stock-sell-action" data-user-id="${userId}" data-shares="${availableToSell}" data-price="${stock.stock}" data-company="${companyName}">Sell (${formatNumber(availableToSell)})</button>
+        <span class="stock-sell-timer stock-sell-timer-inline" data-unlock-time="${nextSaleTime}" title="+${formatNumber(nextSaleAmount)} more in">+${formatNumber(nextSaleAmount)}</span>
+      `;
+    } else if (canSell) {
+      // All shares available
+      sellButtonHtml = `<button class="stock-action-btn stock-sell-action" data-user-id="${userId}" data-shares="${availableToSell}" data-price="${stock.stock}" data-company="${companyName}">Sell (${formatNumber(availableToSell)})</button>`;
+    } else if (hasLockedShares) {
+      // No shares available yet - show timer only
+      sellButtonHtml = `<span class="stock-sell-timer stock-sell-timer-large" data-unlock-time="${nextSaleTime}">${formatNumber(nextSaleAmount)} locked</span>`;
+    }
+
+    const stockSectionHtml = `
+      <div class="company-profile-stock-section">
+        ${renderChartSection('companyProfileStockChart', stock, stats, { stockForSale, stockTotal, ourShares })}
+        ${showButtons ? `
+        <div class="company-profile-stock-actions${canBuy && (canSell || hasLockedShares) ? '' : ' single-action'}">
+          ${canBuy ? `<button class="stock-action-btn stock-buy-action" data-user-id="${userId}" data-max="${stockForSale}" data-price="${stock.stock}" data-company="${companyName}">Buy</button>` : ''}
+          ${sellButtonHtml}
+        </div>
+        ` : ''}
+      </div>
+    `;
+
+    // Insert before achievements section
+    const content = document.getElementById('companyProfileContent');
+    const card = content?.querySelector('.company-profile-card');
+    const achievementsSection = card?.querySelector('.company-profile-achievements');
+
+    if (card) {
+      const stockDiv = document.createElement('div');
+      stockDiv.innerHTML = stockSectionHtml;
+      const stockSection = stockDiv.firstElementChild;
+
+      if (achievementsSection) {
+        card.insertBefore(stockSection, achievementsSection);
+      } else {
+        card.appendChild(stockSection);
+      }
+
+      // Initialize chart using stock-manager's initializeChart
+      if (stock.history && stock.history.length > 0) {
+        initializeChart('companyProfileStockChart', stock.history, CHART_COLORS[trend]);
+      }
+
+      // Attach buy/sell button handlers
+      attachStockActionListeners(purchaseStock);
+
+      // Start countdown timer for locked shares
+      startStockSellTimer(stockSection);
+    }
+  } catch (error) {
+    console.error('[Company Profile] Error loading stock section:', error);
+  }
+}
+
+/**
+ * Start countdown timer for locked shares in company profile
+ * @param {HTMLElement} container - Container element with timer spans
+ */
+function startStockSellTimer(container) {
+  const timers = container.querySelectorAll('.stock-sell-timer');
+  if (timers.length === 0) return;
+
+  const updateTimers = () => {
+    const now = Math.floor(Date.now() / 1000);
+
+    timers.forEach(timer => {
+      const unlockTime = parseInt(timer.dataset.unlockTime, 10);
+      const remaining = unlockTime - now;
+
+      if (remaining <= 0) {
+        timer.textContent = 'Ready!';
+        timer.classList.add('stock-sell-ready');
+      } else {
+        const hours = Math.floor(remaining / 3600);
+        const minutes = Math.floor((remaining % 3600) / 60);
+        const seconds = remaining % 60;
+
+        let timeText = '';
+        if (hours > 0) {
+          timeText = `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+          timeText = `${minutes}m ${seconds}s`;
+        } else {
+          timeText = `${seconds}s`;
+        }
+
+        // Preserve the +amount prefix if it exists
+        const originalText = timer.textContent;
+        if (originalText.startsWith('+')) {
+          const amount = originalText.match(/^\+[\d,]+/)?.[0] || '';
+          timer.textContent = `${amount} ${timeText}`;
+        } else {
+          timer.textContent = timeText;
+        }
+      }
+    });
+  };
+
+  // Initial update
+  updateTimers();
+
+  // Update every second
+  const intervalId = setInterval(updateTimers, 1000);
+
+  // Store interval ID to clear when modal closes
+  container.dataset.timerInterval = intervalId;
+}
+
+/**
+ * Shows a dialog for selling shares with amount slider
+ * Similar to showPurchaseDialog but shows revenue instead of cost
+ * @param {Object} options - Configuration options
+ * @returns {Promise<number|null>} Selected amount if confirmed, null if cancelled
+ */
+function showSellSharesDialog(options) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-dialog-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'confirm-dialog';
+
+    const maxAmount = options.maxAmount;
+    const price = options.price;
+    const unit = options.unit;
+
+    // Calculate initial values
+    let currentAmount = maxAmount;
+    const initialRevenue = Math.round(currentAmount * price);
+
+    dialog.innerHTML = `
+      <div class="confirm-dialog-header">
+        <h3>${escapeHtml(options.title || 'Sell')}</h3>
+      </div>
+      <div class="confirm-dialog-body">
+        <div class="purchase-slider-container">
+          <div class="purchase-slider-header">
+            <span class="purchase-slider-label">Amount</span>
+            <span class="purchase-slider-value" id="sellAmountValue">${formatNumber(currentAmount)}${unit}</span>
+          </div>
+          <input type="range" class="purchase-amount-slider" id="sellAmountSlider"
+            min="1" max="${maxAmount}" value="${maxAmount}" step="1">
+          <div class="purchase-slider-range">
+            <span>1${unit}</span>
+            <span>${formatNumber(maxAmount)}${unit}</span>
+          </div>
+        </div>
+        <div class="confirm-dialog-details">
+          <div class="confirm-dialog-detail-row">
+            <span class="label">Price per Share</span>
+            <span class="value">$${formatNumber(price)}</span>
+          </div>
+          <div class="confirm-dialog-detail-row income-row" id="sellRevenueRow">
+            <span class="label">Total Revenue</span>
+            <span class="value" id="sellTotalRevenue">$${formatNumber(initialRevenue)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="confirm-dialog-footer">
+        <button class="confirm-dialog-btn cancel" data-action="cancel">Cancel</button>
+        <button class="confirm-dialog-btn confirm" data-action="confirm">${escapeHtml(options.confirmText || 'Confirm')}</button>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const slider = dialog.querySelector('#sellAmountSlider');
+    const amountDisplay = dialog.querySelector('#sellAmountValue');
+    const revenueDisplay = dialog.querySelector('#sellTotalRevenue');
+
+    // Slider input handler
+    slider.addEventListener('input', () => {
+      currentAmount = parseInt(slider.value, 10);
+      const totalRevenue = Math.round(currentAmount * price);
+
+      amountDisplay.textContent = `${formatNumber(currentAmount)}${unit}`;
+      revenueDisplay.textContent = `$${formatNumber(totalRevenue)}`;
+    });
+
+    const handleClick = (e) => {
+      const action = e.target.dataset.action;
+
+      if (action === 'confirm') {
+        document.body.removeChild(overlay);
+        resolve(currentAmount);
+      } else if (action === 'cancel') {
+        document.body.removeChild(overlay);
+        resolve(null);
+      }
+    };
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+        resolve(null);
+      }
+    });
+
+    dialog.addEventListener('click', handleClick);
+  });
+}
+
+/**
+ * Attach click listeners to stock buy/sell buttons
+ */
+function attachStockActionListeners(purchaseStock) {
+  const buyBtn = document.querySelector('.stock-buy-action');
+  const sellBtn = document.querySelector('.stock-sell-action');
+
+  if (buyBtn) {
+    buyBtn.addEventListener('click', async () => {
+      const userId = parseInt(buyBtn.dataset.userId, 10);
+      const maxShares = parseInt(buyBtn.dataset.max, 10);
+      const price = parseFloat(buyBtn.dataset.price);
+      const companyName = buyBtn.dataset.company || '';
+
+      // Get current cash from the page or fetch it
+      let userCash = 0;
+      try {
+        const response = await fetch(window.apiUrl('/api/user/get-company'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await response.json();
+        userCash = data.user?.cash || 0;
+      } catch (err) {
+        console.error('[Company Profile] Failed to get user cash:', err);
+      }
+
+      // Show purchase dialog with slider
+      const shares = await showPurchaseDialog({
+        title: 'Buy Shares',
+        maxAmount: maxShares,
+        price: price,
+        cash: userCash,
+        unit: ' shares',
+        priceLabel: 'Price per Share',
+        confirmText: 'Buy Shares'
+      });
+
+      if (!shares) return;
+
+      buyBtn.disabled = true;
+      buyBtn.textContent = 'Buying...';
+
+      try {
+        const result = await purchaseStock(userId, shares, companyName, price);
+        if (result.error) {
+          showSideNotification(result.error, 'error');
+        } else {
+          showSideNotification(`Successfully purchased ${shares.toLocaleString()} shares!`, 'success');
+          // Reload the profile to update data
+          const { openPlayerProfile } = await import('./company-profile.js');
+          openPlayerProfile(userId);
+        }
+      } catch (error) {
+        console.error('[Company Profile] Purchase error:', error);
+        showSideNotification('Failed to purchase shares', 'error');
+      } finally {
+        buyBtn.disabled = false;
+        buyBtn.textContent = 'Buy';
+      }
+    });
+  }
+
+  if (sellBtn) {
+    sellBtn.addEventListener('click', async () => {
+      const userId = parseInt(sellBtn.dataset.userId, 10);
+      const maxShares = parseInt(sellBtn.dataset.shares, 10);
+      const price = parseFloat(sellBtn.dataset.price);
+      const companyName = sellBtn.dataset.company || '';
+
+      // For selling, we show expected revenue instead of cost
+      // Use a custom dialog for selling (shows revenue instead of cost)
+      const shares = await showSellSharesDialog({
+        title: 'Sell Shares',
+        maxAmount: maxShares,
+        price: price,
+        unit: ' shares',
+        confirmText: 'Sell Shares'
+      });
+
+      if (!shares) return;
+
+      sellBtn.disabled = true;
+      sellBtn.textContent = 'Selling...';
+
+      try {
+        const { sellStock } = await import('./api.js');
+        const result = await sellStock(userId, shares, companyName, price);
+        if (result.error) {
+          showSideNotification(result.error, 'error');
+        } else {
+          showSideNotification(`Successfully sold ${shares.toLocaleString()} shares!`, 'success');
+          // Reload the profile to update data
+          const { openPlayerProfile } = await import('./company-profile.js');
+          openPlayerProfile(userId);
+        }
+      } catch (error) {
+        console.error('[Company Profile] Sell error:', error);
+        showSideNotification('Failed to sell shares', 'error');
+      } finally {
+        sellBtn.disabled = false;
+        sellBtn.textContent = 'Sell';
+      }
+    });
+  }
+}
+
+/**
  * Attaches click listeners to alliance items
  */
 function attachAllianceClickListener() {
@@ -249,10 +656,10 @@ async function loadAllianceDetails() {
             ${languageFlag ? `<span class="league-language-flag">${languageFlag}</span>` : ''}
           </div>
           <div class="league-alliance-meta">
-            <span>Level ${alliance.benefit_level || 0}</span>
-            <span>${alliance.members || 0}/50</span>
-            <span>$${formatNumber(alliance.total_share_value || 0)}</span>
-            <span>League ${alliance.league_level || 0}</span>
+            <span>Benefit Level ${alliance.benefit_level || 0}</span>
+            <span>Members ${alliance.members || 0}/50</span>
+            <span>Share Value: $${formatNumber(alliance.total_share_value || 0)}</span>
+            <span>Position ${alliance.group_position || '?'} League ${alliance.league_level || 0}</span>
           </div>
         </div>
       </div>
@@ -550,7 +957,8 @@ function renderCompanyProfile(responseData, isOwn) {
   const madePurchase = isOwn ? user.made_purchase : company.made_purchase;
   const isAdmin = isOwn ? user.is_admin : company.is_admin;
   const isGuest = isOwn ? user.is_guest : company.is_guest;
-  const ipo = isOwn ? user.ipo : company.ipo;
+  // IPO: For own profile use user.ipo, for others check if stock_total > 0 (API doesn't expose ipo field for other players)
+  const ipo = isOwn ? user.ipo : (company.stock_total > 0 ? 1 : 0);
 
   // Get XP data for progress fill and tacho (only available for own profile)
   const experiencePoints = isOwn ? user.experience_points : undefined;
@@ -709,7 +1117,9 @@ function buildSection(title, data) {
     'id', 'company_name', 'ceo_level', 'difficulty', 'company_type', 'made_purchase', 'is_admin',
     'experience_points', 'levelup_experience_points', 'current_level_experience_points',
     'level', // shown in star badge and XP bar
-    'ipo', 'is_guest' // shown as emojis in header
+    'ipo', 'is_guest', // shown as emojis in header
+    'checklist_done', // not important
+    'stock_midnight_value' // combined with stock_value
   ];
 
   // Define field order for grouping related fields together
@@ -717,7 +1127,7 @@ function buildSection(title, data) {
     // Row 1
     'cash', 'status', 'points',
     // Row 2
-    'checklist_done', 'language', 'hub',
+    'language', 'hub',
     // Row 3
     'reputation', 'stock_value', 'stock_trend',
     // Row 4
@@ -731,8 +1141,9 @@ function buildSection(title, data) {
   ];
 
   // Stock fields that should be grayed out when IPO is null/0
+  // For other players, data.ipo doesn't exist - use stock_total > 0 as indicator
   const stockFields = ['stock_value', 'stock_trend', 'stock_for_sale', 'stock_total'];
-  const hasIpo = data.ipo && data.ipo !== 0;
+  const hasIpo = data.ipo ? data.ipo !== 0 : (data.stock_total > 0);
 
   // Collect all stats
   const statsMap = new Map();
@@ -742,11 +1153,17 @@ function buildSection(title, data) {
 
     const value = data[key];
     const label = formatLabel(key);
-    const formattedValue = formatValue(value);
+    let formattedValue = formatValue(value);
 
     if (formattedValue !== null) {
       const isStockField = stockFields.includes(key);
       const isGrayed = isStockField && !hasIpo;
+
+      // Combine stock_value with stock_midnight_value
+      if (key === 'stock_value' && data.stock_midnight_value !== undefined) {
+        const midnightFormatted = formatValue(data.stock_midnight_value);
+        formattedValue = `${formattedValue} (${midnightFormatted})`;
+      }
 
       statsMap.set(key, {
         label,
@@ -917,19 +1334,21 @@ function buildAchievementsSection(achievementsData) {
   }).join('');
 
   return `
-    <div class="company-profile-section">
-      <h4 class="company-profile-section-title">Achievements Summary</h4>
-      <div class="achievement-summary-cards">
-        ${stats.join('')}
+    <div class="company-profile-achievements">
+      <div class="company-profile-section">
+        <h4 class="company-profile-section-title">Achievements Summary</h4>
+        <div class="achievement-summary-cards">
+          ${stats.join('')}
+        </div>
       </div>
-    </div>
-    <div class="company-profile-section">
-      <h4 class="company-profile-section-title collapsible-title" onclick="toggleAchievementsList(this)">
-        All Achievements (${achievementsList.length})
-        <span class="collapse-arrow">▼</span>
-      </h4>
-      <div class="achievements-list collapsible-content">
-        ${achievementsHtml}
+      <div class="company-profile-section">
+        <h4 class="company-profile-section-title collapsible-title" onclick="toggleAchievementsList(this)">
+          All Achievements (${achievementsList.length})
+          <span class="collapse-arrow">▼</span>
+        </h4>
+        <div class="achievements-list collapsible-content">
+          ${achievementsHtml}
+        </div>
       </div>
     </div>
   `;

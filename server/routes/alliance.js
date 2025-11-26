@@ -1131,11 +1131,25 @@ router.post('/alliance-leave-pool-any', express.json(), async (req, res) => {
 
 router.post('/alliance-get-applications', express.json(), async (req, res) => {
   try {
-    const data = await apiCall('/alliance/get-open-alliances', 'POST', {
-      limit: 50,
-      offset: 0,
-      filter: 'all'
-    });
+    // Get user's pending applications (direct applications + any-pool status)
+    const data = await apiCall('/alliance/get-user-pool-state', 'POST', {});
+
+    // Enrich direct applications with alliance names from our index
+    if (data?.data?.pool_state?.direct && data.data.pool_state.direct.length > 0) {
+      const allianceIndexer = require('../services/alliance-indexer');
+
+      for (const app of data.data.pool_state.direct) {
+        if (app.alliance_id && !app.name) {
+          const alliance = await allianceIndexer.getById(app.alliance_id);
+          if (alliance) {
+            app.name = alliance.name;
+          } else {
+            app.name = `Alliance #${app.alliance_id}`;
+          }
+        }
+      }
+    }
+
     res.json(data);
   } catch (error) {
     logger.error('[Alliance] Error getting applications:', error);

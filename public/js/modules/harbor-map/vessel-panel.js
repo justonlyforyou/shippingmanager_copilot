@@ -1168,12 +1168,14 @@ async function saveVesselRename(vesselId) {
       const { showSideNotification } = await import('../utils.js');
       showSideNotification('Saved', 'success', 2000);
 
-      // Trigger full Harbor Map refresh to update all markers and data
-      const { refreshHarborMap } = await import('./map-controller.js');
-      await refreshHarborMap();
+      // Invalidate cache and refresh Harbor Map data
+      const { invalidateOverviewCache } = await import('./api-client.js');
+      invalidateOverviewCache();
+
+      const { loadOverview, selectVessel } = await import('./map-controller.js');
+      await loadOverview();
 
       // Re-select the vessel to show updated panel
-      const { selectVessel } = await import('./map-controller.js');
       await selectVessel(vesselId);
     } else {
       throw new Error('Rename failed');

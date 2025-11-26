@@ -147,6 +147,23 @@ router.get('/settings', async (req, res) => {
     const { validated } = validateSettings(settings);
     validated.debugMode = isDebugMode();
     validated.userId = userId;  // Include userId for per-user localStorage cache
+
+    // Fetch user's IPO status and company name from game API
+    try {
+      const userSettingsResponse = await apiCall('/user/get-user-settings', 'POST', {});
+      if (userSettingsResponse?.user?.ipo !== undefined) {
+        validated.ipo = userSettingsResponse.user.ipo;
+      } else {
+        validated.ipo = 0;
+      }
+      if (userSettingsResponse?.user?.company_name) {
+        validated.company_name = userSettingsResponse.user.company_name;
+      }
+    } catch (apiError) {
+      logger.warn('[Settings] Failed to fetch IPO status from game API:', apiError.message);
+      validated.ipo = 0;
+    }
+
     res.json(validated);
   } catch (error) {
     logger.error('═══════════════════════════════════════════════════════════');

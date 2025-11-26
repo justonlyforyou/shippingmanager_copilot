@@ -836,6 +836,9 @@ export function initWebSocket() {
         // Server-controlled lock state update (single source of truth)
         // Updates client's READ-ONLY lock state from server
         updateLockStateFromServer(data);
+      } else if (type === 'ipo_alert_update') {
+        // IPO alert update from backend polling
+        handleIpoAlertUpdate(data);
       } else if (type === 'server_startup') {
         // Server restarted - reload page
         console.log('[WebSocket] Server startup detected - reloading...');
@@ -1521,6 +1524,12 @@ Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.tota
   if (window.unlockDepartButton) {
     window.unlockDepartButton();
   }
+
+  // Force immediate badge refresh after notification to ensure badge is up-to-date
+  // This makes an API call to get the latest vessel counts
+  if (window.updateVesselCount) {
+    window.updateVesselCount();
+  }
 }
 
 /**
@@ -1583,8 +1592,10 @@ async function handleVesselsDeparted(data) {
     showSideNotification(message, 'success', 15000);
   }
 
-  // Badge update is handled by vessel_count_update WS event from backend
-  // No need to call updateVesselCount() here (it would make an unnecessary API call)
+  // Force immediate badge refresh after notification to ensure badge is up-to-date
+  if (window.updateVesselCount) {
+    window.updateVesselCount();
+  }
 
   // Refresh vessel selling overlay if open
   await refreshVesselsForSale();
@@ -3036,6 +3047,57 @@ async function handleHijackingUpdate(data) {
         body: `Case ${case_id}: Need $${required?.toLocaleString()}, have $${available?.toLocaleString()}`,
         icon: '/favicon.ico',
         tag: 'captain-blackbeard',
+        silent: false
+      });
+    }
+  }
+}
+
+/**
+ * Handles IPO alert update from backend
+ * Updates the IPO Alert tab if open and shows notifications for new IPOs
+ * @param {Object} data - IPO alert data
+ * @param {Array} data.freshIpos - All currently fresh IPOs
+ * @param {Array} data.newIpos - Newly detected fresh IPOs
+ * @param {Array} data.removedIds - IDs of IPOs that aged out
+ * @param {number} data.maxAgeDays - Current max age setting
+ */
+async function handleIpoAlertUpdate(data) {
+  const { freshIpos, newIpos, removedIds, maxAgeDays } = data;
+
+  if (window.DEBUG_MODE) {
+    console.log('[IPO Alert] Update received:', { fresh: freshIpos?.length, new: newIpos?.length, removed: removedIds?.length });
+  }
+
+  // Update the IPO Alert tab if it's currently visible
+  const stockOverlay = document.getElementById('stockManagerOverlay');
+  const activeTab = document.querySelector('.stock-tab-btn.active');
+
+  if (stockOverlay && !stockOverlay.classList.contains('hidden') && activeTab?.dataset?.tab === 'ipo-alerts') {
+    // Tab is open - refresh it with new data
+    if (window.refreshIpoAlertTab) {
+      window.refreshIpoAlertTab(freshIpos, maxAgeDays);
+    }
+  }
+
+  // Show desktop notification for new IPOs
+  if (newIpos && newIpos.length > 0) {
+    const settings = window.getSettings ? window.getSettings() : {};
+
+    // In-app notification
+    if (settings.enableIpoAlerts && window.showSideNotification) {
+      const maxAgeLabel = maxAgeDays === 1 ? '1 day' : maxAgeDays === 7 ? '1 week' : maxAgeDays === 30 ? '1 month' : '6 months';
+      const ipoList = newIpos.map(ipo => `${ipo.company_name} (${ipo.age_days}d)`).join(', ');
+      window.showSideNotification(`<strong>New IPO Alert</strong><br>Fresh accounts (< ${maxAgeLabel}):<br>${ipoList}`, 'info', 10000);
+    }
+
+    // Desktop notification
+    if (settings.enableIpoAlerts && Notification.permission === 'granted') {
+      const names = newIpos.map(ipo => ipo.company_name).join(', ');
+      await showNotification('New IPO Alert', {
+        body: `${newIpos.length} fresh ${newIpos.length === 1 ? 'IPO' : 'IPOs'}: ${names}`,
+        icon: '/favicon.ico',
+        tag: 'ipo-alert',
         silent: false
       });
     }

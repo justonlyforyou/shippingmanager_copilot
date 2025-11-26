@@ -58,8 +58,6 @@ function generateContainerSvg(vessel) {
   const maxCapacity = 27000;
   const capacityRatio = (capacity - minCapacity) / (maxCapacity - minCapacity);
 
-  const shipScale = 0.5 + capacityRatio * 0.5;
-
   const hullColor = vessel.hull_color || '#b30000';
   const deckColor = vessel.deck_color || '#272525';
   const bridgeColor = vessel.bridge_color || '#dbdbdb';
@@ -81,7 +79,6 @@ function generateContainerSvg(vessel) {
 
   // Ship fills the viewBox at scale 1.0
   const displayScale = 1.0;
-  const scaledShipWidth = originalShipWidth * displayScale;
   const scaledShipHeight = originalShipHeight * displayScale;
 
   const waterLevel = viewBoxHeight * 0.78;
@@ -318,20 +315,6 @@ function generateTankerSvg(vessel) {
   svg = svg.replace(/fill="white"/gi, `fill="${nameColor}"`);
 
   return svg;
-}
-
-/**
- * Escape XML special characters
- * @param {string} str - String to escape
- * @returns {string} Escaped string
- */
-function escapeXml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
 }
 
 module.exports = {

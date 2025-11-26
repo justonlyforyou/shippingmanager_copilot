@@ -1,0 +1,486 @@
+/**
+ * @fileoverview Stock Market Routes
+ *
+ * Handles stock market functionality including viewing market data,
+ * company stock history, and purchasing stocks.
+ *
+ * @module server/routes/stock
+ * @requires express
+ * @requires ../utils/api
+ */
+
+const express = require('express');
+const router = express.Router();
+const { apiCall, getAllianceId, getUserCompanyName, getUserId } = require('../utils/api');
+const logger = require('../utils/logger');
+const { logAutopilotAction } = require('../logbook');
+const {
+  getHighestSeenUserId,
+  hasSeenIpo,
+  markIpoAsSeen,
+  initializeWithIpos,
+  isFirstCheck
+} = require('../utils/ipo-tracker');
+
+/**
+ * GET /api/stock/finance-overview - Retrieves stock finance overview for a user
+ *
+ * Fetches complete stock data including:
+ * - Stock info with historical price data
+ * - Investors (who invested in this company)
+ * - Investments (companies this user invested in)
+ *
+ * @name GET /api/stock/finance-overview
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request with query.user_id
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with finance overview
+ */
+router.get('/stock/finance-overview', async (req, res) => {
+  try {
+    const userId = req.query.user_id;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const result = await apiCall('/stock/get-finance-overview', 'POST', {
+      user_id: parseInt(userId, 10)
+    });
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[STOCK] Error fetching finance overview:', error);
+    res.status(500).json({ error: 'Failed to fetch finance overview' });
+  }
+});
+
+/**
+ * GET /api/stock/market - Retrieves stock market listings
+ *
+ * Fetches paginated market data with filter options:
+ * - top: Highest stock values
+ * - low: Lowest stock values
+ * - activity: Most active trading
+ * - recent-ipo: Recently listed companies
+ *
+ * @name GET /api/stock/market
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request with query params
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with market data
+ */
+router.get('/stock/market', async (req, res) => {
+  try {
+    const {
+      filter = 'top',
+      page = 1,
+      limit = 40,
+      search = ''
+    } = req.query;
+
+    const validFilters = ['top', 'low', 'activity', 'recent-ipo', 'search'];
+    if (!validFilters.includes(filter)) {
+      return res.status(400).json({
+        error: `Invalid filter. Must be one of: ${validFilters.join(', ')}`
+      });
+    }
+
+    // search filter requires search_by parameter
+    if (filter === 'search' && !search) {
+      return res.status(400).json({
+        error: 'search_by parameter is required when using filter=search'
+      });
+    }
+
+    const result = await apiCall('/stock/get-market', 'POST', {
+      filter,
+      page: parseInt(page, 10),
+      limit: parseInt(limit, 10),
+      search_by: search
+    });
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[STOCK] Error fetching market data:', error);
+    res.status(500).json({ error: 'Failed to fetch market data' });
+  }
+});
+
+/**
+ * POST /api/stock/purchase - Purchase stocks from a company
+ *
+ * Requires IPO=1 on the calling user's account.
+ * Returns error "user_has_not_done_ipo" if user has not completed IPO.
+ *
+ * @name POST /api/stock/purchase
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request with body { stock_issuer_user_id, amount }
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with purchase result
+ */
+router.post('/stock/purchase', async (req, res) => {
+  try {
+    const { stock_issuer_user_id, amount, company_name, price_per_share } = req.body;
+
+    if (!stock_issuer_user_id) {
+      return res.status(400).json({ error: 'stock_issuer_user_id is required' });
+    }
+
+    if (!amount || amount < 1) {
+      return res.status(400).json({ error: 'amount must be at least 1' });
+    }
+
+    logger.info(`[STOCK] Purchasing ${amount} shares from company ${stock_issuer_user_id}`);
+
+    const result = await apiCall('/stock/purchase-stock', 'POST', {
+      stock_issuer_user_id: parseInt(stock_issuer_user_id, 10),
+      amount: parseInt(amount, 10)
+    });
+
+    if (result.error === 'user_has_not_done_ipo') {
+      return res.status(403).json({
+        error: 'IPO required',
+        message: 'You must complete your IPO before purchasing stocks'
+      });
+    }
+
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Log to logbook
+    const userId = getUserId();
+    if (userId) {
+      const totalCost = price_per_share ? amount * price_per_share : 0;
+      const companyDisplay = company_name || `Company #${stock_issuer_user_id}`;
+      const costDisplay = totalCost > 0 ? ` | -$${totalCost.toLocaleString()}` : '';
+
+      await logAutopilotAction(
+        userId,
+        'Manual Stock Purchase',
+        'SUCCESS',
+        `Bought ${amount.toLocaleString()} shares of ${companyDisplay}${costDisplay}`,
+        {
+          stock_issuer_user_id,
+          company_name: company_name || null,
+          amount,
+          price_per_share: price_per_share || null,
+          total_cost: totalCost || null
+        }
+      );
+    }
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[STOCK] Error purchasing stock:', error);
+    res.status(500).json({ error: 'Failed to purchase stock' });
+  }
+});
+
+/**
+ * POST /api/stock/sell - Sell stocks from a company
+ *
+ * @name POST /api/stock/sell
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request with body { stock_issuer_user_id, amount }
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with sale result
+ */
+router.post('/stock/sell', async (req, res) => {
+  try {
+    const { stock_issuer_user_id, amount, company_name, price_per_share } = req.body;
+
+    if (!stock_issuer_user_id) {
+      return res.status(400).json({ error: 'stock_issuer_user_id is required' });
+    }
+
+    if (!amount || amount < 1) {
+      return res.status(400).json({ error: 'amount must be at least 1' });
+    }
+
+    logger.info(`[STOCK] Selling ${amount} shares from company ${stock_issuer_user_id}`);
+
+    // Game API uses 'stock_user_id' instead of 'stock_issuer_user_id' for selling
+    const result = await apiCall('/stock/sell-stock', 'POST', {
+      stock_user_id: parseInt(stock_issuer_user_id, 10),
+      amount: parseInt(amount, 10)
+    });
+
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    // Log to logbook
+    const userId = getUserId();
+    if (userId) {
+      const totalRevenue = price_per_share ? amount * price_per_share : 0;
+      const companyDisplay = company_name || `Company #${stock_issuer_user_id}`;
+      const revenueDisplay = totalRevenue > 0 ? ` | +$${totalRevenue.toLocaleString()}` : '';
+
+      await logAutopilotAction(
+        userId,
+        'Manual Stock Sale',
+        'SUCCESS',
+        `Sold ${amount.toLocaleString()} shares of ${companyDisplay}${revenueDisplay}`,
+        {
+          stock_issuer_user_id,
+          company_name: company_name || null,
+          amount,
+          price_per_share: price_per_share || null,
+          total_revenue: totalRevenue || null
+        }
+      );
+    }
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[STOCK] Error selling stock:', error);
+    res.status(500).json({ error: 'Failed to sell stock' });
+  }
+});
+
+/**
+ * POST /api/stock/increase-stock-for-sale - Issue new shares to the market
+ *
+ * Only available for users who have completed IPO.
+ * Each purchase issues 25,000 shares.
+ * Price doubles with each tier based on shares in circulation:
+ * - 0-25k: 6.5M
+ * - 25k-50k: 12.5M
+ * - 50k-75k: 25M
+ * - 75k-100k: 50M
+ * - etc. (doubles each tier)
+ *
+ * @name POST /api/stock/increase-stock-for-sale
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with result
+ */
+router.post('/stock/increase-stock-for-sale', async (req, res) => {
+  try {
+    logger.info('[STOCK] Increasing shares for sale');
+
+    const result = await apiCall('/stock/increase-stock-for-sale', 'POST', {});
+
+    if (result.error) {
+      return res.status(400).json({ error: result.error });
+    }
+
+    res.json(result);
+  } catch (error) {
+    logger.error('[STOCK] Error increasing stock for sale:', error);
+    res.status(500).json({ error: 'Failed to increase stock for sale' });
+  }
+});
+
+/**
+ * GET /api/stock/check-new-ipos - Check for new IPOs since last check
+ *
+ * Returns only IPOs that haven't been seen before.
+ * Uses high user IDs as indicator for fresh accounts.
+ *
+ * @name GET /api/stock/check-new-ipos
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with new IPOs
+ */
+router.get('/stock/check-new-ipos', async (req, res) => {
+  try {
+    // Get max age from query param (in days), default 7
+    const maxAgeDays = parseInt(req.query.max_age_days, 10) || 7;
+
+    const result = await apiCall('/stock/get-market', 'POST', {
+      filter: 'recent-ipo',
+      page: 1,
+      limit: 40
+    });
+
+    if (!result.data || !result.data.market) {
+      return res.json({ newIpos: [], allIpos: [], freshIpos: [] });
+    }
+
+    // Sort by user ID descending (highest = newest accounts)
+    const allIpos = result.data.market.sort((a, b) => b.id - a.id);
+
+    // Check top 5 for created_at date
+    const top5 = allIpos.slice(0, 5);
+    const freshIpos = [];
+    const now = Date.now();
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+
+    for (const ipo of top5) {
+      try {
+        const companyData = await apiCall('/user/get-company', 'POST', {
+          user_id: ipo.id
+        });
+
+        if (companyData.data && companyData.data.company && companyData.data.company.created_at) {
+          const createdAt = new Date(companyData.data.company.created_at).getTime();
+          const ageMs = now - createdAt;
+
+          if (ageMs <= maxAgeMs) {
+            freshIpos.push({
+              ...ipo,
+              created_at: companyData.data.company.created_at,
+              age_days: Math.floor(ageMs / (24 * 60 * 60 * 1000))
+            });
+          }
+        }
+      } catch (err) {
+        logger.warn(`[STOCK] Could not fetch company data for ${ipo.id}:`, err.message);
+      }
+    }
+
+    // On first check, establish baseline (persistent)
+    if (isFirstCheck()) {
+      initializeWithIpos(allIpos);
+      logger.info(`[STOCK] IPO Alert initialized - found ${freshIpos.length} fresh IPOs`);
+      return res.json({ newIpos: [], allIpos, freshIpos, firstCheck: true });
+    }
+
+    // Find truly NEW IPOs that are also fresh (young accounts)
+    const newIpos = [];
+    const highestSeenUserId = getHighestSeenUserId();
+
+    for (const freshIpo of freshIpos) {
+      if (freshIpo.id > highestSeenUserId && !hasSeenIpo(freshIpo.id)) {
+        newIpos.push(freshIpo);
+        markIpoAsSeen(freshIpo.id);
+        logger.info(`[STOCK] New fresh IPO detected: ${freshIpo.company_name} (ID: ${freshIpo.id}, Age: ${freshIpo.age_days} days)`);
+      }
+    }
+
+    // Send to alliance chat if enabled and we have new IPOs
+    const sendToAllianceChat = req.query.send_to_alliance === 'true';
+    if (sendToAllianceChat && newIpos.length > 0) {
+      const allianceId = getAllianceId();
+      if (allianceId) {
+        try {
+          const companyName = getUserCompanyName();
+          const maxAgeLabel = maxAgeDays === 1 ? '1 day' : maxAgeDays === 7 ? '1 week' : maxAgeDays === 30 ? '1 month' : '6 months';
+
+          // Build message with list of new IPOs
+          const ipoList = newIpos.map(ipo => `- ${ipo.company_name} ($${ipo.stock}, ${ipo.age_days}d old)`).join('\n');
+          const message = `${companyName}'s IPO Alert Service - The following users completed their IPO and their accounts are younger than ${maxAgeLabel}:\n${ipoList}`;
+
+          await apiCall('/alliance/post-chat', 'POST', {
+            alliance_id: allianceId,
+            text: message
+          });
+
+          logger.info(`[STOCK] Sent IPO alert to alliance chat: ${newIpos.length} new IPOs`);
+        } catch (chatError) {
+          logger.warn('[STOCK] Failed to send IPO alert to alliance chat:', chatError.message);
+        }
+      }
+    }
+
+    res.json({ newIpos, allIpos, freshIpos });
+  } catch (error) {
+    logger.error('[STOCK] Error checking new IPOs:', error);
+    res.status(500).json({ error: 'Failed to check new IPOs' });
+  }
+});
+
+/**
+ * GET /api/stock/recent-ipos - Get all recent IPOs for the IPO Alert tab
+ *
+ * Returns fresh IPOs from the WebSocket cache (already filtered by max age).
+ * Falls back to fetching from API if cache is empty.
+ *
+ * @name GET /api/stock/recent-ipos
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with recent IPOs
+ */
+router.get('/stock/recent-ipos', async (req, res) => {
+  try {
+    // Try to get cached fresh IPOs first (already have age data)
+    const { getFreshIpos } = require('../websocket/ipo-refresh');
+    const freshIpos = getFreshIpos();
+
+    if (freshIpos && freshIpos.length > 0) {
+      // Return cached fresh IPOs (already sorted by ID descending and have age_days)
+      return res.json({ ipos: freshIpos, fromCache: true });
+    }
+
+    // Fallback: fetch from API if cache is empty
+    const result = await apiCall('/stock/get-market', 'POST', {
+      filter: 'recent-ipo',
+      page: 1,
+      limit: 40
+    });
+
+    if (!result.data || !result.data.market) {
+      return res.json({ ipos: [] });
+    }
+
+    // Sort by user ID descending (highest = newest accounts)
+    const sortedIpos = result.data.market.sort((a, b) => b.id - a.id);
+
+    // Return without age data - frontend will need to check individually
+    res.json({ ipos: sortedIpos, fromCache: false });
+  } catch (error) {
+    logger.error('[STOCK] Error fetching recent IPOs:', error);
+    res.status(500).json({ error: 'Failed to fetch recent IPOs' });
+  }
+});
+
+/**
+ * GET /api/stock/check-company-age - Check age of a single company
+ *
+ * @name GET /api/stock/check-company-age
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request with query.user_id and query.max_age_days
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with company age info
+ */
+router.get('/stock/check-company-age', async (req, res) => {
+  try {
+    const userId = parseInt(req.query.user_id, 10);
+    const maxAgeDays = parseInt(req.query.max_age_days, 10) || 7;
+
+    if (!userId) {
+      return res.status(400).json({ error: 'user_id is required' });
+    }
+
+    const companyData = await apiCall('/user/get-company', 'POST', {
+      user_id: userId
+    });
+
+    if (!companyData.data || !companyData.data.company || !companyData.data.company.created_at) {
+      return res.json({ user_id: userId, is_fresh: false, age_days: null });
+    }
+
+    const now = Date.now();
+    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
+    const createdAt = new Date(companyData.data.company.created_at).getTime();
+    const ageMs = now - createdAt;
+    const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000));
+    const isFresh = ageMs <= maxAgeMs;
+
+    res.json({
+      user_id: userId,
+      is_fresh: isFresh,
+      age_days: ageDays,
+      created_at: companyData.data.company.created_at
+    });
+  } catch (error) {
+    logger.error('[STOCK] Error checking company age:', error);
+    res.status(500).json({ error: 'Failed to check company age' });
+  }
+});
+
+module.exports = router;

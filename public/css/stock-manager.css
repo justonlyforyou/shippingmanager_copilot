@@ -1,0 +1,1321 @@
+/* Stock Manager Overlay Styles */
+
+#stockManagerOverlay {
+  z-index: var(--z-overlay);
+}
+
+#stockCompanyDetailOverlay {
+  z-index: calc(var(--z-overlay) + 1);
+}
+
+/* Modal content needs stacking context */
+#stockManagerOverlay .stock-manager-content,
+#stockCompanyDetailOverlay .stock-company-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* Buttons need to be above for hover effects */
+#stockManagerOverlay button,
+#stockCompanyDetailOverlay button {
+  position: relative;
+  z-index: 2;
+}
+
+/* Tab Buttons */
+.stock-manager-tabs {
+  display: flex;
+  gap: var(--spacing-4);
+  padding: var(--spacing-4) var(--spacing-8);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+}
+
+.stock-tab-btn {
+  padding: 2px !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-13);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-tab-btn:hover {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+.stock-tab-btn.active {
+  background: var(--color-info-20) !important;
+  border-color: var(--color-info-40) !important;
+  color: var(--color-info-light) !important;
+}
+
+/* Content Container */
+.stock-manager-content {
+  padding: var(--spacing-8);
+  min-height: 475px;
+  max-height: 80vh;
+  overflow-y: auto;
+  overflow-x: visible;
+}
+
+.stock-company-content {
+  padding: var(--spacing-16);
+}
+
+/* Loading State */
+.stock-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-32);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-14);
+}
+
+/* Error State */
+.stock-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-32);
+  color: var(--color-danger);
+  font-size: var(--font-size-14);
+}
+
+/* Empty State */
+.stock-empty,
+.stock-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-32);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.stock-empty-icon,
+.stock-no-ipo-icon {
+  font-size: 48px;
+  margin-bottom: var(--spacing-16);
+  opacity: 0.6;
+}
+
+.stock-empty-state h3,
+.stock-no-ipo h3 {
+  margin: 0 0 var(--spacing-8) 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-16);
+}
+
+.stock-empty-state p,
+.stock-no-ipo p {
+  margin: 0;
+  font-size: var(--font-size-13);
+}
+
+/* No IPO Message */
+.stock-no-ipo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-32);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+/* Portfolio Section */
+.stock-portfolio,
+.stock-company-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+/* Chart Container */
+.stock-chart-container {
+  width: 100%;
+  height: 300px;
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+/* Stats Row */
+.stock-stats-row {
+  display: flex;
+  gap: var(--spacing-16);
+  flex-wrap: wrap;
+}
+
+.stock-stat {
+  flex: 1;
+  min-width: 120px;
+  padding: var(--spacing-12);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+}
+
+.stock-stat-label {
+  display: block;
+  font-size: var(--font-size-11);
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-4);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stock-stat-value {
+  display: block;
+  font-size: var(--font-size-18);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* Trend Colors */
+.trend-up {
+  color: var(--color-success-dark) !important;
+}
+
+.trend-down {
+  color: var(--color-danger) !important;
+}
+
+.trend-same {
+  color: var(--color-text-muted) !important;
+}
+
+/* Market Section */
+.stock-market {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-market-filters {
+  display: flex;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.stock-filter-btn {
+  padding: var(--spacing-4) var(--spacing-12) !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-12);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-filter-btn:hover {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+.stock-filter-btn.active {
+  background: var(--color-info-20) !important;
+  border-color: var(--color-info-40) !important;
+  color: var(--color-info-light) !important;
+}
+
+.stock-search-input {
+  flex: 1;
+  min-width: 150px;
+  padding: 2px var(--spacing-8);
+  background: var(--gray-800-50);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-12);
+  height: auto;
+}
+
+.stock-search-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.stock-search-input:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+/* Stock Table */
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-13);
+}
+
+.stock-table thead {
+  background: var(--color-bg-secondary);
+}
+
+.stock-table th {
+  padding: var(--spacing-10) var(--spacing-12);
+  text-align: left;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+  font-size: var(--font-size-11);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stock-table td {
+  padding: var(--spacing-10) var(--spacing-12);
+  border-bottom: 1px solid var(--color-border-light);
+  color: var(--color-text-primary);
+}
+
+.stock-table-row {
+  transition: background 0.1s ease;
+}
+
+.stock-table-row:hover {
+  background: var(--color-bg-hover);
+}
+
+.stock-company-name {
+  font-weight: var(--font-weight-semibold);
+}
+
+.stock-clickable,
+.stock-company-name.clickable {
+  cursor: pointer;
+}
+
+/* Investments summary row */
+.stock-summary-row {
+  display: flex;
+  padding: var(--spacing-8) 0;
+  margin-bottom: var(--spacing-8);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-13);
+}
+
+.stock-summary-item {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  gap: var(--spacing-4);
+}
+
+.stock-summary-item:first-child {
+  border-right: 1px solid var(--color-border);
+}
+
+.stock-summary-label {
+  color: var(--color-text-muted);
+}
+
+.stock-clickable:hover,
+.stock-company-name.clickable:hover {
+  color: var(--color-info-light);
+  text-decoration: underline;
+}
+
+.stock-view-btn {
+  padding: var(--spacing-4) var(--spacing-10) !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-11);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-view-btn:hover {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+/* Pagination */
+.stock-market-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-12);
+  padding-top: var(--spacing-12);
+}
+
+.stock-page-btn {
+  padding: var(--spacing-4) var(--spacing-12) !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-12);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-page-btn:hover:not(:disabled) {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+.stock-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.stock-page-info {
+  font-size: var(--font-size-12);
+  color: var(--color-text-muted);
+}
+
+/* Buy Section */
+.stock-buy-section {
+  display: flex;
+  gap: var(--spacing-12);
+  align-items: center;
+  padding-top: var(--spacing-16);
+  border-top: 1px solid var(--color-border);
+}
+
+.stock-buy-input {
+  width: 100px;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-14);
+  text-align: center;
+}
+
+.stock-buy-input:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.stock-buy-btn {
+  padding: var(--spacing-8) var(--spacing-20);
+  background: var(--color-success-dark);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-buy-btn:hover:not(:disabled) {
+  background: var(--color-success-darker);
+}
+
+.stock-buy-btn:disabled {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.stock-buy-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stock-buy-label {
+  font-size: var(--font-size-11);
+  color: var(--color-text-muted);
+}
+
+.stock-buy-value {
+  font-size: var(--font-size-13);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Investments Table */
+.stock-investments,
+.stock-investors {
+  overflow-x: auto;
+}
+
+/* Market List Container */
+.stock-market-list {
+  overflow-x: auto;
+}
+
+/* Back Emoji Button */
+.stock-back-emoji {
+  font-size: 24px;
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s ease;
+}
+
+.stock-back-emoji:hover {
+  transform: scale(1.1);
+}
+
+/* Wobble animation */
+@keyframes wobble {
+  0% { transform: rotate(0deg); }
+  15% { transform: rotate(-15deg); }
+  30% { transform: rotate(10deg); }
+  45% { transform: rotate(-10deg); }
+  60% { transform: rotate(5deg); }
+  75% { transform: rotate(-5deg); }
+  100% { transform: rotate(0deg); }
+}
+
+/* ============================================
+   ENHANCED CHART STYLES
+   ============================================ */
+
+/* Chart Wrapper */
+.stock-chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  background: var(--color-bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-8);
+  border: 1px solid var(--color-border);
+  overflow: visible;
+  position: relative;
+}
+
+/* Chart Toolbar */
+.stock-chart-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-4);
+  padding-bottom: var(--spacing-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.stock-chart-toolbar-left,
+.stock-chart-toolbar-right {
+  display: flex;
+  gap: var(--spacing-2);
+  align-items: center;
+}
+
+/* Timeframe Buttons */
+.stock-timeframe-btn {
+  padding: 2px !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-width: 36px;
+  text-align: center;
+}
+
+.stock-timeframe-btn:hover {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+.stock-timeframe-btn.active {
+  background: var(--color-info-20) !important;
+  border-color: var(--color-info-40) !important;
+  color: var(--color-info-light) !important;
+}
+
+/* MA Toggle Buttons */
+.stock-ma-btn {
+  padding: 2px !important;
+  background: var(--gray-800-50) !important;
+  border-radius: var(--radius-6) !important;
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-semibold);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-ma-btn:hover {
+  background: var(--gray-800-80) !important;
+}
+
+.stock-ma-btn.active {
+  opacity: 1;
+}
+
+.stock-ma-btn.ma7 {
+  color: var(--color-warning-light);
+  border-color: var(--color-warning-light);
+}
+
+.stock-ma-btn.ma7.active {
+  background: rgba(251, 191, 36, 0.15);
+}
+
+.stock-ma-btn.ma25 {
+  color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+.stock-ma-btn.ma25.active {
+  background: var(--color-info-15);
+}
+
+.stock-ma-btn.ma99 {
+  color: var(--color-purple, #a855f7);
+  border-color: var(--color-purple, #a855f7);
+}
+
+.stock-ma-btn.ma99.active {
+  background: rgba(168, 85, 247, 0.15);
+}
+
+/* Chart Type Toggle */
+.stock-chart-type-btn {
+  padding: 2px !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-11);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-chart-type-btn:hover {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+.stock-chart-type-btn.active {
+  background: var(--color-info-20) !important;
+  border-color: var(--color-info-40) !important;
+  color: var(--color-info-light) !important;
+}
+
+/* Chart Container Enhanced */
+.stock-chart-container {
+  width: 100%;
+  height: 350px;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  overflow: visible;
+  position: relative;
+  z-index: 10;
+}
+
+/* Hide TradingView attribution logo */
+.stock-chart-container #tv-attr-logo,
+.stock-chart-container a[href*="tradingview"],
+#stockManagerOverlay #tv-attr-logo,
+#stockManagerOverlay a[href*="tradingview"],
+#stockCompanyDetailOverlay #tv-attr-logo,
+#stockCompanyDetailOverlay a[href*="tradingview"] {
+  display: none !important;
+}
+
+/* Price Legend */
+.stock-price-legend {
+  display: flex;
+  gap: var(--spacing-16);
+  padding-top: var(--spacing-8);
+  border-top: 1px solid var(--color-border);
+  flex-wrap: wrap;
+}
+
+.stock-legend-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.stock-legend-label {
+  font-size: var(--font-size-10);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stock-legend-value {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.stock-legend-value.positive {
+  color: var(--color-success-dark);
+}
+
+.stock-legend-value.negative {
+  color: var(--color-danger);
+}
+
+/* MA Legend Indicators */
+.stock-ma-legend {
+  display: flex;
+  gap: var(--spacing-12);
+  font-size: var(--font-size-11);
+}
+
+.stock-ma-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.stock-ma-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.stock-ma-legend-dot.ma7 {
+  background: var(--color-warning-light);
+}
+
+.stock-ma-legend-dot.ma25 {
+  background: var(--color-info);
+}
+
+.stock-ma-legend-dot.ma99 {
+  background: var(--color-purple, #a855f7);
+}
+
+/* Enhanced Stats Row */
+.stock-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: var(--spacing-8);
+}
+
+.stock-stat-mini {
+  padding: var(--spacing-8);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  text-align: center;
+}
+
+.stock-stat-mini .stock-stat-label {
+  font-size: var(--font-size-10);
+  margin-bottom: var(--spacing-2);
+}
+
+.stock-stat-mini .stock-stat-value {
+  font-size: var(--font-size-14);
+}
+
+/* Price Change Badge */
+.stock-price-change {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-6);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+}
+
+.stock-price-change.positive {
+  background: var(--color-success-10);
+  color: var(--color-success-dark);
+}
+
+.stock-price-change.negative {
+  background: var(--color-danger-10);
+  color: var(--color-danger);
+}
+
+/* Tooltips are handled via JS - see setupTooltips() in stock-manager.js */
+
+/* Crosshair Tooltip */
+.stock-tooltip {
+  position: absolute;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-12);
+  pointer-events: none;
+  z-index: 100000;
+  box-shadow: var(--shadow-lg);
+}
+
+/* Ensure messenger window creates proper stacking context */
+#stockManagerOverlay .messenger-window,
+#stockCompanyDetailOverlay .messenger-window {
+  isolation: isolate;
+  position: relative;
+  z-index: 1;
+}
+
+/* Ensure chart container has proper stacking */
+#stockManagerOverlay .tv-lightweight-charts,
+#stockCompanyDetailOverlay .tv-lightweight-charts {
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Global fix for any LightweightCharts tooltips that might be appended to body */
+body > .tv-lightweight-charts-tooltip,
+body > div[class*="lightweight"] {
+  z-index: 100000 !important;
+}
+
+.stock-tooltip-price {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-14);
+}
+
+.stock-tooltip-time {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-11);
+  margin-top: var(--spacing-2);
+}
+
+/* IPO Alert Tab Styles */
+.stock-ipo-alerts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+}
+
+.stock-ipo-header {
+  position: relative;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-info-10);
+  border: 1px solid var(--color-info-30);
+  border-radius: var(--radius-sm);
+  text-align: center;
+}
+
+.stock-ipo-header-text {
+  color: var(--color-info-light);
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  line-height: var(--line-height-relaxed);
+}
+
+.stock-ipo-header-close {
+  position: absolute;
+  top: var(--spacing-4);
+  right: var(--spacing-8);
+  color: var(--color-info-light);
+  font-size: var(--font-size-14);
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.stock-ipo-header-close:hover {
+  opacity: 1;
+}
+
+/* Fresh IPO row - green highlight */
+.stock-ipo-fresh {
+  background: var(--color-success-10) !important;
+}
+
+.stock-ipo-fresh:hover {
+  background: var(--color-success-15) !important;
+}
+
+.stock-ipo-fresh td {
+  color: var(--color-success);
+}
+
+.stock-ipo-fresh .stock-company-name {
+  color: var(--color-success);
+  font-weight: var(--font-weight-bold);
+}
+
+/* User ID display */
+.stock-user-id {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-normal);
+}
+
+/* Increase Shares Button (+ button in legend) */
+.stock-increase-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0 !important;
+  background: var(--color-success-20) !important;
+  border: 1px solid var(--color-success-40) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-success) !important;
+  font-size: var(--font-size-18);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-increase-btn:hover {
+  background: var(--color-success-30) !important;
+  border-color: var(--color-success) !important;
+  transform: scale(1.1);
+}
+
+.stock-increase-btn:active {
+  transform: scale(0.95);
+}
+
+/* Increase legend item - center the button */
+.stock-legend-increase {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-4);
+}
+
+.stock-legend-increase .stock-legend-label {
+  text-align: center;
+}
+
+/* ============================================
+   INCREASE SHARES MODAL
+   ============================================ */
+
+.stock-increase-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: calc(var(--z-overlay) + 10);
+}
+
+.stock-increase-modal {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 400px;
+  box-shadow: var(--shadow-xl);
+}
+
+.stock-increase-modal-header {
+  background: var(--color-bg-card);
+  padding: 0 var(--spacing-15);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: var(--border-default);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+}
+
+.stock-increase-modal-header h3 {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  padding: 0;
+  line-height: var(--line-height-tight);
+  color: var(--color-info-light);
+}
+
+/* Uses global .close-btn class with wobble animation */
+
+.stock-increase-modal-body {
+  padding: var(--spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-16);
+}
+
+/* Stats row */
+.stock-increase-info {
+  display: flex;
+  gap: var(--spacing-12);
+}
+
+.stock-increase-stat {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+}
+
+.stock-increase-stat .label {
+  font-size: var(--font-size-11);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stock-increase-stat .value {
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* Tier section */
+.stock-tier-section h4 {
+  margin: 0 0 var(--spacing-8) 0;
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.stock-tier-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.stock-tier-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-6) var(--spacing-10);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  font-size: var(--font-size-13);
+}
+
+.stock-tier-row.current {
+  background: var(--color-info-10);
+  border-color: var(--color-info-30);
+}
+
+.stock-tier-row.next {
+  background: var(--color-bg-tertiary);
+  border-style: dashed;
+  opacity: 0.7;
+}
+
+.stock-tier-range {
+  flex: 1;
+  color: var(--color-text-primary);
+}
+
+.stock-tier-price {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.stock-tier-badge {
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-bold);
+  padding: var(--spacing-2) var(--spacing-6);
+  border-radius: var(--radius-sm);
+  background: var(--color-info-20);
+  color: var(--color-info);
+  text-transform: uppercase;
+}
+
+.stock-tier-badge.next {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+}
+
+/* Purchase section */
+.stock-increase-purchase {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-12);
+  padding: var(--spacing-12);
+  background: var(--color-success-10);
+  border: 1px solid var(--color-success-30);
+  border-radius: var(--radius-md);
+}
+
+.stock-increase-purchase-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.stock-increase-amount {
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-success);
+}
+
+.stock-increase-price {
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+}
+
+.stock-increase-price strong {
+  color: var(--color-text-primary);
+}
+
+.stock-increase-confirm-btn {
+  padding: var(--spacing-10) var(--spacing-20);
+  background: var(--color-success-dark);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-increase-confirm-btn:hover:not(:disabled) {
+  background: var(--color-success-darker);
+}
+
+.stock-increase-confirm-btn:disabled {
+  background: var(--color-bg-tertiary);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+/* ============================================
+   SELL BUTTON & TIMER (Investments Tab)
+   ============================================ */
+
+.stock-sell-cell {
+  white-space: nowrap;
+}
+
+.stock-sell-btn {
+  padding: var(--spacing-4) var(--spacing-8) !important;
+  background: var(--color-danger-20) !important;
+  border: 1px solid var(--color-danger-40) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-danger) !important;
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-sell-btn:hover:not(:disabled) {
+  background: var(--color-danger-30) !important;
+  border-color: var(--color-danger) !important;
+}
+
+.stock-sell-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.stock-sell-timer {
+  display: inline-block;
+  padding: var(--spacing-4) var(--spacing-8);
+  background: var(--color-warning-10);
+  border: 1px solid var(--color-warning-30);
+  border-radius: var(--radius-6);
+  color: var(--color-warning);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-sell-timer.stock-sell-ready {
+  background: var(--color-success-10);
+  border-color: var(--color-success-30);
+  color: var(--color-success);
+}
+
+.stock-sell-timer-small {
+  margin-left: var(--spacing-4);
+  padding: var(--spacing-2) var(--spacing-4);
+  font-size: var(--font-size-10);
+  vertical-align: middle;
+}
+
+.stock-sell-cell {
+  white-space: nowrap;
+}
+
+.stock-sell-unavailable {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
+
+/* ============================================
+   SELL DIALOG
+   ============================================ */
+
+.stock-sell-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: calc(var(--z-overlay) + 10);
+}
+
+.stock-sell-dialog {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 350px;
+  box-shadow: var(--shadow-xl);
+}
+
+.stock-sell-dialog-header {
+  background: var(--color-bg-card);
+  padding: 0 var(--spacing-15);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  border-bottom: var(--border-default);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+}
+
+.stock-sell-dialog-header h3 {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  margin: 0;
+  padding: 0;
+  line-height: var(--line-height-tight);
+  color: var(--color-info-light);
+}
+
+.stock-sell-dialog-body {
+  padding: var(--spacing-16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.stock-sell-company {
+  margin: 0;
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.stock-sell-input-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.stock-sell-input-row label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.stock-sell-input {
+  flex: 1;
+  max-width: 100px;
+  padding: var(--spacing-6) var(--spacing-10);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-14);
+  text-align: center;
+}
+
+.stock-sell-input:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.stock-sell-max {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-13);
+}
+
+.stock-sell-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-13);
+}
+
+.stock-sell-info .label {
+  color: var(--color-text-secondary);
+}
+
+.stock-sell-info .value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.stock-sell-revenue {
+  padding: var(--spacing-8);
+  background: var(--color-success-10);
+  border-radius: var(--radius-sm);
+}
+
+.stock-sell-dialog-footer {
+  display: flex;
+  gap: var(--spacing-8);
+  padding: var(--spacing-12) var(--spacing-16);
+  border-top: 1px solid var(--color-border);
+}
+
+.stock-sell-cancel-btn {
+  flex: 1;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-sell-cancel-btn:hover {
+  background: var(--color-bg-tertiary);
+}
+
+.stock-sell-confirm-btn {
+  flex: 1;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-danger);
+  border: none;
+  border-radius: var(--radius-sm);
+  color: white;
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stock-sell-confirm-btn:hover {
+  background: var(--color-danger-dark);
+}

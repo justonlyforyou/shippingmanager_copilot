@@ -10,7 +10,7 @@
 const gameapi = require('../gameapi');
 const state = require('../state');
 const logger = require('../utils/logger');
-const { getUserId } = require('../utils/api');
+const { getUserId, getAllianceId } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
 const { saveHarborFee } = require('../utils/harbor-fee-store');
 const { saveContributionGain } = require('../utils/contribution-store');
@@ -232,6 +232,12 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     const allWarningVessels = [];
     const allHighFeeVessels = [];
 
+    // Check if user is in alliance - only track contribution if yes
+    const trackContribution = getAllianceId() !== null;
+    if (!trackContribution) {
+      logger.debug('[Depart] User not in alliance - contribution tracking disabled');
+    }
+
     const CHUNK_SIZE = 20;
     let processedCount = 0;
 
@@ -246,7 +252,13 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         logger.debug(`[Depart] Batch: ${departedVessels.length} departed, ${failedVessels.length} failed - Income: $${totalIncome.toLocaleString()}`);
 
         if (broadcastToUser) {
-          const bunkerState = await gameapi.fetchBunkerState();
+          let bunkerState = null;
+          try {
+            bunkerState = await gameapi.fetchBunkerState();
+          } catch (fetchError) {
+            logger.warn(`[Depart] Failed to fetch bunker state for batch notification: ${fetchError.message}`);
+            bunkerState = state.getBunkerState(userId);
+          }
 
           // Send batch update event (does NOT unlock button)
           broadcastToUser(userId, 'vessels_depart_batch', {
@@ -261,21 +273,27 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
               count: failedVessels.length,
               vessels: failedVessels.slice()
             },
-            bunker: {
+            bunker: bunkerState ? {
               fuel: bunkerState.fuel,
               co2: bunkerState.co2
-            }
+            } : null
           });
 
           // Send complete bunker update with all fields (fuel, co2, cash, maxFuel, maxCO2)
-          const { broadcastBunkerUpdate } = require('../websocket');
-          broadcastBunkerUpdate(userId, bunkerState);
+          if (bunkerState) {
+            const { broadcastBunkerUpdate } = require('../websocket');
+            broadcastBunkerUpdate(userId, bunkerState);
+          }
         }
 
         // Trigger auto-rebuy after each successful batch (if enabled)
         if (departedVessels.length > 0) {
           logger.debug(`[Depart] Triggering auto-rebuy after ${departedVessels.length} vessels departed in this batch`);
-          await autoRebuyAll();
+          try {
+            await autoRebuyAll();
+          } catch (rebuyError) {
+            logger.warn(`[Depart] Auto-rebuy failed (non-critical): ${rebuyError.message}`);
+          }
         }
 
         departedVessels.length = 0; // Clear array for next batch
@@ -490,8 +508,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         try {
           logger.debug(`[Depart] Attempting to depart vessel: name="${vessel.name}", id=${vessel.id}, status="${vessel.status}"`);
 
-          // Query contribution BEFORE this vessel departs
-          const contributionBefore = await fetchUserContribution(userId);
+          // Query contribution BEFORE this vessel departs (only if user is in alliance)
+          const contributionBefore = trackContribution ? await fetchUserContribution(userId) : null;
 
           const result = await gameapi.departVessel(vessel.id, speed, guards);
 
@@ -566,8 +584,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             continue;
           }
 
-          // Query contribution AFTER successful departure
-          const contributionAfter = await fetchUserContribution(userId);
+          // Query contribution AFTER successful departure (only if user is in alliance)
+          const contributionAfter = trackContribution ? await fetchUserContribution(userId) : null;
 
           // Check for negative income (harbor fees too high - API bug)
           const hasFeeCalculationBug = result.income < 0;
@@ -594,13 +612,16 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           const actualCargoLoaded = result.cargoLoaded;
           const actualUtilization = vesselCapacity > 0 ? actualCargoLoaded / vesselCapacity : 0;
 
-          // Calculate contribution gained by this vessel
-          const contributionGained = contributionBefore !== null && contributionAfter !== null
-            ? contributionAfter - contributionBefore
-            : null;
-
-          if (contributionGained !== null) {
-            logger.debug(`[Depart] ${vessel.name} gained ${contributionGained} contribution`);
+          // Calculate contribution gained by this vessel (only if tracking is enabled)
+          let contributionGained = null;
+          if (trackContribution) {
+            if (contributionBefore !== null && contributionAfter !== null) {
+              contributionGained = contributionAfter - contributionBefore;
+              logger.debug(`[Depart] ${vessel.name} gained ${contributionGained} contribution`);
+            } else {
+              // Only log warning if we SHOULD be tracking but got null values
+              logger.warn(`[Depart] ${vessel.name} contribution tracking failed: before=${contributionBefore}, after=${contributionAfter}`);
+            }
           }
 
           // Successfully departed
@@ -666,8 +687,16 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
     // Trigger rebuy and update data after departures
     if (processedCount > 0) {
-      await autoRebuyAll();
-      await tryUpdateAllData();
+      try {
+        await autoRebuyAll();
+      } catch (rebuyError) {
+        logger.warn(`[Depart] Final auto-rebuy failed (non-critical): ${rebuyError.message}`);
+      }
+      try {
+        await tryUpdateAllData();
+      } catch (updateError) {
+        logger.warn(`[Depart] Data update failed (non-critical): ${updateError.message}`);
+      }
     }
 
     // CRITICAL: Send events in correct order:
@@ -675,29 +704,46 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     // 2. Vessel count update (so badge shows correct counts)
     // 3. THEN depart complete (unlocks button)
     if (broadcastToUser && processedCount > 0) {
-      const finalBunkerState = await gameapi.fetchBunkerState();
+      let finalBunkerState = null;
+      let updatedVessels = [];
+
+      // Fetch final state - wrapped in try-catch to prevent lock from getting stuck
+      try {
+        finalBunkerState = await gameapi.fetchBunkerState();
+      } catch (fetchError) {
+        logger.warn(`[Depart] Failed to fetch final bunker state: ${fetchError.message}`);
+        // Use last known bunker state
+        finalBunkerState = state.getBunkerState(userId);
+      }
+
       const finalTotalIncome = allDepartedVessels.reduce((sum, v) => sum + v.income, 0);
       const finalTotalFuelUsed = allDepartedVessels.reduce((sum, v) => sum + v.fuelUsed, 0);
       const finalTotalCO2Used = allDepartedVessels.reduce((sum, v) => sum + v.co2Used, 0);
 
       // 1. Send complete bunker update with all fields (fuel, co2, cash, maxFuel, maxCO2)
-      const { broadcastBunkerUpdate } = require('../websocket');
-      broadcastBunkerUpdate(userId, finalBunkerState);
+      if (finalBunkerState) {
+        const { broadcastBunkerUpdate } = require('../websocket');
+        broadcastBunkerUpdate(userId, finalBunkerState);
+      }
 
       // 2. Broadcast updated vessel counts BEFORE unlocking button
       // This ensures badge updates BEFORE user can click button again
-      const updatedVessels = await gameapi.fetchVessels();
-      const readyToDepart = updatedVessels.filter(v => v.status === 'port' && !v.is_parked).length;
-      const atAnchor = updatedVessels.filter(v => v.status === 'anchor').length;
-      const pending = updatedVessels.filter(v => v.status === 'pending').length;
+      try {
+        updatedVessels = await gameapi.fetchVessels();
+        const readyToDepart = updatedVessels.filter(v => v.status === 'port' && !v.is_parked).length;
+        const atAnchor = updatedVessels.filter(v => v.status === 'anchor').length;
+        const pending = updatedVessels.filter(v => v.status === 'pending').length;
 
-      broadcastToUser(userId, 'vessel_count_update', {
-        readyToDepart,
-        atAnchor,
-        pending
-      });
+        broadcastToUser(userId, 'vessel_count_update', {
+          readyToDepart,
+          atAnchor,
+          pending
+        });
 
-      logger.debug(`[Depart] Vessel count broadcast: ${readyToDepart} ready, ${atAnchor} anchor, ${pending} pending`);
+        logger.debug(`[Depart] Vessel count broadcast: ${readyToDepart} ready, ${atAnchor} anchor, ${pending} pending`);
+      } catch (fetchError) {
+        logger.warn(`[Depart] Failed to fetch vessel counts: ${fetchError.message}`);
+      }
 
       // 3. Send final completion event to unlock button (ONLY AFTER bunker and vessel count updates)
       // Release lock BEFORE sending complete event (prevents race condition)
@@ -715,10 +761,10 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           count: failedVessels.length,
           vessels: failedVessels
         },
-        bunker: {
+        bunker: finalBunkerState ? {
           fuel: finalBunkerState.fuel,
           co2: finalBunkerState.co2
-        }
+        } : null
       });
 
       // Send updated lock status
@@ -739,13 +785,14 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     const totalCO2Used = allDepartedVessels.reduce((sum, v) => sum + (v.co2Used || 0), 0);
     const totalHarborFees = allDepartedVessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
 
-    // Calculate total contribution gained from individual vessel contributions
-    const totalContributionGained = allDepartedVessels.reduce((sum, v) => sum + (v.contributionGained || 0), 0);
+    // Calculate total contribution gained (only if tracking is enabled)
+    let totalContributionGained = 0;
+    if (trackContribution) {
+      totalContributionGained = allDepartedVessels.reduce((sum, v) => sum + (v.contributionGained || 0), 0);
 
-    // Output to console for debugging
-    if (allDepartedVessels.length > 0) {
-      const vesselsWithContribution = allDepartedVessels.filter(v => v.contributionGained !== null);
-      if (vesselsWithContribution.length > 0) {
+      // Output to console for debugging
+      if (allDepartedVessels.length > 0 && totalContributionGained > 0) {
+        const vesselsWithContribution = allDepartedVessels.filter(v => v.contributionGained !== null);
         console.log(`\n==================================================`);
         console.log(`Contribution for last ride: ${allDepartedVessels.length} vessels`);
         console.log(`Total gained: ${totalContributionGained}`);
@@ -754,15 +801,11 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           console.log(`  - ${v.name}: +${v.contributionGained}`);
         });
         console.log(`==================================================\n`);
-      } else {
-        console.log(`\n==================================================`);
-        console.log(`Contribution for last ride: ${allDepartedVessels.length} vessels`);
-        console.log(`NOT TRACKED - User not in alliance`);
-        console.log(`==================================================\n`);
       }
     }
 
-    return {
+    // Build result object - only include contribution fields if tracking is enabled
+    const result = {
       success: true,
       departedCount: allDepartedVessels.length,
       failedCount: failedVessels.length,
@@ -774,10 +817,16 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       totalRevenue,
       totalFuelUsed,
       totalCO2Used,
-      totalHarborFees,
-      contributionGained: totalContributionGained > 0 ? totalContributionGained : null,
-      contributionPerVessel: totalContributionGained > 0 && allDepartedVessels.length > 0 ? totalContributionGained / allDepartedVessels.length : null
+      totalHarborFees
     };
+
+    // Only add contribution fields if user is in alliance and has data
+    if (trackContribution && totalContributionGained > 0) {
+      result.contributionGained = totalContributionGained;
+      result.contributionPerVessel = totalContributionGained / allDepartedVessels.length;
+    }
+
+    return result;
 
   } catch (error) {
     logger.error('[Depart] Error:', error.message);
@@ -838,21 +887,31 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
 
     // Log success to autopilot logbook
     if (result.success && result.reason !== 'no_vessels' && result.departedCount > 0) {
+      // Build summary - only include contribution if tracked
+      const summary = result.contributionGained
+        ? `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)} | +${result.contributionGained} contribution`
+        : `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}`;
+
+      // Build details - only include contribution fields if tracked
+      const details = {
+        vesselCount: result.departedCount,
+        totalRevenue: result.totalRevenue,
+        totalFuelUsed: result.totalFuelUsed,
+        totalCO2Used: result.totalCO2Used,
+        totalHarborFees: result.totalHarborFees,
+        departedVessels: result.departedVessels
+      };
+      if (result.contributionGained) {
+        details.contributionGained = result.contributionGained;
+        details.contributionPerVessel = result.contributionPerVessel;
+      }
+
       await auditLog(
         userId,
         CATEGORIES.VESSEL,
         'Auto-Depart',
-        `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}${result.contributionGained !== null ? ` | +${result.contributionGained} contribution` : ''}`,
-        {
-          vesselCount: result.departedCount,
-          totalRevenue: result.totalRevenue,
-          totalFuelUsed: result.totalFuelUsed,
-          totalCO2Used: result.totalCO2Used,
-          totalHarborFees: result.totalHarborFees,
-          contributionGained: result.contributionGained,
-          contributionPerVessel: result.contributionPerVessel,
-          departedVessels: result.departedVessels
-        },
+        summary,
+        details,
         'SUCCESS',
         SOURCES.AUTOPILOT
       );

@@ -887,3 +887,174 @@ export async function fetchLogbookFileSize() {
     throw error;
   }
 }
+
+// ============================================================================
+// Stock Market API Functions
+// ============================================================================
+
+/**
+ * Fetches stock finance overview for a user
+ * Includes stock info with history, investors, and investments
+ *
+ * @param {number} userId - User ID to fetch data for
+ * @returns {Promise<Object>} Finance overview data
+ */
+export async function getStockFinanceOverview(userId) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/stock/finance-overview?user_id=${userId}`));
+    if (!response.ok) throw new Error('Failed to fetch finance overview');
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error fetching finance overview:', error);
+    throw error;
+  }
+}
+
+/**
+ * Fetches stock market listings with filter and pagination
+ *
+ * @param {string} filter - Filter type: 'top', 'low', 'activity', 'recent-ipo'
+ * @param {number} page - Page number (default 1)
+ * @param {number} limit - Items per page (default 40)
+ * @param {string} search - Search term (optional)
+ * @returns {Promise<Object>} Market data with companies list
+ */
+export async function getStockMarket(filter = 'top', page = 1, limit = 40, search = '') {
+  try {
+    const params = new URLSearchParams({ filter, page, limit, search });
+    const response = await fetch(window.apiUrl(`/api/stock/market?${params}`));
+    if (!response.ok) throw new Error('Failed to fetch market data');
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error fetching market:', error);
+    throw error;
+  }
+}
+
+/**
+ * Purchase stocks from a company
+ * Requires IPO=1 on the calling user's account
+ *
+ * @param {number} stockIssuerUserId - Company (user) ID to buy from
+ * @param {number} amount - Number of shares to purchase
+ * @param {string} [companyName] - Company name for logging
+ * @param {number} [pricePerShare] - Current price per share for logging
+ * @returns {Promise<Object>} Purchase result
+ */
+export async function purchaseStock(stockIssuerUserId, amount, companyName = '', pricePerShare = 0) {
+  try {
+    const response = await fetch(window.apiUrl('/api/stock/purchase'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stock_issuer_user_id: stockIssuerUserId,
+        amount,
+        company_name: companyName,
+        price_per_share: pricePerShare
+      })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error purchasing stock:', error);
+    throw error;
+  }
+}
+
+/**
+ * Increase shares for sale (issue new shares to the market)
+ * Only available for users who have completed IPO
+ * Price doubles with each 25k tranche based on shares in circulation
+ * @returns {Promise<Object>} Result from API
+ */
+export async function increaseStockForSale() {
+  try {
+    const response = await fetch(window.apiUrl('/api/stock/increase-stock-for-sale'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error increasing stock for sale:', error);
+    throw error;
+  }
+}
+
+/**
+ * Sell stock shares
+ * @param {number} stockIssuerUserId - The user ID of the company to sell shares from
+ * @param {number} amount - Number of shares to sell
+ * @param {string} [companyName] - Company name for logging
+ * @param {number} [pricePerShare] - Current price per share for logging
+ * @returns {Promise<Object>} Sale result from API
+ */
+export async function sellStock(stockIssuerUserId, amount, companyName = '', pricePerShare = 0) {
+  try {
+    const response = await fetch(window.apiUrl('/api/stock/sell'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        stock_issuer_user_id: stockIssuerUserId,
+        amount,
+        company_name: companyName,
+        price_per_share: pricePerShare
+      })
+    });
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error selling stock:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check for new IPOs since last check
+ * @param {number} maxAgeDays - Maximum age in days for fresh IPOs
+ * @returns {Promise<Object>} New IPOs data
+ */
+export async function checkNewIpos(maxAgeDays = 7, sendToAlliance = false) {
+  try {
+    const params = new URLSearchParams({
+      max_age_days: maxAgeDays,
+      send_to_alliance: sendToAlliance
+    });
+    const response = await fetch(window.apiUrl(`/api/stock/check-new-ipos?${params}`));
+    if (!response.ok) throw new Error('Failed to check new IPOs');
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error checking new IPOs:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get recent IPOs for the IPO Alert tab
+ * @returns {Promise<Object>} Recent IPOs data
+ */
+export async function getRecentIpos() {
+  try {
+    const response = await fetch(window.apiUrl('/api/stock/recent-ipos'));
+    if (!response.ok) throw new Error('Failed to fetch recent IPOs');
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error fetching recent IPOs:', error);
+    throw error;
+  }
+}
+
+/**
+ * Check age of a single company (non-blocking)
+ * @param {number} userId - User ID of the company
+ * @param {number} maxAgeDays - Maximum age in days for fresh IPOs
+ * @returns {Promise<Object>} Company age info { user_id, is_fresh, age_days, created_at }
+ */
+export async function checkCompanyAge(userId, maxAgeDays = 7) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/stock/check-company-age?user_id=${userId}&max_age_days=${maxAgeDays}`));
+    if (!response.ok) throw new Error('Failed to check company age');
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error checking company age:', error);
+    throw error;
+  }
+}

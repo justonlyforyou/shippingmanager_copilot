@@ -227,7 +227,8 @@ const config = {
 
   /**
    * Global rate limiting configuration for all API endpoints.
-   * Prevents API abuse and reduces detection risk.
+   * Self-imposed limits to avoid spamming the game API.
+   * The actual game API limit is unknown but well above 200 req/s (tested 2025-11-25).
    *
    * @typedef {Object} RateLimitConfig
    * @property {number} windowMs - Time window in milliseconds (15 minutes)
@@ -242,7 +243,7 @@ const config = {
 
   /**
    * Message-specific rate limiting configuration (stricter than global limit).
-   * Applied to alliance chat and private messaging endpoints.
+   * Self-imposed limit for alliance chat and private messaging endpoints.
    *
    * @typedef {Object} MessageRateLimitConfig
    * @property {number} windowMs - Time window in milliseconds (1 minute)

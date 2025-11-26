@@ -678,3 +678,166 @@ export async function showAnchorInfo() {
   // Show anchor purchase dialog (instant completion via reset-timing exploit)
   showAnchorPurchaseDialog();
 }
+
+/**
+ * Shows a purchase dialog with an amount slider for adjusting the purchase quantity.
+ * Used for fuel and CO2 purchases where users can reduce the amount before confirming.
+ *
+ * Features:
+ * - Range slider from 1 to max amount
+ * - Dynamic update of Total Cost and Cash After as slider changes
+ * - Affordability indication (green/red)
+ * - Customizable title, icon, and button text
+ *
+ * @param {Object} options - Configuration options
+ * @param {string} options.title - Dialog title (e.g., "Purchase Fuel")
+ * @param {string} [options.message] - Optional message text
+ * @param {number} options.maxAmount - Maximum purchasable amount
+ * @param {number} options.price - Price per unit
+ * @param {number} options.cash - Available cash
+ * @param {string} options.unit - Unit label (e.g., "t" for tons)
+ * @param {string} [options.priceLabel='Price'] - Label for price row
+ * @param {string} [options.priceClassName] - CSS class for price coloring
+ * @param {string} [options.confirmText='Confirm'] - Confirm button text
+ * @returns {Promise<number|null>} Selected amount if confirmed, null if cancelled
+ *
+ * @example
+ * const amount = await showPurchaseDialog({
+ *   title: 'Purchase Fuel',
+ *   maxAmount: 2500,
+ *   price: 400,
+ *   cash: 5000000,
+ *   unit: 't',
+ *   priceLabel: 'Price (incl -20%)',
+ *   priceClassName: 'fuel-green',
+ *   confirmText: 'Buy Fuel'
+ * });
+ */
+export function showPurchaseDialog(options) {
+  return new Promise((resolve) => {
+    const overlay = document.createElement('div');
+    overlay.className = 'confirm-dialog-overlay';
+
+    const dialog = document.createElement('div');
+    dialog.className = 'confirm-dialog';
+
+    const maxAmount = options.maxAmount;
+    const price = options.price;
+    const cash = options.cash;
+    const unit = options.unit;
+
+    // Calculate initial values
+    let currentAmount = maxAmount;
+    const initialCost = Math.round(currentAmount * price);
+    const initialCashAfter = Math.round(cash - initialCost);
+
+    const priceValueClass = options.priceClassName ? ` ${options.priceClassName}` : '';
+
+    dialog.innerHTML = `
+      <div class="confirm-dialog-header">
+        <h3>${escapeHtml(options.title || 'Purchase')}</h3>
+      </div>
+      <div class="confirm-dialog-body">
+        ${options.message ? `<p>${escapeHtml(options.message)}</p>` : ''}
+        <div class="purchase-slider-container">
+          <div class="purchase-slider-header">
+            <span class="purchase-slider-label">Amount</span>
+            <span class="purchase-slider-value" id="purchaseAmountValue">${formatNumber(currentAmount)}${unit}</span>
+          </div>
+          <input type="range" class="purchase-amount-slider" id="purchaseAmountSlider"
+            min="1" max="${maxAmount}" value="${maxAmount}" step="1">
+          <div class="purchase-slider-range">
+            <span>1${unit}</span>
+            <span>${formatNumber(maxAmount)}${unit}</span>
+          </div>
+        </div>
+        <div class="confirm-dialog-details">
+          <div class="confirm-dialog-detail-row">
+            <span class="label">${escapeHtml(options.priceLabel || 'Price')}</span>
+            <span class="value${priceValueClass}">$${formatNumber(price)}/${unit}</span>
+          </div>
+          <div class="confirm-dialog-detail-row expense-row" id="purchaseTotalCostRow">
+            <span class="label">Total Cost</span>
+            <span class="value" id="purchaseTotalCost">$${formatNumber(initialCost)}</span>
+          </div>
+          <div class="confirm-dialog-detail-row" id="purchaseCashAfterRow">
+            <span class="label">Cash after</span>
+            <span class="value" id="purchaseCashAfter">$${formatNumber(initialCashAfter)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="confirm-dialog-footer">
+        <button class="confirm-dialog-btn cancel" data-action="cancel">Cancel</button>
+        <button class="confirm-dialog-btn confirm" data-action="confirm" id="purchaseConfirmBtn">${escapeHtml(options.confirmText || 'Confirm')}</button>
+      </div>
+    `;
+
+    overlay.appendChild(dialog);
+    document.body.appendChild(overlay);
+
+    const slider = dialog.querySelector('#purchaseAmountSlider');
+    const amountDisplay = dialog.querySelector('#purchaseAmountValue');
+    const totalCostDisplay = dialog.querySelector('#purchaseTotalCost');
+    const cashAfterDisplay = dialog.querySelector('#purchaseCashAfter');
+    const totalCostRow = dialog.querySelector('#purchaseTotalCostRow');
+    const confirmBtn = dialog.querySelector('#purchaseConfirmBtn');
+
+    // Update affordability styling
+    const updateAffordability = (cashAfter) => {
+      if (cashAfter >= 0) {
+        totalCostRow.classList.remove('too-expensive');
+        totalCostRow.classList.add('affordable');
+        confirmBtn.disabled = false;
+        confirmBtn.classList.remove('disabled');
+        confirmBtn.title = '';
+      } else {
+        totalCostRow.classList.remove('affordable');
+        totalCostRow.classList.add('too-expensive');
+        confirmBtn.disabled = true;
+        confirmBtn.classList.add('disabled');
+        confirmBtn.title = 'Insufficient funds';
+      }
+    };
+
+    // Initial affordability check
+    updateAffordability(initialCashAfter);
+
+    // Slider input handler
+    slider.addEventListener('input', () => {
+      currentAmount = parseInt(slider.value, 10);
+      const totalCost = Math.round(currentAmount * price);
+      const cashAfter = Math.round(cash - totalCost);
+
+      amountDisplay.textContent = `${formatNumber(currentAmount)}${unit}`;
+      totalCostDisplay.textContent = `$${formatNumber(totalCost)}`;
+      cashAfterDisplay.textContent = `$${formatNumber(cashAfter)}`;
+
+      updateAffordability(cashAfter);
+    });
+
+    const handleClick = (e) => {
+      const action = e.target.dataset.action;
+
+      if (action === 'confirm' && e.target.disabled) {
+        return;
+      }
+
+      if (action === 'confirm') {
+        document.body.removeChild(overlay);
+        resolve(currentAmount);
+      } else if (action === 'cancel') {
+        document.body.removeChild(overlay);
+        resolve(null);
+      }
+    };
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        document.body.removeChild(overlay);
+        resolve(null);
+      }
+    });
+
+    dialog.addEventListener('click', handleClick);
+  });
+}

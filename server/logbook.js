@@ -206,7 +206,7 @@ function getTransactionType(log) {
 /**
  * Get category from action name
  * @param {string} action - Action/autopilot name
- * @returns {string} Category (BUNKER, VESSEL, AUTOPILOT, ANCHOR, SETTINGS)
+ * @returns {string} Category (BUNKER, VESSEL, AUTOPILOT, ANCHOR, SETTINGS, STOCK)
  */
 function getCategoryFromAction(action) {
   if (!action) return 'AUTOPILOT';
@@ -225,6 +225,10 @@ function getCategoryFromAction(action) {
 
   if (action.includes('Settings')) {
     return 'SETTINGS';
+  }
+
+  if (action.includes('Stock')) {
+    return 'STOCK';
   }
 
   return 'AUTOPILOT';

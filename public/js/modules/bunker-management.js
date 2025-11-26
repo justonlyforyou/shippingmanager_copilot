@@ -24,7 +24,7 @@
 
 import { formatNumber, showSideNotification, getFuelPriceClass, getCO2PriceClass, escapeHtml } from './utils.js';
 import { fetchBunkerPrices, purchaseFuel as apiPurchaseFuel, purchaseCO2 as apiPurchaseCO2 } from './api.js';
-import { showConfirmDialog } from './ui-dialogs.js';
+import { showPurchaseDialog } from './ui-dialogs.js';
 
 /**
  * Maximum fuel storage capacity in tons.
@@ -370,34 +370,37 @@ export async function buyMaxFuel() {
     return;
   }
 
-  // Calculate total cost using ACTUAL price (with event discount)
-  const totalCost = Math.round(amountToBuy * displayedPrice);
+  // Show purchase dialog with amount slider
   const isPartialFill = amountToBuy < fuelNeeded;
 
-  const confirmed = await showConfirmDialog({
+  const selectedAmount = await showPurchaseDialog({
     title: '⛽ Purchase Fuel',
     message: isPartialFill
-      ? `Insufficient funds to fill tank completely. Purchase ${formatNumber(amountToBuy)}t instead?`
-      : 'Do you want to purchase fuel to fill your tank?',
-    confirmText: 'Buy Fuel',
-    details: [
-      { label: 'Amount', value: `${formatNumber(amountToBuy)}t${isPartialFill ? ` (of ${formatNumber(fuelNeeded)}t needed)` : ''}` },
-      { label: hasDiscount ? `Price (incl -${eventDiscount.percentage}%)` : 'Price', value: `$${formatNumber(displayedPrice)}/t`, className: priceColorClass },
-      { label: 'Total Cost', value: `$${formatNumber(totalCost)}` },
-      { label: 'Cash after', value: `$${formatNumber(Math.round(actualCash - totalCost))}` }
-    ]
+      ? `Insufficient funds to fill tank completely. Max: ${formatNumber(amountToBuy)}t of ${formatNumber(fuelNeeded)}t needed.`
+      : undefined,
+    maxAmount: amountToBuy,
+    price: displayedPrice,
+    cash: actualCash,
+    unit: 't',
+    priceLabel: hasDiscount ? `Price (incl -${eventDiscount.percentage}%)` : 'Price',
+    priceClassName: priceColorClass,
+    confirmText: 'Buy Fuel'
   });
 
-  if (!confirmed) {
+  if (selectedAmount === null) {
     return;
   }
 
+  // Use the user-selected amount
+  const amountToActuallyBuy = selectedAmount;
+  const totalCost = Math.round(amountToActuallyBuy * displayedPrice);
+
   try {
     if (window.DEBUG_MODE) {
-      console.log(`[Fuel Purchase] SENDING TO API - amountToBuy: ${amountToBuy}t, Math.round(amountToBuy): ${Math.round(amountToBuy)}t, totalCost: $${totalCost}, actualCash: $${actualCash}, displayedPrice: $${displayedPrice}/t`);
+      console.log(`[Fuel Purchase] SENDING TO API - amountToActuallyBuy: ${amountToActuallyBuy}t, totalCost: $${totalCost}, actualCash: $${actualCash}, displayedPrice: $${displayedPrice}/t`);
     }
 
-    await apiPurchaseFuel(amountToBuy);
+    await apiPurchaseFuel(amountToActuallyBuy);
 
     // Backend broadcasts notification to ALL clients via WebSocket
     // No need to show notification here - all clients will receive it
@@ -410,7 +413,7 @@ export async function buyMaxFuel() {
     // Show actual error message - don't hide failures!
     console.error('[Fuel Purchase] Error:', error);
     if (window.DEBUG_MODE) {
-      console.error('[Fuel Purchase] Error details - amountToBuy:', amountToBuy, 'totalCost:', totalCost, 'actualCash:', actualCash, 'displayedPrice:', displayedPrice);
+      console.error('[Fuel Purchase] Error details - amountToActuallyBuy:', amountToActuallyBuy, 'totalCost:', totalCost, 'actualCash:', actualCash, 'displayedPrice:', displayedPrice);
     }
     showSideNotification(`⛽ Purchase failed: ${escapeHtml(error.message)}`, 'error');
   }
@@ -514,34 +517,37 @@ export async function buyMaxCO2() {
     return;
   }
 
-  // Calculate total cost using ACTUAL price (with event discount)
-  const totalCost = Math.round(amountToBuy * displayedPrice);
+  // Show purchase dialog with amount slider
   const isPartialFill = amountToBuy < co2Needed;
 
-  const confirmed = await showConfirmDialog({
+  const selectedAmount = await showPurchaseDialog({
     title: '💨 Purchase CO2',
     message: isPartialFill
-      ? `Insufficient funds to fill storage completely. Purchase ${formatNumber(amountToBuy)}t instead?`
-      : 'Do you want to purchase CO2 to fill your storage?',
-    confirmText: 'Buy CO2',
-    details: [
-      { label: 'Amount', value: `${formatNumber(amountToBuy)}t${isPartialFill ? ` (of ${formatNumber(co2Needed)}t needed)` : ''}` },
-      { label: hasDiscount ? `Price (incl -${eventDiscount.percentage}%)` : 'Price', value: `$${formatNumber(displayedPrice)}/t`, className: priceColorClass },
-      { label: 'Total Cost', value: `$${formatNumber(totalCost)}` },
-      { label: 'Cash after', value: `$${formatNumber(Math.round(actualCash - totalCost))}` }
-    ]
+      ? `Insufficient funds to fill storage completely. Max: ${formatNumber(amountToBuy)}t of ${formatNumber(co2Needed)}t needed.`
+      : undefined,
+    maxAmount: amountToBuy,
+    price: displayedPrice,
+    cash: actualCash,
+    unit: 't',
+    priceLabel: hasDiscount ? `Price (incl -${eventDiscount.percentage}%)` : 'Price',
+    priceClassName: priceColorClass,
+    confirmText: 'Buy CO2'
   });
 
-  if (!confirmed) {
+  if (selectedAmount === null) {
     return;
   }
 
+  // Use the user-selected amount
+  const amountToActuallyBuy = selectedAmount;
+  const totalCost = Math.round(amountToActuallyBuy * displayedPrice);
+
   try {
     if (window.DEBUG_MODE) {
-      console.log(`[CO2 Purchase] SENDING TO API - amountToBuy: ${amountToBuy}t, Math.round(amountToBuy): ${Math.round(amountToBuy)}t, totalCost: $${totalCost}, actualCash: $${actualCash}, displayedPrice: $${displayedPrice}/t`);
+      console.log(`[CO2 Purchase] SENDING TO API - amountToActuallyBuy: ${amountToActuallyBuy}t, totalCost: $${totalCost}, actualCash: $${actualCash}, displayedPrice: $${displayedPrice}/t`);
     }
 
-    await apiPurchaseCO2(amountToBuy);
+    await apiPurchaseCO2(amountToActuallyBuy);
 
     // Backend broadcasts notification to ALL clients via WebSocket
     // No need to show notification here - all clients will receive it
@@ -554,7 +560,7 @@ export async function buyMaxCO2() {
     // Show actual error message - don't hide failures!
     console.error('[CO2 Purchase] Error:', error);
     if (window.DEBUG_MODE) {
-      console.error('[CO2 Purchase] Error details - amountToBuy:', amountToBuy, 'totalCost:', totalCost, 'actualCash:', actualCash, 'displayedPrice:', displayedPrice);
+      console.error('[CO2 Purchase] Error details - amountToActuallyBuy:', amountToActuallyBuy, 'totalCost:', totalCost, 'actualCash:', actualCash, 'displayedPrice:', displayedPrice);
     }
     showSideNotification(`💨 Purchase failed: ${escapeHtml(error.message)}`, 'error');
   }

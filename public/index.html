@@ -12,6 +12,7 @@
     <link rel="stylesheet" href="/css/chat.css">
     <link rel="stylesheet" href="/css/overlays.css">
     <link rel="stylesheet" href="/css/company-profile.css">
+    <link rel="stylesheet" href="/css/stock-manager.css">
     <link rel="stylesheet" href="/css/notifications.css">
     <link rel="stylesheet" href="/css/vessels.css">
     <link rel="stylesheet" href="/css/depart-manager.css">
@@ -193,6 +194,9 @@
                     </div>
                     <div class="map-icon-item" data-action="contactList" title="View contact list">
                         👤
+                    </div>
+                    <div class="map-icon-item" data-action="stockManager" title="Stock Manager">
+                        📈
                     </div>
                 </div>
             </div>
@@ -568,9 +572,41 @@
             </div>
             <div class="company-profile-search">
                 <input type="text" id="companyProfileSearchInput" placeholder="Search player..." maxlength="50" />
-                <button id="companyProfileSearchBtn" class="back-btn">Search</button>
+                <button id="companyProfileSearchBtn">Search</button>
             </div>
             <div id="companyProfileContent" class="company-profile-content">
+            </div>
+        </div>
+    </div>
+
+    <div id="stockManagerOverlay" class="overlay hidden">
+        <div class="messenger-window messenger-window-wide">
+            <div class="messenger-header">
+                <h2>📈 Stock Manager</h2>
+                <button id="closeStockManagerBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+            </div>
+            <div class="stock-manager-tabs">
+                <button class="stock-tab-btn active" data-tab="portfolio">My Portfolio</button>
+                <button class="stock-tab-btn" data-tab="market">Market</button>
+                <button class="stock-tab-btn" data-tab="investments">Investments</button>
+                <button class="stock-tab-btn" data-tab="investors">Investors</button>
+                <button class="stock-tab-btn" data-tab="ipo-alerts">IPO Alert</button>
+            </div>
+            <div id="stockManagerContent" class="stock-manager-content">
+                <!-- Content will be populated by stock-manager.js -->
+            </div>
+        </div>
+    </div>
+
+    <div id="stockCompanyDetailOverlay" class="overlay hidden">
+        <div class="messenger-window messenger-window-medium">
+            <div class="messenger-header">
+                <span id="stockCompanyBackBtn" class="stock-back-emoji" onmouseover="this.style.animation='wobble 0.5s ease-in-out'" onmouseout="this.style.animation='none'">&#x1F519;</span>
+                <h2 id="stockCompanyTitle">Company Details</h2>
+                <button id="closeStockCompanyBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+            </div>
+            <div id="stockCompanyContent" class="stock-company-content">
+                <!-- Content will be populated by stock-manager.js -->
             </div>
         </div>
     </div>
@@ -836,6 +872,46 @@
                         " onmouseover="this.style.background='rgba(59, 130, 246, 0.3)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.2)'">
                             Test notification
                         </button>
+                        </div>
+                    </div>
+
+                    <!-- IPO Alerts Section (only visible if user has IPO=1) -->
+                    <div id="ipoAlertsSection" class="settings-section hidden">
+                        <h3 onclick="toggleSection('ipoAlertsContent')" class="settings-section-header">
+                            <span>&#x1F4C8; IPO Alerts</span>
+                            <span id="ipoAlertsToggle" class="settings-section-toggle">+</span>
+                        </h3>
+                        <div class="settings-section-divider"></div>
+                        <div id="ipoAlertsContent" class="hidden" data-display-mode="block">
+                            <p class="settings-section-description">
+                                Get notified when new players complete their IPO. Fresh accounts have higher potential returns.
+                            </p>
+                            <div class="settings-section-options">
+                                <div class="settings-option-box">
+                                    <label class="settings-checkbox-label">
+                                        <input type="checkbox" id="enableIpoAlerts" class="settings-checkbox">
+                                        <span class="settings-checkbox-text">Enable IPO Alerts</span>
+                                    </label>
+                                    <div id="ipoAlertOptions" class="settings-suboptions hidden">
+                                        <label class="settings-select-label">
+                                            <span>Max account age:</span>
+                                            <select id="ipoAlertMaxAge" class="settings-select">
+                                                <option value="1">One Day</option>
+                                                <option value="7" selected>One Week</option>
+                                                <option value="30">One Month</option>
+                                                <option value="180">6 Months</option>
+                                            </select>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div id="ipoAlertAllianceChatOption" class="settings-option-box hidden">
+                                    <label class="settings-checkbox-label">
+                                        <input type="checkbox" id="ipoAlertSendToAllianceChat" class="settings-checkbox">
+                                        <span class="settings-checkbox-text">Send IPO Alerts to Alliance Chat</span>
+                                    </label>
+                                    <p class="settings-checkbox-hint">Post new IPO alerts to your alliance chat so other members can see them too</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -1915,6 +1991,9 @@
     <script src="/js/vendor/leaflet.js"></script>
     <script src="/js/vendor/leaflet-environmental.js"></script>
     <script src="/js/vendor/leaflet.markercluster.js"></script>
+
+    <!-- TradingView Lightweight Charts -->
+    <script src="/js/vendor/lightweight-charts.standalone.production.js"></script>
 
     <script type="module" src="/js/script.js"></script>
 </body>

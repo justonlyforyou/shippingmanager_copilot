@@ -226,14 +226,15 @@ function updateActionFilter() {
   actionSelect.innerHTML = `
     <option value="ALL">All Actions</option>
     <option disabled>─── Categories ───</option>
-    <option value="CATEGORY:BUNKER">📦 Bunker</option>
-    <option value="CATEGORY:VESSEL">🚢 Vessel</option>
-    <option value="CATEGORY:AUTOPILOT">🤖 Autopilot</option>
-    <option value="CATEGORY:ANCHOR">⚓ Anchor</option>
-    <option value="CATEGORY:SETTINGS">⚙️ Settings</option>
+    <option value="CATEGORY:BUNKER">Bunker</option>
+    <option value="CATEGORY:VESSEL">Vessel</option>
+    <option value="CATEGORY:AUTOPILOT">Autopilot</option>
+    <option value="CATEGORY:ANCHOR">Anchor</option>
+    <option value="CATEGORY:STOCK">Stock</option>
+    <option value="CATEGORY:SETTINGS">Settings</option>
     <option disabled>─── Sources ───</option>
-    <option value="SOURCE:MANUAL">✋ Manual</option>
-    <option value="SOURCE:AUTOPILOT">🤖 Autopilot</option>
+    <option value="SOURCE:MANUAL">Manual</option>
+    <option value="SOURCE:AUTOPILOT">Autopilot</option>
   `;
 
   // Add separator and specific actions if any exist

@@ -76,13 +76,11 @@ router.get('/:vesselId', async (req, res) => {
     const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
 
     let vesselData = null;
-    let hasAppearanceFile = false;
 
     // Try to load appearance file first
     try {
       const appearanceData = await fs.readFile(appearanceFile, 'utf8');
       vesselData = JSON.parse(appearanceData);
-      hasAppearanceFile = true;
     } catch {
       // Appearance file doesn't exist - will try API
     }

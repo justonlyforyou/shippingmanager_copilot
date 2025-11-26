@@ -138,6 +138,7 @@ export function exportOverlayFunctions(overlayFunctions) {
   window.showDocsOverlay = overlayFunctions.showDocs;
   window.showForecastOverlay = overlayFunctions.showForecast;
   window.showBuyVesselsOverlay = overlayFunctions.showBuyVessels;
+  window.showStockManager = overlayFunctions.showStockManager;
 }
 
 /**

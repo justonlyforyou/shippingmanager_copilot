@@ -84,22 +84,32 @@ router.post('/depart', async (req, res) => {
     // LOGBOOK: Manual vessel departure (same format as Auto-Depart)
     // NOTE: Contribution data comes from individual vessels in departedVessels array
     if (result && result.success && result.departedCount > 0) {
+      // Build summary - only include contribution if tracked
+      const summary = result.contributionGained
+        ? `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)} | +${result.contributionGained} contribution`
+        : `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}`;
+
+      // Build details - only include contribution fields if tracked
+      const details = {
+        vesselCount: result.departedCount,
+        totalRevenue: result.totalRevenue,
+        totalFuelUsed: result.totalFuelUsed,
+        totalCO2Used: result.totalCO2Used,
+        totalHarborFees: result.totalHarborFees,
+        departedVessels: result.departedVessels
+      };
+      if (result.contributionGained) {
+        details.contributionGained = result.contributionGained;
+        details.contributionPerVessel = result.contributionPerVessel;
+      }
+
       // Log success
       await auditLog(
         userId,
         CATEGORIES.VESSEL,
         'Manual Depart',
-        `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}${result.contributionGained !== null ? ` | +${result.contributionGained} contribution` : ''}`,
-        {
-          vesselCount: result.departedCount,
-          totalRevenue: result.totalRevenue,
-          totalFuelUsed: result.totalFuelUsed,
-          totalCO2Used: result.totalCO2Used,
-          totalHarborFees: result.totalHarborFees,
-          contributionGained: result.contributionGained,
-          contributionPerVessel: result.contributionPerVessel,
-          departedVessels: result.departedVessels
-        },
+        summary,
+        details,
         'SUCCESS',
         SOURCES.MANUAL
       );

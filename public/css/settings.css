@@ -421,3 +421,93 @@
   color: var(--color-success-dark);
   font-size: var(--font-size-13);
 }
+
+/* ============================================
+   SETTINGS SECTION CONTENT
+   ============================================ */
+
+.settings-section-description {
+  margin: 0 0 var(--spacing-15) 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+  line-height: var(--line-height-relaxed);
+}
+
+.settings-section-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-10);
+}
+
+.settings-option-box {
+  padding: var(--spacing-12);
+  background: var(--slate-800-50);
+  border-radius: var(--radius-8);
+}
+
+.settings-checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.settings-checkbox {
+  width: 18px;
+  height: 18px;
+  margin-right: var(--spacing-10);
+  cursor: pointer;
+}
+
+.settings-checkbox-text {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-medium);
+}
+
+.settings-checkbox-hint {
+  margin: var(--spacing-8) 0 0 28px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+}
+
+.settings-suboptions {
+  margin-top: var(--spacing-10);
+  padding-left: 28px;
+}
+
+.settings-select-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.settings-select {
+  width: 115px;
+  padding: var(--spacing-4) var(--spacing-8);
+  background: var(--slate-900-80);
+  border: var(--border-light);
+  border-radius: var(--radius-6);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+}
+
+.settings-select-wide {
+  width: 140px;
+  padding: var(--spacing-6) var(--spacing-10);
+  font-size: var(--font-size-14);
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.settings-label {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-14);
+}

@@ -41,6 +41,7 @@ const broadcaster = require('./websocket/broadcaster');
 const chatRefresh = require('./websocket/chat-refresh');
 const messengerRefresh = require('./websocket/messenger-refresh');
 const hijackingRefresh = require('./websocket/hijacking-refresh');
+const ipoRefresh = require('./websocket/ipo-refresh');
 
 // Wire up cross-module dependencies
 chatRefresh.setMessengerRefreshFn(messengerRefresh.performMessengerRefresh);
@@ -334,15 +335,15 @@ function initWebSocket() {
           if (!headerData) {
             // No cached data - fetch fresh from game API
             try {
-              const userSettingsResponse = await apiCall('/user/get-user-settings', 'GET');
-              if (userSettingsResponse?.user?.stock && userSettingsResponse?.user?.anchorpoints) {
-                const stock = userSettingsResponse.user.stock;
-                const anchor = userSettingsResponse.user.anchorpoints;
+              const userSettingsResponse = await apiCall('/user/get-user-settings', 'POST', {});
+              const user = userSettingsResponse?.user;
+              if (user && user.anchorpoints) {
+                const anchor = user.anchorpoints;
                 headerData = {
                   stock: {
-                    value: stock.value,
-                    trend: stock.trend,
-                    ipo: stock.ipo
+                    value: user.stock_value,
+                    trend: user.stock_trend,
+                    ipo: user.ipo
                   },
                   anchor: {
                     available: anchor.available,
@@ -510,6 +511,13 @@ module.exports = {
   startHijackingAutoRefresh: hijackingRefresh.startHijackingAutoRefresh,
   stopHijackingAutoRefresh: hijackingRefresh.stopHijackingAutoRefresh,
   triggerImmediateHijackingRefresh: hijackingRefresh.triggerImmediateHijackingRefresh,
+
+  // IPO refresh (from ipo-refresh.js)
+  startIpoAutoRefresh: ipoRefresh.startIpoAutoRefresh,
+  stopIpoAutoRefresh: ipoRefresh.stopIpoAutoRefresh,
+  triggerImmediateIpoRefresh: ipoRefresh.triggerImmediateIpoRefresh,
+  resetIpoCache: ipoRefresh.resetIpoCache,
+  getFreshIpos: ipoRefresh.getFreshIpos,
 
   // Caching functions (from cache modules)
   getCachedMessengerChats: messengerCache.getCachedMessengerChats,

@@ -144,10 +144,15 @@
 
 .close-btn span {
   display: inline-block;
+  transition: transform 0.2s ease;
 }
 
 .close-btn:hover {
   color: var(--color-danger);
+}
+
+.close-btn:hover span {
+  transform: rotate(90deg);
 }
 
 /* Button push to right */
@@ -477,6 +482,12 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* Income rows (Revenue) */
+.confirm-dialog-detail-row.income-row .value {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
 /* Make "Total Cost" row prominent (second-to-last row) */
 .confirm-dialog-detail-row:nth-last-child(2) {
   border-bottom: none;
@@ -554,6 +565,74 @@
 
 .confirm-dialog-btn.confirm:hover {
   background: var(--color-info-dark);
+}
+
+/* ============================================
+   PURCHASE DIALOG SLIDER
+   ============================================ */
+
+.purchase-slider-container {
+  margin-bottom: var(--spacing-16);
+}
+
+.purchase-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-8);
+}
+
+.purchase-slider-label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.purchase-slider-value {
+  color: var(--color-info-light);
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-bold);
+}
+
+.purchase-amount-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-4);
+  background: var(--color-bg-card);
+  outline: none;
+  cursor: pointer;
+  margin: var(--spacing-8) 0;
+}
+
+.purchase-amount-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-info);
+  cursor: pointer;
+  border: 2px solid var(--color-info-light);
+  transition: transform 0.1s ease;
+}
+
+.purchase-amount-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.purchase-amount-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--color-info);
+  cursor: pointer;
+  border: 2px solid var(--color-info-light);
+}
+
+.purchase-slider-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--font-size-11);
+  color: var(--color-text-tertiary);
 }
 
 /* ============================================

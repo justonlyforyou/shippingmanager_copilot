@@ -66,7 +66,7 @@ const config = require('./server/config');
 const { setupMiddleware } = require('./server/middleware');
 const { initializeAlliance } = require('./server/utils/api');
 const { createHttpsServer } = require('./server/certificate');
-const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAutoRefresh, startHijackingAutoRefresh } = require('./server/websocket');
+const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAutoRefresh, startHijackingAutoRefresh, startIpoAutoRefresh } = require('./server/websocket');
 const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
@@ -120,6 +120,7 @@ const vesselSvgRoutes = require('./server/routes/vessel-svg');
 const allianceLogoRoutes = require('./server/routes/alliance-logo');
 const staffRoutes = require('./server/routes/staff');
 const routePlannerRoutes = require('./server/routes/route-planner');
+const stockRoutes = require('./server/routes/stock');
 
 // Initialize Express app
 const app = express();
@@ -169,6 +170,7 @@ app.use('/api/vessel-svg', vesselSvgRoutes);
 app.use('/api/alliance-logo', allianceLogoRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/route', routePlannerRoutes);
+app.use('/api', stockRoutes);
 
 // Autopilot pause/resume endpoint
 app.post('/api/autopilot/toggle', async (req, res) => {
@@ -382,13 +384,15 @@ const chatBot = require('./server/chatbot');
     logger.debug(`[ChatBot] DM Commands enabled`);
   }
 
-  // Start chat, messenger, and hijacking polling
+  // Start chat, messenger, hijacking, and IPO polling
   startChatAutoRefresh();
   startMessengerAutoRefresh();
   startHijackingAutoRefresh();
+  startIpoAutoRefresh();
   logger.debug('[Alliance Chat] Started 20-second chat polling');
   logger.debug('[Messenger] Started 20-second messenger polling');
   logger.debug('[Hijacking] Started 60-second hijacking polling');
+  logger.debug('[IPO Alert] Started 5-minute IPO polling');
 
   // Initialize POI cache and start automatic refresh
   await poiRoutes.initializePOICache();

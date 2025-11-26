@@ -287,6 +287,12 @@ function updateNotificationSettings(newSettings) {
     enableWeatherDataCheckbox.checked = weatherValue;
   }
 
+  // IPO Alerts toggle
+  const enableIpoAlertsCheckbox = document.getElementById('enableIpoAlerts');
+  if (enableIpoAlertsCheckbox && newSettings.enableIpoAlerts !== undefined) {
+    enableIpoAlertsCheckbox.checked = newSettings.enableIpoAlerts;
+  }
+
   // Update individual agent notification checkboxes
   const agentNotifIds = [
     'notifyBarrelBossInApp', 'notifyBarrelBossDesktop',
