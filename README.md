@@ -284,11 +284,12 @@ Comprehensive notification system for critical events and automation feedback wi
 
 ***
 
-## Requirements
+## Installation
 
 ### Windows End-Users (Using .exe Installer)
 - Modern web browser (Chrome/Chromium recommended)
 - Active Shipping Manager account (via Steam, Browser, or Mobile)
+**[Download here](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest)**
 
 That's it! The installer includes everything else you need.
 
