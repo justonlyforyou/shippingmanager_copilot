@@ -32,8 +32,7 @@ import { initHarborMap } from '../harbor-map-init.js';
 import { initCompanyProfile } from '../company-profile.js';
 import { initVesselAppearanceEditor, openVesselAppearanceEditor, handleVesselImageError } from '../vessel-appearance-editor.js';
 import { showSideNotification, showNotification, escapeHtml } from '../utils.js';
-import { initStockManager, showStockManager, showStockManagerIpoAlerts } from '../stock-manager.js';
-import { checkNewIpos } from '../api.js';
+import { initStockManager, showStockManager } from '../stock-manager.js';
 import { initBroadcast } from '../broadcast.js';
 
 /**
@@ -200,10 +199,7 @@ export async function initializeApp(apiPrefix) {
   // STEP 17: Initialize notification button updater
   initNotificationButtonUpdater();
 
-  // STEP 18: Initialize IPO Alert checker
-  initIpoAlertChecker(settings);
-
-  // STEP 19: Auto-request notification permission
+  // STEP 18: Auto-request notification permission
   if ("Notification" in window && Notification.permission === "default") {
     await requestNotificationPermission();
   }
@@ -723,104 +719,4 @@ function exposeGlobalFunctions(settings, debouncedFunctions) {
   document.getElementById('closeForecastBtn').addEventListener('click', () => {
     document.getElementById('forecastOverlay').classList.add('hidden');
   });
-}
-
-/**
- * Initialize IPO Alert checker.
- * Checks for new IPOs every 60 seconds and shows notifications.
- *
- * @param {Object} settings - Settings object
- */
-function initIpoAlertChecker(settings) {
-  // Track interval ID (used for cleanup if needed)
-  let _ipoCheckInterval = null;
-
-  /**
-   * Check for new IPOs and show notification
-   */
-  async function checkForNewIpos() {
-    // Check if IPO alerts are enabled
-    if (!settings.enableIpoAlerts) {
-      return;
-    }
-
-    try {
-      const maxAgeDays = settings.ipoAlertMaxAgeDays || 7;
-      const sendToAlliance = settings.ipoAlertSendToAllianceChat || false;
-      const result = await checkNewIpos(maxAgeDays, sendToAlliance);
-
-      // Skip if first check (just populating the cache)
-      if (result.firstCheck) {
-        if (window.DEBUG_MODE) {
-          console.log('[IPO Alert] First check - populated cache with', result.allIpos?.length || 0, 'IPOs, fresh:', result.freshIpos?.length || 0);
-        }
-        return;
-      }
-
-      // Show notifications for new IPOs
-      if (result.newIpos && result.newIpos.length > 0) {
-        for (const ipo of result.newIpos) {
-          showIpoNotification(ipo);
-        }
-      }
-    } catch (error) {
-      if (window.DEBUG_MODE) {
-        console.error('[IPO Alert] Check failed:', error);
-      }
-    }
-  }
-
-  /**
-   * Show notification for a new IPO
-   */
-  function showIpoNotification(ipo) {
-    const companyName = ipo.company_name || 'Unknown Company';
-    const stockPrice = ipo.stock ? `$${formatNumberWithSeparator(ipo.stock)}` : 'N/A';
-    const forSale = ipo.stock_for_sale ? formatNumberWithSeparator(ipo.stock_for_sale) : '0';
-
-    // Create notification with Buy button
-    const notification = showSideNotification(
-      `<strong>New IPO Alert</strong><br><br>` +
-      `<span style="color: var(--color-info-light);">${escapeHtml(companyName)}</span><br>` +
-      `Price: ${stockPrice} | Shares: ${forSale}<br><br>` +
-      `<button class="ipo-alert-buy-btn" style="background: var(--color-success-10); border: 1px solid var(--color-success-30); color: var(--color-success); padding: 6px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">View IPO Alerts</button>`,
-      'info',
-      15000,
-      false
-    );
-
-    // Setup button click handler
-    if (notification) {
-      const buyBtn = notification.querySelector('.ipo-alert-buy-btn');
-      if (buyBtn) {
-        buyBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          // Close notification
-          notification.style.animation = 'slideOutRight 0.3s ease-out forwards';
-          setTimeout(() => notification.remove(), 300);
-          // Open stock manager IPO tab
-          await showStockManagerIpoAlerts();
-        });
-      }
-    }
-
-    if (window.DEBUG_MODE) {
-      console.log('[IPO Alert] New IPO:', companyName, stockPrice);
-    }
-  }
-
-  // Initial check after 5 seconds (let the app settle)
-  setTimeout(() => {
-    checkForNewIpos();
-  }, 5000);
-
-  // Start checking every 3 minutes (game updates stock data every 15 min)
-  _ipoCheckInterval = setInterval(checkForNewIpos, 180000);
-
-  if (window.DEBUG_MODE) {
-    console.log('[IPO Alert] Checker initialized (3 min interval)');
-  }
-
-  // Expose for debugging
-  window.checkIpoAlerts = checkForNewIpos;
 }

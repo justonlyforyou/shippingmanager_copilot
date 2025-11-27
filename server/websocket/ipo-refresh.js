@@ -11,6 +11,7 @@ const logger = require('../utils/logger');
 const { broadcast } = require('./broadcaster');
 const { apiCall, getUserId } = require('../utils/api');
 const state = require('../state');
+const { hasSeenIpo, markIpoAsSeen } = require('../utils/ipo-tracker');
 
 /**
  * Interval timer for automatic IPO refresh (5-minute polling)
@@ -141,6 +142,11 @@ async function performIpoRefresh() {
       freshIpoCache.clear();
       for (const ipo of newFreshIpos) {
         freshIpoCache.set(ipo.id, ipo);
+        // Mark all current IPOs as seen in persistent storage
+        // This prevents alerts for already-existing IPOs after restart
+        if (!hasSeenIpo(ipo.id)) {
+          markIpoAsSeen(ipo.id);
+        }
       }
       logger.info(`[IPO Refresh] Initialized with ${newFreshIpos.length} fresh IPOs (max age: ${maxAgeDays} days)`);
 
@@ -158,10 +164,13 @@ async function performIpoRefresh() {
     const newIpos = [];
     const removedIds = [];
 
-    // Find new fresh IPOs
+    // Find new fresh IPOs - check both in-memory cache AND persistent tracker
+    // This prevents duplicate alerts after server restart
     for (const ipo of newFreshIpos) {
-      if (!freshIpoCache.has(ipo.id)) {
+      if (!freshIpoCache.has(ipo.id) && !hasSeenIpo(ipo.id)) {
         newIpos.push(ipo);
+        // Mark as seen in persistent storage BEFORE sending alert
+        markIpoAsSeen(ipo.id);
         logger.info(`[IPO Refresh] New fresh IPO: ${ipo.company_name} (ID: ${ipo.id}, Age: ${ipo.age_days}d)`);
       }
     }

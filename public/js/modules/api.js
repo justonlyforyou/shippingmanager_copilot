@@ -1008,26 +1008,6 @@ export async function sellStock(stockIssuerUserId, amount, companyName = '', pri
 }
 
 /**
- * Check for new IPOs since last check
- * @param {number} maxAgeDays - Maximum age in days for fresh IPOs
- * @returns {Promise<Object>} New IPOs data
- */
-export async function checkNewIpos(maxAgeDays = 7, sendToAlliance = false) {
-  try {
-    const params = new URLSearchParams({
-      max_age_days: maxAgeDays,
-      send_to_alliance: sendToAlliance
-    });
-    const response = await fetch(window.apiUrl(`/api/stock/check-new-ipos?${params}`));
-    if (!response.ok) throw new Error('Failed to check new IPOs');
-    return await response.json();
-  } catch (error) {
-    console.error('[Stock API] Error checking new IPOs:', error);
-    throw error;
-  }
-}
-
-/**
  * Get recent IPOs for the IPO Alert tab
  * @returns {Promise<Object>} Recent IPOs data
  */

@@ -11,16 +11,9 @@
 
 const express = require('express');
 const router = express.Router();
-const { apiCall, getAllianceId, getUserCompanyName, getUserId } = require('../utils/api');
+const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const { logAutopilotAction } = require('../logbook');
-const {
-  getHighestSeenUserId,
-  hasSeenIpo,
-  markIpoAsSeen,
-  initializeWithIpos,
-  isFirstCheck
-} = require('../utils/ipo-tracker');
 
 /**
  * GET /api/stock/finance-overview - Retrieves stock finance overview for a user
@@ -277,117 +270,6 @@ router.post('/stock/increase-stock-for-sale', async (req, res) => {
   } catch (error) {
     logger.error('[STOCK] Error increasing stock for sale:', error);
     res.status(500).json({ error: 'Failed to increase stock for sale' });
-  }
-});
-
-/**
- * GET /api/stock/check-new-ipos - Check for new IPOs since last check
- *
- * Returns only IPOs that haven't been seen before.
- * Uses high user IDs as indicator for fresh accounts.
- *
- * @name GET /api/stock/check-new-ipos
- * @function
- * @memberof module:server/routes/stock
- * @param {express.Request} req - Express request
- * @param {express.Response} res - Express response object
- * @returns {Promise<void>} Sends JSON response with new IPOs
- */
-router.get('/stock/check-new-ipos', async (req, res) => {
-  try {
-    // Get max age from query param (in days), default 7
-    const maxAgeDays = parseInt(req.query.max_age_days, 10) || 7;
-
-    const result = await apiCall('/stock/get-market', 'POST', {
-      filter: 'recent-ipo',
-      page: 1,
-      limit: 40
-    });
-
-    if (!result.data || !result.data.market) {
-      return res.json({ newIpos: [], allIpos: [], freshIpos: [] });
-    }
-
-    // Sort by user ID descending (highest = newest accounts)
-    const allIpos = result.data.market.sort((a, b) => b.id - a.id);
-
-    // Check top 5 for created_at date
-    const top5 = allIpos.slice(0, 5);
-    const freshIpos = [];
-    const now = Date.now();
-    const maxAgeMs = maxAgeDays * 24 * 60 * 60 * 1000;
-
-    for (const ipo of top5) {
-      try {
-        const companyData = await apiCall('/user/get-company', 'POST', {
-          user_id: ipo.id
-        });
-
-        if (companyData.data && companyData.data.company && companyData.data.company.created_at) {
-          const createdAt = new Date(companyData.data.company.created_at).getTime();
-          const ageMs = now - createdAt;
-
-          if (ageMs <= maxAgeMs) {
-            freshIpos.push({
-              ...ipo,
-              created_at: companyData.data.company.created_at,
-              age_days: Math.floor(ageMs / (24 * 60 * 60 * 1000))
-            });
-          }
-        }
-      } catch (err) {
-        logger.warn(`[STOCK] Could not fetch company data for ${ipo.id}:`, err.message);
-      }
-    }
-
-    // On first check, establish baseline (persistent)
-    if (isFirstCheck()) {
-      initializeWithIpos(allIpos);
-      logger.info(`[STOCK] IPO Alert initialized - found ${freshIpos.length} fresh IPOs`);
-      return res.json({ newIpos: [], allIpos, freshIpos, firstCheck: true });
-    }
-
-    // Find truly NEW IPOs that are also fresh (young accounts)
-    const newIpos = [];
-    const highestSeenUserId = getHighestSeenUserId();
-
-    for (const freshIpo of freshIpos) {
-      if (freshIpo.id > highestSeenUserId && !hasSeenIpo(freshIpo.id)) {
-        newIpos.push(freshIpo);
-        markIpoAsSeen(freshIpo.id);
-        logger.info(`[STOCK] New fresh IPO detected: ${freshIpo.company_name} (ID: ${freshIpo.id}, Age: ${freshIpo.age_days} days)`);
-      }
-    }
-
-    // Send to alliance chat if enabled and we have new IPOs
-    const sendToAllianceChat = req.query.send_to_alliance === 'true';
-    if (sendToAllianceChat && newIpos.length > 0) {
-      const allianceId = getAllianceId();
-      if (allianceId) {
-        try {
-          const companyName = getUserCompanyName();
-          const maxAgeLabel = maxAgeDays === 1 ? '1 day' : maxAgeDays === 7 ? '1 week' : maxAgeDays === 30 ? '1 month' : '6 months';
-
-          // Build message with list of new IPOs
-          const ipoList = newIpos.map(ipo => `- ${ipo.company_name} ($${ipo.stock}, ${ipo.age_days}d old)`).join('\n');
-          const message = `${companyName}'s IPO Alert Service - The following users completed their IPO and their accounts are younger than ${maxAgeLabel}:\n${ipoList}`;
-
-          await apiCall('/alliance/post-chat', 'POST', {
-            alliance_id: allianceId,
-            text: message
-          });
-
-          logger.info(`[STOCK] Sent IPO alert to alliance chat: ${newIpos.length} new IPOs`);
-        } catch (chatError) {
-          logger.warn('[STOCK] Failed to send IPO alert to alliance chat:', chatError.message);
-        }
-      }
-    }
-
-    res.json({ newIpos, allIpos, freshIpos });
-  } catch (error) {
-    logger.error('[STOCK] Error checking new IPOs:', error);
-    res.status(500).json({ error: 'Failed to check new IPOs' });
   }
 });
 
