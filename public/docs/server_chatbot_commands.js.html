@@ -699,8 +699,9 @@ async function handleMsgCommand(args, userId, userName, config, isDM) {
             sent++;
 
             // Delay between messages to avoid rate limiting
+            // Game API may silently drop messages if sent too fast
             if (recipients.length > 1) {
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await new Promise(resolve => setTimeout(resolve, 2000));
             }
         } catch (err) {
             failed++;
