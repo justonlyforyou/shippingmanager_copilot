@@ -9,9 +9,11 @@
 
 const logger = require('../utils/logger');
 const fs = require('fs').promises;
-const { getUserId, getAllianceName } = require('../utils/api');
+const path = require('path');
+const { getUserId, getAllianceName, apiCall } = require('../utils/api');
 const { getSettingsFilePath } = require('../settings-schema');
-const { getInternalBaseUrl } = require('../config');
+const { getInternalBaseUrl, getAppDataDir } = require('../config');
+const { getServerLocalTimezone } = require('../routes/forecast');
 
 /**
  * Handle forecast command
@@ -136,50 +138,104 @@ async function generateForecastText(day, timezone) {
  */
 async function handleHelpCommand(userId, userName, config, isDM, settings, sendResponseFn) {
     const prefix = settings.commandPrefix || '!';
+    const MAX_MESSAGE_LENGTH = 900;
 
-    let helpText = '🤖 Available Commands\n\n';
+    // Build help sections as array for easier splitting
+    const sections = [];
+
+    sections.push('Available Commands\n');
 
     // Built-in commands
     if (settings.commands.forecast?.enabled) {
-        helpText += `👉 Get fuel and CO₂ price forecast\n\n`;
-        helpText += `${prefix}forecast [day] [timezone]\n`;
-        helpText += `• day: 1-31 (default: tomorrow)\n`;
-        helpText += `• timezone: (default: server timezone)\n\n`;
-        helpText += `💡 Examples\n`;
-        helpText += `• ${prefix}forecast 26 UTC\n`;
-        helpText += `• ${prefix}forecast 15\n`;
-        helpText += `• ${prefix}forecast\n\n`;
-        helpText += `⁉️ Supported timezones:\n`;
-        helpText += `PST, PDT, MST, MDT, CST, CDT, EST, EDT, GMT, BST, WET, WEST, CET, CEST, EET, EEST, JST, KST, IST, AEST, AEDT, ACST, ACDT, AWST, NZST, NZDT, UTC\n\n`;
-    }
+        const serverTz = getServerLocalTimezone();
 
-    if (settings.commands.help?.enabled) {
-        helpText += `👉 Show help\n\n`;
-        helpText += `${prefix}help\n\n`;
+        let forecastSection = `Get fuel and CO2 price forecast\n\n`;
+        forecastSection += `${prefix}forecast [day] [timezone]\n`;
+        forecastSection += `day: 1-31 (default: tomorrow)\n`;
+        forecastSection += `timezone: (default: ${serverTz.name})\n\n`;
+        forecastSection += `Examples\n`;
+        forecastSection += `${prefix}forecast 26 UTC\n`;
+        forecastSection += `${prefix}forecast 15\n`;
+        forecastSection += `${prefix}forecast (for tomorrow)\n\n`;
+        forecastSection += `Supported timezones:\n`;
+        forecastSection += `PST, PDT, MST, MDT, CST, CDT, EST, EDT, GMT, BST, WET, WEST, CET, CEST, EET, EEST, JST, KST, IST, AEST, AEDT, ACST, ACDT, AWST, NZST, NZDT, UTC`;
+        sections.push(forecastSection);
     }
 
     if (settings.commands.welcome?.enabled) {
-        helpText += `👉 Send welcome message\n\n`;
-        helpText += `${prefix}welcome @Username\n`;
-        helpText += `Type @Username in chat (converts to [UserID])\n`;
-        helpText += `⚠️ Admin only: CEO, COO, Management, Interim CEO\n\n`;
+        let welcomeSection = `Send welcome message\n\n`;
+        welcomeSection += `${prefix}welcome @Username\n`;
+        welcomeSection += `Type @Username in chat (converts to [UserID])\n`;
+        welcomeSection += `Admin only: CEO, COO, Management, Interim CEO`;
+        sections.push(welcomeSection);
+    }
+
+    // Broadcast msg commands - show enabled templates
+    if (settings.commands.msg?.enabled) {
+        const enabledTemplates = await getEnabledBroadcastTemplates();
+        if (enabledTemplates.length > 0) {
+            let msgSection = `Broadcast message to alliance (Alliance Chat only)\n\n`;
+            for (const tpl of enabledTemplates) {
+                msgSection += `${prefix}msg ${tpl.key} (send to all)\n`;
+                msgSection += `${prefix}msg ${tpl.key} @Username (send single user)\n\n`;
+            }
+            sections.push(msgSection.trim());
+        }
     }
 
     // Custom commands
     for (const cmd of settings.customCommands || []) {
         if (cmd.enabled) {
-            helpText += `👉 ${cmd.description || 'Custom command'}\n\n`;
-            helpText += `${prefix}${cmd.trigger}`;
+            let customSection = `${cmd.description || 'Custom command'}\n\n`;
+            customSection += `${prefix}${cmd.trigger}`;
             if (cmd.adminOnly) {
-                helpText += ' (admin only)';
+                customSection += ' (admin only)';
             }
-            helpText += '\n\n';
+            sections.push(customSection);
         }
     }
 
-    helpText += `Response times may vary up to 15 seconds - keep calm :)`;
+    // Help command at the end
+    if (settings.commands.help?.enabled) {
+        sections.push(`Show help\n\n${prefix}help`);
+    }
 
-    await sendResponseFn(helpText, config.responseType || 'public', userId, isDM);
+    sections.push(`Response times may vary up to 15 seconds - keep calm :)`);
+
+    // Split into messages that fit within 900 character limit
+    const messages = [];
+    let currentMessage = '';
+
+    for (const section of sections) {
+        const separator = currentMessage ? '\n\n' : '';
+        const newLength = currentMessage.length + separator.length + section.length;
+
+        if (newLength <= MAX_MESSAGE_LENGTH) {
+            currentMessage += separator + section;
+        } else {
+            // Current message is full, start a new one
+            if (currentMessage) {
+                messages.push(currentMessage);
+            }
+            currentMessage = section;
+        }
+    }
+
+    // Add the last message
+    if (currentMessage) {
+        messages.push(currentMessage);
+    }
+
+    // Send all messages with delay between them
+    const responseType = config.responseType || 'public';
+    for (let i = 0; i < messages.length; i++) {
+        await sendResponseFn(messages[i], responseType, userId, isDM);
+
+        // Add delay between messages to avoid rate limiting
+        if (i < messages.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
 }
 
 /**
@@ -239,9 +295,163 @@ async function handleWelcomeCommand(args, userName) {
     }
 }
 
+/**
+ * Get broadcast templates directory
+ */
+function getBroadcastDir() {
+    const isPkg = !!process.pkg;
+    return isPkg
+        ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'broadcast-templates')
+        : path.join(__dirname, '../../userdata/broadcast-templates');
+}
+
+/**
+ * Load broadcast templates for a user
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} Templates object
+ */
+async function loadBroadcastTemplates(userId) {
+    const filePath = path.join(getBroadcastDir(), `${userId}.json`);
+    try {
+        const data = await fs.readFile(filePath, 'utf8');
+        return JSON.parse(data);
+    } catch {
+        return {};
+    }
+}
+
+/**
+ * Handle msg command - send broadcast template to alliance members
+ * Format: !msg <templateKey> or !msg <templateKey> [userID]
+ * UserID MUST be in square brackets to send to single user
+ *
+ * @param {Array<string>} args - Command arguments [templateKey, [userID]]
+ * @param {string} userId - User ID of command caller
+ * @param {string} userName - User name
+ * @param {object} config - Command configuration
+ * @param {boolean} isDM - Whether command came from DM
+ */
+async function handleMsgCommand(args, userId, userName, config, isDM) {
+    // CRITICAL: msg command is ONLY allowed in alliance chat, NEVER in DMs
+    if (isDM) {
+        logger.debug('[ChatBot] msg command blocked: not allowed in DMs');
+        return;
+    }
+
+    if (args.length === 0) {
+        logger.debug('[ChatBot] msg command missing template key');
+        return;
+    }
+
+    const templateKey = args[0].toLowerCase();
+
+    // Check for optional [userID] in square brackets
+    let targetUserId = null;
+    if (args.length >= 2) {
+        const userIdArg = args[1];
+        // MUST be in square brackets: [12345]
+        const bracketMatch = userIdArg.match(/^\[(\d+)\]$/);
+        if (bracketMatch) {
+            targetUserId = parseInt(bracketMatch[1]);
+        } else {
+            // If second argument exists but is not in brackets, ignore the command
+            logger.debug(`[ChatBot] msg command: userID must be in brackets [userID], got: ${userIdArg}`);
+            return;
+        }
+    }
+
+    // Load templates for the bot owner (not the command caller)
+    const botOwnerId = getUserId();
+    const templates = await loadBroadcastTemplates(botOwnerId);
+    const template = templates[templateKey];
+
+    if (!template) {
+        logger.debug(`[ChatBot] msg command: template "${templateKey}" not found`);
+        return;
+    }
+
+    if (!template.enabled) {
+        logger.debug(`[ChatBot] msg command: template "${templateKey}" is disabled`);
+        return;
+    }
+
+    // Get recipients
+    let recipients = [];
+    const membersResponse = await apiCall('/alliance/get-alliance-members', 'POST', {});
+    const members = membersResponse?.data?.members || membersResponse?.members || [];
+
+    if (targetUserId) {
+        // Single user mode
+        const targetMember = members.find(m => m.user_id === targetUserId);
+        if (targetMember) {
+            recipients = [targetMember];
+        } else {
+            recipients = [{ user_id: targetUserId, company_name: `User ${targetUserId}` }];
+        }
+        logger.info(`[ChatBot] Sending msg "${templateKey}" to user ${targetUserId} (triggered by ${userName})`);
+    } else {
+        // Broadcast to all alliance members (exclude self = bot owner)
+        recipients = members.filter(m => m.user_id !== parseInt(botOwnerId));
+        logger.info(`[ChatBot] Broadcasting msg "${templateKey}" to ${recipients.length} members (triggered by ${userName})`);
+    }
+
+    if (recipients.length === 0) {
+        logger.debug('[ChatBot] msg command: no recipients');
+        return;
+    }
+
+    // Send to each recipient
+    const { sendPrivateMessage } = require('./sender');
+    let sent = 0;
+    let failed = 0;
+
+    for (const recipient of recipients) {
+        try {
+            await sendPrivateMessage(recipient.user_id, template.subject, template.message);
+            sent++;
+
+            // Delay between messages to avoid rate limiting
+            if (recipients.length > 1) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        } catch (err) {
+            failed++;
+            logger.warn(`[ChatBot] Failed to send msg to ${recipient.company_name}: ${err.message}`);
+        }
+    }
+
+    logger.info(`[ChatBot] msg "${templateKey}" complete: ${sent} sent, ${failed} failed`);
+}
+
+/**
+ * Get enabled broadcast templates for help display
+ * @returns {Promise<Array>} Array of enabled template keys with descriptions
+ */
+async function getEnabledBroadcastTemplates() {
+    const userId = getUserId();
+    if (!userId) return [];
+
+    const templates = await loadBroadcastTemplates(userId);
+    const enabled = [];
+
+    for (const [key, template] of Object.entries(templates)) {
+        if (template.enabled) {
+            enabled.push({
+                key,
+                subject: template.subject
+            });
+        }
+    }
+
+    return enabled;
+}
+
 module.exports = {
     handleForecastCommand,
     generateForecastText,
     handleHelpCommand,
-    handleWelcomeCommand
+    handleWelcomeCommand,
+    handleMsgCommand,
+    getEnabledBroadcastTemplates,
+    loadBroadcastTemplates
 };

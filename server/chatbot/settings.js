@@ -95,6 +95,13 @@ function mapSettingsToChatBotObject(settings, isManagement = false) {
                 responseType: 'dm',
                 adminOnly: true, // Requires management role (CEO, COO, Management, Interim CEO)
                 aliases: []
+            },
+            msg: {
+                enabled: settings.chatbotMsgCommandEnabled !== false, // Enabled by default
+                responseType: 'none', // No response - just sends the broadcast
+                adminOnly: false, // Anyone in alliance can use
+                allianceOnly: true, // ONLY works in alliance chat, NEVER in DMs
+                aliases: ['broadcast']
             }
         },
         scheduledMessages: {

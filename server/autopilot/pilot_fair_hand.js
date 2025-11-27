@@ -123,18 +123,21 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
         });
 
         const result = sendResponse.data;
-        totalRequested += result.requested;
-        totalSent += result.departed;
+        const sentCount = result.departed ?? 0;
+        const requestedCount = result.requested ?? 0;
+
+        totalRequested += requestedCount;
+        totalSent += sentCount;
 
         results.push({
           user_id: member.user_id,
           company_name: member.company_name,
-          requested: result.requested,
-          departed: result.departed,
+          requested: requestedCount,
+          departed: sentCount,
           partial: result.partial
         });
 
-        logger.info(`[Auto-COOP] OK Sent ${result.departed} of ${result.requested} to ${member.company_name}`);
+        logger.info(`[Auto-COOP] OK Sent ${sentCount} of ${requestedCount} to ${member.company_name}`);
 
         // Small delay between sends to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 500));

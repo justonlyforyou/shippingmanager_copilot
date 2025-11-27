@@ -183,16 +183,18 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
       tripData = findTripDataFuzzy(allData, entry.vessel_id, entryTimestamp);
     }
 
-    // Return entry with trip data (or nulls if not found)
+    // Return entry with trip data merged
+    // API provides: fuel_used (kg), route_income, cargo, distance, duration, wear
+    // Our store provides: harbor_fee, contribution, speed, guards, co2_used, rates, utilization
     if (tripData) {
       return {
         ...entry,
-        harbor_fee: tripData.harborFee,
+        // fuel_used comes from API (in kg) - never overwrite it
+        harbor_fee: tripData.harborFee ?? entry.harbor_fee,
         contribution_gained: tripData.contributionGained,
         speed: tripData.speed,
         guards: tripData.guards,
         co2_used: tripData.co2Used,
-        fuel_used: tripData.fuelUsed,
         capacity: tripData.capacity,
         utilization: tripData.utilization,
         dry_rate: tripData.dryRate,
@@ -202,15 +204,15 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
       };
     }
 
-    // No match found - return with null values
+    // No match found - keep API values, only add nulls for fields API doesn't provide
     return {
       ...entry,
-      harbor_fee: null,
+      // fuel_used comes from API (in kg) - already in entry, don't touch it
+      harbor_fee: entry.harbor_fee ?? null,
       contribution_gained: null,
       speed: null,
       guards: null,
       co2_used: null,
-      fuel_used: null,
       capacity: null,
       utilization: null,
       dry_rate: null,

@@ -89,19 +89,19 @@ router.post('/depart', async (req, res) => {
         ? `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)} | +${result.contributionGained} contribution`
         : `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}`;
 
-      // Build details - only include contribution fields if tracked
+      // Build details - always include contribution (even if 0)
       const details = {
         vesselCount: result.departedCount,
         totalRevenue: result.totalRevenue,
         totalFuelUsed: result.totalFuelUsed,
         totalCO2Used: result.totalCO2Used,
         totalHarborFees: result.totalHarborFees,
-        departedVessels: result.departedVessels
+        contributionGainedTotal: result.contributionGained ?? 0,
+        departedVessels: result.departedVessels.map(v => ({
+          ...v,
+          harborFee: v.harborFee ? -Math.abs(v.harborFee) : 0
+        }))
       };
-      if (result.contributionGained) {
-        details.contributionGained = result.contributionGained;
-        details.contributionPerVessel = result.contributionPerVessel;
-      }
 
       // Log success
       await auditLog(

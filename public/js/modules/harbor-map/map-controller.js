@@ -2375,15 +2375,29 @@ export async function selectVessel(vesselId) {
         const path = isReversed
           ? vessel.active_route.path.slice().reverse()
           : vessel.active_route.path;
+
+        // Find current position in path - use closest point approach (same as initial rendering)
+        let bestIndex = -1;
+        let bestDist = Infinity;
         for (let i = 0; i < path.length - 1; i++) {
           const point = path[i];
-          if (Math.abs(point.lat - vessel.position.lat) < 0.01 && Math.abs(point.lon - vessel.position.lon) < 0.01) {
-            heading = calculateHeading(point, path[i + 1]);
-            break;
+          const dist = Math.abs(point.lat - vessel.position.lat) + Math.abs(point.lon - vessel.position.lon);
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIndex = i;
           }
         }
-        if (heading === 0 && path.length >= 2) {
-          heading = calculateHeading(path[0], path[1]);
+
+        if (bestIndex >= 0 && bestIndex < path.length - 1) {
+          // Find next significantly different point (skip duplicates)
+          let nextIndex = bestIndex + 1;
+          while (nextIndex < path.length - 1) {
+            const nextPoint = path[nextIndex];
+            const dist = Math.abs(nextPoint.lat - path[bestIndex].lat) + Math.abs(nextPoint.lon - path[bestIndex].lon);
+            if (dist > 0.001) break;
+            nextIndex++;
+          }
+          heading = calculateHeading(path[bestIndex], path[nextIndex]);
         }
       }
 
@@ -2670,11 +2684,17 @@ export async function selectPort(portCode) {
     selectedPortCode = portCode;
     selectedVesselId = null;
 
-    // If planning mode is active, only select port for route - don't open port panel or zoom
+    // If planning mode is active, select port for route AND show port panel (but don't change zoom/markers)
     if (window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode()) {
       console.log(`[Harbor Map] Planning mode active, selecting port for route: ${portCode}`);
       window.harborMap.selectPortForRoute(portCode);
-      // Don't open port panel or change map view - route planner handles everything
+
+      // Also show port panel so user can see port details
+      const port = rawPorts.find(p => p.code === portCode);
+      if (port) {
+        const vessels = categorizeVesselsByPortClientSide(portCode, rawVessels);
+        showPortPanel(port, vessels);
+      }
       return;
     }
 

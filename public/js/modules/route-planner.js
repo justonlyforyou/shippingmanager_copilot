@@ -245,19 +245,23 @@ export async function openRoutePlanner(vesselId, vesselName) {
     if (vessel) {
       originPort = vessel.current_port_code || vessel.origin_port || null;
 
-      // Calculate total capacity from capacity_max
+      // Calculate total capacity from capacity_max based on vessel type
       let totalCapacity = 0;
       if (vessel.capacity_max) {
-        totalCapacity = (vessel.capacity_max.dry || 0) + (vessel.capacity_max.refrigerated || 0);
+        if (vessel.capacity_type === 'tanker') {
+          totalCapacity = (vessel.capacity_max.fuel ?? 0) + (vessel.capacity_max.crude_oil ?? 0);
+        } else {
+          totalCapacity = (vessel.capacity_max.dry ?? 0) + (vessel.capacity_max.refrigerated ?? 0);
+        }
       }
 
       // Store vessel data for formula calculations
       currentVesselData = {
         capacity: totalCapacity,
-        maxSpeed: vessel.max_speed || 20,
-        fuelFactor: vessel.fuel_factor || 1,
-        co2Factor: vessel.co2_factor || 1,
-        capacityType: vessel.capacity_type || 'container',
+        maxSpeed: vessel.max_speed,
+        fuelFactor: vessel.fuel_factor,
+        co2Factor: vessel.co2_factor,
+        capacityType: vessel.capacity_type,
         status: vessel.status
       };
 
@@ -419,18 +423,17 @@ export async function restorePlanningState() {
 
   console.log(`[Route Planner] Restoring planning state for vessel ${currentVesselId}`);
 
-  // Re-draw route if we had one selected
-  if (selectedRoute && selectedRoute.path && currentOriginPort && selectedPort) {
-    if (window.harborMap && window.harborMap.drawRoute) {
-      const routeForMap = {
-        path: selectedRoute.path,
-        origin: currentOriginPort,
-        destination: selectedPort.code
-      };
-      const portsForRoute = vesselPorts?.all?.ports || [];
-      window.harborMap.drawRoute(routeForMap, portsForRoute, false);
-      console.log(`[Route Planner] Restored route: ${currentOriginPort} -> ${selectedPort.code}`);
-    }
+  // Save route data before selectVesselFromMap clears it
+  const hadRoute = selectedRoute && selectedRoute.path && currentOriginPort && selectedPort;
+  const savedRoute = hadRoute ? {
+    path: selectedRoute.path,
+    origin: currentOriginPort,
+    destination: selectedPort.code
+  } : null;
+
+  // Re-select the vessel to show vessel panel (this clears markers/routes)
+  if (window.harborMap && window.harborMap.selectVesselFromMap) {
+    await window.harborMap.selectVesselFromMap(currentVesselId);
   }
 
   // Re-highlight ports if we had a filter active
@@ -440,9 +443,13 @@ export async function restorePlanningState() {
     }
   }
 
-  // Re-select the vessel to show vessel panel
-  if (window.harborMap && window.harborMap.selectVesselFromMap) {
-    await window.harborMap.selectVesselFromMap(currentVesselId);
+  // Re-draw route AFTER selectVesselFromMap (which clears routes)
+  if (savedRoute) {
+    if (window.harborMap && window.harborMap.drawRoute) {
+      const portsForRoute = vesselPorts?.all?.ports || [];
+      window.harborMap.drawRoute(savedRoute, portsForRoute, false);
+      console.log(`[Route Planner] Restored route: ${savedRoute.origin} -> ${savedRoute.destination}`);
+    }
   }
 }
 
@@ -916,6 +923,9 @@ async function updateSelectedPortDisplay() {
     portNameEl.textContent = `${originName} -> ${destName}`;
   }
 
+  // Vessel Capacity display
+  updateVesselCapacityDisplay();
+
   const distance = selectedRoute.total_distance || 0;
 
   // Distance
@@ -1036,6 +1046,48 @@ async function updateSelectedPortDisplay() {
 }
 
 /**
+ * Update vessel capacity display in route planner
+ * Shows total capacity with breakdown in parentheses on one line
+ */
+function updateVesselCapacityDisplay() {
+  if (!currentVesselData) return;
+
+  const capacityEl = document.querySelector('[data-info="vessel-capacity"]');
+  if (!capacityEl) return;
+
+  // Get vessel details from map if available
+  const getVesselDetails = async () => {
+    if (window.harborMap && window.harborMap.getVesselById && currentVesselId) {
+      return await window.harborMap.getVesselById(currentVesselId);
+    }
+    return null;
+  };
+
+  getVesselDetails().then(vessel => {
+    const capacityType = currentVesselData.capacityType;
+    const unit = capacityType === 'tanker' ? 'bbl' : 'TEU';
+    const totalCapacity = currentVesselData.capacity;
+
+    // Build capacity string with breakdown in parentheses
+    let capacityText = `${totalCapacity.toLocaleString()} ${unit}`;
+
+    if (vessel && vessel.capacity_max) {
+      if (capacityType === 'tanker') {
+        const fuel = vessel.capacity_max.fuel ?? 0;
+        const crude = vessel.capacity_max.crude_oil ?? 0;
+        capacityText += ` (Fuel ${fuel.toLocaleString()} / Crude ${crude.toLocaleString()})`;
+      } else {
+        const dry = vessel.capacity_max.dry ?? 0;
+        const ref = vessel.capacity_max.refrigerated ?? 0;
+        capacityText += ` (Dry ${dry.toLocaleString()} / Ref ${ref.toLocaleString()})`;
+      }
+    }
+
+    capacityEl.textContent = capacityText;
+  });
+}
+
+/**
  * Fetch port demand data and update display
  * Uses /api/route/get-port-demand which works for ALL ports (not just assigned)
  * @param {string} portCode - Port code
@@ -1070,12 +1122,12 @@ async function fetchAndDisplayDemand(portCode) {
     const refValue = document.querySelector('[data-demand="refrigerated"]');
     if (dryValue && demand.container) {
       const dry = demand.container.dry;
-      dryValue.textContent = dry ? `${dry.toLocaleString()} TEU` : '- TEU';
+      dryValue.textContent = dry ? `${dry.toLocaleString()} TEU` : '-';
       dryValue.classList.toggle('zero', !dry);
     }
     if (refValue && demand.container) {
       const ref = demand.container.refrigerated;
-      refValue.textContent = ref ? `${ref.toLocaleString()} TEU` : '- TEU';
+      refValue.textContent = ref ? `${ref.toLocaleString()} TEU` : '-';
       refValue.classList.toggle('zero', !ref);
     }
 
@@ -1084,12 +1136,12 @@ async function fetchAndDisplayDemand(portCode) {
     const crudeValue = document.querySelector('[data-demand="crude_oil"]');
     if (fuelValue && demand.tanker) {
       const fuel = demand.tanker.fuel;
-      fuelValue.textContent = fuel ? `${fuel.toLocaleString()} bbl` : '- bbl';
+      fuelValue.textContent = fuel ? `${fuel.toLocaleString()} bbl` : '-';
       fuelValue.classList.toggle('zero', !fuel);
     }
     if (crudeValue && demand.tanker) {
       const crude = demand.tanker.crude_oil;
-      crudeValue.textContent = crude ? `${crude.toLocaleString()} bbl` : '- bbl';
+      crudeValue.textContent = crude ? `${crude.toLocaleString()} bbl` : '-';
       crudeValue.classList.toggle('zero', !crude);
     }
 

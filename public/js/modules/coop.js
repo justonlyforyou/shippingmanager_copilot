@@ -98,7 +98,7 @@ function renderMemberCard(member, showButton = true, disabled = false, buttonTex
       }
 
       if (message) {
-        restrictionsHtml += `⚠️ ${escapeHtml(message)}<br>`;
+        restrictionsHtml += `<span class="coop-restriction-item">${escapeHtml(message)}</span>`;
       }
     });
     restrictionsHtml += '</div>';
@@ -114,14 +114,35 @@ function renderMemberCard(member, showButton = true, disabled = false, buttonTex
     }
   }
 
+  // Format cargo load for last season (in tons)
+  const cargoLastSeasonTons = member.sent_cargo_load_last_season ? formatNumber(member.sent_cargo_load_last_season) : '0';
+
   return `
     <div class="coop-member-card ${borderClass}">
       <div class="coop-card-content">
         <div class="coop-card-info">
           <div class="coop-member-name">${escapeHtml(member.company_name)}</div>
           <div class="coop-member-stats">
-            <div>⛴️ ${member.total_vessels} vessels</div>
-            <div>⛽ ${fuelFormatted}t fuel</div>
+            <div class="coop-stat-row">
+              <span class="coop-stat-icon">Co-ops:</span>
+              <span class="coop-stat-detail">${member.sent_this_season || 0}/${member.received_this_season || 0} season | ${member.sent_historical || 0}/${member.received_historical || 0} total</span>
+            </div>
+            <div class="coop-stat-row">
+              <span class="coop-stat-icon">Fleet:</span>
+              <span class="coop-stat-detail">${member.total_vessels} vessels | ${fuelFormatted}t fuel</span>
+            </div>
+            ${member.donations_historical > 0 || member.donations_this_season > 0 ? `
+            <div class="coop-stat-row">
+              <span class="coop-stat-icon">Donations:</span>
+              <span class="coop-stat-detail">${member.donations_this_season || 0} season | ${member.donations_historical || 0} total</span>
+            </div>
+            ` : ''}
+            ${member.sent_cargo_load_last_season > 0 ? `
+            <div class="coop-stat-row">
+              <span class="coop-stat-icon">Last season:</span>
+              <span class="coop-stat-detail">${member.sent_last_season || 0} co-ops | ${cargoLastSeasonTons}t cargo</span>
+            </div>
+            ` : ''}
           </div>
           ${restrictionsHtml}
         </div>
@@ -220,6 +241,18 @@ export async function showCoopOverlay() {
       }
     });
 
+    // Calculate top 5 by cargo load last season
+    const top5CargoLastSeason = [...members]
+      .filter(m => m.sent_cargo_load_last_season > 0)
+      .sort((a, b) => b.sent_cargo_load_last_season - a.sent_cargo_load_last_season)
+      .slice(0, 5);
+
+    // Calculate top 5 by donations last season
+    const top5DonationsLastSeason = [...members]
+      .filter(m => m.donations_last_season > 0)
+      .sort((a, b) => b.donations_last_season - a.donations_last_season)
+      .slice(0, 5);
+
     let html = `
       <div class="coop-stats-box">
         <h3 class="coop-stats-title">Your Co-Op Stats</h3>
@@ -245,6 +278,50 @@ export async function showCoopOverlay() {
         </table>
       </div>
     `;
+
+    // Top 5 Last Season section
+    if (top5CargoLastSeason.length > 0 || top5DonationsLastSeason.length > 0) {
+      html += `<div class="coop-top5-container">`;
+
+      if (top5CargoLastSeason.length > 0) {
+        html += `
+          <div class="coop-top5-box">
+            <h4 class="coop-top5-title">Top 5 Co-ops Last Season</h4>
+            <ol class="coop-top5-list">
+              ${top5CargoLastSeason.map((m, i) => `
+                <li class="coop-top5-item">
+                  <span class="coop-top5-rank">${i + 1}</span>
+                  <span class="coop-top5-name">${escapeHtml(m.company_name)}</span>
+                  <span class="coop-top5-value">${formatNumber(m.sent_cargo_load_last_season)}t</span>
+                </li>
+              `).join('')}
+            </ol>
+          </div>
+        `;
+      }
+
+      if (top5DonationsLastSeason.length > 0) {
+        html += `
+          <div class="coop-top5-box">
+            <h4 class="coop-top5-title">Top 5 Donations Last Season</h4>
+            <ol class="coop-top5-list">
+              ${top5DonationsLastSeason.map((m, i) => `
+                <li class="coop-top5-item">
+                  <span class="coop-top5-rank">${i + 1}</span>
+                  <span class="coop-top5-name">${escapeHtml(m.company_name)}</span>
+                  <span class="coop-top5-value">${formatNumber(m.donations_last_season)}</span>
+                </li>
+              `).join('')}
+            </ol>
+          </div>
+        `;
+      }
+
+      html += `</div>`;
+    }
+
+    // Members header with count
+    html += `<h3 class="coop-members-header">Members (${members.length})</h3>`;
 
     // Render active members
     if (activeMembers.length > 0) {

@@ -74,6 +74,7 @@ class ChatBot {
             handleForecastCommand: commandHandlers.handleForecastCommand,
             handleHelpCommand: commandHandlers.handleHelpCommand,
             handleWelcomeCommand: commandHandlers.handleWelcomeCommand,
+            handleMsgCommand: commandHandlers.handleMsgCommand,
             sendResponse: messageSender.sendResponse
         };
 

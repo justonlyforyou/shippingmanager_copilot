@@ -19,11 +19,12 @@
  * @param {Function} handlers.handleForecastCommand - Forecast command handler
  * @param {Function} handlers.handleHelpCommand - Help command handler
  * @param {Function} handlers.handleWelcomeCommand - Welcome command handler
+ * @param {Function} handlers.handleMsgCommand - Broadcast msg command handler
  * @param {Function} handlers.sendResponse - Response sender function
  * @param {object} settings - ChatBot settings (for help command)
  */
 async function executeCommand(command, args, userId, userName, config, isDM, handlers, settings) {
-    const { handleForecastCommand, handleHelpCommand, handleWelcomeCommand, sendResponse } = handlers;
+    const { handleForecastCommand, handleHelpCommand, handleWelcomeCommand, handleMsgCommand, sendResponse } = handlers;
 
     switch (command) {
         case 'forecast':
@@ -36,6 +37,10 @@ async function executeCommand(command, args, userId, userName, config, isDM, han
 
         case 'welcome':
             await handleWelcomeCommand(args, userName);
+            break;
+
+        case 'msg':
+            await handleMsgCommand(args, userId, userName, config, isDM);
             break;
 
         default:

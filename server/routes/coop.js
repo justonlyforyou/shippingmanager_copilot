@@ -271,7 +271,7 @@ router.post('/coop/send-max', async (req, res) => {
       });
     }
 
-    const departed = result.data?.vessels_departed;
+    const departed = result.data?.vessels_departed ?? 0;
 
     // Log successful COOP send
     if (userId && departed > 0) {

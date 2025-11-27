@@ -426,6 +426,14 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             }
 
             logger.debug(`[Depart] ${vessel.name}: Price check OK - Dry: $${dryPrice}, Ref: $${refPrice}, Fuel: $${fuelPrice}, Crude: $${crudePrice}`);
+
+            // Store prices on vessel for later use when saving trip data
+            vessel.prices = {
+              dry: dryPrice,
+              refrigerated: refPrice,
+              fuel: fuelPrice,
+              crude_oil: crudePrice
+            };
           }
         } catch (error) {
           logger.error(`[Depart] ${vessel.name}: Failed to fetch auto-price - BLOCKING departure to avoid potential losses`);
@@ -906,19 +914,19 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
         ? `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)} | +${result.contributionGained} contribution`
         : `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}`;
 
-      // Build details - only include contribution fields if tracked
+      // Build details - always include contribution (even if 0)
       const details = {
         vesselCount: result.departedCount,
         totalRevenue: result.totalRevenue,
         totalFuelUsed: result.totalFuelUsed,
         totalCO2Used: result.totalCO2Used,
         totalHarborFees: result.totalHarborFees,
-        departedVessels: result.departedVessels
+        contributionGainedTotal: result.contributionGained ?? 0,
+        departedVessels: result.departedVessels.map(v => ({
+          ...v,
+          harborFee: v.harborFee ? -Math.abs(v.harborFee) : 0
+        }))
       };
-      if (result.contributionGained) {
-        details.contributionGained = result.contributionGained;
-        details.contributionPerVessel = result.contributionPerVessel;
-      }
 
       await auditLog(
         userId,

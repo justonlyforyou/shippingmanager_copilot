@@ -575,10 +575,10 @@ function renderHistoryPage() {
 
   if (!contentEl) return;
 
-  // Format cargo display with total, utilization and rates
+  // Format cargo display - returns { total: "X TEU (Y%)", list: "<ul>...</ul>" }
   const formatCargo = (cargo, capacity, utilization, dryRate, refRate, fuelRate, crudeRate) => {
-    if (!cargo) return '<span class="cargo-total">N/A</span>';
-    if (typeof cargo === 'string') return `<span class="cargo-total">${escapeHtml(cargo)}</span>`;
+    if (!cargo) return { total: 'N/A', list: '' };
+    if (typeof cargo === 'string') return { total: escapeHtml(cargo), list: '' };
 
     // Container cargo
     if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
@@ -592,8 +592,8 @@ function renderHistoryPage() {
         utilizationStr = ` (${Math.round(utilization * 100)}%)`;
       }
 
-      // Total line
-      let html = `<span class="cargo-total">${total.toLocaleString()} TEU${utilizationStr}</span>`;
+      // Total string (no HTML wrapper)
+      const totalStr = `${total.toLocaleString()} TEU${utilizationStr}`;
 
       // Detail items
       const items = [];
@@ -605,10 +605,8 @@ function renderHistoryPage() {
         const rateStr = refRate ? ` | $${refRate}/TEU` : '';
         items.push(`<li>Ref: ${ref.toLocaleString()} TEU${rateStr}</li>`);
       }
-      if (items.length > 0) {
-        html += `<ul class="cargo-list">${items.join('')}</ul>`;
-      }
-      return html;
+      const listHtml = items.length > 0 ? `<ul class="cargo-list">${items.join('')}</ul>` : '';
+      return { total: totalStr, list: listHtml };
     }
 
     // Tanker cargo
@@ -623,8 +621,8 @@ function renderHistoryPage() {
         utilizationStr = ` (${Math.round(utilization * 100)}%)`;
       }
 
-      // Total line
-      let html = `<span class="cargo-total">${total.toLocaleString()} bbl${utilizationStr}</span>`;
+      // Total string (no HTML wrapper)
+      const totalStr = `${total.toLocaleString()} bbl${utilizationStr}`;
 
       // Detail items
       const items = [];
@@ -636,13 +634,11 @@ function renderHistoryPage() {
         const rateStr = crudeRate ? ` | $${crudeRate}/bbl` : '';
         items.push(`<li>Crude: ${crude.toLocaleString()} bbl${rateStr}</li>`);
       }
-      if (items.length > 0) {
-        html += `<ul class="cargo-list">${items.join('')}</ul>`;
-      }
-      return html;
+      const listHtml = items.length > 0 ? `<ul class="cargo-list">${items.join('')}</ul>` : '';
+      return { total: totalStr, list: listHtml };
     }
 
-    return `<span class="cargo-total">${escapeHtml(JSON.stringify(cargo))}</span>`;
+    return { total: escapeHtml(JSON.stringify(cargo)), list: '' };
   };
 
   // Format duration (seconds to human readable)
@@ -693,6 +689,7 @@ function renderHistoryPage() {
     const feePercentage = trip.profit > 0 && trip.harbor_fee ? (trip.harbor_fee / trip.profit) * 100 : 0;
     const isHighHarborFee = feePercentage > harborFeeThreshold;
     const entryClass = isHighHarborFee ? 'history-entry high-harbor-fee' : 'history-entry';
+    const cargoData = formatCargo(trip.cargo, trip.capacity, trip.utilization, trip.dry_rate, trip.ref_rate, trip.fuel_rate, trip.crude_rate);
 
     return `
     <div class="${entryClass}">
@@ -704,11 +701,12 @@ function renderHistoryPage() {
           <span>Date: ${trip.date ? new Date(trip.date + ' UTC').toLocaleString() : 'N/A'}</span>
         </div>
         <div class="history-row">
-          <span class="cargo-label">Cargo:</span>
+          <span class="cargo-label">Cargo: ${cargoData.total}</span>
         </div>
+        ${cargoData.list ? `
         <div class="history-row cargo-row">
-          ${formatCargo(trip.cargo, trip.capacity, trip.utilization, trip.dry_rate, trip.ref_rate, trip.fuel_rate, trip.crude_rate)}
-        </div>
+          ${cargoData.list}
+        </div>` : ''}
         <div class="history-row">
           <span>Income: ${isServiceTrip ? 'Service Trip' : (trip.profit ? '$' + trip.profit.toLocaleString() : 'N/A')}</span>
         </div>
@@ -733,7 +731,7 @@ function renderHistoryPage() {
         </div>
         ` : ''}
         <div class="history-row">
-          <span>Fuel used: ${trip.fuel_used ? (trip.fuel_used / 1000).toLocaleString(undefined, {maximumFractionDigits: 0}) + ' t' : 'N/A'}</span>
+          <span>Fuel used: ${(trip.fuel_used !== null && trip.fuel_used !== undefined) ? (trip.fuel_used / 1000).toLocaleString(undefined, {maximumFractionDigits: 0}) + ' t' : '0 t'}</span>
         </div>
         ${trip.co2_used !== null && trip.co2_used !== undefined ? `
         <div class="history-row">

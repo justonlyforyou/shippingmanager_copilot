@@ -121,6 +121,7 @@ const allianceLogoRoutes = require('./server/routes/alliance-logo');
 const staffRoutes = require('./server/routes/staff');
 const routePlannerRoutes = require('./server/routes/route-planner');
 const stockRoutes = require('./server/routes/stock');
+const broadcastRoutes = require('./server/routes/broadcast');
 
 // Initialize Express app
 const app = express();
@@ -171,6 +172,7 @@ app.use('/api/alliance-logo', allianceLogoRoutes);
 app.use('/api/staff', staffRoutes);
 app.use('/api/route', routePlannerRoutes);
 app.use('/api', stockRoutes);
+app.use('/api/broadcast', broadcastRoutes);
 
 // Autopilot pause/resume endpoint
 app.post('/api/autopilot/toggle', async (req, res) => {

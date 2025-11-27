@@ -92,7 +92,7 @@ td.coop-stat-received-hist {
 }
 
 .coop-section-disabled {
-  color: var(--color-text-tertiary);
+  color: var(--color-danger);
 }
 
 .coop-section-you {
@@ -300,5 +300,170 @@ td.coop-stat-received-hist {
   color: var(--color-danger);
   text-align: center;
   padding: var(--spacing-40);
+}
+
+/* ============================================
+   COOP MEMBER CARD STATS
+   ============================================ */
+
+.coop-stats-grid {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: var(--spacing-2) var(--spacing-12);
+  padding: var(--spacing-8);
+  background: var(--gray-800-30);
+  border-radius: var(--radius-6);
+  font-size: var(--font-size-12);
+}
+
+.coop-stats-grid .stat-label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-11);
+  white-space: nowrap;
+}
+
+.coop-stats-grid .stat-col {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.coop-stats-grid .stat-col-header {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-10);
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-4);
+  margin-bottom: var(--spacing-2);
+}
+
+.coop-stats-grid .stat-sent {
+  color: var(--color-info-light);
+}
+
+.coop-stats-grid .stat-received {
+  color: var(--color-purple-light);
+}
+
+.coop-stats-grid .stat-value {
+  color: var(--color-text-primary);
+}
+
+.coop-restriction-item {
+  display: inline-block;
+  margin-right: var(--spacing-8);
+}
+
+.coop-restriction-item::before {
+  content: "!";
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  text-align: center;
+  background: var(--color-warning-orange);
+  color: var(--gray-900);
+  border-radius: 50%;
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-bold);
+  margin-right: var(--spacing-4);
+}
+
+/* ============================================
+   TOP 5 LAST SEASON
+   ============================================ */
+
+.coop-top5-container {
+  display: flex;
+  gap: var(--spacing-16);
+  margin-bottom: var(--spacing-20);
+  flex-wrap: wrap;
+}
+
+.coop-top5-box {
+  flex: 1;
+  min-width: 250px;
+  background: var(--gray-800-30);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-12);
+}
+
+.coop-top5-title {
+  margin: 0 0 var(--spacing-10) 0;
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+}
+
+.coop-top5-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.coop-top5-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-4) 0;
+  font-size: var(--font-size-12);
+  border-bottom: 1px solid var(--gray-700-50);
+}
+
+.coop-top5-item:last-child {
+  border-bottom: none;
+}
+
+.coop-top5-rank {
+  width: 20px;
+  height: 20px;
+  line-height: 20px;
+  text-align: center;
+  background: var(--color-primary-20);
+  color: var(--color-primary);
+  border-radius: 50%;
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-10);
+  flex-shrink: 0;
+}
+
+.coop-top5-item:nth-child(1) .coop-top5-rank {
+  background: var(--color-warning-20);
+  color: var(--color-warning);
+}
+
+.coop-top5-item:nth-child(2) .coop-top5-rank {
+  background: var(--gray-500-20);
+  color: var(--color-text-secondary);
+}
+
+.coop-top5-item:nth-child(3) .coop-top5-rank {
+  background: var(--color-warning-orange-20);
+  color: var(--color-warning-orange);
+}
+
+.coop-top5-name {
+  flex: 1;
+  color: var(--color-text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.coop-top5-value {
+  color: var(--color-success);
+  font-weight: var(--font-weight-medium);
+  flex-shrink: 0;
+}
+
+/* ============================================
+   COOP MEMBERS HEADER
+   ============================================ */
+
+.coop-members-header {
+  margin: var(--spacing-20) 0 var(--spacing-10) 0;
+  padding-bottom: var(--spacing-8);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
 }
 
