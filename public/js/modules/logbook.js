@@ -402,7 +402,8 @@ function getTransactionType(entry) {
     'Manual Vessel Purchase',
     'Manual Anchor Purchase',
     'Manual Pay Ransom',
-    'Manual Campaign Activation'
+    'Manual Campaign Activation',
+    'Manual Route Planner'
   ];
   if (expenseActions.includes(entry.autopilot) && summary.includes('$')) {
     return 'expense';

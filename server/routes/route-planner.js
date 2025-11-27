@@ -183,7 +183,7 @@ router.post('/create-user-route', async (req, res) => {
         const vessel = data.data.user_vessel;
         const feeDisplay = calculated_total_fee ? ` | Fee: $${calculated_total_fee.toLocaleString()}` : '';
         const summary = `${vessel.name} | ${vessel.route_origin} -> ${vessel.route_destination} | ${vessel.route_distance} nm @ ${vessel.route_speed} kn${feeDisplay}`;
-        await logbook.logAutopilotAction(userId, 'Route Planner', 'SUCCESS', summary, {
+        await logbook.logAutopilotAction(userId, 'Manual Route Planner', 'SUCCESS', summary, {
           vessel_id: vessel.id,
           vessel_name: vessel.name,
           route_origin: vessel.route_origin,

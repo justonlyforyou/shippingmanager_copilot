@@ -6,6 +6,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('./logger');
 
 let baseContainerSvg = null;
 let baseTankerSvg = null;
@@ -33,12 +34,24 @@ function loadBaseTankerSvg() {
 }
 
 /**
+ * Detect if vessel is a container ship based on capacity_type from API
+ * @param {Object} vessel - Vessel data object
+ * @returns {boolean} True if container ship, false if tanker
+ */
+function isContainerVessel(vessel) {
+  // capacity_type from API is the only source of truth
+  const isContainer = vessel.capacity_type === 'container';
+  logger.debug(`[SVG Generator] isContainerVessel: capacity_type=${vessel.capacity_type} -> ${isContainer ? 'CONTAINER' : 'TANKER'}`);
+  return isContainer;
+}
+
+/**
  * Generate vessel SVG based on vessel data
  * @param {Object} vessel - Vessel data object
  * @returns {string} SVG string
  */
 function generateVesselSvg(vessel) {
-  if (vessel.capacity_type === 'container' || vessel.vessel_model === 'container') {
+  if (isContainerVessel(vessel)) {
     return generateContainerSvg(vessel);
   } else {
     return generateTankerSvg(vessel);
@@ -75,7 +88,7 @@ function generateContainerSvg(vessel) {
   // ViewBox tight around ship: 6px padding left/right
   const padding = 6;
   const viewBoxWidth = originalShipWidth + padding * 2;
-  const viewBoxHeight = originalShipHeight * 1.5;
+  const viewBoxHeight = originalShipHeight * 2.8;
 
   // Ship fills the viewBox at scale 1.0
   const displayScale = 1.0;
@@ -215,7 +228,7 @@ function generateTankerSvg(vessel) {
   // ViewBox tight around ship
   const padding = 6;
   const viewBoxWidth = originalShipWidth + padding * 2;
-  const viewBoxHeight = originalShipHeight * 1.5;
+  const viewBoxHeight = originalShipHeight * 2.8;
 
   const displayScale = 1.0;
   const waterLevel = viewBoxHeight * 0.78;

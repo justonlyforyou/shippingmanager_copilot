@@ -225,6 +225,12 @@ function handleImageSelection(event) {
         colorsSection.classList.add('hidden');
       }
 
+      // Show remove button for uploaded image
+      const removeImageBtn = document.getElementById('removeCustomImageBtn');
+      if (removeImageBtn) {
+        removeImageBtn.classList.remove('hidden');
+      }
+
       showSideNotification('Image loaded successfully', 'success');
     };
     img.onerror = (err) => {
@@ -252,10 +258,10 @@ function handleRemoveCustomImage(event) {
   const colorsSection = document.getElementById('appearanceColorsSection');
   const removeImageBtn = document.getElementById('removeCustomImageBtn');
 
-  // Show SVG preview instead
+  // Show SVG preview instead - use force=svg to bypass own image check since file still exists
   if (imagePreview) {
     imagePreview.classList.add('has-image');
-    imagePreview.innerHTML = `<img src="/api/vessel-svg/${currentVesselId}?t=${Date.now()}" alt="SVG Preview">`;
+    imagePreview.innerHTML = `<img src="/api/vessel-svg/${currentVesselId}?force=svg&t=${Date.now()}" alt="SVG Preview">`;
   }
 
   // Show colors section for SVG

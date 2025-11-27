@@ -26,8 +26,7 @@ const { getUserId } = require('../utils/api');
 const gameapi = require('../gameapi');
 const logger = require('../utils/logger');
 const config = require('../config');
-const { enrichHistoryWithFees } = require('../utils/harbor-fee-store');
-const { enrichHistoryWithContributions } = require('../utils/contribution-store');
+const { enrichHistoryWithTripData } = require('../utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('../utils/migrate-harbor-fees');
 
 const {
@@ -498,15 +497,12 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
 
     logger.debug(`[Harbor Map] Found ${historyResponse.data.vessel_history.length} history entries for vessel ${vesselId}`);
 
-    // Enrich history with harbor fees from our storage
-    const enrichedWithFees = await enrichHistoryWithFees(userId, historyResponse.data.vessel_history);
-
-    // Enrich history with contribution gains from our storage
-    const fullyEnriched = await enrichHistoryWithContributions(userId, enrichedWithFees);
+    // Enrich history with all stored trip data (harbor fees, contribution, speed, guards, CO2, cargo rates)
+    const enrichedHistory = await enrichHistoryWithTripData(userId, historyResponse.data.vessel_history);
 
     // Transform API response to match frontend expectations
     res.json({
-      history: fullyEnriched.map(trip => ({
+      history: enrichedHistory.map(trip => ({
         date: trip.created_at,
         origin: trip.route_origin,
         destination: trip.route_destination,
@@ -517,7 +513,17 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
         wear: trip.wear,
         duration: trip.duration,
         harbor_fee: trip.harbor_fee,
-        contribution: trip.contribution_gained
+        contribution: trip.contribution_gained,
+        // Additional departure data
+        speed: trip.speed,
+        guards: trip.guards,
+        co2_used: trip.co2_used,
+        capacity: trip.capacity,
+        utilization: trip.utilization,
+        dry_rate: trip.dry_rate,
+        ref_rate: trip.ref_rate,
+        fuel_rate: trip.fuel_rate,
+        crude_rate: trip.crude_rate
       }))
     });
   } catch (error) {

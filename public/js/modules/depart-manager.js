@@ -14,6 +14,7 @@ let dragOffsetX = 0;
 let dragOffsetY = 0;
 let currentStatus = 'port'; // Current active tab status filter
 let searchQuery = ''; // Current search query (searches across all tabs)
+let searchDebounceTimer = null; // Debounce timer for search input
 
 /**
  * Update the Moor tab button to show count of moored vessels
@@ -146,9 +147,13 @@ export function initializeDepartManager() {
   const searchClearBtn = document.getElementById('departManagerSearchClear');
 
   if (searchInput) {
-    searchInput.addEventListener('input', async (e) => {
-      searchQuery = e.target.value.trim().toLowerCase();
-      await searchVesselsAcrossTabs(searchQuery);
+    searchInput.addEventListener('input', (e) => {
+      const query = e.target.value.trim().toLowerCase();
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(async () => {
+        searchQuery = query;
+        await searchVesselsAcrossTabs(searchQuery);
+      }, 300);
     });
 
     // Clear on Escape key
@@ -948,6 +953,9 @@ export function updateDepartManagerLockState() {
   }
 }
 
+// Expose to window for cross-module access
+window.updateDepartManagerLockState = updateDepartManagerLockState;
+
 /**
  * Select all vessel checkboxes
  */
@@ -1012,6 +1020,7 @@ function locateVesselOnMap(vesselId) {
  * Depart selected vessels only
  */
 async function departSelectedVessels() {
+  const { showSideNotification, showNotification } = await import('./utils.js');
   const checkboxes = document.querySelectorAll('.depart-vessel-checkbox:checked');
   const vesselIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.vesselId));
 
@@ -1040,15 +1049,91 @@ async function departSelectedVessels() {
       throw new Error(result.error || 'Failed to depart vessels');
     }
 
-    console.log(`[Depart Manager] Departed ${result.departedCount} vessels`);
+    console.log(`[Depart Manager] Departed ${result.departedCount} vessels, failed ${result.failedCount || 0}`);
 
-    // Remove departed vessels from list
-    vesselIds.forEach(id => {
+    // Get IDs of successfully departed vessels
+    const departedIds = new Set();
+    if (result.departedVessels && result.departedVessels.length > 0) {
+      result.departedVessels.forEach(v => departedIds.add(v.vesselId));
+    }
+
+    // Only remove successfully departed vessels from list
+    departedIds.forEach(id => {
       const item = document.querySelector(`.depart-vessel-item[data-vessel-id="${id}"]`);
       if (item) {
         item.remove();
       }
     });
+
+    // Show notification for failed vessels
+    if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
+      const failedList = result.failedVessels.map(v => `${v.name}: ${v.reason}`).join('\n');
+      console.warn('[Depart Manager] Failed vessels:', failedList);
+
+      // Build vessel list HTML - matching Cargo Marshal pattern
+      const vesselListHtml = result.failedVessels.map(v => {
+        const cleanName = v.name.replace(/^(MV|MS|MT|SS)\s+/i, '');
+        return `<div style="font-size: 0.85em; opacity: 0.85; padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08);">
+          <span style="color: #ef4444;">${cleanName}:</span> <span style="color: #9ca3af;">${v.reason}</span>
+        </div>`;
+      }).join('');
+
+      // Side notification matching Cargo Marshal pattern
+      showSideNotification(`
+        <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+          <strong style="font-size: 1.1em;">Depart Manager: ${result.failedCount} vessel${result.failedCount > 1 ? 's' : ''} not departed</strong>
+        </div>
+        <div style="margin-top: 8px;">
+          <strong>Failed to depart:</strong>
+          <div class="notification-vessel-list" style="margin-top: 6px;">
+            ${vesselListHtml}
+          </div>
+        </div>
+      `, 'warning', 15000);
+
+      // Desktop notification with details
+      const failedText = result.failedVessels.map(v => `${v.name}: ${v.reason}`).join('\n');
+      showNotification(
+        'Depart Manager',
+        { body: `${result.failedCount} vessel${result.failedCount > 1 ? 's' : ''} not departed\n\n${failedText}` }
+      );
+
+      // Uncheck failed vessels so user can see which ones failed
+      result.failedVessels.forEach(v => {
+        // Find vessel by name since we might not have vesselId in failed response
+        const items = document.querySelectorAll('.depart-vessel-item');
+        items.forEach(item => {
+          const nameEl = item.querySelector('.depart-vessel-name');
+          if (nameEl && nameEl.textContent.includes(v.name)) {
+            const checkbox = item.querySelector('.depart-vessel-checkbox');
+            if (checkbox) {
+              checkbox.checked = false;
+            }
+            // Add visual indicator for failed vessel
+            item.classList.add('depart-failed');
+            // Add reason tooltip
+            item.title = `Failed: ${v.reason}`;
+            // Add reason text below vessel name
+            const detailsEl = item.querySelector('.depart-vessel-details');
+            if (detailsEl) {
+              const reasonDiv = document.createElement('div');
+              reasonDiv.className = 'depart-fail-reason';
+              reasonDiv.textContent = v.reason;
+              detailsEl.prepend(reasonDiv);
+            }
+          }
+        });
+      });
+    }
+
+    // Show success notification if any departed
+    if (result.departedCount > 0) {
+      const totalIncome = result.departedVessels?.reduce((sum, v) => sum + (v.income || 0), 0) || 0;
+      showSideNotification(
+        `${result.departedCount} vessel${result.departedCount > 1 ? 's' : ''} departed | +$${totalIncome.toLocaleString()}`,
+        'success'
+      );
+    }
 
     // Update button count
     updateDepartButtonCount();
@@ -1058,12 +1143,13 @@ async function departSelectedVessels() {
     if (remainingItems.length === 0) {
       const contentArea = document.querySelector('.depart-manager-content');
       if (contentArea) {
-        contentArea.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--color-text-tertiary);">All vessels departed</div>';
+        contentArea.innerHTML = '<div class="depart-empty-state">All vessels departed</div>';
       }
     }
 
   } catch (error) {
     console.error('[Depart Manager] Error departing vessels:', error);
+    showSideNotification(`Depart failed: ${error.message}`, 'error');
     if (departAllBtn) {
       departAllBtn.disabled = false;
     }

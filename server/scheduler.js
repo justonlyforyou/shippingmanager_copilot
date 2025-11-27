@@ -18,7 +18,7 @@ const autopilot = require('./autopilot');
 const state = require('./state');
 const { getUserId } = require('./utils/api');
 const logger = require('./utils/logger');
-const { isMigrationCompleted } = require('./utils/harbor-fee-store');
+const { isMigrationCompleted } = require('./utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('./utils/migrate-harbor-fees');
 
 /**

@@ -1541,6 +1541,26 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
         // File doesn't exist yet
       }
 
+      // If existing data is missing type info, fetch from API
+      if (!existingData.vessel_model && !existingData.capacity_type && !existingData.capacity) {
+        logger.info(`[Vessel Appearance] No type info in existing data for vessel ${vesselId}, fetching from API...`);
+        try {
+          const vesselsResponse = await apiCallWithRetry('/vessel/get-vessels', 'GET', null);
+          if (vesselsResponse && vesselsResponse.data && vesselsResponse.data.user_vessels) {
+            const apiVessel = vesselsResponse.data.user_vessels.find(v => v.id === parseInt(vesselId));
+            if (apiVessel) {
+              existingData.capacity_type = apiVessel.capacity_type;
+              existingData.capacity = apiVessel.capacity_max?.dry || apiVessel.capacity;
+              existingData.vessel_model = apiVessel.capacity_type;
+              existingData.type = apiVessel.type;
+              logger.info(`[Vessel Appearance] Fetched type info: capacity_type=${apiVessel.capacity_type}`);
+            }
+          }
+        } catch (apiErr) {
+          logger.warn(`[Vessel Appearance] Could not fetch vessel type info: ${apiErr.message}`);
+        }
+      }
+
       // Determine ownImage flag:
       // - If uploading new image: true
       // - If removing image: false
@@ -1555,6 +1575,11 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
       const appearanceData = {
         vesselId: parseInt(vesselId),
         name: validator.escape(name || ''),
+        // Preserve vessel type info from existing data (needed for SVG generation)
+        vessel_model: existingData.vessel_model || existingData.capacity_type,
+        capacity: existingData.capacity,
+        capacity_type: existingData.capacity_type,
+        type: existingData.type,
         hull_color: hull_color || '#b30000',
         deck_color: deck_color || '#272525',
         bridge_color: bridge_color || '#dbdbdb',
@@ -1567,7 +1592,7 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
       };
 
       await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
-      logger.info(`[Vessel Appearance] Saved appearance for ${filePrefix}`);
+      logger.info(`[Vessel Appearance] Saved appearance for ${filePrefix}, type: ${appearanceData.capacity_type || 'unknown'}`);
     }
 
     // Save image if provided - to ownimages folder
@@ -1588,11 +1613,32 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
       // Read the appearance data we just saved
       const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
       try {
-        const appearanceData = JSON.parse(await fs.readFile(appearanceFile, 'utf8'));
+        let appearanceData = JSON.parse(await fs.readFile(appearanceFile, 'utf8'));
+
+        // Always fetch vessel type info from API to ensure correct SVG generation
+        logger.info(`[Vessel Appearance] Fetching type info for vessel ${vesselId} from API...`);
+        try {
+          const vesselsResponse = await apiCallWithRetry('/vessel/get-vessels', 'GET', null);
+          if (vesselsResponse && vesselsResponse.data && vesselsResponse.data.user_vessels) {
+            const apiVessel = vesselsResponse.data.user_vessels.find(v => v.id === parseInt(vesselId));
+            if (apiVessel) {
+              appearanceData.capacity_type = apiVessel.capacity_type;
+              appearanceData.capacity = apiVessel.capacity_max?.dry || apiVessel.capacity;
+              appearanceData.vessel_model = apiVessel.capacity_type;
+              appearanceData.type = apiVessel.type;
+              // Save updated appearance file with type info
+              await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
+              logger.info(`[Vessel Appearance] Updated appearance with type info: capacity_type=${apiVessel.capacity_type}`);
+            }
+          }
+        } catch (apiErr) {
+          logger.warn(`[Vessel Appearance] Could not fetch vessel type info: ${apiErr.message}`);
+        }
+
         const svg = generateVesselSvg(appearanceData);
         const svgFilePath = path.join(VESSEL_IMAGES_DIR, `${filePrefix}.svg`);
         await fs.writeFile(svgFilePath, svg, 'utf8');
-        logger.info(`[Vessel Appearance] Generated SVG for vessel ${vesselId}`);
+        logger.info(`[Vessel Appearance] Generated SVG for vessel ${vesselId}, type: ${appearanceData.capacity_type || 'unknown'}`);
       } catch (err) {
         logger.warn(`[Vessel Appearance] Could not generate SVG: ${err.message}`);
       }

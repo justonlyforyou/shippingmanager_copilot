@@ -1555,34 +1555,29 @@ export function renderVessels(vessels) {
       const path = isReversed
         ? vessel.routes[0].path.slice().reverse()
         : vessel.routes[0].path;
-      // console.log(`[Heading Debug] Vessel ${vessel.name}: reversed=${isReversed}, path[0]=${JSON.stringify(path[0])}, path[last]=${JSON.stringify(path[path.length-1])}, position=${JSON.stringify(vessel.position)}`);
-      // Find current position in path and calculate heading to next point
+
+      // Find current position in path - use closest point approach
+      let bestIndex = -1;
+      let bestDist = Infinity;
       for (let i = 0; i < path.length - 1; i++) {
         const point = path[i];
-        if (Math.abs(point.lat - vessel.position.lat) < 0.01 && Math.abs(point.lon - vessel.position.lon) < 0.01) {
-          // Find next significantly different point (skip duplicates)
-          let nextIndex = i + 1;
-          while (nextIndex < path.length - 1) {
-            const nextPoint = path[nextIndex];
-            const dist = Math.abs(nextPoint.lat - point.lat) + Math.abs(nextPoint.lon - point.lon);
-            if (dist > 0.001) break; // Found significantly different point
-            nextIndex++;
-          }
-          heading = calculateHeading(point, path[nextIndex]);
-          // console.log(`[Heading Debug] Found position at index ${i}, using next point at index ${nextIndex}, heading=${heading}`);
-          break;
+        const dist = Math.abs(point.lat - vessel.position.lat) + Math.abs(point.lon - vessel.position.lon);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestIndex = i;
         }
       }
-      // If not found in path, use first and next significantly different point
-      if (heading === 0 && path.length >= 2) {
-        let nextIndex = 1;
+
+      if (bestIndex >= 0 && bestIndex < path.length - 1) {
+        // Find next significantly different point (skip duplicates)
+        let nextIndex = bestIndex + 1;
         while (nextIndex < path.length - 1) {
-          const dist = Math.abs(path[nextIndex].lat - path[0].lat) + Math.abs(path[nextIndex].lon - path[0].lon);
+          const nextPoint = path[nextIndex];
+          const dist = Math.abs(nextPoint.lat - path[bestIndex].lat) + Math.abs(nextPoint.lon - path[bestIndex].lon);
           if (dist > 0.001) break;
           nextIndex++;
         }
-        heading = calculateHeading(path[0], path[nextIndex]);
-        // console.log(`[Heading Debug] Position not found in path, using fallback with index ${nextIndex}, heading=${heading}`);
+        heading = calculateHeading(path[bestIndex], path[nextIndex]);
       }
     }
 

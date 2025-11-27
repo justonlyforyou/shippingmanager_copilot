@@ -12,8 +12,7 @@ const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId, getAllianceId } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
-const { saveHarborFee } = require('../utils/harbor-fee-store');
-const { saveContributionGain } = require('../utils/contribution-store');
+const { saveTripData } = require('../utils/trip-data-store');
 const { fetchUserContribution } = require('../gameapi/alliance');
 const { calculateFuelConsumption } = require('../utils/fuel-calculator');
 
@@ -229,6 +228,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
     // Separate arrays for logbook (not cleared after batches)
     const allDepartedVessels = [];
+    const allFailedVessels = [];
     const allWarningVessels = [];
     const allHighFeeVessels = [];
 
@@ -297,6 +297,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         }
 
         departedVessels.length = 0; // Clear array for next batch
+        // Save failed vessels before clearing
+        allFailedVessels.push(...failedVessels);
         failedVessels.length = 0; // Clear array for next batch
       }
     }
@@ -587,14 +589,11 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           // Query contribution AFTER successful departure (only if user is in alliance)
           const contributionAfter = trackContribution ? await fetchUserContribution(userId) : null;
 
-          // Check for negative income (harbor fees too high - API bug)
-          const hasFeeCalculationBug = result.income < 0;
-
-          // Track vessels with excessive harbor fees (using settings threshold OR negative income)
-          // (using settings from outer scope - already loaded on line 96)
+          // Track vessels with excessive harbor fees (using settings threshold)
+          // High harbor fee just means the route is not profitable, not a bug
           const harborFeeThreshold = settings.harborFeeWarningThreshold || 50; // Default 50%
           const feePercentage = result.income > 0 ? (result.harborFee / result.income) * 100 : 0;
-          const isHighFee = feePercentage > harborFeeThreshold || hasFeeCalculationBug;
+          const isHighFee = feePercentage > harborFeeThreshold;
 
           if (isHighFee) {
             const highFeeData = {
@@ -603,7 +602,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
               income: result.income,
               harborFee: result.harborFee,
               feePercentage: Math.round(feePercentage),
-              reason: hasFeeCalculationBug ? 'Harbor fee exceeds income' : `Harbor fee ${Math.round(feePercentage)}% (threshold: ${harborFeeThreshold}%)`
+              reason: `Harbor fee ${Math.round(feePercentage)}% (threshold: ${harborFeeThreshold}%)`
             };
             allHighFeeVessels.push(highFeeData);
           }
@@ -640,28 +639,40 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             guards: result.guards,
             income: result.income,
             harborFee: result.harborFee,
-            hasFeeCalculationBug: hasFeeCalculationBug,
             fuelUsed: result.fuelUsed,
             co2Used: result.co2Used,
             contributionGained: contributionGained,  // Individual contribution for this vessel
-            // Include detailed cargo breakdown for debugging
+            // Include detailed cargo breakdown
             teuDry: result.teuDry,
             teuRefrigerated: result.teuRefrigerated,
             fuelCargo: result.fuelCargo,
-            crudeCargo: result.crudeCargo
+            crudeCargo: result.crudeCargo,
+            // Cargo rates from vessel prices
+            dryRate: vessel.prices?.dry,
+            refRate: vessel.prices?.refrigerated,
+            fuelRate: vessel.prices?.fuel,
+            crudeRate: vessel.prices?.crude_oil
           };
           departedVessels.push(vesselData);
           allDepartedVessels.push(vesselData);
 
-          // Save harbor fee and contribution for vessel history display
+          // Save all trip data for vessel history display
           // Use current timestamp (vessel_history created_at will match this closely)
           const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
-          await saveHarborFee(userId, vessel.id, timestamp, result.harborFee);
-
-          // Save contribution gain for this vessel (actual value, not average)
-          if (contributionGained !== null) {
-            await saveContributionGain(userId, vessel.id, timestamp, contributionGained);
-          }
+          await saveTripData(userId, vessel.id, timestamp, {
+            harborFee: result.harborFee,
+            contributionGained: contributionGained,
+            speed: result.speed,
+            guards: result.guards,
+            co2Used: result.co2Used,
+            fuelUsed: result.fuelUsed,
+            capacity: vesselCapacity,
+            utilization: actualUtilization,
+            dryRate: vessel.prices?.dry,
+            refRate: vessel.prices?.refrigerated,
+            fuelRate: vessel.prices?.fuel,
+            crudeRate: vessel.prices?.crude_oil
+          });
 
         } catch (error) {
           logger.error(`[Depart] Failed to depart ${vessel.name}:`, error.message);
@@ -805,13 +816,16 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     }
 
     // Build result object - only include contribution fields if tracking is enabled
+    // Combine any remaining failed vessels (from last batch) with allFailedVessels
+    allFailedVessels.push(...failedVessels);
     const result = {
       success: true,
       departedCount: allDepartedVessels.length,
-      failedCount: failedVessels.length,
+      failedCount: allFailedVessels.length,
       warningCount: allWarningVessels.length,
       highFeeCount: allHighFeeVessels.length,
       departedVessels: allDepartedVessels.slice(),
+      failedVessels: allFailedVessels.slice(),
       warningVessels: allWarningVessels.slice(),
       highFeeVessels: allHighFeeVessels.slice(),
       totalRevenue,

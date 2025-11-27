@@ -433,3 +433,36 @@
 .mass-moor-item.active {
   border-left: 3px solid var(--color-success);
 }
+
+/* ============================================
+   FAILED VESSEL STATE
+   ============================================ */
+
+.depart-vessel-item.depart-failed {
+  border-left: 3px solid var(--color-danger);
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.depart-vessel-item.depart-failed .depart-vessel-name {
+  color: var(--color-danger-light);
+}
+
+.depart-vessel-item.depart-failed::after {
+  content: 'FAILED';
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: var(--font-size-9);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-danger);
+  background: var(--color-danger-20);
+  padding: 1px 4px;
+  border-radius: var(--radius-2);
+}
+
+.depart-fail-reason {
+  color: var(--color-danger-light);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  margin-bottom: var(--spacing-2);
+}

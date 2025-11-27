@@ -11,7 +11,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
 const { getLogDir } = require('../config');
-const { saveHarborFee, markMigrationCompleted } = require('./harbor-fee-store');
+const { saveHarborFee, markMigrationCompleted } = require('./trip-data-store');
 const gameapi = require('../gameapi');
 
 const LOG_DIR = path.join(getLogDir(), 'autopilot');

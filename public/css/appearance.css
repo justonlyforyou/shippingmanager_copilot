@@ -237,12 +237,12 @@
   border-color: var(--color-info);
 }
 
-/* Combined Image Section */
+/* Combined Image Section - horizontal layout: image left, colors right */
 #appearanceImageSection {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-8);
+  flex-direction: row;
+  align-items: stretch;
+  gap: var(--spacing-12);
 }
 
 .appearance-image-area {
@@ -253,12 +253,14 @@
   align-items: center;
   gap: var(--spacing-6);
   position: relative;
+  min-width: 0;
 }
 
 .remove-custom-image-btn {
   display: block;
-  width: 180px;
-  margin: 1px auto 0;
+  width: 100%;
+  max-width: 280px;
+  margin: var(--spacing-6) auto 0;
   padding: var(--spacing-6) var(--spacing-12);
   border-radius: var(--radius-4);
   background: var(--color-danger);
@@ -281,9 +283,10 @@
 
 .appearance-colors-area {
   display: flex;
+  flex-direction: column;
   justify-content: center;
-  width: 100%;
-  margin-top: var(--spacing-12);
+  width: auto;
+  flex-shrink: 0;
 }
 
 /* Image Upload Area */
@@ -293,8 +296,9 @@
 }
 
 .appearance-image-preview {
-  width: 180px;
-  height: 108px;
+  width: 100%;
+  max-width: 280px;
+  height: 168px;
   background: var(--color-bg-secondary);
   border: 2px dashed var(--color-border);
   border-radius: var(--radius-6);
@@ -370,11 +374,11 @@
   border-color: var(--color-info);
 }
 
-/* Colors Grid - 2x4 compact layout */
+/* Colors Grid - 2 columns vertical layout */
 .appearance-colors-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--spacing-4);
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-6);
 }
 
 .appearance-color-item {

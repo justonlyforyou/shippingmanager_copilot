@@ -161,7 +161,7 @@ export async function showVesselPanel(vessel) {
     // Cache buster for own images - ensures fresh image after upload
     imageUrl = `/api/vessel-image/ownimage/${vessel.id}?t=${Date.now()}`;
   } else if (isCustomVessel) {
-    imageUrl = `/api/vessel-image/custom/${vessel.id}`;
+    imageUrl = `/api/vessel-image/custom/${vessel.id}?t=${Date.now()}`;
   } else if (vessel.type) {
     imageUrl = `/api/vessel-image/${vessel.type}`;
   }
@@ -575,34 +575,74 @@ function renderHistoryPage() {
 
   if (!contentEl) return;
 
-  // Format cargo display as HTML list
-  const formatCargo = (cargo) => {
-    if (!cargo) return '<ul class="cargo-list"><li>N/A</li></ul>';
-    if (typeof cargo === 'string') return `<ul class="cargo-list"><li>${escapeHtml(cargo)}</li></ul>`;
+  // Format cargo display with total, utilization and rates
+  const formatCargo = (cargo, capacity, utilization, dryRate, refRate, fuelRate, crudeRate) => {
+    if (!cargo) return '<span class="cargo-total">N/A</span>';
+    if (typeof cargo === 'string') return `<span class="cargo-total">${escapeHtml(cargo)}</span>`;
 
     // Container cargo
     if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
-      const dry = cargo.dry;
-      const ref = cargo.refrigerated;
-      return `
-        <ul class="cargo-list">
-          <li>Dry: ${dry} TEU</li>
-          <li>Ref: ${ref} TEU</li>
-        </ul>
-      `;
+      const dry = cargo.dry || 0;
+      const ref = cargo.refrigerated || 0;
+      const total = dry + ref;
+
+      // Build utilization string
+      let utilizationStr = '';
+      if (utilization !== null && utilization !== undefined) {
+        utilizationStr = ` (${Math.round(utilization * 100)}%)`;
+      }
+
+      // Total line
+      let html = `<span class="cargo-total">${total.toLocaleString()} TEU${utilizationStr}</span>`;
+
+      // Detail items
+      const items = [];
+      if (dry > 0) {
+        const rateStr = dryRate ? ` | $${dryRate}/TEU` : '';
+        items.push(`<li>Dry: ${dry.toLocaleString()} TEU${rateStr}</li>`);
+      }
+      if (ref > 0) {
+        const rateStr = refRate ? ` | $${refRate}/TEU` : '';
+        items.push(`<li>Ref: ${ref.toLocaleString()} TEU${rateStr}</li>`);
+      }
+      if (items.length > 0) {
+        html += `<ul class="cargo-list">${items.join('')}</ul>`;
+      }
+      return html;
     }
 
     // Tanker cargo
     if (cargo.fuel !== undefined || cargo.crude_oil !== undefined) {
-      const fuel = cargo.fuel;
-      const crude = cargo.crude_oil;
-      let items = [];
-      if (fuel > 0) items.push(`<li>Fuel: ${fuel.toLocaleString()} bbl</li>`);
-      if (crude > 0) items.push(`<li>Crude: ${crude.toLocaleString()} bbl</li>`);
-      return `<ul class="cargo-list">${items.join('')}</ul>`;
+      const fuel = cargo.fuel || 0;
+      const crude = cargo.crude_oil || 0;
+      const total = fuel + crude;
+
+      // Build utilization string
+      let utilizationStr = '';
+      if (utilization !== null && utilization !== undefined) {
+        utilizationStr = ` (${Math.round(utilization * 100)}%)`;
+      }
+
+      // Total line
+      let html = `<span class="cargo-total">${total.toLocaleString()} bbl${utilizationStr}</span>`;
+
+      // Detail items
+      const items = [];
+      if (fuel > 0) {
+        const rateStr = fuelRate ? ` | $${fuelRate}/bbl` : '';
+        items.push(`<li>Fuel: ${fuel.toLocaleString()} bbl${rateStr}</li>`);
+      }
+      if (crude > 0) {
+        const rateStr = crudeRate ? ` | $${crudeRate}/bbl` : '';
+        items.push(`<li>Crude: ${crude.toLocaleString()} bbl${rateStr}</li>`);
+      }
+      if (items.length > 0) {
+        html += `<ul class="cargo-list">${items.join('')}</ul>`;
+      }
+      return html;
     }
 
-    return `<ul class="cargo-list"><li>${escapeHtml(JSON.stringify(cargo))}</li></ul>`;
+    return `<span class="cargo-total">${escapeHtml(JSON.stringify(cargo))}</span>`;
   };
 
   // Format duration (seconds to human readable)
@@ -657,7 +697,7 @@ function renderHistoryPage() {
     return `
     <div class="${entryClass}">
       <div class="history-route">
-        <strong>${formatPortName(trip.origin)}</strong> → <strong>${formatPortName(trip.destination)}</strong>
+        <strong>${formatPortName(trip.origin)}</strong> &rarr; <strong>${formatPortName(trip.destination)}</strong>
       </div>
       <div class="history-details">
         <div class="history-row">
@@ -667,14 +707,14 @@ function renderHistoryPage() {
           <span class="cargo-label">Cargo:</span>
         </div>
         <div class="history-row cargo-row">
-          ${formatCargo(trip.cargo)}
+          ${formatCargo(trip.cargo, trip.capacity, trip.utilization, trip.dry_rate, trip.ref_rate, trip.fuel_rate, trip.crude_rate)}
         </div>
         <div class="history-row">
-          <span>Income: ${isServiceTrip ? 'Service Trip' : (trip.profit ? '$' + trip.profit.toLocaleString() : '$N/A')}</span>
+          <span>Income: ${isServiceTrip ? 'Service Trip' : (trip.profit ? '$' + trip.profit.toLocaleString() : 'N/A')}</span>
         </div>
         ${trip.harbor_fee ? `
         <div class="history-row${isHighHarborFee ? ' high-fee-text' : ''}">
-          <span>Harbor Fee: $${trip.harbor_fee.toLocaleString()} (${Math.round(feePercentage)}%)${isHighHarborFee ? ` (Threshold: ${harborFeeThreshold}%)` : ''}</span>
+          <span>Harbor Fee: $${trip.harbor_fee.toLocaleString()} (${Math.round(feePercentage)}%)${isHighHarborFee ? ` (>${harborFeeThreshold}%)` : ''}</span>
         </div>
         ` : ''}
         ${trip.contribution !== null && trip.contribution !== undefined ? `
@@ -682,11 +722,26 @@ function renderHistoryPage() {
           <span>Contribution: +${typeof trip.contribution === 'number' ? trip.contribution.toFixed(2) : trip.contribution}</span>
         </div>
         ` : ''}
+        ${trip.speed !== null && trip.speed !== undefined ? `
         <div class="history-row">
-          <span>Fuel: ${trip.fuel_used ? Math.round(trip.fuel_used / 1000).toLocaleString() + ' t' : 'N/A'}</span>
+          <span>Speed: ${trip.speed} kn</span>
         </div>
+        ` : ''}
+        ${trip.guards !== null && trip.guards !== undefined ? `
         <div class="history-row">
-          <span>Distance: ${trip.distance ? Math.round(trip.distance).toLocaleString() + ' nm' : 'N/A'}</span>
+          <span>Guards: ${trip.guards}</span>
+        </div>
+        ` : ''}
+        <div class="history-row">
+          <span>Fuel used: ${trip.fuel_used ? (trip.fuel_used / 1000).toLocaleString(undefined, {maximumFractionDigits: 0}) + ' t' : 'N/A'}</span>
+        </div>
+        ${trip.co2_used !== null && trip.co2_used !== undefined ? `
+        <div class="history-row">
+          <span>CO2 used: ${trip.co2_used.toLocaleString(undefined, {maximumFractionDigits: 0})} t</span>
+        </div>
+        ` : ''}
+        <div class="history-row">
+          <span>Distance: ${trip.distance ? trip.distance.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' nm' : 'N/A'}</span>
         </div>
         <div class="history-row">
           <span>Duration: ${formatDuration(trip.duration)}</span>
@@ -696,7 +751,7 @@ function renderHistoryPage() {
         </div>
         ${revenuePerNm ? `
         <div class="history-row">
-          <span>Revenue/nm: $${parseFloat(revenuePerNm).toLocaleString()}/nm</span>
+          <span>Revenue/nm: $${parseFloat(revenuePerNm).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}/nm</span>
         </div>
         ` : ''}
       </div>

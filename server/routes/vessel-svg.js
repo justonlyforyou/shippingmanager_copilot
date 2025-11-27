@@ -1,6 +1,6 @@
 /**
  * Dynamic Vessel SVG Route
- * Generates SVG images for custom-built vessels
+ * Generates SVG images for custom-built vessels on-the-fly (no disk caching)
  */
 
 const express = require('express');
@@ -8,9 +8,9 @@ const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
 const { generateVesselSvg } = require('../utils/vessel-svg-generator');
-const { getSessionCookie } = require('../utils/session-manager');
 const { makeAuthenticatedRequest, getUserId } = require('../utils/api');
-const { getAppDataDir } = require('../config');
+const { getAppDataDir, getSessionCookie } = require('../config');
+const logger = require('../utils/logger');
 
 // Determine vessel data directories based on environment
 const isPkg = !!process.pkg;
@@ -34,103 +34,118 @@ ensureDirectories();
 
 /**
  * GET /api/vessel-svg/:vesselId
- * Generate or retrieve cached SVG for a vessel
+ * Generate SVG for a vessel (no disk caching - always fresh)
  */
 router.get('/:vesselId', async (req, res) => {
   const { vesselId } = req.params;
+  const forceSvg = req.query.force === 'svg';
 
-  // Get userId for unique file naming
   const userId = getUserId();
   if (!userId) {
     return res.status(401).json({ error: 'No user ID available' });
   }
 
   const filePrefix = `${userId}_${vesselId}`;
-
-  // IMPORTANT: Own images are stored in ownimages subfolder with just vesselId (no userId prefix)
-  // This matches how build-vessel and vessel-image.js handle ownimages
   const ownImagePath = path.join(VESSEL_IMAGES_DIR, 'ownimages', `${vesselId}.png`);
-  const svgFilePath = path.join(VESSEL_IMAGES_DIR, `${filePrefix}.svg`);
 
-  // Try to load existing own image (user uploaded) first - stored in ownimages subfolder
-  try {
-    const existingOwnImage = await fs.readFile(ownImagePath);
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.send(existingOwnImage);
-  } catch {
-    // Own image doesn't exist, try SVG
-  }
-
-  // Try to load existing SVG
-  try {
-    const existingSvg = await fs.readFile(svgFilePath, 'utf8');
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    return res.send(existingSvg);
-  } catch {
-    // SVG doesn't exist, generate it
-  }
-
-  try {
-    const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
-
-    let vesselData = null;
-
-    // Try to load appearance file first
+  // Check for user-uploaded image first (unless force=svg)
+  if (!forceSvg) {
     try {
-      const appearanceData = await fs.readFile(appearanceFile, 'utf8');
-      vesselData = JSON.parse(appearanceData);
+      const existingOwnImage = await fs.readFile(ownImagePath);
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.send(existingOwnImage);
     } catch {
-      // Appearance file doesn't exist - will try API
+      // Own image doesn't exist, generate SVG
     }
+  }
 
-    // If no appearance file, try to get vessel data from API to generate default SVG
-    if (!vesselData) {
-      const sessionCookie = await getSessionCookie();
-      if (!sessionCookie) {
-        return res.status(401).json({ error: 'No session cookie available' });
+  // Load appearance file for custom colors
+  const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
+  let appearanceData = null;
+
+  try {
+    const fileContent = await fs.readFile(appearanceFile, 'utf8');
+    appearanceData = JSON.parse(fileContent);
+    logger.debug(`[Vessel SVG] Loaded appearance for ${vesselId}: capacity_type=${appearanceData.capacity_type}`);
+  } catch {
+    logger.debug(`[Vessel SVG] No appearance file for vessel ${vesselId}`);
+  }
+
+  try {
+    let vesselData = appearanceData;
+
+    // Fetch capacity_type from API if missing
+    if (!vesselData || !vesselData.capacity_type) {
+      logger.debug(`[Vessel SVG] Need to fetch capacity_type from API for vessel ${vesselId}`);
+      let sessionCookie = null;
+      try {
+        sessionCookie = await getSessionCookie();
+      } catch (cookieErr) {
+        logger.warn(`[Vessel SVG] Could not get session cookie: ${cookieErr.message}`);
       }
 
-      // First try user_vessels (owned vessels including pending)
-      const vesselsResponse = await makeAuthenticatedRequest(
-        `https://shippingmanager.cc/api/vessel/get-vessels`,
-        {
-          method: 'GET',
-          headers: {
-            'Cookie': `shipping_manager_session=${sessionCookie}`
-          }
-        }
-      );
+      if (sessionCookie) {
+        try {
+          const vesselsResponse = await makeAuthenticatedRequest(
+            `https://shippingmanager.cc/api/vessel/get-vessels`,
+            {
+              method: 'GET',
+              headers: {
+                'Cookie': `shipping_manager_session=${sessionCookie}`
+              }
+            }
+          );
 
-      if (vesselsResponse.ok) {
-        const vesselsData = await vesselsResponse.json();
-        const vessel = vesselsData.data?.user_vessels?.find(v => v.id === parseInt(vesselId));
-        if (vessel) {
-          vesselData = vessel;
-        }
-      }
-
-      // If not found in user_vessels, try acquirable vessels (market)
-      if (!vesselData) {
-        const acquirableResponse = await makeAuthenticatedRequest(
-          `https://shippingmanager.cc/api/vessel/get-all-acquirable-vessels`,
-          {
-            method: 'POST',
-            headers: {
-              'Cookie': `shipping_manager_session=${sessionCookie}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({})
+          let apiVessel = null;
+          if (vesselsResponse.ok) {
+            const vesselsData = await vesselsResponse.json();
+            apiVessel = vesselsData.data?.user_vessels?.find(v => v.id === parseInt(vesselId));
+            if (apiVessel) {
+              logger.debug(`[Vessel SVG] Found vessel ${vesselId}: capacity_type=${apiVessel.capacity_type}`);
+            }
           }
-        );
 
-        if (acquirableResponse.ok) {
-          const acquirableData = await acquirableResponse.json();
-          const vessel = acquirableData.data?.vessels_for_sale?.find(v => v.id === parseInt(vesselId));
-          if (vessel) {
-            vesselData = vessel;
+          // Try acquirable vessels if not found
+          if (!apiVessel) {
+            const acquirableResponse = await makeAuthenticatedRequest(
+              `https://shippingmanager.cc/api/vessel/get-all-acquirable-vessels`,
+              {
+                method: 'POST',
+                headers: {
+                  'Cookie': `shipping_manager_session=${sessionCookie}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({})
+              }
+            );
+
+            if (acquirableResponse.ok) {
+              const acquirableData = await acquirableResponse.json();
+              apiVessel = acquirableData.data?.vessels_for_sale?.find(v => v.id === parseInt(vesselId));
+            }
           }
+
+          if (apiVessel) {
+            if (appearanceData) {
+              // Merge API data into appearance (preserve colors)
+              appearanceData.capacity_type = apiVessel.capacity_type;
+              appearanceData.capacity = apiVessel.capacity_max?.dry ?? apiVessel.capacity;
+              vesselData = appearanceData;
+
+              // Update appearance file with capacity_type
+              try {
+                await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
+                logger.info(`[Vessel SVG] Updated appearance file with capacity_type: ${apiVessel.capacity_type}`);
+              } catch (saveErr) {
+                logger.warn(`[Vessel SVG] Could not save appearance: ${saveErr.message}`);
+              }
+            } else {
+              vesselData = apiVessel;
+            }
+          }
+        } catch (apiErr) {
+          logger.warn(`[Vessel SVG] API fetch failed: ${apiErr.message}`);
         }
       }
 
@@ -139,12 +154,12 @@ router.get('/:vesselId', async (req, res) => {
       }
     }
 
+    // Generate SVG fresh (no disk cache)
     const svg = generateVesselSvg(vesselData);
-
-    await fs.writeFile(svgFilePath, svg, 'utf8');
+    logger.debug(`[Vessel SVG] Generated SVG for vessel ${vesselId}: capacity_type=${vesselData.capacity_type}`);
 
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.send(svg);
 
   } catch (error) {

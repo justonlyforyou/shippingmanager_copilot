@@ -18,7 +18,9 @@ import { getCurrentBunkerState } from './bunker-management.js';
 
 /**
  * Available engines for vessel building (from /game/index.json)
- * Stats are based on actual game data for Container vessels
+ * Speed is calculated using the universal game formula, not engine-specific values:
+ *   baseSpeed = Math.max(5, Math.min(35, Math.ceil(5.7 * power/capacity + capacity/1000)))
+ *   finalSpeed = Math.ceil(baseSpeed * (1 + propeller.speed))
  */
 const ENGINES = [
   {
@@ -29,29 +31,17 @@ const ENGINES = [
     pricePerKW: 833,
     basePrice: 2082500,
     sortOrder: 1,
-    default: true,
-    stats: {
-      minCapMinKW: { range: 10000, speed: 10 },
-      minCapMaxKW: { range: 18000, speed: 34 },
-      maxCapMinKW: { range: 741, speed: 28 },
-      maxCapMaxKW: { range: 3260, speed: 30 }
-    }
+    default: true
   },
   {
     type: 'wartsila_syk_6',
-    name: 'Wärtsilä SYK-6',
+    name: 'Wartsila SYK-6',
     minKW: 5000,
     maxKW: 15000,
     pricePerKW: 833,
     basePrice: 4165000,
     sortOrder: 2,
-    default: false,
-    stats: {
-      minCapMinKW: { range: 18000, speed: 17 },
-      minCapMaxKW: { range: 18000, speed: 35 },
-      maxCapMinKW: { range: 1482, speed: 29 },
-      maxCapMaxKW: { range: 4445, speed: 31 }
-    }
+    default: false
   },
   {
     type: 'man_p22l',
@@ -61,13 +51,7 @@ const ENGINES = [
     pricePerKW: 833,
     basePrice: 6664000,
     sortOrder: 3,
-    default: false,
-    stats: {
-      minCapMinKW: { range: 18000, speed: 25 },
-      minCapMaxKW: { range: 18000, speed: 35 },
-      maxCapMinKW: { range: 2371, speed: 29 },
-      maxCapMaxKW: { range: 5186, speed: 31 }
-    }
+    default: false
   },
   {
     type: 'mih_xp9',
@@ -77,13 +61,7 @@ const ENGINES = [
     pricePerKW: 833,
     basePrice: 8330000,
     sortOrder: 4,
-    default: false,
-    stats: {
-      minCapMinKW: { range: 18000, speed: 31 },
-      minCapMaxKW: { range: 18000, speed: 35 },
-      maxCapMinKW: { range: 2963, speed: 30 },
-      maxCapMaxKW: { range: 5926, speed: 32 }
-    }
+    default: false
   },
   {
     type: 'man_p22l_z',
@@ -93,13 +71,7 @@ const ENGINES = [
     pricePerKW: 833,
     basePrice: 12495000,
     sortOrder: 5,
-    default: false,
-    stats: {
-      minCapMinKW: { range: 18000, speed: 35 },
-      minCapMaxKW: { range: 18000, speed: 35 },
-      maxCapMinKW: { range: 4445, speed: 31 },
-      maxCapMaxKW: { range: 7408, speed: 33 }
-    }
+    default: false
   },
   {
     type: 'mih_cp9',
@@ -109,13 +81,7 @@ const ENGINES = [
     pricePerKW: 833,
     basePrice: 20825000,
     sortOrder: 6,
-    default: false,
-    stats: {
-      minCapMinKW: { range: 18000, speed: 35 },
-      minCapMaxKW: { range: 18000, speed: 35 },
-      maxCapMinKW: { range: 7408, speed: 33 },
-      maxCapMaxKW: { range: 17778, speed: 35 }
-    }
+    default: false
   }
 ];
 
@@ -274,8 +240,8 @@ const buildState = {
   vesselType: 'container',
   capacity: 2000,
   port: null,
-  engine: null,
-  engineKW: null,
+  engine: 'mih_x1',
+  engineKW: 2500,
   antifouling: null,
   bulbous: false,
   propellers: '4_blade_propeller',
@@ -312,6 +278,42 @@ function interpolate(value, minVal, maxVal, minResult, maxResult) {
 }
 
 /**
+ * Calculate speed from engine power and capacity
+ * Uses the actual game formula extracted from fleet_b.js and app_beautified.js:
+ * - Base speed: Math.max(5, Math.min(35, Math.ceil(5.7 * power/capacity + capacity/1000)))
+ * - With propeller: Math.ceil(baseSpeed * (1 + propeller.speed))
+ *
+ * @param {number} power - Engine power in kW
+ * @param {number} capacity - Vessel capacity (TEU for container, BBL/74 for tanker)
+ * @returns {number} Base speed in knots (before propeller)
+ */
+function calculateGameBaseSpeed(power, capacity) {
+  // Exact formula from game JS: Math.max(5, Math.min(35, Math.ceil(5.7 * n + t / 1e3)))
+  // where n = power/capacity and t = capacity
+  const ratio = power / capacity;
+  return Math.max(5, Math.min(35, Math.ceil(5.7 * ratio + capacity / 1000)));
+}
+
+/**
+ * Calculate base range from capacity (Step 1 - before engine selection)
+ * Range is inversely proportional to capacity
+ * @param {string} vesselType - 'container' or 'tanker'
+ * @param {number} capacity - Vessel capacity
+ * @returns {number} Base range in nautical miles
+ */
+function calculateBaseRangeFromCapacity(vesselType, capacity) {
+  if (vesselType === 'container') {
+    // Container: range = ceil(20,000,000 / TEU)
+    return Math.ceil(20000000 / capacity);
+  } else {
+    // Tanker: scale to same range pattern
+    const config = CAPACITY_RANGES.tanker;
+    const containerEquiv = 2000 + (capacity - config.min) / (config.max - config.min) * 25000;
+    return Math.ceil(20000000 / containerEquiv);
+  }
+}
+
+/**
  * Calculate base vessel stats based on type and capacity
  * @param {string} vesselType - 'container' or 'tanker'
  * @param {number} capacity - Vessel capacity
@@ -320,9 +322,16 @@ function interpolate(value, minVal, maxVal, minResult, maxResult) {
 function calculateBaseStats(vesselType, capacity) {
   const config = CAPACITY_RANGES[vesselType];
 
-  const range = interpolate(capacity, config.min, config.max, config.stats.minRange, config.stats.maxRange);
-  const speed = interpolate(capacity, config.min, config.max, config.stats.minSpeed, config.stats.maxSpeed);
-  const fuel = interpolate(capacity, config.min, config.max, config.stats.minFuel, config.stats.maxFuel);
+  // Range from capacity-based formula
+  const range = calculateBaseRangeFromCapacity(vesselType, capacity);
+
+  // Speed at default engine (MIH X1 @ 2500 kW) - uses game formula
+  // For tankers, divide BBL by 74 to get equivalent TEU capacity
+  const effectiveCapacity = vesselType === 'tanker' ? Math.round(capacity / 74) : capacity;
+  const speed = calculateGameBaseSpeed(2500, effectiveCapacity);
+
+  // Fuel formula: ceil(capacity * sqrt(speed) * 0.994 / 40)
+  const fuel = Math.ceil(effectiveCapacity * Math.sqrt(speed) * 0.994 / 40);
   const co2 = interpolate(capacity, config.min, config.max, config.stats.minCO2, config.stats.maxCO2);
   const buildTime = interpolate(capacity, config.min, config.max, config.buildTime.min, config.buildTime.max);
 
@@ -351,8 +360,8 @@ function applyPerkEffects(stats, state) {
     buildTime += PERKS.bulbous.buildTime;
   }
 
-  const propellerPerk = PERKS.propellers[state.propellers];
-  speed *= (1 + propellerPerk.speed);
+  // Speed perk is applied BEFORE rounding in updateStatsPreview, not here
+  // (propeller speed multiplier must be applied to raw speed before rounding)
 
   if (state.enhancedThrusters) {
     fuel *= (1 + PERKS.enhanced_thrusters.fuel);
@@ -406,7 +415,8 @@ function calculatePrice(state) {
   const propellerPerk = PERKS.propellers[state.propellers];
   perkFactor += propellerPerk.priceFactor;
 
-  const perkCosts = vesselPrice * perkFactor;
+  // Perk costs are calculated on vessel base price ONLY (excluding engine)
+  const perkCosts = basePrice * perkFactor;
   const totalPrice = vesselPrice + perkCosts;
 
   if (state.enhancedThrusters) {
@@ -428,68 +438,14 @@ function formatBuildTime(seconds) {
 }
 
 /**
- * Bilinear interpolation for engine stats
- * @param {Object} engine - Engine object with stats
- * @param {number} capacity - Vessel capacity
- * @param {number} engineKW - Engine power in kW
- * @param {string} stat - 'speed' or 'range'
- * @returns {number} Interpolated stat value
+ * Calculate speed for a specific engine and kW
+ * Used for displaying speed ranges on engine selection cards
+ * Uses the actual game formula: Math.max(5, Math.min(35, Math.ceil(5.7 * power/capacity + capacity/1000)))
  */
-function bilinearInterpolate(engine, capacity, engineKW, stat, vesselType) {
-  const containerConfig = CAPACITY_RANGES.container;
-  const currentConfig = CAPACITY_RANGES[vesselType];
-
-  const containerMinCap = containerConfig.min;
-  const containerMaxCap = containerConfig.max;
-
-  const normalizedCap = (capacity - currentConfig.min) / (currentConfig.max - currentConfig.min);
-  const interpolatedCap = containerMinCap + normalizedCap * (containerMaxCap - containerMinCap);
-
-  const minKW = engine.minKW;
-  const maxKW = engine.maxKW;
-
-  const v1 = engine.stats.minCapMinKW[stat];
-  const v2 = engine.stats.minCapMaxKW[stat];
-  const v3 = engine.stats.maxCapMinKW[stat];
-  const v4 = engine.stats.maxCapMaxKW[stat];
-
-  const capRatio = (interpolatedCap - containerMinCap) / (containerMaxCap - containerMinCap);
-  const kwRatio = (engineKW - minKW) / (maxKW - minKW);
-
-  const interpAtMinCap = v1 + (v2 - v1) * kwRatio;
-  const interpAtMaxCap = v3 + (v4 - v3) * kwRatio;
-
-  return interpAtMinCap + (interpAtMaxCap - interpAtMinCap) * capRatio;
-}
-
-/**
- * Calculate speed for a given engine KW
- * @param {number} capacity - Vessel capacity
- * @param {string} vesselType - 'container' or 'tanker'
- * @param {number} engineKW - Engine power in kW
- * @param {string} engineType - Engine type (e.g., 'mih_x1')
- * @returns {number} Speed in knots
- */
-function calculateSpeedForEngine(capacity, vesselType, engineKW, engineType) {
-  if (!engineType) return 0;
-  const engine = ENGINES.find(e => e.type === engineType);
-  if (!engine) return 0;
-  return bilinearInterpolate(engine, capacity, engineKW, 'speed', vesselType);
-}
-
-/**
- * Calculate range for a given engine KW
- * @param {number} capacity - Vessel capacity
- * @param {string} vesselType - 'container' or 'tanker'
- * @param {number} engineKW - Engine power in kW
- * @param {string} engineType - Engine type (e.g., 'mih_x1')
- * @returns {number} Range in nautical miles
- */
-function calculateRangeForEngine(capacity, vesselType, engineKW, engineType) {
-  if (!engineType) return 0;
-  const engine = ENGINES.find(e => e.type === engineType);
-  if (!engine) return 0;
-  return bilinearInterpolate(engine, capacity, engineKW, 'range', vesselType);
+function calculateSpeedForEngine(capacity, vesselType, engineKW) {
+  // For tankers, divide BBL by 74 to get equivalent TEU capacity
+  const effectiveCapacity = vesselType === 'tanker' ? Math.round(capacity / 74) : capacity;
+  return calculateGameBaseSpeed(engineKW, effectiveCapacity);
 }
 
 /**
@@ -537,30 +493,57 @@ function updateStatsPreview() {
 
   let range, speed, fuel, co2, buildTime;
 
-  if (buildState.currentStep >= 2 && buildState.engine && buildState.engineKW) {
-    range = calculateRangeForEngine(buildState.capacity, buildState.vesselType, buildState.engineKW, buildState.engine);
-    speed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, buildState.engineKW, buildState.engine);
-    const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
-    fuel = baseStats.fuel;
-    co2 = baseStats.co2;
-    buildTime = baseStats.buildTime;
+  // Base stats from capacity
+  const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
+  fuel = baseStats.fuel;
+  co2 = baseStats.co2;
+  buildTime = baseStats.buildTime;
 
-    if (buildState.currentStep >= 3) {
-      const perkStats = applyPerkEffects({ range, speed, fuel, co2, buildTime }, buildState);
-      range = perkStats.range;
-      speed = perkStats.speed;
-      fuel = perkStats.fuel;
-      co2 = perkStats.co2;
-      buildTime = perkStats.buildTime;
+  // Speed and range from capacity (this IS the MIH X1 @ 2500 kW baseline)
+  speed = baseStats.speed;
+  range = baseStats.range;
+
+  // Range formula: min(18000, ceil(8000 * engineKW / capacity))
+  // Speed formula: Math.max(5, Math.min(35, Math.ceil(5.7 * power/capacity + capacity/1000)))
+  // With propeller: Math.ceil(baseSpeed * (1 + propeller.speed))
+  if (buildState.engine && buildState.engineKW) {
+    // For tankers, divide BBL by 74 to get equivalent TEU capacity
+    const effectiveCapacity = buildState.vesselType === 'tanker'
+      ? Math.round(buildState.capacity / 74)
+      : buildState.capacity;
+
+    // Range: universal formula based on kW and capacity
+    const maxRange = 18000;
+    range = Math.min(maxRange, Math.ceil(8000 * buildState.engineKW / effectiveCapacity));
+
+    // Speed: exact game formula
+    const baseSpeed = calculateGameBaseSpeed(buildState.engineKW, effectiveCapacity);
+
+    // Apply propeller multiplier (if in step 3+)
+    // Game formula: Math.ceil(baseSpeed * (1 + propeller.speed))
+    // Floating point precision: 25 * 1.12 = 28.000000000000004, ceil gives 29
+    if (buildState.currentStep >= 3 && buildState.propellers) {
+      const propellerPerk = PERKS.propellers[buildState.propellers];
+      speed = Math.ceil(baseSpeed * (1 + propellerPerk.speed));
+    } else {
+      speed = baseSpeed;
     }
-  } else {
-    const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
-    const stats = applyPerkEffects(baseStats, buildState);
-    range = stats.range;
-    speed = stats.speed;
-    fuel = stats.fuel;
-    co2 = stats.co2;
-    buildTime = stats.buildTime;
+
+    // Cap at 35 (max game speed)
+    speed = Math.min(35, speed);
+
+    // Fuel formula: ceil(capacity * sqrt(speed) * 0.994 / 40)
+    // Factor 0.994 verified against game data for 2000 TEU and 27000 TEU
+    fuel = Math.ceil(effectiveCapacity * Math.sqrt(speed) * 0.994 / 40);
+  }
+
+  if (buildState.currentStep >= 3) {
+    const perkStats = applyPerkEffects({ range, speed, fuel, co2, buildTime }, buildState);
+    range = perkStats.range;
+    speed = perkStats.speed;
+    fuel = perkStats.fuel;
+    co2 = perkStats.co2;
+    buildTime = perkStats.buildTime;
   }
 
   const price = calculatePrice(buildState);
@@ -570,7 +553,7 @@ function updateStatsPreview() {
   const co2Unit = config.unit === 'TEU' ? 'kg/TEU/nm' : 'kg/100bbl/nm';
 
   document.getElementById('previewCapacity').textContent = `${formatNumber(buildState.capacity)} ${unit}`;
-  document.getElementById('previewRange').textContent = `${Math.round(range)} nm`;
+  document.getElementById('previewRange').textContent = `${Math.ceil(range)} nm`;
   document.getElementById('previewSpeed').textContent = `${Math.round(speed)} kn`;
   document.getElementById('previewFuel').textContent = `${Math.round(fuel)} kg/nm`;
   document.getElementById('previewCO2').textContent = `${co2.toFixed(2)} ${co2Unit}`;
@@ -715,8 +698,8 @@ function renderStep3() {
     <div class="build-step-container">
       <div class="engine-selection">
         ${ENGINES.map(engine => {
-          const minSpeed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, engine.minKW, engine.type);
-          const maxSpeed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, engine.maxKW, engine.type);
+          const minSpeed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, engine.minKW);
+          const maxSpeed = calculateSpeedForEngine(buildState.capacity, buildState.vesselType, engine.maxKW);
 
           return `
           <div class="engine-card ${buildState.engine === engine.type ? 'selected' : ''}" data-engine="${engine.type}">
