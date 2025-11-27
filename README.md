@@ -58,7 +58,7 @@ A comprehensive "Addon" for the beloved game [Shipping Manager](https://shipping
   - [Auto Anchor Point Purchase by Harbormaster](#auto-anchor-point-purchase-by-harbormaster)
   - [Auto Negotiate Hijacking by Cap'n Blackbeard](#auto-negotiate-hijacking-by-capn-blackbeard)
   - [HTTPS Support & Certificate Management](#https-support--certificate-management)
-- [Requirements](#requirements)
+- [Installation](#Installation)
 - [Documentation](#documentation)
 - [Session Cookie Encryption](#session-cookie-encryption)
 - [Route Optimization Detection & Tracking](#route-optimization-detection--tracking)
