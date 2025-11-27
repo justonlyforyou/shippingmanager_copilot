@@ -86,20 +86,6 @@ This **comprehensive standalone web interface** connects directly to the Shippin
 
 ---
 
-### 📢 A Message to Trophy Games
-
-> **@Dear Trophy Games**
->
-> As a dedicated player and Steam user, I would highly appreciate seeing **premium features**, like the ones integrated here, fully and natively implemented into your system.
->
-> Imagine 10,000 active players willing to pay 5 Euros monthly for such integrated features — that could generate an extra **50,000 Euros per month**. A business model that would be worthwhile for everyone!
->
-> I warmly invite you to **cooperate**: If you appreciate some of my feature ideas and would like assistance integrating them into the official system, I am readily available.
->
-> Furthermore, since *Shipping Manager* is a simulation, it would be wonderful if you would make your **API documentation** publicly accessible. This would allow the community to develop valuable UI extensions themselves without unnecessarily burdening your API with reverse engineering calls. Sorry about some potentially log spam in the past :P
-
----
-
 ## 🚀 Features
 
 Here are the first available features. I'm sure I forgot a few, but you're welcome to explore!
