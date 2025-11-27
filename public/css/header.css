@@ -174,6 +174,20 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
+/* Staff training points available - pulsing glow animation */
+@keyframes staff-points-glow {
+  0%, 100% {
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 4px var(--color-warning));
+  }
+  50% {
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 12px var(--color-warning)) drop-shadow(0 0 20px var(--color-warning-light));
+  }
+}
+
+.ceo-level-badge.has-staff-points .ceo-level-badge__svg {
+  animation: staff-points-glow 2s ease-in-out infinite;
+}
+
 /* Unified header info items */
 .header-info-item {
   display: flex;

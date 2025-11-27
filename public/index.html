@@ -775,7 +775,7 @@
                             <span id="informationToggle" class="settings-section-toggle">➖</span>
                         </h3>
                         <div class="settings-section-divider"></div>
-                        <div id="informationContent" data-display-mode="block">
+                        <div id="informationContent" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
                             <div class="info-section">
                                 <p class="info-text">
                                     📦 Current Version <span id="currentVersion" class="info-version">Loading...</span>
@@ -809,18 +809,18 @@
                     </div>
 
                     <!-- Price Alerts Section -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
                         <h3 onclick="toggleSection('priceAlertsContent')" style="margin: 0 0 10px 0; font-size: 16px; color: #e0e0e0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
                             <span>📢 Price Alerts</span>
                             <span id="priceAlertsToggle" style="font-size: 14px; color: #9ca3af; font-weight: normal;">➕</span>
                         </h3>
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
-                        <div id="priceAlertsContent" class="hidden" data-display-mode="block">
-                            <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                        <div id="priceAlertsContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
+                            <p style="margin: 0 0 5px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
                                 Get browser notifications when prices drop below these thresholds
                             </p>
 
-                            <div style="display: flex; flex-direction: column; gap: 10px;">
+                            <div style="display: flex; flex-direction: column; gap: 5px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
                                 <label for="fuelThreshold" style="margin: 0; color: #e0e0e0; font-size: 14px;">
                                     ⛽ Fuel Alert Threshold ($/ton)
@@ -851,7 +851,7 @@
                         </div>
 
                         <button id="testAlertBtn" style="
-                            margin-top: 12px;
+                            margin-top: 5px;
                             width: 100%;
                             padding: 10px;
                             background: rgba(59, 130, 246, 0.2);
@@ -875,7 +875,7 @@
                             <span id="ipoAlertsToggle" class="settings-section-toggle">+</span>
                         </h3>
                         <div class="settings-section-divider"></div>
-                        <div id="ipoAlertsContent" class="hidden" data-display-mode="block">
+                        <div id="ipoAlertsContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
                             <p class="settings-section-description">
                                 Get notified when new players complete their IPO. Fresh accounts have higher potential returns.
                             </p>
@@ -909,13 +909,13 @@
                     </div>
 
                     <!-- General Settings Section -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
                         <h3 onclick="toggleSection('generalSettingsContent')" style="margin: 0 0 10px 0; font-size: 16px; color: #e0e0e0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
                             <span>⚙️ General Settings</span>
                             <span id="generalSettingsToggle" style="font-size: 14px; color: #9ca3af; font-weight: normal;">➕</span>
                         </h3>
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
-                        <div id="generalSettingsContent" class="hidden" style="flex-direction: column; gap: 10px;" data-display-mode="flex">
+                        <div id="generalSettingsContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
                             <div style="padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
                                 <label style="display: flex; align-items: center; cursor: pointer;">
                                     <input type="checkbox" id="enableDesktopNotifications" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;" checked>
@@ -1012,14 +1012,14 @@
                     </div>
 
                     <!-- Auto-Pilot Settings Section -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: rgba(16, 185, 129, 0.05); border: 2px solid rgba(16, 185, 129, 0.3); border-radius: 12px;">
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(16, 185, 129, 0.05); border: 2px solid rgba(16, 185, 129, 0.3); border-radius: 12px;">
                         <h3 onclick="toggleSection('autopilotContent')" style="margin: 0 0 10px 0; font-size: 18px; color: #10b981; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
                             <span>🤖 Auto-Pilot - Settings</span>
                             <span id="autopilotToggle" style="font-size: 16px; color: #9ca3af; font-weight: normal;">➕</span>
                         </h3>
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
-                        <div id="autopilotContent" class="hidden" data-display-mode="block">
-                            <p style="margin: 0 0 20px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                        <div id="autopilotContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
+                            <p style="margin: 0 0 5px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
                                 Enable automated game management. When ANY function is active, page title changes to <strong>"AutoPilot"</strong> mode.
                             </p>
 
@@ -1037,7 +1037,7 @@
                             </div>
                         </div>
 
-                        <div style="display: flex; flex-direction: column; gap: 12px;">
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
                             <!-- Auto-rebuy Fuel -->
                             <div style="padding: 16px; background: rgba(251, 191, 36, 0.05); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px;">
                                 <label style="display: flex; align-items: center; cursor: pointer;">
@@ -1398,21 +1398,21 @@
                     </div>
 
                     <!-- Chat Bot Settings Section -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: rgba(139, 92, 246, 0.05); border: 2px solid rgba(139, 92, 246, 0.3); border-radius: 12px;">
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(139, 92, 246, 0.05); border: 2px solid rgba(139, 92, 246, 0.3); border-radius: 12px;">
                         <h3 onclick="toggleSection('chatbotContent')" style="margin: 0 0 10px 0; font-size: 18px; color: #a78bfa; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
                             <span>💬 Chat Bot Settings</span>
                             <span id="chatbotToggle" style="font-size: 16px; color: #9ca3af; font-weight: normal;">➕</span>
                         </h3>
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
-                        <div id="chatbotContent" class="hidden" style="flex-direction: column; gap: 12px;" data-display-mode="flex">
-                            <p style="margin: 0 0 20px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                        <div id="chatbotContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
+                            <p style="margin: 0 0 5px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
                                 Configure automated chat responses and commands in alliance chat
                             </p>
 
                             <!-- Box 1: General Settings -->
                             <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
                                 <h4 style="margin: 0 0 12px 0; color: #a78bfa; font-size: 14px; font-weight: 600;">General Settings</h4>
-                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
                                     <!-- Enable Chat Bot -->
                                     <div style="padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 6px;">
                                         <label style="display: flex; align-items: center; cursor: pointer;">
@@ -1450,14 +1450,14 @@
                             <!-- Box 2: Help Command Settings -->
                             <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
                                 <h4 style="margin: 0 0 12px 0; color: #a78bfa; font-size: 14px; font-weight: 600;">Help Command Settings</h4>
-                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
                                     <!-- Help Command -->
                                     <div style="padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 6px;">
                                         <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 8px;">
                                             <input type="checkbox" id="cmdHelp" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                                             <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">❓ Help Command</span>
                                         </label>
-                                        <div style="margin-left: 28px; display: flex; flex-direction: column; gap: 8px;">
+                                        <div style="margin-left: 28px; display: flex; flex-direction: column; gap: 5px;">
                                             <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px; color: #d1d5db;">
                                                 <input type="checkbox" id="cmdHelpAlliance" style="width: 16px; height: 16px; margin-right: 6px; cursor: pointer;" checked>
                                                 Allow in alliance chat
@@ -1478,7 +1478,7 @@
                             <!-- Box 3: Forecast Command Settings -->
                             <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
                                 <h4 style="margin: 0 0 12px 0; color: #a78bfa; font-size: 14px; font-weight: 600;">Forecast Command Settings</h4>
-                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
                                     <!-- Daily Forecast Toggle -->
                                     <div style="padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 6px;">
                                         <label style="display: flex; align-items: center; cursor: pointer;">
@@ -1499,7 +1499,7 @@
                                             <input type="checkbox" id="cmdForecast" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
                                             <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">📊 Forecast Command</span>
                                         </label>
-                                        <div style="margin-left: 28px; display: flex; flex-direction: column; gap: 8px;">
+                                        <div style="margin-left: 28px; display: flex; flex-direction: column; gap: 5px;">
                                             <label style="display: flex; align-items: center; cursor: pointer; font-size: 13px; color: #d1d5db;">
                                                 <input type="checkbox" id="cmdForecastAlliance" style="width: 16px; height: 16px; margin-right: 6px; cursor: pointer;" checked>
                                                 Allow in alliance chat
@@ -1520,7 +1520,7 @@
                             <!-- Box 4: Welcome Command Settings -->
                             <div id="welcomeCommandSettingsBox" style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; display: none;">
                                 <h4 style="margin: 0 0 12px 0; color: #a78bfa; font-size: 14px; font-weight: 600;">Welcome Command Settings</h4>
-                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
                                     <!-- Welcome Command Toggle -->
                                     <div style="padding: 10px; background: rgba(31, 41, 55, 0.5); border-radius: 6px;">
                                         <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 8px;">
@@ -1546,7 +1546,7 @@
                                         <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">Custom Commands</span>
                                         <button id="addCustomCommand" style="padding: 4px 12px; background: rgba(139, 92, 246, 0.2); border: 1px solid rgba(139, 92, 246, 0.4); border-radius: 4px; color: #a78bfa; cursor: pointer; font-size: 12px; font-weight: 600;">+ Add</button>
                                     </div>
-                                    <div id="customCommandsList" style="display: flex; flex-direction: column; gap: 8px;">
+                                    <div id="customCommandsList" style="display: flex; flex-direction: column; gap: 5px;">
                                         <!-- Custom commands will be added here dynamically -->
                                     </div>
                                 </div>
@@ -1603,14 +1603,14 @@
                     </div>
 
                     <!-- Certificate Section -->
-                    <div style="margin-bottom: 25px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px;">
                         <h3 onclick="toggleSection('certificateContent')" style="margin: 0 0 10px 0; font-size: 16px; color: #e0e0e0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
                             <span>🔒 Certificate Installation</span>
                             <span id="certificateToggle" style="font-size: 14px; color: #9ca3af; font-weight: normal;">➕</span>
                         </h3>
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
-                        <div id="certificateContent" class="hidden" data-display-mode="block">
-                            <p style="margin: 0 0 15px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                        <div id="certificateContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
+                            <p style="margin: 0 0 5px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
                                 Install the CA certificate to remove security warnings and enable notifications on mobile devices
                             </p>
 

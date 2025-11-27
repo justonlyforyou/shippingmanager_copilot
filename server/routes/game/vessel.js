@@ -1464,6 +1464,29 @@ router.post('/build-vessel', express.json(), async (req, res) => {
 });
 
 /**
+ * GET /api/vessel/get-appearance/:vesselId
+ * Get vessel appearance data (colors, ownImage flag)
+ */
+router.get('/get-appearance/:vesselId', async (req, res) => {
+  const { vesselId } = req.params;
+  const userId = getUserId();
+
+  if (!userId) {
+    return res.status(401).json({ error: 'User not authenticated' });
+  }
+
+  try {
+    const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${vesselId}.json`);
+    const fileContent = await fs.readFile(appearanceFile, 'utf8');
+    const data = JSON.parse(fileContent);
+    res.json(data);
+  } catch {
+    // No appearance file - return defaults
+    res.json({ ownImage: false });
+  }
+});
+
+/**
  * POST /api/vessel/save-appearance
  * Save vessel appearance data for custom vessels (image and SVG colors only)
  *

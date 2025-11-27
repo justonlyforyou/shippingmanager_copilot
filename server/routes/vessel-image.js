@@ -77,10 +77,12 @@ router.use(async (req, res, next) => {
     return res.status(404).json({ error: 'Own image not found' });
   }
 
-  // Check if this is a custom vessel (redirect to SVG generator)
+  // Check if this is a custom vessel (redirect to SVG generator with query params)
   if (vesselImagePath.startsWith('custom/')) {
-    const vesselId = vesselImagePath.split('/').pop();
-    return res.redirect(`/api/vessel-svg/${vesselId}`);
+    const vesselId = vesselImagePath.split('/').pop().split('?')[0];
+    // Pass through any query params from the original request
+    const queryString = req.url.includes('?') ? req.url.substring(req.url.indexOf('?')) : '';
+    return res.redirect(`/api/vessel-svg/${vesselId}${queryString}`);
   }
 
   // Validate path (alphanumeric, underscore, hyphen, slash, dot only - prevent directory traversal)

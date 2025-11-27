@@ -1,6 +1,5 @@
 # Discovered Game Formulas
 
-Extracted from captured JavaScript (shippingmanager.cc game client)
 All formulas verified against live game data.
 
 ---
@@ -277,4 +276,3 @@ result = (value === 0) ? 0 : Math.pow(value, 3)
 ---
 
 *Last updated: 2025-11-22*
-*Source: Captured game client JavaScript from shippingmanager.cc*

@@ -319,7 +319,7 @@
    ============================================ */
 
 .settings-section {
-  margin-bottom: var(--spacing-25);
+  margin-bottom: var(--spacing-10);
   padding: var(--spacing-20);
   background: var(--slate-800-30);
   border: var(--border-light);

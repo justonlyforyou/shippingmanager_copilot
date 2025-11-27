@@ -991,376 +991,33 @@ function renderStep5() {
 }
 
 /**
- * Update SVG preview
+ * Build preview URL from buildState
  */
-async function updateSvgPreview() {
+function buildPreviewUrl(state) {
+  const params = new URLSearchParams();
+  params.set('capacity_type', state.vesselType || 'container');
+  params.set('capacity', state.capacity || 2000);
+  if (state.vesselName) params.set('name', state.vesselName);
+  if (state.hullColor) params.set('hull_color', state.hullColor);
+  if (state.deckColor) params.set('deck_color', state.deckColor);
+  if (state.bridgeColor) params.set('bridge_color', state.bridgeColor);
+  if (state.nameColor) params.set('name_color', state.nameColor);
+  if (state.containerColor1) params.set('container_color_1', state.containerColor1);
+  if (state.containerColor2) params.set('container_color_2', state.containerColor2);
+  if (state.containerColor3) params.set('container_color_3', state.containerColor3);
+  if (state.containerColor4) params.set('container_color_4', state.containerColor4);
+  return `/api/vessel-svg/preview?${params.toString()}`;
+}
+
+/**
+ * Update SVG preview using server endpoint
+ */
+function updateSvgPreview() {
   const container = document.getElementById('vesselSvgPreview');
   if (!container) return;
 
-  const svg = await generateVesselSvg(buildState);
-  container.innerHTML = svg;
-}
-
-/**
- * Shade a color by a percentage
- */
-function shadeColor(color, percent) {
-  const num = parseInt(color.replace('#', ''), 16);
-  const amt = Math.round(2.55 * percent);
-  const R = Math.max(0, Math.min(255, (num >> 16) + amt));
-  const G = Math.max(0, Math.min(255, (num >> 8 & 0x00FF) + amt));
-  const B = Math.max(0, Math.min(255, (num & 0x0000FF) + amt));
-  return '#' + (0x1000000 + R * 0x10000 + G * 0x100 + B).toString(16).slice(1);
-}
-
-/**
- * Generate vessel SVG based on current state
- */
-async function generateVesselSvg(state) {
-  if (state.vesselType === 'container') {
-    return await generateContainerSvg(state);
-  } else {
-    return await generateTankerSvg(state);
-  }
-}
-
-/**
- * Generate container ship SVG preview
- * Loads the professional SVG template and applies colors
- * Container count reflects capacity - ship size stays constant
- */
-async function generateContainerSvg(state) {
-  try {
-    const response = await fetch('/images/vessels/custom_cargo_vessel.svg');
-    let svg = await response.text();
-
-    const capacity = state.capacity || 2000;
-    const minCapacity = 2000;
-    const maxCapacity = 27000;
-    const capacityRatio = (capacity - minCapacity) / (maxCapacity - minCapacity);
-
-    const hullColor = state.hullColor || '#b30000';
-    const deckColor = state.deckColor || '#272525';
-    const bridgeColor = state.bridgeColor || '#dbdbdb';
-    const containerColor1 = state.containerColor1 || '#ff8000';
-    const containerColor2 = state.containerColor2 || '#0000ff';
-    const containerColor3 = state.containerColor3 || '#670000';
-    const containerColor4 = state.containerColor4 || '#777777';
-    const nameColor = state.nameColor || '#ffffff';
-    const vesselName = state.vesselName || 'Custom Vessel';
-
-    const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
-    const svgElement = svgDoc.documentElement;
-
-    // Container stacks - each array is a column, ordered from TOP to BOTTOM (top first to remove)
-    // Lower Y value = higher on screen = top of stack
-    // Y coordinates verified from SVG source
-    const containerStacks = [
-      // Stack 1 (X~876, near bridge): 090-095
-      ['dp_path095', 'dp_path094', 'dp_path093', 'dp_path092', 'dp_path091', 'dp_path090'],
-      // Stack 2 (X~910): 097-102
-      ['dp_path102', 'dp_path101', 'dp_path100', 'dp_path099', 'dp_path098', 'dp_path097'],
-      // Stack 3 (X~945): 103-108
-      ['dp_path108', 'dp_path107', 'dp_path106', 'dp_path105', 'dp_path104', 'dp_path103'],
-      // Stack 4 (X~1014): 109-112
-      ['dp_path112', 'dp_path111', 'dp_path110', 'dp_path109'],
-      // Stack 5a (X~713): 113-115
-      ['dp_path115', 'dp_path114', 'dp_path113'],
-      // Stack 5b (X~747): 116-118
-      ['dp_path118', 'dp_path117', 'dp_path116'],
-      // Stack 6 (X~649): 119-124
-      ['dp_path124', 'dp_path123', 'dp_path122', 'dp_path121', 'dp_path120', 'dp_path119'],
-      // Stack 7 (X~578): 125-129
-      ['dp_path129', 'dp_path128', 'dp_path127', 'dp_path126', 'dp_path125'],
-      // Stack 8 (X~510): 130-134
-      ['dp_path134', 'dp_path133', 'dp_path132', 'dp_path131', 'dp_path130'],
-      // Stack 9 (X~437): 135-139 - NOTE: 135 is at TOP (Y=343), 136 is at BOTTOM (Y=397)
-      ['dp_path135', 'dp_path139', 'dp_path138', 'dp_path137', 'dp_path136'],
-      // Stack 10 (X~370): 140-144
-      ['dp_path144', 'dp_path143', 'dp_path142', 'dp_path141', 'dp_path140'],
-      // Stack 11 (X~297): 145-149
-      ['dp_path149', 'dp_path148', 'dp_path147', 'dp_path146', 'dp_path145'],
-      // Stack 12 (X~230): 150-153
-      ['dp_path153', 'dp_path152', 'dp_path151', 'dp_path150'],
-      // Stack 13a (X~158): 154-156
-      ['dp_path156', 'dp_path155', 'dp_path154'],
-      // Stack 13b (X~190): 157-159
-      ['dp_path159', 'dp_path158', 'dp_path157']
-    ];
-
-    // Calculate how many containers to show based on capacity
-    const totalContainers = containerStacks.flat().length;
-    const containersToShow = Math.floor(totalContainers * (0.3 + capacityRatio * 0.7));
-    const containersToRemove = totalContainers - containersToShow;
-
-    // Remove containers from top of each stack, cycling through stacks
-    let removed = 0;
-    let stackIndex = 0;
-    const stackPointers = containerStacks.map(() => 0);
-
-    while (removed < containersToRemove) {
-      const stack = containerStacks[stackIndex];
-      const pointer = stackPointers[stackIndex];
-
-      if (pointer < stack.length) {
-        const id = stack[pointer];
-        const element = svgDoc.getElementById(id);
-        if (element) element.remove();
-        stackPointers[stackIndex]++;
-        removed++;
-      }
-
-      stackIndex = (stackIndex + 1) % containerStacks.length;
-    }
-
-    // Remove the main container shadow path when containers are removed
-    if (containersToRemove > 0) {
-      const shadowPath = svgDoc.getElementById('dp_path002');
-      if (shadowPath) shadowPath.remove();
-    }
-
-    // Calculate display parameters
-    const originalShipWidth = 1019;
-    const originalShipHeight = 202;
-
-    const viewBoxWidth = 750;
-    const viewBoxHeight = 280;
-    const waterLevel = viewBoxHeight * 0.75;
-
-    // Scale to fit
-    const displayScale = (viewBoxWidth - 60) / originalShipWidth;
-
-    const originalShipMinY = 271.17;
-    const originalShipMinX = 56.779;
-    const shipCenterX = originalShipMinX + originalShipWidth / 2;
-
-    const targetShipCenterX = viewBoxWidth / 2;
-    const targetShipBottomY = waterLevel + (originalShipHeight * displayScale) * 0.15;
-
-    const newTranslateX = targetShipCenterX - (shipCenterX * displayScale);
-    const newTranslateY = targetShipBottomY - ((originalShipMinY + originalShipHeight) * displayScale);
-
-    svgElement.setAttribute('viewBox', `0 0 ${viewBoxWidth} ${viewBoxHeight}`);
-    svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-
-    // Apply transform to main group
-    const mainGroup = svgElement.querySelector('#dp_group001');
-    if (mainGroup) {
-      mainGroup.setAttribute('transform', `translate(${newTranslateX}, ${newTranslateY}) scale(${displayScale})`);
-    }
-
-    // Add background elements
-    const bgDefs = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'defs');
-    bgDefs.innerHTML = `
-      <linearGradient id="bgSkyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" style="stop-color:#4a90d9;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#87ceeb;stop-opacity:1" />
-      </linearGradient>
-      <linearGradient id="bgWaterGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-        <stop offset="0%" style="stop-color:#1e5a8e;stop-opacity:1" />
-        <stop offset="100%" style="stop-color:#0d3a5f;stop-opacity:1" />
-      </linearGradient>
-    `;
-    svgElement.insertBefore(bgDefs, svgElement.firstChild);
-
-    const sky = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    sky.setAttribute('x', '-5%');
-    sky.setAttribute('width', '120%');
-    sky.setAttribute('height', waterLevel);
-    sky.setAttribute('fill', 'url(#bgSkyGradient)');
-
-    const water = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    water.setAttribute('x', '-5%');
-    water.setAttribute('y', waterLevel);
-    water.setAttribute('width', '120%');
-    water.setAttribute('height', viewBoxHeight - waterLevel);
-    water.setAttribute('fill', 'url(#bgWaterGradient)');
-
-    const waves = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'path');
-    waves.setAttribute('d', `M 0 ${waterLevel} Q 30 ${waterLevel - 5} 60 ${waterLevel} T 120 ${waterLevel} T 180 ${waterLevel} T 240 ${waterLevel} T 300 ${waterLevel} T 360 ${waterLevel} T 420 ${waterLevel} T 480 ${waterLevel} T 540 ${waterLevel} T 600 ${waterLevel} T 660 ${waterLevel} T 720 ${waterLevel} T 780 ${waterLevel}`);
-    waves.setAttribute('stroke', '#5dade2');
-    waves.setAttribute('stroke-width', '3');
-    waves.setAttribute('fill', 'none');
-    waves.setAttribute('opacity', '0.6');
-
-    if (mainGroup) {
-      svgElement.insertBefore(waves, mainGroup);
-      svgElement.insertBefore(water, waves);
-      svgElement.insertBefore(sky, water);
-    }
-
-    // Remove the old ship name paths (dp_path177-186)
-    for (let i = 177; i <= 186; i++) {
-      const namePathElement = svgDoc.getElementById(`dp_path${i}`);
-      if (namePathElement) namePathElement.remove();
-    }
-
-    // Add vessel name as text element
-    if (vesselName && mainGroup) {
-      const nameText = svgDoc.createElementNS('http://www.w3.org/2000/svg', 'text');
-      nameText.setAttribute('x', '120');
-      nameText.setAttribute('y', '438');
-      nameText.setAttribute('font-family', 'Arial, sans-serif');
-      nameText.setAttribute('font-size', '12');
-      nameText.setAttribute('font-weight', 'bold');
-      nameText.setAttribute('fill', nameColor);
-      nameText.setAttribute('letter-spacing', '1');
-      nameText.textContent = vesselName.toUpperCase();
-      mainGroup.appendChild(nameText);
-    }
-
-    svg = new XMLSerializer().serializeToString(svgElement);
-
-    // Apply color replacements
-    // Hull colors
-    svg = svg.replace(/#b30000/g, hullColor);
-    svg = svg.replace(/#a70000/g, shadeColor(hullColor, -5));
-    svg = svg.replace(/#712121/g, shadeColor(hullColor, -15));
-    svg = svg.replace(/#712626/g, shadeColor(hullColor, -12));
-    svg = svg.replace(/#7e2929/g, shadeColor(hullColor, -10));
-
-    // Deck colors
-    svg = svg.replace(/#272525/g, deckColor);
-    svg = svg.replace(/#5b5b5b/g, shadeColor(deckColor, 20));
-    svg = svg.replace(/fill="black"/g, `fill="${shadeColor(deckColor, -30)}"`);
-    svg = svg.replace(/stroke="black"/g, `stroke="${shadeColor(deckColor, -30)}"`);
-
-    // Bridge colors
-    svg = svg.replace(/#dbdbdb/g, bridgeColor);
-    svg = svg.replace(/#bbbbbb/g, shadeColor(bridgeColor, -10));
-    svg = svg.replace(/#cbcbcb/g, shadeColor(bridgeColor, -5));
-    svg = svg.replace(/#a7a7a7/g, shadeColor(bridgeColor, -20));
-    svg = svg.replace(/#b7b7b7/g, shadeColor(bridgeColor, -15));
-
-    // Container colors
-    svg = svg.replace(/#ff8000/g, containerColor1);
-    svg = svg.replace(/fill="blue"/g, `fill="${containerColor2}"`);
-    svg = svg.replace(/#670000/g, containerColor3);
-    svg = svg.replace(/#777777/g, containerColor4);
-
-    return svg;
-  } catch (error) {
-    console.error('Failed to load vessel SVG:', error);
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 200">
-      <rect width="400" height="200" fill="#f0f0f0"/>
-      <text x="200" y="100" text-anchor="middle" font-size="16" fill="#666">Loading vessel preview...</text>
-    </svg>`;
-  }
-}
-
-/**
- * Generate tanker ship SVG preview
- * Loads the professional SVG template and applies colors
- * Tank count reflects capacity - ship size stays constant
- */
-async function generateTankerSvg(state) {
-  try {
-    const response = await fetch('/images/vessels/custom_tanker_vessel.svg');
-    let svg = await response.text();
-
-    const capacity = state.capacity || 148000;
-    const minCapacity = 148000;
-    const maxCapacity = 1998000;
-    const capacityRatio = Math.min(1, Math.max(0, (capacity - minCapacity) / (maxCapacity - minCapacity)));
-
-    const hullColor = state.hullColor || '#b30000';
-    const deckColor = state.deckColor || '#272525';
-    const bridgeColor = state.bridgeColor || '#dbdbdb';
-    const tankColor1 = state.containerColor1 || '#ff8000';
-    const tankColor2 = state.containerColor2 || '#0000ff';
-    const tankColor3 = state.containerColor3 || '#670000';
-    const tankColor4 = state.containerColor4 || '#777777';
-    const nameColor = state.nameColor || '#ffffff';
-
-    const parser = new DOMParser();
-    const svgDoc = parser.parseFromString(svg, 'image/svg+xml');
-    const svgElement = svgDoc.documentElement;
-
-    // Hide tanks based on capacity (7 tanks total, show 4-7 based on capacity)
-    const minTanks = 4;
-    const maxTanks = 7;
-    const tanksToShow = Math.floor(minTanks + capacityRatio * (maxTanks - minTanks));
-
-    // Hide tanks from the front (bow) - tank_07 is at bow, tank_01 is near bridge
-    for (let i = 7; i > tanksToShow; i--) {
-      const tankId = i < 10 ? `tank_0${i}` : `tank_${i}`;
-      const tankElement = svgElement.getElementById(tankId);
-      if (tankElement) {
-        tankElement.remove();
-      }
-    }
-
-    // Convert back to string for color replacements
-    svg = new XMLSerializer().serializeToString(svgElement);
-
-    // Hull colors
-    svg = svg.replace(/#b30000/g, hullColor);
-    svg = svg.replace(/#a70000/g, shadeColor(hullColor, -5));
-    svg = svg.replace(/#712121/g, shadeColor(hullColor, -15));
-    svg = svg.replace(/#712626/g, shadeColor(hullColor, -12));
-    svg = svg.replace(/#7e2929/g, shadeColor(hullColor, -10));
-
-    // Deck colors
-    svg = svg.replace(/#272525/g, deckColor);
-    svg = svg.replace(/#5b5b5b/g, shadeColor(deckColor, 20));
-    svg = svg.replace(/fill="black"/g, `fill="${shadeColor(deckColor, -30)}"`);
-    svg = svg.replace(/stroke="black"/g, `stroke="${shadeColor(deckColor, -30)}"`);
-
-    // Bridge colors
-    svg = svg.replace(/#dbdbdb/g, bridgeColor);
-    svg = svg.replace(/#bbbbbb/g, shadeColor(bridgeColor, -10));
-    svg = svg.replace(/#cbcbcb/g, shadeColor(bridgeColor, -5));
-    svg = svg.replace(/#a7a7a7/g, shadeColor(bridgeColor, -20));
-    svg = svg.replace(/#b7b7b7/g, shadeColor(bridgeColor, -15));
-
-    // Tank colors - update gradients and fills
-    svg = svg.replace(/#ff8000/g, tankColor1);
-    svg = svg.replace(/#cc6600/g, shadeColor(tankColor1, -20));
-    svg = svg.replace(/#994d00/g, shadeColor(tankColor1, -40));
-
-    svg = svg.replace(/fill="blue"/g, `fill="${tankColor2}"`);
-    svg = svg.replace(/#4d94ff/g, shadeColor(tankColor2, 30));
-    svg = svg.replace(/#0000b3/g, shadeColor(tankColor2, -30));
-
-    svg = svg.replace(/#670000/g, tankColor3);
-    svg = svg.replace(/#8f0000/g, shadeColor(tankColor3, 20));
-    svg = svg.replace(/#4d0000/g, shadeColor(tankColor3, -20));
-
-    svg = svg.replace(/#777777/g, tankColor4);
-    svg = svg.replace(/#999999/g, shadeColor(tankColor4, 20));
-    svg = svg.replace(/#555555/g, shadeColor(tankColor4, -20));
-
-    // Name color
-    svg = svg.replace(/fill="#ffffff"/gi, `fill="${nameColor}"`);
-    svg = svg.replace(/fill="white"/gi, `fill="${nameColor}"`);
-
-    return svg;
-  } catch (error) {
-    console.error('Failed to load tanker SVG template:', error);
-    return generateFallbackTankerSvg(state);
-  }
-}
-
-/**
- * Fallback tanker SVG if template fails to load
- */
-function generateFallbackTankerSvg(state) {
-  const viewBoxWidth = 800;
-  const viewBoxHeight = 400;
-  const shipLength = 500;
-  const shipHeight = 80;
-  const shipX = (viewBoxWidth - shipLength) / 2;
-  const shipY = viewBoxHeight - shipHeight - 100;
-
-  return `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBoxWidth} ${viewBoxHeight}">
-      <rect width="${viewBoxWidth}" height="${viewBoxHeight}" fill="#87ceeb"/>
-      <rect x="0" y="${viewBoxHeight - 100}" width="${viewBoxWidth}" height="100" fill="#1e3a5f"/>
-      <path d="M ${shipX} ${shipY + shipHeight} L ${shipX + shipLength} ${shipY + shipHeight} L ${shipX + shipLength + 20} ${shipY + shipHeight - 20} L ${shipX + shipLength} ${shipY + 10} L ${shipX + 30} ${shipY + 10} L ${shipX} ${shipY + shipHeight - 30} Z" fill="${state.hullColor || '#b30000'}" stroke="#000" stroke-width="2"/>
-      <text x="${viewBoxWidth / 2}" y="${viewBoxHeight / 2}" text-anchor="middle" font-size="16" fill="#fff">Tanker Preview</text>
-    </svg>
-  `;
+  const url = buildPreviewUrl(buildState);
+  container.innerHTML = `<img src="${url}" alt="Vessel Preview" style="width:100%;height:100%;object-fit:contain;">`;
 }
 
 /**
@@ -1479,11 +1136,8 @@ async function submitBuild() {
       throw new Error(data.error || 'Failed to build vessel');
     }
 
-    showSideNotification(
-      `Vessel "${buildState.vesselName}" is being built!<br>Build time: ${formatBuildTime(Math.round(stats.buildTime))}`,
-      'success',
-      5000
-    );
+    // NOTE: Success notification is shown via WebSocket (user_action_notification)
+    // from server/routes/game/vessel.js - no duplicate notification here
 
     closeBuildShipModal();
 

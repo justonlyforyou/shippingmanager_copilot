@@ -363,7 +363,7 @@ async function displaySellVessels() {
     const isSelected = !!selectedItem;
 
     const imageUrl = model.type_name === 'N/A'
-      ? `/api/vessel-image/custom/${model.id}`
+      ? `/api/vessel-image/custom/${model.id}?capacity_type=${model.capacity_type}&capacity=${typeof model.capacity === 'number' ? model.capacity : (model.capacity_max?.dry ?? model.capacity_max?.crude_oil ?? 0)}&name=${encodeURIComponent(model.type_name)}`
       : `/api/vessel-image/${model.type}`;
     const capacityDisplay = getCapacityDisplay(model);
     const co2Class = getCO2EfficiencyClass(model.co2_factor);
@@ -1243,7 +1243,8 @@ export async function bulkSellVessels() {
     // Reload the vessel list to remove sold vessels
     await loadUserVesselsForSale();
 
-    showSideNotification(`Successfully sold ${totalVessels} vessels for $${formatNumber(totalPrice)}`, 'success');
+    // NOTE: Success notification is shown via WebSocket (user_action_notification)
+    // from server/routes/game/vessel.js - no duplicate notification here
 
   } catch (error) {
     console.error('[Vessel Selling] Bulk sell error:', error);

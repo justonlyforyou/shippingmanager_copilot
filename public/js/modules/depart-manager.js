@@ -1126,14 +1126,8 @@ async function departSelectedVessels() {
       });
     }
 
-    // Show success notification if any departed
-    if (result.departedCount > 0) {
-      const totalIncome = result.departedVessels?.reduce((sum, v) => sum + (v.income || 0), 0) || 0;
-      showSideNotification(
-        `${result.departedCount} vessel${result.departedCount > 1 ? 's' : ''} departed | +$${totalIncome.toLocaleString()}`,
-        'success'
-      );
-    }
+    // NOTE: Success notification is shown via WebSocket (vessels_depart_complete event)
+    // in chat.js handleVesselsDepartComplete() - no duplicate notification here
 
     // Update button count
     updateDepartButtonCount();

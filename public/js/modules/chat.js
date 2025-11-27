@@ -2720,6 +2720,16 @@ function handleStaffTrainingPointsUpdate(data) {
     console.log(`[Staff] Training points update: ${staff_training_points}, Level: ${ceo_level}, XP: ${experience_points}/${levelup_experience_points}`);
   }
 
+  // Toggle glow effect on CEO level badge when staff points are available
+  const ceoLevelBadge = document.getElementById('ceoLevelBadge');
+  if (ceoLevelBadge) {
+    if (staff_training_points > 0) {
+      ceoLevelBadge.classList.add('has-staff-points');
+    } else {
+      ceoLevelBadge.classList.remove('has-staff-points');
+    }
+  }
+
   // Update company profile overlay if open
   const companyProfileOverlay = document.getElementById('companyProfileOverlay');
   if (companyProfileOverlay && !companyProfileOverlay.classList.contains('hidden')) {
@@ -2756,6 +2766,16 @@ function handleStaffUpdate(data) {
 
   // Update training points if user data included
   if (user && user.staff_training_points !== undefined) {
+    // Toggle glow effect on CEO level badge
+    const ceoLevelBadge = document.getElementById('ceoLevelBadge');
+    if (ceoLevelBadge) {
+      if (user.staff_training_points > 0) {
+        ceoLevelBadge.classList.add('has-staff-points');
+      } else {
+        ceoLevelBadge.classList.remove('has-staff-points');
+      }
+    }
+
     const trainingPointsElement = document.querySelector('.company-profile-section-title span[style*="float: right"]');
     if (trainingPointsElement && trainingPointsElement.textContent.includes('💪')) {
       trainingPointsElement.textContent = `💪 ${user.staff_training_points}`;

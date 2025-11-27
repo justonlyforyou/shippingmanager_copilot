@@ -207,7 +207,8 @@ async function performAutoRebuyFuel(bunkerState, fuelPrice) {
       // Set cooldown timestamp to prevent rapid re-buying
       lastFuelPurchaseTime = Date.now();
 
-      showSideNotification(`⛽ <strong>Auto-Rebuy</strong><br><br>Purchased ${amountToBuy.toFixed(0)}t fuel @ $${fuelPrice}/t`, 'success');
+      // NOTE: Success notification is shown via WebSocket (user_action_notification)
+      // from server/routes/game/bunker.js - no duplicate notification here
 
       // Send compact notification
       const settings = window.getSettings ? window.getSettings() : {};
@@ -344,7 +345,8 @@ async function performAutoRebuyCO2(bunkerState, co2Price) {
       // Set cooldown timestamp to prevent rapid re-buying
       lastCO2PurchaseTime = Date.now();
 
-      showSideNotification(`💨 <strong>Auto-Rebuy</strong><br><br>Purchased ${amountToBuy.toFixed(0)}t CO2 @ $${co2Price}/t`, 'success');
+      // NOTE: Success notification is shown via WebSocket (user_action_notification)
+      // from server/routes/game/bunker.js - no duplicate notification here
 
       // Send compact notification
       const settings = window.getSettings ? window.getSettings() : {};

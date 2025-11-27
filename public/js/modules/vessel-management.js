@@ -1495,7 +1495,7 @@ function loadMorePendingVessels() {
   // Insert new vessels before sentinel
   nextBatch.forEach(vessel => {
     const imageUrl = vessel.type_name === 'N/A'
-      ? `/api/vessel-image/custom/${vessel.id}`
+      ? `/api/vessel-image/custom/${vessel.id}?capacity_type=${vessel.capacity_type}&capacity=${typeof vessel.capacity === 'number' ? vessel.capacity : (vessel.capacity_max?.dry ?? vessel.capacity_max?.crude_oil ?? 0)}&name=${encodeURIComponent(vessel.name)}`
       : `/api/vessel-image/${vessel.type}`;
 
     let timeDisplay = '';
@@ -1617,7 +1617,7 @@ export function displayVessels() {
     const selectedItem = selectedVessels.find(v => v.vessel.id === vessel.id);
     const isSelected = !!selectedItem;
     const imageUrl = vessel.type_name === 'N/A'
-      ? `/api/vessel-image/custom/${vessel.id}`
+      ? `/api/vessel-image/custom/${vessel.id}?capacity_type=${vessel.capacity_type}&capacity=${typeof vessel.capacity === 'number' ? vessel.capacity : (vessel.capacity_max?.dry ?? vessel.capacity_max?.crude_oil ?? 0)}&name=${encodeURIComponent(vessel.name)}`
       : `/api/vessel-image/${vessel.type}`;
 
     // Check if anchor slots are available
@@ -2750,7 +2750,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 function createVesselCard(vessel, isPending = false) {
   const imageUrl = vessel.type_name === 'N/A'
-    ? `/api/vessel-image/custom/${vessel.id}`
+    ? `/api/vessel-image/custom/${vessel.id}?capacity_type=${vessel.capacity_type}&capacity=${typeof vessel.capacity === 'number' ? vessel.capacity : (vessel.capacity_max?.dry ?? vessel.capacity_max?.crude_oil ?? 0)}&name=${encodeURIComponent(vessel.name)}`
     : `/api/vessel-image/${vessel.type}`;
 
   // Images are preloaded on page load (script.js STEP 8.5)

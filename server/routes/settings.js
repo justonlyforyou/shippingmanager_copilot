@@ -70,7 +70,7 @@ const router = express.Router();
 const fs = require('fs').promises;
 const { broadcastToUser } = require('../websocket');
 const { getSettingsFilePath, validateSettings } = require('../settings-schema');
-const { getUserId, apiCall } = require('../utils/api');
+const { getUserId, apiCall, getAllianceId } = require('../utils/api');
 const logger = require('../utils/logger');
 const { isDebugMode } = logger;
 
@@ -147,6 +147,7 @@ router.get('/settings', async (req, res) => {
     const { validated } = validateSettings(settings);
     validated.debugMode = isDebugMode();
     validated.userId = userId;  // Include userId for per-user localStorage cache
+    validated.allianceId = getAllianceId();  // Include allianceId for alliance-specific UI options
 
     // Fetch user's IPO status and company name from game API
     try {

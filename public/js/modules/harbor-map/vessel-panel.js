@@ -161,7 +161,7 @@ export async function showVesselPanel(vessel) {
     // Cache buster for own images - ensures fresh image after upload
     imageUrl = `/api/vessel-image/ownimage/${vessel.id}?t=${Date.now()}`;
   } else if (isCustomVessel) {
-    imageUrl = `/api/vessel-image/custom/${vessel.id}?t=${Date.now()}`;
+    imageUrl = `/api/vessel-image/custom/${vessel.id}?capacity_type=${vessel.capacity_type}&capacity=${typeof vessel.capacity === 'number' ? vessel.capacity : (vessel.capacity_max?.dry ?? vessel.capacity_max?.crude_oil ?? 0)}&name=${encodeURIComponent(vessel.name)}&t=${Date.now()}`;
   } else if (vessel.type) {
     imageUrl = `/api/vessel-image/${vessel.type}`;
   }
@@ -1174,6 +1174,61 @@ function cancelVesselRename(vesselId) {
 }
 
 /**
+ * Update vessel name in ships menu (vessel-management overlay)
+ * @param {number} vesselId - Vessel ID
+ * @param {string} newName - New vessel name
+ */
+function updateVesselNameInShipsMenu(vesselId, newName) {
+  // Find vessel cards by locate button data-vessel-id
+  const locateButtons = document.querySelectorAll(`.vessel-locate-btn[data-vessel-id="${vesselId}"]`);
+  locateButtons.forEach(btn => {
+    const card = btn.closest('.vessel-card');
+    if (card) {
+      updateVesselCardName(card, newName);
+    }
+  });
+
+  // Also check for vessel cards without locate button (standard vessels)
+  const selectButtons = document.querySelectorAll(`.vessel-select-btn[data-vessel-id="${vesselId}"]`);
+  selectButtons.forEach(btn => {
+    const card = btn.closest('.vessel-card');
+    if (card) {
+      updateVesselCardName(card, newName);
+    }
+  });
+
+  // Update vessel image in the vessel panel itself (for custom vessels)
+  const panelImage = document.querySelector('#vessel-panel-image img');
+  if (panelImage && panelImage.src.includes(`/api/vessel-svg/${vesselId}`) ||
+      panelImage && panelImage.src.includes(`/api/vessel-image/custom/${vesselId}`)) {
+    const url = new URL(panelImage.src, window.location.origin);
+    url.searchParams.set('name', newName);
+    panelImage.src = url.toString();
+  }
+}
+
+/**
+ * Update vessel card name and image (for custom vessels with name in URL)
+ * @param {HTMLElement} card - Vessel card element
+ * @param {string} newName - New vessel name
+ */
+function updateVesselCardName(card, newName) {
+  // Update text name
+  const nameEl = card.querySelector('.vessel-name');
+  if (nameEl) {
+    nameEl.textContent = newName;
+  }
+
+  // Update image URL if it's a custom vessel (name is in URL)
+  const img = card.querySelector('.vessel-image');
+  if (img && img.src.includes('/api/vessel-image/custom/')) {
+    const url = new URL(img.src, window.location.origin);
+    url.searchParams.set('name', newName);
+    img.src = url.toString();
+  }
+}
+
+/**
  * Save vessel rename - call API and update display
  * @param {number} vesselId - Vessel ID to rename
  */
@@ -1221,15 +1276,13 @@ async function saveVesselRename(vesselId) {
       const { showSideNotification } = await import('../utils.js');
       showSideNotification('Saved', 'success', 2000);
 
-      // Invalidate cache and refresh Harbor Map data
-      const { invalidateOverviewCache } = await import('./api-client.js');
-      invalidateOverviewCache();
+      // Update display span with new name
+      displaySpan.textContent = newName;
+      displaySpan.classList.remove('hidden');
+      inputField.classList.add('hidden');
 
-      const { loadOverview, selectVessel } = await import('./map-controller.js');
-      await loadOverview();
-
-      // Re-select the vessel to show updated panel
-      await selectVessel(vesselId);
+      // Update vessel name in ships menu if open
+      updateVesselNameInShipsMenu(vesselId, newName);
     } else {
       throw new Error('Rename failed');
     }
@@ -1396,6 +1449,10 @@ async function openVesselAppearanceEditor(vesselId, vesselName) {
   // Build existing data object from vessel
   // Use fuel_ref_speed_kn (from custom data) or fall back to max_speed (from game API)
   const existingData = vesselData ? {
+    capacity_type: vesselData.capacity_type,
+    capacity: vesselData.capacity,
+    capacity_max: vesselData.capacity_max,
+    name: vesselData.name,
     vessel_model: vesselData.capacity_type,
     speed: vesselData.fuel_ref_speed_kn || vesselData.max_speed,
     speed_kn: vesselData.fuel_ref_speed_kn || vesselData.max_speed,

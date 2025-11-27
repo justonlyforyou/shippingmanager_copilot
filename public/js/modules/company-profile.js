@@ -1090,8 +1090,18 @@ function renderCompanyProfile(responseData, isOwn) {
   // Generate guest emoji (diagonal strikethrough if not guest)
   const guestHtml = isGuest ? '<span class="emoji-tooltip" data-tooltip="Guest Account">👋</span>' : '<span class="emoji-strikethrough" data-tooltip="Not a Guest">👋</span>';
 
+  // Staff training points banner (only for own profile)
+  const staffTrainingPoints = isOwn ? (user.staff_training_points || 0) : 0;
+  const staffPointsBannerHtml = (isOwn && staffTrainingPoints > 0) ? `
+    <div class="staff-points-banner" id="staffPointsBanner">
+      <span class="staff-points-banner-text">New rank unlocked! Go buff that crew and rule the seas. Fair winds!</span>
+      <button class="staff-points-banner-close" onclick="dismissStaffPointsBanner()" title="Dismiss">X</button>
+    </div>
+  ` : '';
+
   content.innerHTML = `
     <div class="company-profile-card">
+      ${staffPointsBannerHtml}
       <div class="company-profile-header">
         <h3 class="company-profile-name">${adminPrefix}${escapeHtml(companyName)} ${companyId ? `(ID ${companyId})` : ''}${companyTypeHtml}${difficultyHtml}${purchaseHtml}${ipoHtml}${guestHtml}</h3>
         ${ceoBadgeHtml}
@@ -1596,9 +1606,20 @@ function toggleAchievementsList(titleElement) {
   }
 }
 
+/**
+ * Dismisses the staff points banner
+ */
+function dismissStaffPointsBanner() {
+  const banner = document.getElementById('staffPointsBanner');
+  if (banner) {
+    banner.remove();
+  }
+}
+
 // Make functions globally available
 window.toggleStaffDetails = toggleStaffDetails;
 window.toggleAchievementsList = toggleAchievementsList;
+window.dismissStaffPointsBanner = dismissStaffPointsBanner;
 
 /**
  * Searches for players by name

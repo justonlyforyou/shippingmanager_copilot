@@ -19,6 +19,7 @@ let originalVesselName = null;
 let uploadedImageData = null;
 let hasCustomImage = false;
 let removeCustomImage = false;
+let currentVesselData = null;
 
 // Target aspect ratio for vessel images (16:9 like game images)
 const TARGET_ASPECT_RATIO = 16 / 9;
@@ -72,10 +73,11 @@ export function initVesselAppearanceEditor() {
  * @param {number} vesselId - The vessel ID
  * @param {string} vesselName - The vessel name
  */
-export function openAppearanceEditor(vesselId, vesselName) {
+export function openAppearanceEditor(vesselId, vesselName, vesselData = null) {
   currentVesselId = vesselId;
   currentVesselName = vesselName;
   originalVesselName = vesselName;
+  currentVesselData = vesselData;
   uploadedImageData = null;
   hasCustomImage = false;
   removeCustomImage = false;
@@ -110,7 +112,7 @@ export function openAppearanceEditor(vesselId, vesselName) {
   resetColorValues();
 
   // Check if vessel already has an image
-  checkExistingImage(vesselId);
+  checkExistingImage(vesselId, currentVesselData);
 
   // Show overlay
   overlay.classList.remove('hidden');
@@ -121,48 +123,61 @@ export function openAppearanceEditor(vesselId, vesselName) {
  * Check if vessel already has an image file and load it into preview
  * @param {number} vesselId - Vessel ID
  */
-async function checkExistingImage(vesselId) {
+
+/**
+ * Build SVG URL with query params from vessel data
+ */
+function buildSvgUrl(vesselId, vesselData, extra = '') {
+  if (!vesselData) {
+    return `/api/vessel-svg/${vesselId}${extra ? '?' + extra : ''}`;
+  }
+  const params = new URLSearchParams();
+  if (vesselData.capacity_type) params.set('capacity_type', vesselData.capacity_type);
+  // Get capacity: container uses dry, tanker uses crude_oil
+  let cap = vesselData.capacity;
+  if (!cap && vesselData.capacity_max) {
+    cap = vesselData.capacity_max.dry ?? vesselData.capacity_max.crude_oil;
+  }
+  if (cap) params.set('capacity', cap);
+  if (vesselData.name) params.set('name', vesselData.name);
+  const queryStr = params.toString();
+  return `/api/vessel-svg/${vesselId}?${queryStr}${extra ? '&' + extra : ''}`;
+}
+
+async function checkExistingImage(vesselId, vesselData) {
   const imagePreview = document.getElementById('appearanceImagePreview');
   const colorsSection = document.getElementById('appearanceColorsSection');
   const removeImageBtn = document.getElementById('removeCustomImageBtn');
 
-  // Try own image first (user uploaded)
+  // Fetch appearance data to check if ownImage exists
   try {
-    const ownResponse = await fetch(`/api/vessel-image/ownimage/${vesselId}`, { method: 'HEAD' });
-    if (ownResponse.ok) {
+    const response = await fetch(`/api/vessel/get-appearance/${vesselId}`);
+    const appearance = await response.json();
+
+    if (appearance.ownImage) {
+      // Has custom uploaded image
       hasCustomImage = true;
       if (imagePreview) {
         imagePreview.classList.add('has-image');
         imagePreview.innerHTML = `<img src="/api/vessel-image/ownimage/${vesselId}?t=${Date.now()}" alt="Current">`;
       }
-      // Hide colors for own images, show remove button
-      if (colorsSection) {
-        colorsSection.classList.add('hidden');
-      }
-      if (removeImageBtn) {
-        removeImageBtn.classList.remove('hidden');
-      }
-      return;
-    }
-  } catch {
-    // No own image, continue
-  }
-
-  // Try SVG from vessel-svg endpoint
-  try {
-    const svgResponse = await fetch(`/api/vessel-svg/${vesselId}`, { method: 'HEAD' });
-    if (svgResponse.ok) {
+      if (colorsSection) colorsSection.classList.add('hidden');
+      if (removeImageBtn) removeImageBtn.classList.remove('hidden');
+    } else {
+      // No custom image - show SVG preview
       if (imagePreview) {
         imagePreview.classList.add('has-image');
-        imagePreview.innerHTML = `<img src="/api/vessel-svg/${vesselId}?t=${Date.now()}" alt="Current">`;
+        imagePreview.innerHTML = `<img src="${buildSvgUrl(vesselId, vesselData, 't=' + Date.now())}" alt="Current">`;
       }
-      // Show colors for SVG vessels
-      if (colorsSection) {
-        colorsSection.classList.remove('hidden');
-      }
+      if (colorsSection) colorsSection.classList.remove('hidden');
     }
   } catch {
-    // No existing image
+    // No appearance file - show SVG with defaults
+    if (imagePreview) {
+      imagePreview.classList.add('has-image');
+      imagePreview.innerHTML = `<img src="${buildSvgUrl(vesselId, vesselData, 't=' + Date.now())}" alt="Current">`;
+    }
+    if (colorsSection) colorsSection.classList.remove('hidden');
   }
 }
 
@@ -261,7 +276,7 @@ function handleRemoveCustomImage(event) {
   // Show SVG preview instead - use force=svg to bypass own image check since file still exists
   if (imagePreview) {
     imagePreview.classList.add('has-image');
-    imagePreview.innerHTML = `<img src="/api/vessel-svg/${currentVesselId}?force=svg&t=${Date.now()}" alt="SVG Preview">`;
+    imagePreview.innerHTML = `<img src="${buildSvgUrl(currentVesselId, currentVesselData, 'force=svg&t=' + Date.now())}" alt="SVG Preview">`;
   }
 
   // Show colors section for SVG

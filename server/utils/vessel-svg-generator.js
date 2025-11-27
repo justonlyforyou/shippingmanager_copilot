@@ -133,15 +133,64 @@ function generateContainerSvg(vessel) {
 
   svg = svg.replace(/<g\s+id="dp_group001"/, `${backgroundSvg}<g id="dp_group001"`);
 
-  const containerPathIds = [];
-  for (let i = 159; i >= 90; i--) {
-    if (i === 96) continue;
-    const id = i < 100 ? `dp_path0${i}` : `dp_path${i}`;
-    containerPathIds.push(id);
-  }
+  // Container stacks - each array is a column, ordered from TOP to BOTTOM (top first to remove)
+  // This matches the frontend vessel-building.js logic exactly
+  const containerStacks = [
+    // Stack 1 (X~876, near bridge): 090-095
+    ['dp_path095', 'dp_path094', 'dp_path093', 'dp_path092', 'dp_path091', 'dp_path090'],
+    // Stack 2 (X~910): 097-102
+    ['dp_path102', 'dp_path101', 'dp_path100', 'dp_path099', 'dp_path098', 'dp_path097'],
+    // Stack 3 (X~945): 103-108
+    ['dp_path108', 'dp_path107', 'dp_path106', 'dp_path105', 'dp_path104', 'dp_path103'],
+    // Stack 4 (X~1014): 109-112
+    ['dp_path112', 'dp_path111', 'dp_path110', 'dp_path109'],
+    // Stack 5a (X~713): 113-115
+    ['dp_path115', 'dp_path114', 'dp_path113'],
+    // Stack 5b (X~747): 116-118
+    ['dp_path118', 'dp_path117', 'dp_path116'],
+    // Stack 6 (X~649): 119-124
+    ['dp_path124', 'dp_path123', 'dp_path122', 'dp_path121', 'dp_path120', 'dp_path119'],
+    // Stack 7 (X~578): 125-129
+    ['dp_path129', 'dp_path128', 'dp_path127', 'dp_path126', 'dp_path125'],
+    // Stack 8 (X~510): 130-134
+    ['dp_path134', 'dp_path133', 'dp_path132', 'dp_path131', 'dp_path130'],
+    // Stack 9 (X~437): 135-139 - NOTE: 135 is at TOP (Y=343), 136 is at BOTTOM (Y=397)
+    ['dp_path135', 'dp_path139', 'dp_path138', 'dp_path137', 'dp_path136'],
+    // Stack 10 (X~370): 140-144
+    ['dp_path144', 'dp_path143', 'dp_path142', 'dp_path141', 'dp_path140'],
+    // Stack 11 (X~297): 145-149
+    ['dp_path149', 'dp_path148', 'dp_path147', 'dp_path146', 'dp_path145'],
+    // Stack 12 (X~230): 150-153
+    ['dp_path153', 'dp_path152', 'dp_path151', 'dp_path150'],
+    // Stack 13a (X~158): 154-156
+    ['dp_path156', 'dp_path155', 'dp_path154'],
+    // Stack 13b (X~190): 157-159
+    ['dp_path159', 'dp_path158', 'dp_path157']
+  ];
 
-  const targetContainers = Math.floor(containerPathIds.length * (0.3 + capacityRatio * 0.7));
-  const containersToHide = containerPathIds.slice(targetContainers);
+  // Calculate how many containers to show based on capacity
+  const totalContainers = containerStacks.flat().length;
+  const containersToShow = Math.floor(totalContainers * (0.3 + capacityRatio * 0.7));
+  const containersToRemove = totalContainers - containersToShow;
+
+  // Remove containers from top of each stack, cycling through stacks (same as frontend)
+  const containersToHide = [];
+  let removed = 0;
+  let stackIndex = 0;
+  const stackPointers = containerStacks.map(() => 0);
+
+  while (removed < containersToRemove) {
+    const stack = containerStacks[stackIndex];
+    const pointer = stackPointers[stackIndex];
+
+    if (pointer < stack.length) {
+      containersToHide.push(stack[pointer]);
+      stackPointers[stackIndex]++;
+      removed++;
+    }
+
+    stackIndex = (stackIndex + 1) % containerStacks.length;
+  }
 
   containersToHide.forEach(id => {
     // eslint-disable-next-line security/detect-non-literal-regexp -- id values are hardcoded path IDs, not user input
