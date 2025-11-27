@@ -1079,7 +1079,8 @@ router.post('/alliance-send-welcome', express.json(), async (req, res) => {
 
     const { handleWelcomeCommand } = require('../chatbot/commands');
     // handleWelcomeCommand expects args array as first param, not a string
-    await handleWelcomeCommand([user_id.toString()], 'System');
+    // isDM=false since this is called from Management Tab, not from a DM
+    await handleWelcomeCommand([user_id.toString()], 'System', false);
 
     res.json({ success: true });
   } catch (error) {

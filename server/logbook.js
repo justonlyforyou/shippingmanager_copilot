@@ -506,5 +506,7 @@ module.exports = {
   getLogFileSize,
   formatFileSize,
   flushAllToDisk,
-  shutdown
+  shutdown,
+  getCategoryFromAction,
+  getSourceFromAction
 };

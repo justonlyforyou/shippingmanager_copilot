@@ -2915,8 +2915,8 @@ async function handleHijackingUpdate(data) {
       if (window.DEBUG_MODE) {
         console.log('[Hijacking] Badge updated');
       }
-    } else {
-      console.error('[Hijacking] updateHijackingBadge not found!');
+    } else if (window.DEBUG_MODE) {
+      console.log('[Hijacking] updateHijackingBadge not yet available, skipping');
     }
 
     // Update hijacked vessels header display
@@ -2925,8 +2925,8 @@ async function handleHijackingUpdate(data) {
       if (window.DEBUG_MODE) {
         console.log('[Hijacking] Header display updated');
       }
-    } else {
-      console.error('[Hijacking] updateHijackedVesselsDisplay not found!');
+    } else if (window.DEBUG_MODE) {
+      console.log('[Hijacking] updateHijackedVesselsDisplay not yet available, skipping');
     }
 
     // Save to badge cache for next page load

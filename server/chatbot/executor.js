@@ -36,7 +36,7 @@ async function executeCommand(command, args, userId, userName, config, isDM, han
             break;
 
         case 'welcome':
-            await handleWelcomeCommand(args, userName);
+            await handleWelcomeCommand(args, userName, isDM);
             break;
 
         case 'msg':

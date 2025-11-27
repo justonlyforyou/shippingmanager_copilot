@@ -18,6 +18,7 @@ import { formatNumber, formatCompactNumber, escapeHtml, showSideNotification, lo
 import { fetchCoopData, lockCoopButtons, unlockCoopButtons } from './coop.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { openPlayerProfile } from './company-profile.js';
+import { initBroadcastForManagement } from './broadcast.js';
 
 // Tab state management
 let currentTab = 'allianz';
@@ -2523,6 +2524,36 @@ async function renderManagementTab() {
           </div>
         </div>
       </div>
+
+      <div class="management-section">
+        <h3 class="management-section-title">Broadcast Templates (!msg)</h3>
+        <p class="management-section-description">
+          Create message templates for !msg command. Usage in alliance chat:<br>
+          <code class="broadcast-code">!msg coop</code> - sends to all members<br>
+          <code class="broadcast-code">!msg coop [12345]</code> - sends to user 12345 only
+        </p>
+        <div id="broadcastTemplateList" class="broadcast-template-list">
+          <div class="broadcast-loading">Loading templates...</div>
+        </div>
+        <div class="broadcast-form">
+          <div class="broadcast-form-row">
+            <label class="broadcast-label">Template Key (e.g., "coop", "ports")</label>
+            <input type="text" id="broadcastTemplateKey" class="broadcast-input" placeholder="coop">
+          </div>
+          <div class="broadcast-form-row">
+            <label class="broadcast-label">Subject</label>
+            <input type="text" id="broadcastTemplateSubject" class="broadcast-input" placeholder="Alliance Announcement">
+          </div>
+          <div class="broadcast-form-row">
+            <div class="broadcast-label-row">
+              <label class="broadcast-label">Message</label>
+              <span id="broadcastMessageCounter" class="broadcast-counter">0/900</span>
+            </div>
+            <textarea id="broadcastTemplateMessage" class="broadcast-textarea" placeholder="Enter your broadcast message here..." rows="4" maxlength="900"></textarea>
+          </div>
+          <button id="broadcastSaveTemplateBtn" class="alliance-settings-save-btn">Save Template</button>
+        </div>
+      </div>
     </div>
   `;
 
@@ -2530,6 +2561,9 @@ async function renderManagementTab() {
 
   // Load saved welcome message from user settings
   await loadWelcomeMessage();
+
+  // Initialize broadcast templates
+  await initBroadcastForManagement();
 
   // Add event listeners for live filter updates
   const filterSelects = [

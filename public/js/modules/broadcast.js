@@ -266,37 +266,31 @@ function updateMessageCounter() {
 }
 
 /**
- * Initialize the broadcast module
+ * Initialize the broadcast module (legacy, kept for compatibility)
  */
 export function initBroadcast() {
-  // Wait for DOM to be ready
+  // No longer needed - broadcast templates moved to Management Tab
+}
+
+/**
+ * Initialize broadcast templates for Management Tab
+ * Called after the Management Tab HTML is rendered
+ */
+export async function initBroadcastForManagement() {
+  // Set up save button
   const saveBtn = document.getElementById('broadcastSaveTemplateBtn');
   if (saveBtn) {
     saveBtn.addEventListener('click', saveTemplate);
   }
 
-  // Message counter
+  // Set up message counter
   const messageInput = document.getElementById('broadcastTemplateMessage');
   if (messageInput) {
     messageInput.addEventListener('input', updateMessageCounter);
   }
 
-  // Load templates when settings overlay opens
-  const settingsOverlay = document.getElementById('settingsOverlay');
-  if (settingsOverlay) {
-    // Use MutationObserver to detect when overlay is shown
-    const observer = new MutationObserver((mutations) => {
-      mutations.forEach((mutation) => {
-        if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
-          if (!settingsOverlay.classList.contains('hidden')) {
-            loadTemplates();
-          }
-        }
-      });
-    });
-
-    observer.observe(settingsOverlay, { attributes: true });
-  }
+  // Load templates
+  await loadTemplates();
 }
 
 // Export for manual triggering

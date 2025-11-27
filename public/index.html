@@ -1552,53 +1552,6 @@
                                 </div>
                             </div>
 
-                            <!-- Box 6: Broadcast Templates (!msg command) -->
-                            <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
-                                <h4 style="margin: 0 0 12px 0; color: #a78bfa; font-size: 14px; font-weight: 600;">Broadcast Templates (!msg)</h4>
-                                <p style="margin: 0 0 12px 0; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Create message templates for !msg command. Usage in alliance chat:<br>
-                                    <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; color: #fbbf24;">!msg coop</code> - sends to all members<br>
-                                    <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 3px; color: #fbbf24;">!msg coop [12345]</code> - sends to user 12345 only
-                                </p>
-
-                                <!-- Template List -->
-                                <div id="broadcastTemplateList" style="margin-bottom: 15px;">
-                                    <div style="color: #6b7280; font-size: 13px; text-align: center; padding: 20px;">Loading templates...</div>
-                                </div>
-
-                                <!-- Add New Template Form -->
-                                <div style="background: rgba(31, 41, 55, 0.5); border-radius: 8px; padding: 15px;">
-                                    <div style="margin-bottom: 12px;">
-                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Template Key (e.g., "coop", "ports")</label>
-                                        <input type="text" id="broadcastTemplateKey" placeholder="coop" style="width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px; box-sizing: border-box;">
-                                    </div>
-                                    <div style="margin-bottom: 12px;">
-                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Subject</label>
-                                        <input type="text" id="broadcastTemplateSubject" placeholder="Alliance Announcement" style="width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px; box-sizing: border-box;">
-                                    </div>
-                                    <div style="margin-bottom: 12px;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-                                            <label style="color: #9ca3af; font-size: 12px;">Message</label>
-                                            <span id="broadcastMessageCounter" style="color: #9ca3af; font-size: 12px;">0/900</span>
-                                        </div>
-                                        <textarea id="broadcastTemplateMessage" placeholder="Enter your broadcast message here..." rows="4" maxlength="900" style="width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px; resize: vertical; box-sizing: border-box;"></textarea>
-                                    </div>
-                                    <button id="broadcastSaveTemplateBtn" style="
-                                        width: 100%;
-                                        padding: 10px;
-                                        background: rgba(139, 92, 246, 0.2);
-                                        border: 1px solid rgba(139, 92, 246, 0.4);
-                                        border-radius: 6px;
-                                        color: #a78bfa;
-                                        cursor: pointer;
-                                        font-weight: 600;
-                                        font-size: 14px;
-                                        transition: all 0.2s;
-                                    " onmouseover="this.style.background='rgba(139, 92, 246, 0.3)'" onmouseout="this.style.background='rgba(139, 92, 246, 0.2)'">
-                                        Save Template
-                                    </button>
-                                </div>
-                            </div>
                         </div>
                     </div>
 

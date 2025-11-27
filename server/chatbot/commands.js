@@ -162,26 +162,8 @@ async function handleHelpCommand(userId, userName, config, isDM, settings, sendR
         sections.push(forecastSection);
     }
 
-    if (settings.commands.welcome?.enabled) {
-        let welcomeSection = `Send welcome message\n\n`;
-        welcomeSection += `${prefix}welcome @Username\n`;
-        welcomeSection += `Type @Username in chat (converts to [UserID])\n`;
-        welcomeSection += `Admin only: CEO, COO, Management, Interim CEO`;
-        sections.push(welcomeSection);
-    }
-
-    // Broadcast msg commands - show enabled templates
-    if (settings.commands.msg?.enabled) {
-        const enabledTemplates = await getEnabledBroadcastTemplates();
-        if (enabledTemplates.length > 0) {
-            let msgSection = `Broadcast message to alliance (Alliance Chat only)\n\n`;
-            for (const tpl of enabledTemplates) {
-                msgSection += `${prefix}msg ${tpl.key} (send to all)\n`;
-                msgSection += `${prefix}msg ${tpl.key} @Username (send single user)\n\n`;
-            }
-            sections.push(msgSection.trim());
-        }
-    }
+    // NOTE: !welcome and !msg commands are internal management commands
+    // They are intentionally NOT shown in help - they only work in alliance chat
 
     // Custom commands
     for (const cmd of settings.customCommands || []) {
@@ -241,10 +223,18 @@ async function handleHelpCommand(userId, userName, config, isDM, settings, sendR
 /**
  * Handle welcome command - sends welcome message to a specific user
  * Only usable by management members (CEO, COO, Management, Interim CEO)
+ * INTERNAL COMMAND: Only works in alliance chat, NOT in DMs
  * @param {Array<string>} args - Command arguments [targetUserId]
  * @param {string} userName - User name of command caller
+ * @param {boolean} isDM - Whether command came from DM
  */
-async function handleWelcomeCommand(args, userName) {
+async function handleWelcomeCommand(args, userName, isDM) {
+    // CRITICAL: welcome command is ONLY allowed in alliance chat, NEVER in DMs
+    if (isDM) {
+        logger.debug('[ChatBot] welcome command blocked: not allowed in DMs');
+        return;
+    }
+
     // This command only works for the bot owner (management check is done by adminOnly flag)
     let targetUserId = args[0];
 

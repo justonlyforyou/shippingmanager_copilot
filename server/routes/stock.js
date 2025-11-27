@@ -14,6 +14,7 @@ const router = express.Router();
 const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const { logAutopilotAction } = require('../logbook');
+const { triggerImmediateIpoRefresh } = require('../websocket/ipo-refresh');
 
 /**
  * GET /api/stock/finance-overview - Retrieves stock finance overview for a user
@@ -167,6 +168,9 @@ router.post('/stock/purchase', async (req, res) => {
       );
     }
 
+    // Trigger IPO refresh to update available shares in IPO Alert tab
+    triggerImmediateIpoRefresh();
+
     res.json(result);
   } catch (error) {
     logger.error('[STOCK] Error purchasing stock:', error);
@@ -229,6 +233,9 @@ router.post('/stock/sell', async (req, res) => {
         }
       );
     }
+
+    // Trigger IPO refresh to update available shares in IPO Alert tab
+    triggerImmediateIpoRefresh();
 
     res.json(result);
   } catch (error) {

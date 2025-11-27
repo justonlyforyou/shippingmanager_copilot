@@ -86,29 +86,30 @@ function handleIconAction(action) {
     closeAllModalOverlays();
   }
 
-  // Map actions to their corresponding functions
-  // These functions are exposed on window object by script.js
+  // Map actions to their corresponding window functions
+  // Using arrow functions to defer window lookup until click time
+  // This fixes timing issues in Edge where modules may load slower
   const actionHandlers = {
-    'departAll': window.openDepartManager,
-    'anchor': window.showAnchorInfo,
-    'repairAll': () => window.openRepairAndDrydockDialog(window.getSettings ? window.getSettings() : {}),
-    'buyVessels': window.showBuyVesselsOverlay,
-    'sellVessels': window.openSellVesselsOverlay,
-    'messenger': window.showAllChats,
-    'hijacking': window.openHijackingInbox,
-    'campaigns': window.showCampaignsOverlay,
-    'coop': window.showCoopOverlay,
-    'allianceChat': window.showAllianceChatOverlay,
-    'contactList': window.showContactList,
-    'settings': window.showSettings,
-    'forecast': window.showForecastOverlay,
-    'logbook': window.showLogbookOverlay,
-    'docs': window.showDocsOverlay,
-    'stockManager': window.showStockManager
+    'departAll': () => window.openDepartManager?.(),
+    'anchor': () => window.showAnchorInfo?.(),
+    'repairAll': () => window.openRepairAndDrydockDialog?.(window.getSettings?.() || {}),
+    'buyVessels': () => window.showBuyVesselsOverlay?.(),
+    'sellVessels': () => window.openSellVesselsOverlay?.(),
+    'messenger': () => window.showAllChats?.(),
+    'hijacking': () => window.openHijackingInbox?.(),
+    'campaigns': () => window.showCampaignsOverlay?.(),
+    'coop': () => window.showCoopOverlay?.(),
+    'allianceChat': () => window.showAllianceChatOverlay?.(),
+    'contactList': () => window.showContactList?.(),
+    'settings': () => window.showSettings?.(),
+    'forecast': () => window.showForecastOverlay?.(),
+    'logbook': () => window.showLogbookOverlay?.(),
+    'docs': () => window.showDocsOverlay?.(),
+    'stockManager': () => window.showStockManager?.()
   };
 
   const handler = actionHandlers[action];
-  if (handler && typeof handler === 'function') {
+  if (handler) {
     handler();
   } else {
     console.warn(`[Map Icon Bar] No handler found for action: ${action}`);

@@ -13,6 +13,7 @@ import { hideRoutePanel } from './route-vessels-panel.js';
 import { initializePanelDrag } from './panel-drag.js';
 import { filterVessels, filterPorts, getVesselFilterOptions, getPortFilterOptions } from './filters.js';
 import { showSideNotification, isMobileDevice, escapeHtml } from '../utils.js';
+import { initForecastCalendar, updateEventDiscount } from '../forecast-calendar.js';
 
 // Map instance
 let map = null;
@@ -1293,10 +1294,30 @@ function addCustomControls() {
     onAdd: function() {
       const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-forecast');
       container.innerHTML = '<button title="Forecast Calendar">📅</button>';
+      const btn = container.querySelector('button');
       L.DomEvent.disableClickPropagation(container);
-      container.querySelector('button').addEventListener('click', () => {
+      L.DomEvent.on(btn, 'click', function(e) {
+        L.DomEvent.stopPropagation(e);
         if (window.closeAllModalOverlays) window.closeAllModalOverlays();
-        if (window.showForecastOverlay) window.showForecastOverlay();
+        if (window.showForecastOverlay) {
+          window.showForecastOverlay();
+        } else {
+          // Fallback: directly open forecast overlay and init calendar
+          const overlay = document.getElementById('forecastOverlay');
+          if (overlay) {
+            overlay.classList.remove('hidden');
+            // Apply cached event data if available
+            const cachedData = window.lastUpdateData;
+            if (cachedData && cachedData.prices) {
+              const eventDiscount = cachedData.prices.eventDiscount;
+              const eventData = cachedData.prices.eventData;
+              if (eventDiscount && eventData) {
+                updateEventDiscount(eventDiscount, eventData);
+              }
+            }
+            initForecastCalendar();
+          }
+        }
       });
       return container;
     }
@@ -1310,10 +1331,21 @@ function addCustomControls() {
     onAdd: function() {
       const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-logbook');
       container.innerHTML = '<button title="Captain\'s Logbook">📋</button>';
+      const btn = container.querySelector('button');
       L.DomEvent.disableClickPropagation(container);
-      container.querySelector('button').addEventListener('click', () => {
+      L.DomEvent.on(btn, 'click', function(e) {
+        L.DomEvent.stopPropagation(e);
         if (window.closeAllModalOverlays) window.closeAllModalOverlays();
-        if (window.showLogbookOverlay) window.showLogbookOverlay();
+        if (window.showLogbookOverlay) {
+          window.showLogbookOverlay();
+        } else if (window.openLogbook) {
+          // Fallback: use window.openLogbook set by initLogbook()
+          window.openLogbook();
+        } else {
+          // Last resort: just show overlay
+          const overlay = document.getElementById('logbookOverlay');
+          if (overlay) overlay.classList.remove('hidden');
+        }
       });
       return container;
     }

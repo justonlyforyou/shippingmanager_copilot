@@ -70,10 +70,17 @@ router.post('/get-logs', async (req, res) => {
 
     const logs = await logbook.getLogEntries(userId, filters);
 
+    // Enrich logs with category and source for frontend filtering
+    const enrichedLogs = logs.map(log => ({
+      ...log,
+      category: logbook.getCategoryFromAction(log.autopilot),
+      source: logbook.getSourceFromAction(log.autopilot)
+    }));
+
     res.json({
       success: true,
-      logs,
-      count: logs.length
+      logs: enrichedLogs,
+      count: enrichedLogs.length
     });
   } catch (error) {
     logger.error('Failed to get log entries:', error);
