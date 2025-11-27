@@ -119,14 +119,18 @@ async function performIpoRefresh() {
         });
 
         if (companyData.data && companyData.data.company && companyData.data.company.created_at) {
-          const createdAt = new Date(companyData.data.company.created_at).getTime();
+          const company = companyData.data.company;
+          const createdAt = new Date(company.created_at).getTime();
           const ageMs = now - createdAt;
+          const stockForSale = company.stock_for_sale;
 
-          if (ageMs <= maxAgeMs) {
+          // Only include if young enough AND has stock available for sale
+          if (ageMs <= maxAgeMs && stockForSale > 0) {
             newFreshIpos.push({
               ...ipo,
-              created_at: companyData.data.company.created_at,
-              age_days: Math.floor(ageMs / (24 * 60 * 60 * 1000))
+              created_at: company.created_at,
+              age_days: Math.floor(ageMs / (24 * 60 * 60 * 1000)),
+              stock_for_sale: stockForSale
             });
           }
         }

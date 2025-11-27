@@ -492,7 +492,7 @@ function showIncreaseSharesModal(priceInfo, totalShares, forSale) {
       modal.remove();
 
       // Reload portfolio to show updated values
-      loadTab('portfolio');
+      switchTab('portfolio');
     } catch (error) {
       console.error('[Stock Manager] Error increasing shares:', error);
       showNotification('Failed to issue shares', 'error');
@@ -1638,7 +1638,7 @@ function setupInvestmentSellButtons(container) {
           showNotification(`Sold ${formatNumber(amount)} shares of ${companyName}!`, 'success');
           // Reload investments tab
           financeData = null; // Clear cache
-          loadTab('investments');
+          switchTab('investments');
         }
       } catch (error) {
         console.error('[Stock Manager] Sell error:', error);
