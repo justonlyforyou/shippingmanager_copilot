@@ -3145,3 +3145,7 @@ export function resetPortDisplay() {
   portLocationClusterGroup.clearLayers();
   renderPorts(currentPorts);
 }
+
+// Expose setRouteFilter to window for cross-module access (analytics)
+window.harborMap = window.harborMap || {};
+window.harborMap.setRouteFilter = setRouteFilter;

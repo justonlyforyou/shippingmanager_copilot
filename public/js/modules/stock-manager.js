@@ -16,14 +16,26 @@
  * @module stock-manager
  */
 
-import { getStockFinanceOverview, getStockMarket, purchaseStock, getRecentIpos, checkCompanyAge, increaseStockForSale } from './api.js';
+import { getStockFinanceOverview, getStockMarket, purchaseStock, getRecentIpos, increaseStockForSale, getStockPurchaseTimes } from './api.js';
 import { showNotification, formatNumber } from './utils.js';
+import { showPurchaseDialog } from './ui-dialogs.js';
 
 // State
 let currentChart = null;
 let currentUserId = null;
 let userHasIPO = false;
 let financeData = null;
+
+// Lazy loading state for market list
+let marketState = {
+  currentPage: 1,
+  currentFilter: 'top',
+  currentSearch: '',
+  isLoading: false,
+  hasMore: true,
+  scrollContainer: null,
+  scrollHandler: null
+};
 
 // Chart state
 let chartState = {
@@ -370,8 +382,10 @@ function showIncreaseSharesModal(priceInfo, totalShares, forSale) {
   const closeBtn = document.createElement('button');
   closeBtn.className = 'close-btn';
   const closeBtnSpan = document.createElement('span');
-  closeBtnSpan.innerHTML = '&times;';
+  closeBtnSpan.textContent = 'x';
   closeBtn.appendChild(closeBtnSpan);
+  closeBtn.onmouseover = () => { closeBtnSpan.style.animation = 'wobble 0.5s ease-in-out'; };
+  closeBtn.onmouseout = () => { closeBtnSpan.style.animation = 'none'; };
   header.appendChild(closeBtn);
 
   modalContainer.appendChild(header);
@@ -457,7 +471,7 @@ function showIncreaseSharesModal(priceInfo, totalShares, forSale) {
 
   const confirmBtn = document.createElement('button');
   confirmBtn.id = 'confirmIncreaseShares';
-  confirmBtn.className = 'stock-increase-confirm-btn';
+  confirmBtn.className = 'text-btn';
   confirmBtn.textContent = 'Issue Shares';
   purchaseDiv.appendChild(confirmBtn);
 
@@ -540,7 +554,7 @@ async function loadPortfolio(container) {
   `;
 
   // Setup increase shares button click handler
-  const increaseBtn = container.querySelector('.stock-increase-btn');
+  const increaseBtn = container.querySelector('[data-action="increase"]');
   if (increaseBtn) {
     increaseBtn.addEventListener('click', handleIncreaseSharesClick);
   }
@@ -578,7 +592,7 @@ export function renderChartSection(containerId, stock, stats, options = {}) {
       increaseLegendItem = `
         <div class="stock-legend-item stock-legend-increase">
           <span class="stock-legend-label">Increase</span>
-          <button class="stock-increase-btn" title="Issue 25,000 new shares">+</button>
+          <span class="stock-increase-emoji" data-action="increase" title="Issue 25,000 new shares">&#10133;</span>
         </div>`;
     }
   }
@@ -597,20 +611,20 @@ export function renderChartSection(containerId, stock, stats, options = {}) {
     <div class="stock-chart-wrapper">
       <div class="stock-chart-toolbar">
         <div class="stock-chart-toolbar-left">
-          <button class="stock-timeframe-btn" data-tf="1D">1D</button>
-          <button class="stock-timeframe-btn" data-tf="1W">1W</button>
-          <button class="stock-timeframe-btn" data-tf="1M">1M</button>
-          <button class="stock-timeframe-btn" data-tf="3M">3M</button>
-          <button class="stock-timeframe-btn" data-tf="1Y">1Y</button>
-          <button class="stock-timeframe-btn active" data-tf="ALL">ALL</button>
+          <button class="text-btn" data-action="timeframe" data-tf="1D">1D</button>
+          <button class="text-btn" data-action="timeframe" data-tf="1W">1W</button>
+          <button class="text-btn" data-action="timeframe" data-tf="1M">1M</button>
+          <button class="text-btn" data-action="timeframe" data-tf="3M">3M</button>
+          <button class="text-btn" data-action="timeframe" data-tf="1Y">1Y</button>
+          <button class="text-btn active" data-action="timeframe" data-tf="ALL">ALL</button>
         </div>
         <div class="stock-chart-toolbar-right">
-          <button class="stock-ma-btn ma7" data-ma="7" data-tooltip="7-period MA">MA7</button>
-          <button class="stock-ma-btn ma25 active" data-ma="25" data-tooltip="25-period MA">MA25</button>
-          <button class="stock-ma-btn ma99" data-ma="99" data-tooltip="99-period MA">MA99</button>
+          <button class="text-btn" data-action="ma" data-ma="7" data-tooltip="7-period MA">MA7</button>
+          <button class="text-btn active" data-action="ma" data-ma="25" data-tooltip="25-period MA">MA25</button>
+          <button class="text-btn" data-action="ma" data-ma="99" data-tooltip="99-period MA">MA99</button>
           <span style="color: var(--color-text-muted); margin: 0 4px;">|</span>
-          <button class="stock-chart-type-btn active" data-type="area" data-tooltip="Area Chart">&#x1F4C8;</button>
-          <button class="stock-chart-type-btn" data-type="line" data-tooltip="Line Chart">&#x1F4C9;</button>
+          <button class="text-btn active" data-action="chart-type" data-type="area" data-tooltip="Area Chart">&#x1F4C8;</button>
+          <button class="text-btn" data-action="chart-type" data-type="line" data-tooltip="Line Chart">&#x1F4C9;</button>
         </div>
       </div>
       <div class="stock-chart-container" id="${containerId}"></div>
@@ -715,9 +729,9 @@ export function initializeChart(containerId, historyData, trendColor) {
  */
 function setupChartToolbar(containerId, trendColor) {
   // Timeframe buttons
-  document.querySelectorAll('.stock-timeframe-btn').forEach(btn => {
+  document.querySelectorAll('[data-action="timeframe"]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.stock-timeframe-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('[data-action="timeframe"]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       chartState.timeframe = btn.dataset.tf;
       filterDataByTimeframe();
@@ -726,7 +740,7 @@ function setupChartToolbar(containerId, trendColor) {
   });
 
   // MA toggle buttons
-  document.querySelectorAll('.stock-ma-btn').forEach(btn => {
+  document.querySelectorAll('[data-action="ma"]').forEach(btn => {
     btn.addEventListener('click', () => {
       btn.classList.toggle('active');
       const ma = btn.dataset.ma;
@@ -738,9 +752,9 @@ function setupChartToolbar(containerId, trendColor) {
   });
 
   // Chart type buttons
-  document.querySelectorAll('.stock-chart-type-btn').forEach(btn => {
+  document.querySelectorAll('[data-action="chart-type"]').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.stock-chart-type-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('[data-action="chart-type"]').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       chartState.chartType = btn.dataset.type;
       updateChart(containerId, trendColor);
@@ -967,33 +981,84 @@ function updateChart(containerId, trendColor) {
 }
 
 /**
+ * Reset market state for new filter/search
+ */
+function resetMarketState() {
+  marketState.currentPage = 1;
+  marketState.isLoading = false;
+  marketState.hasMore = true;
+}
+
+/**
+ * Setup scroll handler for infinite scroll
+ * @param {HTMLElement} scrollContainer - The scrollable container
+ */
+function setupMarketScrollHandler(scrollContainer) {
+  // Remove existing handler if any
+  if (marketState.scrollHandler && marketState.scrollContainer) {
+    marketState.scrollContainer.removeEventListener('scroll', marketState.scrollHandler);
+  }
+
+  marketState.scrollContainer = scrollContainer;
+
+  marketState.scrollHandler = () => {
+    if (marketState.isLoading || !marketState.hasMore) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+    const scrollThreshold = 100; // pixels from bottom to trigger load
+
+    if (scrollTop + clientHeight >= scrollHeight - scrollThreshold) {
+      loadMoreMarketItems();
+    }
+  };
+
+  scrollContainer.addEventListener('scroll', marketState.scrollHandler);
+}
+
+/**
+ * Load more market items (next page)
+ */
+async function loadMoreMarketItems() {
+  if (marketState.isLoading || !marketState.hasMore) return;
+
+  marketState.currentPage++;
+  await loadMarketList(marketState.currentFilter, marketState.currentPage, marketState.currentSearch, true);
+}
+
+/**
  * Load market tab content
  * @param {HTMLElement} container - Content container
  */
 async function loadMarket(container) {
+  // Reset market state when loading tab
+  resetMarketState();
+  marketState.currentFilter = 'top';
+  marketState.currentSearch = '';
+
   container.innerHTML = `
     <div class="stock-market">
       <div class="stock-market-filters">
-        <button class="stock-filter-btn active" data-filter="top">Top</button>
-        <button class="stock-filter-btn" data-filter="low">Low</button>
-        <button class="stock-filter-btn" data-filter="activity">Activity</button>
-        <button class="stock-filter-btn" data-filter="recent-ipo">Recent IPO</button>
+        <button class="text-btn active" data-action="filter" data-filter="top">Top</button>
+        <button class="text-btn" data-action="filter" data-filter="low">Low</button>
+        <button class="text-btn" data-action="filter" data-filter="activity">Activity</button>
+        <button class="text-btn" data-action="filter" data-filter="recent-ipo">Recent IPO</button>
         <input type="text" class="stock-search-input" placeholder="Search company..." id="stockSearchInput">
       </div>
       <div class="stock-market-list" id="stockMarketList">
         <div class="stock-loading">Loading...</div>
       </div>
-      <div class="stock-market-pagination" id="stockMarketPagination"></div>
     </div>
   `;
 
   // Setup filter buttons
-  const filterBtns = container.querySelectorAll('.stock-filter-btn');
+  const filterBtns = container.querySelectorAll('[data-action="filter"]');
   filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       filterBtns.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      loadMarketList(btn.dataset.filter, 1);
+      resetMarketState();
+      marketState.currentFilter = btn.dataset.filter;
+      loadMarketList(btn.dataset.filter, 1, marketState.currentSearch);
     });
   });
 
@@ -1004,10 +1069,17 @@ async function loadMarket(container) {
     searchInput.addEventListener('input', () => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
-        const activeFilter = container.querySelector('.stock-filter-btn.active');
-        loadMarketList(activeFilter?.dataset.filter || 'top', 1, searchInput.value);
+        resetMarketState();
+        marketState.currentSearch = searchInput.value;
+        loadMarketList(marketState.currentFilter, 1, searchInput.value);
       }, 300);
     });
+  }
+
+  // Setup scroll handler on the main content container
+  const stockManagerContent = document.getElementById('stockManagerContent');
+  if (stockManagerContent) {
+    setupMarketScrollHandler(stockManagerContent);
   }
 
   // Load initial market list
@@ -1015,113 +1087,198 @@ async function loadMarket(container) {
 }
 
 /**
- * Load market list with filter and pagination
+ * Generate table row HTML for a company
+ * @param {Object} company - Company data
+ * @returns {string} HTML string for table row
  */
-async function loadMarketList(filter, page, search = '') {
+function generateMarketRowHtml(company) {
+  const trend = company.stock_trend || 'same';
+  const trendIcon = trend === 'up' ? '&#x25B2;' : trend === 'down' ? '&#x25BC;' : '&#x25CF;';
+  return `
+    <tr class="stock-table-row" data-user-id="${company.id}">
+      <td class="stock-company-name stock-clickable" data-user-id="${company.id}" data-company-name="${escapeHtml(company.company_name)}">${escapeHtml(company.company_name)}</td>
+      <td>$${formatNumber(company.stock)}</td>
+      <td class="trend-${trend}">${trendIcon}</td>
+      <td>${formatNumber(company.stock_for_sale)}</td>
+    </tr>
+  `;
+}
+
+/**
+ * Create a table row element for a company
+ * @param {Object} company - Company data
+ * @returns {HTMLTableRowElement} Table row element
+ */
+function createMarketRow(company) {
+  const trend = company.stock_trend || 'same';
+  const trendIcon = trend === 'up' ? '\u25B2' : trend === 'down' ? '\u25BC' : '\u25CF';
+
+  const tr = document.createElement('tr');
+  tr.className = 'stock-table-row';
+  tr.dataset.userId = company.id;
+
+  const tdName = document.createElement('td');
+  tdName.className = 'stock-company-name stock-clickable';
+  tdName.dataset.userId = company.id;
+  tdName.dataset.companyName = company.company_name;
+  tdName.textContent = company.company_name;
+  tr.appendChild(tdName);
+
+  const tdPrice = document.createElement('td');
+  tdPrice.textContent = '$' + formatNumber(company.stock);
+  tr.appendChild(tdPrice);
+
+  const tdTrend = document.createElement('td');
+  tdTrend.className = 'trend-' + trend;
+  tdTrend.textContent = trendIcon;
+  tr.appendChild(tdTrend);
+
+  const tdForSale = document.createElement('td');
+  tdForSale.textContent = formatNumber(company.stock_for_sale);
+  tr.appendChild(tdForSale);
+
+  return tr;
+}
+
+/**
+ * Setup click handlers for market table rows
+ * @param {NodeList} rows - Table rows to setup
+ */
+function setupMarketRowClickHandlers(rows) {
+  rows.forEach(row => {
+    if (row.dataset.clickBound) return; // Prevent double-binding
+    row.dataset.clickBound = 'true';
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', async () => {
+      const { openPlayerProfile } = await import('./company-profile.js');
+      openPlayerProfile(parseInt(row.dataset.userId));
+    });
+  });
+}
+
+/**
+ * Load market list with filter and lazy loading
+ * @param {string} filter - Filter type (top, low, activity, recent-ipo)
+ * @param {number} page - Page number
+ * @param {string} search - Search query
+ * @param {boolean} append - Whether to append to existing list
+ */
+async function loadMarketList(filter, page, search = '', append = false) {
   const listContainer = document.getElementById('stockMarketList');
-  const paginationContainer = document.getElementById('stockMarketPagination');
 
   if (!listContainer) return;
 
-  listContainer.innerHTML = '<div class="stock-loading">Loading...</div>';
+  // Prevent concurrent loads
+  if (marketState.isLoading) return;
+  marketState.isLoading = true;
+
+  // Show loading indicator
+  if (append) {
+    // Add loading spinner at bottom
+    const loadingIndicator = document.createElement('div');
+    loadingIndicator.className = 'stock-lazy-loading';
+    loadingIndicator.id = 'stockLazyLoading';
+    loadingIndicator.innerHTML = '<span class="stock-lazy-spinner"></span> Loading more...';
+    listContainer.appendChild(loadingIndicator);
+  } else {
+    listContainer.innerHTML = '<div class="stock-loading">Loading...</div>';
+  }
 
   try {
     // Use filter=search when search term is provided, otherwise use selected filter
     const effectiveFilter = search.trim() ? 'search' : filter;
     const result = await getStockMarket(effectiveFilter, page, 40, search);
 
+    // Remove loading indicator
+    const loadingIndicator = document.getElementById('stockLazyLoading');
+    if (loadingIndicator) {
+      loadingIndicator.remove();
+    }
+
     if (!result || !result.data || !result.data.market) {
-      listContainer.innerHTML = '<div class="stock-error">No companies found</div>';
+      if (!append) {
+        listContainer.innerHTML = '<div class="stock-error">No companies found</div>';
+      }
+      marketState.hasMore = false;
+      marketState.isLoading = false;
       return;
     }
 
     const market = result.data.market;
+    marketState.hasMore = result.data.has_next;
 
     if (market.length === 0) {
-      listContainer.innerHTML = '<div class="stock-empty">No companies found</div>';
+      if (!append) {
+        listContainer.innerHTML = '<div class="stock-empty">No companies found</div>';
+      }
+      marketState.hasMore = false;
+      marketState.isLoading = false;
       return;
     }
 
-    listContainer.innerHTML = `
-      <table class="stock-table">
-        <thead>
-          <tr>
-            <th>Company</th>
-            <th>Price</th>
-            <th>Trend</th>
-            <th>For Sale</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          ${market.map(company => {
-            const trend = company.stock_trend || 'same';
-            const trendIcon = trend === 'up' ? '&#x25B2;' : trend === 'down' ? '&#x25BC;' : '&#x25CF;';
-            return `
-              <tr class="stock-table-row" data-user-id="${company.id}">
-                <td class="stock-company-name stock-clickable" data-user-id="${company.id}" data-company-name="${escapeHtml(company.company_name)}">${escapeHtml(company.company_name)}</td>
-                <td>$${formatNumber(company.stock)}</td>
-                <td class="trend-${trend}">${trendIcon}</td>
-                <td>${formatNumber(company.stock_for_sale)}</td>
-                <td><button class="stock-view-btn" data-user-id="${company.id}" data-company-name="${escapeHtml(company.company_name)}">View Chart</button></td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    `;
-
-    // Setup View Chart button click handlers
-    const viewBtns = listContainer.querySelectorAll('.stock-view-btn');
-    viewBtns.forEach(btn => {
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openCompanyDetail(parseInt(btn.dataset.userId), btn.dataset.companyName);
-      });
-    });
-
-    // Setup row click handlers - open company profile modal
-    const rows = listContainer.querySelectorAll('.stock-table-row[data-user-id]');
-    rows.forEach(row => {
-      row.style.cursor = 'pointer';
-      row.addEventListener('click', async () => {
-        const { openPlayerProfile } = await import('./company-profile.js');
-        openPlayerProfile(parseInt(row.dataset.userId));
-      });
-    });
-
-    // Setup pagination
-    if (paginationContainer) {
-      const hasNext = result.data.has_next;
-      paginationContainer.innerHTML = `
-        <button class="stock-page-btn" ${page <= 1 ? 'disabled' : ''} data-page="${page - 1}">&#x25C0; Prev</button>
-        <span class="stock-page-info">Page ${page}</span>
-        <button class="stock-page-btn" ${!hasNext ? 'disabled' : ''} data-page="${page + 1}">Next &#x25B6;</button>
+    if (append) {
+      // Append rows to existing table using DOM methods
+      const tbody = listContainer.querySelector('tbody');
+      if (tbody) {
+        market.forEach(company => {
+          const row = createMarketRow(company);
+          tbody.appendChild(row);
+          setupMarketRowClickHandlers([row]);
+        });
+      }
+    } else {
+      // Create new table
+      listContainer.innerHTML = `
+        <table class="stock-table">
+          <thead>
+            <tr>
+              <th>Company</th>
+              <th>Price</th>
+              <th>Trend</th>
+              <th>For Sale</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${market.map(company => generateMarketRowHtml(company)).join('')}
+          </tbody>
+        </table>
       `;
 
-      paginationContainer.querySelectorAll('.stock-page-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          if (!btn.disabled) {
-            const activeFilter = document.querySelector('.stock-filter-btn.active');
-            const searchInput = document.getElementById('stockSearchInput');
-            loadMarketList(activeFilter?.dataset.filter || 'top', parseInt(btn.dataset.page), searchInput?.value || '');
-          }
-        });
-      });
+      // Setup row click handlers
+      const rows = listContainer.querySelectorAll('.stock-table-row[data-user-id]');
+      setupMarketRowClickHandlers(rows);
     }
   } catch (error) {
     console.error('[Stock Manager] Error loading market:', error);
-    listContainer.innerHTML = '<div class="stock-error">Failed to load market data</div>';
+    if (!append) {
+      listContainer.innerHTML = '<div class="stock-error">Failed to load market data</div>';
+    }
+    // Remove loading indicator on error
+    const loadingIndicator = document.getElementById('stockLazyLoading');
+    if (loadingIndicator) {
+      loadingIndicator.remove();
+    }
+  } finally {
+    marketState.isLoading = false;
   }
 }
+
+// 48 hours in milliseconds
+const STOCK_LOCK_PERIOD_MS = 48 * 60 * 60 * 1000;
 
 /**
  * Load investments tab content
  */
 async function loadInvestments(container) {
-  if (!financeData) {
-    financeData = await getStockFinanceOverview(currentUserId);
-  }
+  // Fetch finance data and purchase times in parallel
+  const [financeResult, purchaseTimesResult] = await Promise.all([
+    getStockFinanceOverview(currentUserId),
+    getStockPurchaseTimes().catch(() => ({ purchaseTimes: {}, gameStockPurchases: [] }))
+  ]);
+
+  financeData = financeResult;
+  const purchaseTimes = purchaseTimesResult.purchaseTimes || {};
+  const gameStockPurchases = purchaseTimesResult.gameStockPurchases || [];
 
   if (!financeData || !financeData.data) {
     container.innerHTML = '<div class="stock-error">Failed to load investments</div>';
@@ -1151,6 +1308,9 @@ async function loadInvestments(container) {
   const totalReturn = investments.reduce((sum, inv) => sum + parseFloat(inv.return || 0), 0);
   const returnClass = totalReturn >= 0 ? 'trend-up' : 'trend-down';
 
+  const nowMs = Date.now();
+  const nowSec = Math.floor(nowMs / 1000);
+
   container.innerHTML = `
     <div class="stock-investments">
       <div class="stock-summary-row">
@@ -1178,26 +1338,66 @@ async function loadInvestments(container) {
             const plClass = pl >= 0 ? 'trend-up' : 'trend-down';
             const plSign = pl >= 0 ? '+' : '';
 
-            // Sell availability
-            const availableToSell = parseInt(inv.available_to_sell, 10);
-            const nextSaleTime = parseInt(inv.next_available_sale_time, 10);
-            const nextSaleAmount = parseInt(inv.next_available_sale_amount, 10);
-            const now = Math.floor(Date.now() / 1000);
-            const hasLockedShares = nextSaleTime > now && nextSaleAmount > 0;
+            // Sell availability from API
+            const availableToSell = parseInt(inv.available_to_sell, 10) || 0;
+
+            // Calculate unlock time from logbook or game transactions
+            let nextSaleTime = 0;
+            let purchaseTimeMs = purchaseTimes[inv.id];
+
+            // If not in logbook, try to match from game transactions by invested amount
+            if (!purchaseTimeMs && inv.invested) {
+              const investedAmount = Math.round(parseFloat(inv.invested));
+              // Game transaction includes 5% brokerage fee
+              const expectedTxAmount = Math.round(investedAmount * 1.05);
+              // Find matching transaction (within 1% tolerance for rounding)
+              const matchingTx = gameStockPurchases.find(tx => {
+                const diff = Math.abs(tx.amount - expectedTxAmount);
+                return diff <= expectedTxAmount * 0.01;
+              });
+              if (matchingTx) {
+                purchaseTimeMs = matchingTx.time;
+              }
+            }
+
+            if (purchaseTimeMs) {
+              // Unlock time = purchase time + 48h (convert to seconds)
+              nextSaleTime = Math.floor((purchaseTimeMs + STOCK_LOCK_PERIOD_MS) / 1000);
+            }
+
+            const hasLockedShares = nextSaleTime > nowSec;
+            const lockedAmount = shares - availableToSell;
+
+            // Debug: log investment data to understand sell availability
+            if (window.DEBUG_MODE) {
+              console.log('[Stock Manager] Investment:', inv.company_name, {
+                shares,
+                availableToSell,
+                nextSaleTime,
+                nowSec,
+                hasLockedShares,
+                lockedAmount,
+                purchaseTimeFromLogbook: purchaseTimes[inv.id],
+                raw: { available_to_sell: inv.available_to_sell, next_available_sale_time: inv.next_available_sale_time }
+              });
+            }
 
             let sellCell = '';
-            if (availableToSell > 0 && hasLockedShares) {
+            if (availableToSell > 0 && hasLockedShares && lockedAmount > 0) {
               // Some shares available, some still locked - show button + timer
               sellCell = `
-                <button class="stock-sell-btn" data-user-id="${inv.id}" data-company="${escapeHtml(inv.company_name || '')}" data-max="${availableToSell}" data-price="${currentPrice}">Sell (${formatNumber(availableToSell)})</button>
-                <span class="stock-sell-timer stock-sell-timer-small" data-unlock-time="${nextSaleTime}" title="+${formatNumber(nextSaleAmount)} more">+${formatNumber(nextSaleAmount)}</span>
+                <button class="text-btn" data-action="sell" data-user-id="${inv.id}" data-company="${escapeHtml(inv.company_name || '')}" data-max="${availableToSell}" data-price="${currentPrice}">Sell (${formatNumber(availableToSell)})</button>
+                <span class="stock-sell-timer stock-sell-timer-small" data-unlock-time="${nextSaleTime}" title="+${formatNumber(lockedAmount)} more">+${formatNumber(lockedAmount)}</span>
               `;
             } else if (availableToSell > 0) {
               // All shares available
-              sellCell = `<button class="stock-sell-btn" data-user-id="${inv.id}" data-company="${escapeHtml(inv.company_name || '')}" data-max="${availableToSell}" data-price="${currentPrice}">Sell (${formatNumber(availableToSell)})</button>`;
+              sellCell = `<button class="text-btn" data-action="sell" data-user-id="${inv.id}" data-company="${escapeHtml(inv.company_name || '')}" data-max="${availableToSell}" data-price="${currentPrice}">Sell (${formatNumber(availableToSell)})</button>`;
             } else if (hasLockedShares) {
-              // No shares available yet - show countdown timer
-              sellCell = `<span class="stock-sell-timer" data-unlock-time="${nextSaleTime}">${formatNumber(nextSaleAmount)} locked</span>`;
+              // No shares available yet - show countdown timer with all shares locked
+              sellCell = `<span class="stock-sell-timer" data-unlock-time="${nextSaleTime}">${formatNumber(shares)} locked</span>`;
+            } else if (lockedAmount > 0) {
+              // Shares locked but no purchase time in logbook (bought before logging)
+              sellCell = `<span class="stock-sell-locked">${formatNumber(lockedAmount)} locked</span>`;
             } else {
               sellCell = '<span class="stock-sell-unavailable">-</span>';
             }
@@ -1351,8 +1551,7 @@ export async function openCompanyDetail(userId, companyName) {
             <span class="stock-buy-label">Available:</span>
             <span class="stock-buy-value">${formatNumber(forSale)} / ${formatNumber(totalShares)}</span>
           </div>
-          <input type="number" id="stockBuyAmount" class="stock-buy-input" min="1" max="${forSale}" value="1" placeholder="Amount" ${forSale < 1 ? 'disabled' : ''}>
-          <button id="stockBuyBtn" class="stock-buy-btn" ${!userHasIPO ? 'disabled title="IPO required to purchase stocks"' : ''} ${forSale < 1 ? 'disabled title="No shares available"' : ''}>
+          <button id="stockBuyBtn" class="text-btn" data-action="buy" ${!userHasIPO ? 'disabled title="IPO required to purchase stocks"' : ''} ${forSale < 1 ? 'disabled title="No shares available"' : ''}>
             Buy Shares
           </button>
         </div>
@@ -1360,7 +1559,7 @@ export async function openCompanyDetail(userId, companyName) {
     `;
 
     // Setup increase shares button click handler (if own company)
-    const increaseBtnEl = contentEl.querySelector('.stock-increase-btn');
+    const increaseBtnEl = contentEl.querySelector('[data-action="increase"]');
     if (increaseBtnEl) {
       increaseBtnEl.addEventListener('click', handleIncreaseSharesClick);
     }
@@ -1372,24 +1571,31 @@ export async function openCompanyDetail(userId, companyName) {
 
     // Setup buy button
     const buyBtn = document.getElementById('stockBuyBtn');
-    const buyInput = document.getElementById('stockBuyAmount');
-    if (buyBtn && buyInput && userHasIPO && forSale > 0) {
+    if (buyBtn && userHasIPO && forSale > 0) {
+      const currentPrice = stock.value || stats.current || 0;
       buyBtn.addEventListener('click', async () => {
-        const amount = parseInt(buyInput.value);
-        if (amount < 1) {
-          showNotification('Enter a valid amount', 'error');
-          return;
+        // Get current cash
+        let userCash = 0;
+        try {
+          const response = await fetch(window.apiUrl('/api/user/get-company'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({})
+          });
+          const cashData = await response.json();
+          userCash = cashData.user?.cash || 0;
+        } catch (err) {
+          console.error('[Stock Manager] Failed to get user cash:', err);
         }
-        if (amount > forSale) {
-          showNotification(`Only ${formatNumber(forSale)} shares available`, 'error');
-          return;
-        }
+
+        // Show buy dialog
+        const amount = await showBuyDialog(companyName, forSale, currentPrice, userCash);
+        if (!amount) return;
 
         buyBtn.disabled = true;
         buyBtn.textContent = 'Purchasing...';
 
         try {
-          const currentPrice = stock.value || stats.current || 0;
           const result = await purchaseStock(userId, amount, companyName, currentPrice);
           if (result.error) {
             showNotification(result.error, 'error');
@@ -1438,12 +1644,12 @@ function destroyChart() {
 
 /**
  * Render IPO alerts table with given data
+ * Backend provides fully filtered data - frontend just displays it
  * @param {HTMLElement} container - Content container
- * @param {Array} ipos - Array of IPO data
+ * @param {Array} ipos - Array of IPO data (already filtered by backend)
  * @param {number} maxAgeDays - Max age setting in days
- * @param {boolean} fromCache - Whether data is from backend cache (has age_days already)
  */
-function renderIpoAlertsTable(container, ipos, maxAgeDays, fromCache = false) {
+function renderIpoAlertsTable(container, ipos, maxAgeDays) {
   const maxAgeLabel = maxAgeDays === 1 ? '1 day' : maxAgeDays === 7 ? '1 week' : maxAgeDays === 30 ? '1 month' : '6 months';
 
   container.innerHTML = `
@@ -1465,14 +1671,12 @@ function renderIpoAlertsTable(container, ipos, maxAgeDays, fromCache = false) {
           ${ipos.map(company => {
             const trend = company.stock_trend || 'same';
             const trendIcon = trend === 'up' ? '&#x25B2;' : trend === 'down' ? '&#x25BC;' : '&#x25CF;';
-            const ageDays = company.age_days;
-            const isFresh = ageDays !== undefined && ageDays !== null;
             return `
-              <tr class="stock-table-row${isFresh ? ' stock-ipo-fresh' : ''}" data-user-id="${company.id}">
+              <tr class="stock-table-row stock-ipo-fresh" data-user-id="${company.id}">
                 <td class="stock-company-name stock-clickable" data-user-id="${company.id}">${escapeHtml(company.company_name)} <span class="stock-user-id">(${company.id})</span></td>
                 <td>$${formatNumber(company.stock)} <span class="trend-${trend}">${trendIcon}</span></td>
                 <td>${formatNumber(company.stock_for_sale)}</td>
-                <td class="stock-age-cell" data-user-id="${company.id}">${isFresh ? `${ageDays}d` : '...'}</td>
+                <td>${company.age_days}d</td>
               </tr>
             `;
           }).join('')}
@@ -1499,34 +1703,6 @@ function renderIpoAlertsTable(container, ipos, maxAgeDays, fromCache = false) {
       openPlayerProfile(parseInt(row.dataset.userId));
     });
   });
-
-  // If data is NOT from cache, check age for each company
-  if (!fromCache) {
-    for (const company of ipos) {
-      if (company.age_days === undefined) {
-        checkCompanyAge(company.id, maxAgeDays)
-          .then(ageData => {
-            const row = container.querySelector(`tr[data-user-id="${company.id}"]`);
-            const ageCell = container.querySelector(`.stock-age-cell[data-user-id="${company.id}"]`);
-
-            if (ageCell) {
-              ageCell.textContent = ageData.age_days !== null ? `${ageData.age_days}d` : '-';
-            }
-
-            if (row && ageData.is_fresh) {
-              row.classList.add('stock-ipo-fresh');
-            }
-          })
-          .catch(err => {
-            console.warn(`[Stock Manager] Could not check age for ${company.id}:`, err);
-            const ageCell = container.querySelector(`.stock-age-cell[data-user-id="${company.id}"]`);
-            if (ageCell) {
-              ageCell.textContent = '-';
-            }
-          });
-      }
-    }
-  }
 }
 
 /**
@@ -1536,6 +1712,7 @@ function renderIpoAlertsTable(container, ipos, maxAgeDays, fromCache = false) {
 async function loadIpoAlerts(container) {
   try {
     const maxAgeDays = window.settings?.ipoAlertMaxAgeDays || 7;
+    const maxAgeLabel = maxAgeDays === 1 ? '1 day' : maxAgeDays === 7 ? '1 week' : maxAgeDays === 30 ? '1 month' : '6 months';
     const result = await getRecentIpos();
 
     if (!result || !result.ipos || result.ipos.length === 0) {
@@ -1543,13 +1720,13 @@ async function loadIpoAlerts(container) {
         <div class="stock-empty-state">
           <div class="stock-empty-icon">&#x1F4C8;</div>
           <h3>No Fresh IPOs</h3>
-          <p>No companies with accounts younger than the configured age limit.</p>
+          <p>No companies with accounts younger than ${maxAgeLabel}.</p>
         </div>
       `;
       return;
     }
 
-    renderIpoAlertsTable(container, result.ipos, maxAgeDays, result.fromCache);
+    renderIpoAlertsTable(container, result.ipos, maxAgeDays);
   } catch (error) {
     console.error('[Stock Manager] Error loading IPO alerts:', error);
     container.innerHTML = '<div class="stock-error">Failed to load IPO data</div>';
@@ -1565,18 +1742,20 @@ function refreshIpoAlertTab(freshIpos, maxAgeDays) {
   const container = document.querySelector('.stock-content');
   if (!container) return;
 
+  const maxAgeLabel = maxAgeDays === 1 ? '1 day' : maxAgeDays === 7 ? '1 week' : maxAgeDays === 30 ? '1 month' : '6 months';
+
   if (!freshIpos || freshIpos.length === 0) {
     container.innerHTML = `
       <div class="stock-empty-state">
         <div class="stock-empty-icon">&#x1F4C8;</div>
         <h3>No Fresh IPOs</h3>
-        <p>No companies with accounts younger than the configured age limit.</p>
+        <p>No companies with accounts younger than ${maxAgeLabel}.</p>
       </div>
     `;
     return;
   }
 
-  renderIpoAlertsTable(container, freshIpos, maxAgeDays, true);
+  renderIpoAlertsTable(container, freshIpos, maxAgeDays);
 }
 
 // Export to window for WebSocket handler
@@ -1610,7 +1789,7 @@ function escapeHtml(str) {
  * Setup sell button handlers for investments tab
  */
 function setupInvestmentSellButtons(container) {
-  const sellButtons = container.querySelectorAll('.stock-sell-btn');
+  const sellButtons = container.querySelectorAll('[data-action="sell"]');
 
   sellButtons.forEach(btn => {
     btn.addEventListener('click', async (e) => {
@@ -1621,8 +1800,22 @@ function setupInvestmentSellButtons(container) {
       const maxShares = parseInt(btn.dataset.max, 10);
       const price = parseFloat(btn.dataset.price);
 
+      // Get current cash
+      let userCash = 0;
+      try {
+        const response = await fetch(window.apiUrl('/api/user/get-company'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const cashData = await response.json();
+        userCash = cashData.user?.cash || 0;
+      } catch (err) {
+        console.error('[Stock Manager] Failed to get user cash:', err);
+      }
+
       // Show sell dialog
-      const amount = await showSellDialog(companyName, maxShares, price);
+      const amount = await showSellDialog(companyName, maxShares, price, userCash);
       if (!amount) return;
 
       btn.disabled = true;
@@ -1652,88 +1845,35 @@ function setupInvestmentSellButtons(container) {
 }
 
 /**
+ * Show buy dialog and return amount to buy
+ */
+export async function showBuyDialog(companyName, maxShares, price, cash) {
+  return showPurchaseDialog({
+    title: 'Buy Shares',
+    maxAmount: maxShares,
+    price: price,
+    cash: cash,
+    unit: ' shares',
+    priceLabel: 'Price per Share',
+    confirmText: 'Buy Shares',
+    feePercent: 0.05
+  });
+}
+
+/**
  * Show sell dialog and return amount to sell
  */
-async function showSellDialog(companyName, maxShares, price) {
-  return new Promise((resolve) => {
-    const revenue = maxShares * price;
-
-    // Create modal
-    const modal = document.createElement('div');
-    modal.className = 'stock-sell-dialog-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'stock-sell-dialog';
-
-    dialog.innerHTML = `
-      <div class="stock-sell-dialog-header">
-        <h3>Sell Shares</h3>
-        <button class="close-btn"><span>&times;</span></button>
-      </div>
-      <div class="stock-sell-dialog-body">
-        <p class="stock-sell-company">${escapeHtml(companyName)}</p>
-        <div class="stock-sell-input-row">
-          <label>Amount:</label>
-          <input type="number" class="stock-sell-input" min="1" max="${maxShares}" value="${maxShares}">
-          <span class="stock-sell-max">/ ${formatNumber(maxShares)}</span>
-        </div>
-        <div class="stock-sell-info">
-          <span class="label">Price per share:</span>
-          <span class="value">$${formatNumber(price)}</span>
-        </div>
-        <div class="stock-sell-info stock-sell-revenue">
-          <span class="label">Revenue:</span>
-          <span class="value trend-up">+$${formatNumber(revenue)}</span>
-        </div>
-      </div>
-      <div class="stock-sell-dialog-footer">
-        <button class="stock-sell-cancel-btn">Cancel</button>
-        <button class="stock-sell-confirm-btn">Sell Shares</button>
-      </div>
-    `;
-
-    modal.appendChild(dialog);
-    document.body.appendChild(modal);
-
-    const input = dialog.querySelector('.stock-sell-input');
-    const revenueEl = dialog.querySelector('.stock-sell-revenue .value');
-    const closeBtn = dialog.querySelector('.close-btn');
-    const cancelBtn = dialog.querySelector('.stock-sell-cancel-btn');
-    const confirmBtn = dialog.querySelector('.stock-sell-confirm-btn');
-
-    // Update revenue on input change
-    input.addEventListener('input', () => {
-      const amount = parseInt(input.value, 10) || 0;
-      const newRevenue = amount * price;
-      revenueEl.textContent = `+$${formatNumber(newRevenue)}`;
-    });
-
-    // Close handlers
-    const close = () => {
-      modal.remove();
-      resolve(null);
-    };
-
-    closeBtn.addEventListener('click', close);
-    cancelBtn.addEventListener('click', close);
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) close();
-    });
-
-    // Confirm handler
-    confirmBtn.addEventListener('click', () => {
-      const amount = parseInt(input.value, 10);
-      if (amount < 1 || amount > maxShares) {
-        showNotification('Invalid amount', 'error');
-        return;
-      }
-      modal.remove();
-      resolve(amount);
-    });
-
-    // Focus input
-    input.focus();
-    input.select();
+export async function showSellDialog(companyName, maxShares, price, cash) {
+  return showPurchaseDialog({
+    title: 'Sell Shares',
+    maxAmount: maxShares,
+    price: price,
+    cash: cash,
+    unit: ' shares',
+    priceLabel: 'Price per Share',
+    confirmText: 'Sell Shares',
+    feePercent: 0.05,
+    isSell: true
   });
 }
 

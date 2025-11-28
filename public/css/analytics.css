@@ -1,0 +1,593 @@
+/**
+ * ANALYTICS DASHBOARD
+ * Business intelligence dashboard styles
+ *
+ * Dependencies: variables.css, vessels.css (vessel-filter-btn), overlays.css (messenger-header)
+ */
+
+/* ============================================
+   ANALYTICS CONTROLS (in header)
+   ============================================ */
+
+.analytics-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  margin: 0;
+  padding: 0;
+  margin-left: auto;
+}
+
+.analytics-controls .logbook-filter-select {
+  padding: 0;
+  margin: 0;
+  height: 20px;
+  line-height: 20px;
+}
+
+/* Emoji buttons - transparent like .history-export-btn */
+.analytics-emoji-btn {
+  background: transparent !important;
+  border: none;
+  color: inherit !important;
+  padding: 0;
+  margin: 0;
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+  line-height: 20px;
+  height: 20px;
+}
+
+.analytics-emoji-btn:hover {
+  background: transparent !important;
+  color: inherit !important;
+}
+
+.analytics-emoji-btn:focus {
+  background: transparent !important;
+  color: inherit !important;
+  outline: none;
+}
+
+/* Export button - shake animation */
+#analyticsExportBtn:hover {
+  animation: analytics-shake-diskette 0.5s ease-in-out infinite;
+}
+
+/* Refresh button - spin animation */
+#analyticsRefreshBtn:hover {
+  animation: analytics-spin-refresh 0.8s ease-in-out infinite;
+}
+
+@keyframes analytics-shake-diskette {
+  0% { transform: rotate(0deg) scale(1); }
+  25% { transform: rotate(-8deg) scale(1.15); }
+  50% { transform: rotate(0deg) scale(1.2); }
+  75% { transform: rotate(8deg) scale(1.15); }
+  100% { transform: rotate(0deg) scale(1); }
+}
+
+@keyframes analytics-spin-refresh {
+  0% { transform: rotate(0deg) scale(1); }
+  50% { transform: rotate(180deg) scale(1.2); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+/* ============================================
+   ANALYTICS TABS
+   ============================================ */
+
+.analytics-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: var(--spacing-8) var(--spacing-16);
+  background: var(--black-10);
+  border-bottom: var(--border-default);
+}
+
+/* Tab buttons - matches .stock-tab-btn exactly */
+.analytics-tab-btn {
+  padding: 2px !important;
+  background: var(--gray-800-50) !important;
+  border: 1px solid var(--white-10) !important;
+  border-radius: var(--radius-6) !important;
+  color: var(--color-text-secondary) !important;
+  font-size: var(--font-size-13);
+  height: auto !important;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.analytics-tab-btn:hover {
+  background: var(--gray-800-80) !important;
+  border-color: var(--white-20) !important;
+}
+
+.analytics-tab-btn.active {
+  background: var(--color-info-20) !important;
+  border-color: var(--color-info-40) !important;
+  color: var(--color-info-light) !important;
+}
+
+/* ============================================
+   ANALYTICS WINDOW WIDE (75px wider than default)
+   ============================================ */
+
+.messenger-window-wide {
+  max-width: 750px;
+}
+
+/* ============================================
+   ANALYTICS CONTENT
+   ============================================ */
+
+.analytics-content {
+  padding: var(--spacing-8);
+  overflow-y: auto;
+  max-height: calc(100vh - 2px);
+}
+
+.analytics-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: var(--spacing-48);
+  color: var(--color-text-secondary);
+}
+
+/* ============================================
+   SUMMARY CARDS
+   ============================================ */
+
+.analytics-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  margin-bottom: var(--spacing-24);
+}
+
+/* Quick summary cards flow into parent grid */
+#analytics-quick-summary {
+  display: contents;
+}
+
+.analytics-card {
+  background: var(--gray-800-95);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  padding: 5px;
+  transition: var(--transition-fast);
+  text-align: center;
+}
+
+.analytics-card:hover {
+  border-color: var(--white-20);
+}
+
+.analytics-card-label {
+  font-size: var(--font-size-11);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--spacing-4);
+}
+
+.analytics-card-value {
+  font-size: var(--font-size-20);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.analytics-card-value.positive {
+  color: var(--color-success);
+}
+
+.analytics-card-value.negative {
+  color: var(--color-danger);
+}
+
+/* ============================================
+   EXPENSE BREAKDOWN
+   ============================================ */
+
+.analytics-section {
+  margin-bottom: var(--spacing-24);
+}
+
+/* Quick Summary needs extra top padding after summary cards */
+.analytics-summary-grid + .analytics-section {
+  padding-top: 5px;
+}
+
+h2.analytics-section-title {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+  margin-bottom: var(--spacing-12);
+  padding-top: var(--spacing-8);
+  padding-bottom: var(--spacing-8);
+  border-bottom: 1px solid var(--white-10);
+}
+
+.expense-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-8) 0;
+  border-bottom: 1px solid var(--white-5);
+}
+
+.expense-row:last-child {
+  border-bottom: none;
+}
+
+.expense-label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.expense-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.expense-value {
+  font-size: var(--font-size-13);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ============================================
+   ANALYTICS TABLES
+   ============================================ */
+
+.analytics-table-container {
+  overflow-x: auto;
+  margin-bottom: var(--spacing-24);
+}
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-13);
+}
+
+.analytics-table th {
+  text-align: center;
+  padding: 2px;
+  background: var(--gray-800);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+  border-bottom: 1px solid var(--white-10);
+  white-space: nowrap;
+  user-select: none;
+  transition: var(--transition-fast);
+}
+
+/* Only sortable headers are clickable */
+.analytics-table th[data-sort] {
+  cursor: pointer;
+}
+
+.analytics-table th[data-sort]:hover {
+  background: var(--black-40);
+  color: var(--color-text-primary);
+}
+
+/* Sort indicator styling - only for sortable headers */
+.analytics-table th[data-sort]::after {
+  content: "\2195";
+  display: inline-block;
+  margin-left: var(--spacing-4);
+  opacity: 0;
+  font-size: var(--font-size-10);
+  width: 10px;
+  text-align: center;
+}
+
+.analytics-table th[data-sort]:hover::after {
+  opacity: 0.6;
+}
+
+.analytics-table th[data-sort-dir]::after {
+  opacity: 1;
+}
+
+.analytics-table th[data-sort-dir="asc"]::after {
+  content: "\2191";
+  color: var(--color-info-light);
+}
+
+.analytics-table th[data-sort-dir="desc"]::after {
+  content: "\2193";
+  color: var(--color-info-light);
+}
+
+
+.analytics-table td {
+  padding: 2px;
+  border-bottom: 1px solid var(--white-5);
+  color: var(--color-text-primary);
+  text-align: center;
+}
+
+.analytics-table td.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.analytics-table th:first-child,
+.analytics-table td.vessel-name,
+.analytics-table td.route-name {
+  text-align: left;
+}
+
+.analytics-table td.vessel-name,
+.analytics-table td.route-name {
+  font-weight: var(--font-weight-semibold);
+  width: max-content;
+  white-space: nowrap;
+}
+
+/* 5px spacing between columns */
+.analytics-table th,
+.analytics-table td {
+  padding-left: 2.5px;
+  padding-right: 2.5px;
+}
+
+
+.analytics-table td.route {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+}
+
+.analytics-table td.warning {
+  color: var(--color-warning);
+}
+
+.analytics-table tr:hover {
+  background: var(--white-5);
+}
+
+.analytics-table tbody tr {
+  transition: var(--transition-fast);
+}
+
+/* Only Vessels and Routes tables are clickable (open harbor map) */
+#analytics-vessels .analytics-table tbody tr,
+#analytics-routes .analytics-table tbody tr {
+  cursor: pointer;
+}
+
+#analytics-vessels .analytics-table tbody tr:hover,
+#analytics-routes .analytics-table tbody tr:hover {
+  background: var(--white-8);
+}
+
+.analytics-table .no-data {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  padding: var(--spacing-24);
+}
+
+/* ============================================
+   TREND CHART
+   ============================================ */
+
+.analytics-chart-container {
+  background: var(--gray-800-95);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-16);
+  min-height: 300px;
+}
+
+.analytics-chart-legend {
+  display: flex;
+  gap: var(--spacing-16);
+  margin-bottom: var(--spacing-12);
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+}
+
+.analytics-chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-6);
+}
+
+.analytics-chart-legend-dot {
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.analytics-chart-legend-dot.revenue {
+  background: var(--color-success-dark);
+}
+
+.analytics-chart-legend-dot.profit {
+  background: var(--color-info);
+}
+
+/* ============================================
+   TAB CONTENT
+   ============================================ */
+
+.analytics-tab-content {
+  display: block;
+}
+
+.analytics-tab-content.hidden {
+  display: none;
+}
+
+/* ============================================
+   NO DATA STATE
+   ============================================ */
+
+.no-data {
+  text-align: center;
+  color: var(--color-text-tertiary);
+  padding: var(--spacing-24);
+  font-size: var(--font-size-13);
+}
+
+/* ============================================
+   GAME LOG TAB
+   ============================================ */
+
+.game-log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: 2px 0;
+  line-height: 1;
+}
+
+.game-log-header .vessel-filter-btn {
+  padding: 0 var(--spacing-6) !important;
+  font-size: var(--font-size-11) !important;
+  height: 22px !important;
+  min-height: 0 !important;
+  line-height: 22px !important;
+}
+
+.game-log-info {
+  display: flex;
+  gap: var(--spacing-8);
+}
+
+.game-log-info-item {
+  display: flex;
+  gap: 2px;
+  font-size: var(--font-size-10);
+  color: var(--color-text-secondary);
+  line-height: 1;
+}
+
+.game-log-label {
+  color: var(--color-text-tertiary);
+}
+
+.game-log-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-12);
+}
+
+.game-log-filter {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-bottom: var(--spacing-12);
+  font-size: var(--font-size-13);
+}
+
+.game-log-filter select {
+  padding: var(--spacing-6) var(--spacing-10);
+  background: var(--gray-800);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  min-width: 180px;
+}
+
+.game-log-filter select:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.analytics-table td.positive {
+  color: var(--color-success);
+}
+
+.analytics-table td.negative {
+  color: var(--color-danger);
+}
+
+/* ============================================
+   GAME LOG RAW TRANSACTIONS
+   ============================================ */
+
+.game-log-raw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-8);
+}
+
+.game-log-raw-container {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.game-log-load-more {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-12);
+}
+
+#game-log-raw-table th {
+  cursor: pointer;
+}
+
+#game-log-raw-table th:hover {
+  color: var(--color-info-light);
+}
+
+#game-log-raw-table th.sort-active::after {
+  margin-left: var(--spacing-4);
+  color: var(--color-info-light);
+}
+
+#game-log-raw-table th.sort-asc::after {
+  content: "\2191";
+}
+
+#game-log-raw-table th.sort-desc::after {
+  content: "\2193";
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+@media (width <= 768px) {
+  .analytics-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .game-log-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .analytics-header {
+    flex-direction: column;
+    gap: var(--spacing-12);
+    align-items: flex-start;
+  }
+
+  .analytics-tabs {
+    overflow-x: auto;
+    padding: var(--spacing-8) var(--spacing-12);
+  }
+
+  .analytics-content {
+    padding: var(--spacing-12);
+  }
+
+  .game-log-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

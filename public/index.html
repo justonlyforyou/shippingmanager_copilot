@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/css/overlays.css">
     <link rel="stylesheet" href="/css/company-profile.css">
     <link rel="stylesheet" href="/css/stock-manager.css">
+    <link rel="stylesheet" href="/css/analytics.css">
     <link rel="stylesheet" href="/css/notifications.css">
     <link rel="stylesheet" href="/css/vessels.css">
     <link rel="stylesheet" href="/css/depart-manager.css">
@@ -195,8 +196,11 @@
                     <div class="map-icon-item" data-action="contactList" title="View contact list">
                         👤
                     </div>
-                    <div class="map-icon-item" data-action="stockManager" title="Stock Manager">
+                    <div class="map-icon-item hidden" data-action="stockManager" title="Stock Manager">
                         📈
+                    </div>
+                    <div class="map-icon-item" data-action="analytics" title="Business Analytics">
+                        📉
                     </div>
                 </div>
             </div>
@@ -251,7 +255,7 @@
             <div id="routePlannerPanel" class="route-planner-panel hidden">
                 <div class="route-planner-header">
                     <h3>Routes for <span class="route-planner-vessel-name">Vessel</span></h3>
-                    <button class="close-btn route-planner-close"><span>x</span></button>
+                    <button class="close-btn route-planner-close"><span>×</span></button>
                 </div>
                 <div class="route-planner-tabs">
                     <button class="route-planner-tab-btn vessel-filter-btn active" data-tab="ports">Ports</button>
@@ -594,12 +598,222 @@
     <div id="stockCompanyDetailOverlay" class="overlay hidden">
         <div class="messenger-window messenger-window-medium">
             <div class="messenger-header">
-                <span id="stockCompanyBackBtn" class="stock-back-emoji" onmouseover="this.style.animation='wobble 0.5s ease-in-out'" onmouseout="this.style.animation='none'">&#x1F519;</span>
+                <span id="stockCompanyBackBtn" class="stock-back-emoji" onmouseover="this.style.animation='wobble 0.5s ease-in-out'" onmouseout="this.style.animation='none'">🔙</span>
                 <h2 id="stockCompanyTitle">Company Details</h2>
                 <button id="closeStockCompanyBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div id="stockCompanyContent" class="stock-company-content">
                 <!-- Content will be populated by stock-manager.js -->
+            </div>
+        </div>
+    </div>
+
+    <div id="analyticsOverlay" class="overlay hidden">
+        <div class="messenger-window messenger-window-wide">
+            <div class="messenger-header">
+                <h2>Business Analytics</h2>
+                <button id="analyticsCloseBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+            </div>
+            <div class="analytics-tabs">
+                <button class="analytics-tab-btn active" data-tab="overview">Overview</button>
+                <button class="analytics-tab-btn" data-tab="game-log">Game Log</button>
+                <button class="analytics-tab-btn" data-tab="expenses">Expenses</button>
+                <button class="analytics-tab-btn" data-tab="vessels">Vessels</button>
+                <button class="analytics-tab-btn" data-tab="routes">Routes</button>
+                <button class="analytics-tab-btn" data-tab="trend">Trend</button>
+                <div class="analytics-controls">
+                    <select id="analyticsPeriodSelect" class="logbook-filter-select">
+                        <option value="1">Today</option>
+                        <option value="7" selected>Last 7 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                        <option value="180">Last 180 Days</option>
+                        <option value="360">Last Year</option>
+                    </select>
+                    <button id="analyticsRefreshBtn" class="analytics-emoji-btn" title="Refresh">&#x21BB;</button>
+                    <button id="analyticsExportBtn" class="analytics-emoji-btn" title="Export">&#x1F4BE;</button>
+                </div>
+            </div>
+            <div id="analyticsLoading" class="analytics-loading hidden">
+                Loading analytics data...
+            </div>
+            <div id="analyticsContent" class="analytics-content hidden">
+                <!-- Game Log Tab (Official Game Transactions) -->
+                <div id="analytics-game-log" class="analytics-tab-content hidden">
+                    <div class="analytics-section">
+                        <div class="game-log-header">
+                            <div class="game-log-info" id="game-log-info">
+                                <span class="game-log-info-item">
+                                    <span class="game-log-label">Stored:</span>
+                                    <span id="game-log-total">-</span> transactions
+                                </span>
+                                <span class="game-log-info-item">
+                                    <span class="game-log-label">Span:</span>
+                                    <span id="game-log-span">-</span>
+                                </span>
+                                <span class="game-log-info-item">
+                                    <span class="game-log-label">Last Sync:</span>
+                                    <span id="game-log-sync">-</span>
+                                </span>
+                            </div>
+                            <button id="game-log-sync-btn" class="vessel-filter-btn">Sync from Game</button>
+                        </div>
+                    </div>
+                    <div class="analytics-section">
+                        <h2 class="analytics-section-title">Transaction Summary</h2>
+                        <div id="game-log-summary" class="game-log-summary-grid"></div>
+                    </div>
+                    <div class="analytics-section">
+                        <h2 class="analytics-section-title">Transaction Details</h2>
+                        <div class="game-log-filter">
+                            <label>Type: </label>
+                            <select id="game-log-type-filter">
+                                <option value="">All Types</option>
+                            </select>
+                        </div>
+                        <div class="analytics-table-container">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th class="num">Count</th>
+                                        <th class="num">Income</th>
+                                        <th class="num">Expense</th>
+                                        <th class="num">Net</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="game-log-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="analytics-section">
+                        <h2 class="analytics-section-title">Raw Transactions</h2>
+                        <div class="game-log-raw-header">
+                            <span class="game-log-info-item">
+                                <span id="game-log-raw-count">0</span> / <span id="game-log-raw-total">0</span> loaded
+                            </span>
+                        </div>
+                        <div class="analytics-table-container game-log-raw-container">
+                            <table class="analytics-table" id="game-log-raw-table">
+                                <thead>
+                                    <tr>
+                                        <th data-sort="time">Date</th>
+                                        <th data-sort="context">Type</th>
+                                        <th class="num" data-sort="cash">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="game-log-raw-tbody"></tbody>
+                            </table>
+                        </div>
+                        <div class="game-log-load-more">
+                            <button id="game-log-load-more-btn" class="vessel-filter-btn hidden">Load More</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- Overview Tab -->
+                <div id="analytics-overview" class="analytics-tab-content">
+                    <div class="analytics-summary-grid">
+                        <div class="analytics-card">
+                            <div class="analytics-card-label">Revenue</div>
+                            <div class="analytics-card-value" id="analytics-revenue">-</div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-card-label">Expenses</div>
+                            <div class="analytics-card-value" id="analytics-expenses">-</div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-card-label">Profit</div>
+                            <div class="analytics-card-value" id="analytics-profit">-</div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-card-label">Margin</div>
+                            <div class="analytics-card-value" id="analytics-margin">-</div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-card-label">Trips</div>
+                            <div class="analytics-card-value" id="analytics-trips">-</div>
+                        </div>
+                        <div class="analytics-card">
+                            <div class="analytics-card-label">Avg Fuel Price</div>
+                            <div class="analytics-card-value" id="analytics-avg-fuel">-</div>
+                        </div>
+                        <!-- Quick Summary cards injected here -->
+                        <div id="analytics-quick-summary"></div>
+                    </div>
+                </div>
+                <!-- Expenses Tab -->
+                <div id="analytics-expenses" class="analytics-tab-content hidden">
+                    <div class="analytics-section">
+                        <h2 class="analytics-section-title">Expense Breakdown</h2>
+                        <div class="analytics-table-container">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        <th class="num">Total</th>
+                                        <th class="num">%</th>
+                                        <th class="num">Auto</th>
+                                        <th class="num">Manual</th>
+                                        <th class="num">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="analytics-expenses-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Vessels Tab -->
+                <div id="analytics-vessels" class="analytics-tab-content hidden">
+                    <div class="analytics-table-container">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Vessel</th>
+                                    <th class="num">Trips</th>
+                                    <th class="num">Revenue</th>
+                                    <th class="num">Avg/Trip</th>
+                                    <th class="num">Contrib</th>
+                                    <th class="num">Utilization</th>
+                                    <th>Primary Route</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analytics-vessels-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Routes Tab -->
+                <div id="analytics-routes" class="analytics-tab-content hidden">
+                    <div class="analytics-table-container">
+                        <table class="analytics-table">
+                            <thead>
+                                <tr>
+                                    <th>Route</th>
+                                    <th class="num">Trips</th>
+                                    <th class="num">Revenue</th>
+                                    <th class="num">Avg/Trip</th>
+                                    <th class="num">Harbor Fee %</th>
+                                    <th class="num">Vessels</th>
+                                </tr>
+                            </thead>
+                            <tbody id="analytics-routes-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Trend Tab -->
+                <div id="analytics-trend" class="analytics-tab-content hidden">
+                    <div class="analytics-chart-container" id="analytics-chart-container">
+                        <div class="analytics-chart-legend">
+                            <span class="analytics-chart-legend-item">
+                                <span class="analytics-chart-legend-dot revenue"></span>
+                                Revenue
+                            </span>
+                            <span class="analytics-chart-legend-item">
+                                <span class="analytics-chart-legend-dot profit"></span>
+                                Profit
+                            </span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -1597,7 +1811,7 @@
                             text-decoration: none;
                             transition: all 0.2s;
                         " onmouseover="this.style.background='rgba(59, 130, 246, 0.3)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.2)'">
-                            📥 Download CA Certificate
+                            Download CA Certificate
                         </a>
                         </div>
                     </div>
@@ -1898,7 +2112,7 @@
         <div class="messenger-window vessel-appearance-window">
             <div class="messenger-header">
                 <h2>Edit Vessel Appearance</h2>
-                <button id="closeVesselAppearanceBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>x</span></button>
+                <button id="closeVesselAppearanceBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="vessel-appearance-body">
                 <input type="hidden" id="appearanceVesselId">
@@ -1916,7 +2130,7 @@
                             <span class="appearance-upload-text">Click to upload</span>
                         </div>
                         <input type="file" id="appearanceImageInput" accept="image/*" hidden>
-                        <button type="button" id="removeCustomImageBtn" class="remove-custom-image-btn hidden">Remove Image</button>
+                        <button type="button" id="removeCustomImageBtn" class="vessel-filter-btn hidden">Remove Image</button>
                     </div>
                     <div class="appearance-colors-area" id="appearanceColorsSection">
                         <div class="appearance-colors-grid">
@@ -1957,8 +2171,8 @@
                 </div>
 
                 <div class="appearance-actions">
-                    <button id="saveAppearanceBtn" class="btn-primary">Save</button>
-                    <button id="cancelAppearanceBtn" class="btn-secondary">Cancel</button>
+                    <button id="saveAppearanceBtn" class="vessel-filter-btn">Save</button>
+                    <button id="cancelAppearanceBtn" class="vessel-filter-btn">Cancel</button>
                 </div>
             </div>
         </div>

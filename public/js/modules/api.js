@@ -1038,3 +1038,233 @@ export async function checkCompanyAge(userId, maxAgeDays = 7) {
     throw error;
   }
 }
+
+/**
+ * Get stock purchase timestamps from logbook
+ * Returns the most recent purchase timestamp for each company.
+ * Used to calculate 48h lock period for selling.
+ * @returns {Promise<Object>} { purchaseTimes: { companyId: timestamp, ... } }
+ */
+export async function getStockPurchaseTimes() {
+  try {
+    const response = await fetch(window.apiUrl('/api/stock/purchase-times'));
+    if (!response.ok) throw new Error('Failed to fetch purchase times');
+    return await response.json();
+  } catch (error) {
+    console.error('[Stock API] Error fetching purchase times:', error);
+    throw error;
+  }
+}
+
+// ==================== Analytics API ====================
+
+/**
+ * Get all analytics data in one call (for dashboard)
+ * @param {number} days - Number of days to analyze (default 7)
+ * @returns {Promise<Object>} All analytics data
+ */
+export async function getAnalyticsAll(days = 7) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/all?days=${days}`));
+    if (!response.ok) throw new Error('Failed to fetch analytics');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching analytics:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get weekly summary
+ * @param {number} weeks - Number of weeks (default 1)
+ * @returns {Promise<Object>} Weekly summary data
+ */
+export async function getAnalyticsSummary(weeks = 1) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/summary?weeks=${weeks}`));
+    if (!response.ok) throw new Error('Failed to fetch summary');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching summary:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get vessel performance metrics
+ * @param {number} days - Number of days to analyze (default 30)
+ * @returns {Promise<Object>} Vessel performance data
+ */
+export async function getAnalyticsVessels(days = 30) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/vessels?days=${days}`));
+    if (!response.ok) throw new Error('Failed to fetch vessel performance');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching vessel performance:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get route profitability
+ * @param {number} days - Number of days to analyze (default 30)
+ * @returns {Promise<Object>} Route profitability data
+ */
+export async function getAnalyticsRoutes(days = 30) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/routes?days=${days}`));
+    if (!response.ok) throw new Error('Failed to fetch route profitability');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching route profitability:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get daily revenue trend
+ * @param {number} days - Number of days (default 30)
+ * @returns {Promise<Object>} Trend data
+ */
+export async function getAnalyticsTrend(days = 30) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/trend?days=${days}`));
+    if (!response.ok) throw new Error('Failed to fetch trend');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching trend:', error);
+    throw error;
+  }
+}
+
+// ============================================
+// Transaction History API (Game Data)
+// ============================================
+
+/**
+ * Sync transactions from game API
+ * Fetches latest transactions and merges with local store
+ * @returns {Promise<Object>} Sync result {synced, total}
+ */
+export async function syncTransactions() {
+  try {
+    const response = await fetch(window.apiUrl('/api/transactions/sync'), {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to sync transactions');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error syncing:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get transaction store info
+ * @returns {Promise<Object>} Store metadata
+ */
+export async function getTransactionInfo() {
+  try {
+    const response = await fetch(window.apiUrl('/api/transactions/info'));
+    if (!response.ok) throw new Error('Failed to get transaction info');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error getting info:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get all transaction data for dashboard
+ * @param {number} days - Number of days (default 7)
+ * @returns {Promise<Object>} Complete transaction data
+ */
+export async function getTransactionData(days = 7) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/transactions/all?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get transaction data');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error getting data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get paginated transaction list with sorting and filtering
+ * @param {Object} options - Query options
+ * @param {number} options.days - Number of days (default 30)
+ * @param {string} options.context - Filter by context (optional)
+ * @param {number} options.limit - Max entries per page (default 100)
+ * @param {number} options.offset - Skip entries for pagination (default 0)
+ * @param {string} options.sortBy - Sort column (time, cash, context) default: time
+ * @param {string} options.sortDir - Sort direction (asc, desc) default: desc
+ * @returns {Promise<Object>} Paginated transaction list with metadata
+ */
+export async function getTransactionList(options = {}) {
+  try {
+    const params = new URLSearchParams();
+    if (options.days) params.set('days', options.days);
+    if (options.context) params.set('context', options.context);
+    if (options.limit) params.set('limit', options.limit);
+    if (options.offset) params.set('offset', options.offset);
+    if (options.sortBy) params.set('sortBy', options.sortBy);
+    if (options.sortDir) params.set('sortDir', options.sortDir);
+
+    const response = await fetch(window.apiUrl(`/api/transactions/list?${params.toString()}`));
+    if (!response.ok) throw new Error('Failed to get transaction list');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error getting list:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get transaction summary by context
+ * @param {number} days - Number of days (default 30)
+ * @returns {Promise<Object>} Summary grouped by context
+ */
+export async function getTransactionSummary(days = 30) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/transactions/summary?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get transaction summary');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error getting summary:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get daily transaction breakdown
+ * @param {number} days - Number of days (default 30)
+ * @returns {Promise<Object>} Daily breakdown
+ */
+export async function getTransactionDaily(days = 30) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/transactions/daily?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get daily breakdown');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error getting daily:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get available transaction types
+ * @returns {Promise<Object>} Available types
+ */
+export async function getTransactionTypes() {
+  try {
+    const response = await fetch(window.apiUrl('/api/transactions/types'));
+    if (!response.ok) throw new Error('Failed to get transaction types');
+    return await response.json();
+  } catch (error) {
+    console.error('[Transactions API] Error getting types:', error);
+    throw error;
+  }
+}
+

@@ -295,31 +295,18 @@ router.post('/stock/increase-stock-for-sale', async (req, res) => {
  */
 router.get('/stock/recent-ipos', async (req, res) => {
   try {
-    // Try to get cached fresh IPOs first (already have age data)
-    const { getFreshIpos } = require('../websocket/ipo-refresh');
-    const freshIpos = getFreshIpos();
+    const { getFreshIpos, performIpoRefresh } = require('../websocket/ipo-refresh');
+    let freshIpos = getFreshIpos();
 
-    if (freshIpos && freshIpos.length > 0) {
-      // Return cached fresh IPOs (already sorted by ID descending and have age_days)
-      return res.json({ ipos: freshIpos, fromCache: true });
+    // Cache empty? Trigger refresh and wait for it
+    if (!freshIpos || freshIpos.length === 0) {
+      logger.debug('[STOCK] IPO cache empty, triggering refresh');
+      await performIpoRefresh();
+      freshIpos = getFreshIpos();
     }
 
-    // Fallback: fetch from API if cache is empty
-    const result = await apiCall('/stock/get-market', 'POST', {
-      filter: 'recent-ipo',
-      page: 1,
-      limit: 40
-    });
-
-    if (!result.data || !result.data.market) {
-      return res.json({ ipos: [] });
-    }
-
-    // Sort by user ID descending (highest = newest accounts)
-    const sortedIpos = result.data.market.sort((a, b) => b.id - a.id);
-
-    // Return without age data - frontend will need to check individually
-    res.json({ ipos: sortedIpos, fromCache: false });
+    // Return cached fresh IPOs (already filtered by age + stock_for_sale > 0)
+    res.json({ ipos: freshIpos || [] });
   } catch (error) {
     logger.error('[STOCK] Error fetching recent IPOs:', error);
     res.status(500).json({ error: 'Failed to fetch recent IPOs' });
@@ -369,6 +356,71 @@ router.get('/stock/check-company-age', async (req, res) => {
   } catch (error) {
     logger.error('[STOCK] Error checking company age:', error);
     res.status(500).json({ error: 'Failed to check company age' });
+  }
+});
+
+/**
+ * GET /api/stock/purchase-times - Get stock purchase timestamps from logbook and game transactions
+ *
+ * Returns the most recent purchase timestamp for each company the user invested in.
+ * Used to calculate 48h lock period for selling.
+ *
+ * First checks logbook, then falls back to game transaction history (matching by amount).
+ *
+ * @name GET /api/stock/purchase-times
+ * @function
+ * @memberof module:server/routes/stock
+ * @param {express.Request} req - Express request
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with purchase timestamps by company
+ */
+router.get('/stock/purchase-times', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { getLogEntries } = require('../logbook');
+    const transactionStore = require('../analytics/transaction-store');
+
+    // Get all stock purchase logs from last 7 days (covers 48h lock period with margin)
+    const logs = await getLogEntries(userId, {
+      autopilot: 'Manual Stock Purchase',
+      timeRange: '7days'
+    });
+
+    // Build map of company_id -> most recent purchase timestamp from logbook
+    const purchaseTimes = {};
+
+    logs.forEach(log => {
+      const companyId = log.details?.stock_issuer_user_id;
+      if (companyId) {
+        // Keep the most recent purchase time
+        if (!purchaseTimes[companyId] || log.timestamp > purchaseTimes[companyId]) {
+          purchaseTimes[companyId] = log.timestamp;
+        }
+      }
+    });
+
+    // Also get game transactions for stock purchases (last 2 days)
+    // These have { time, cash, context: 'purchase_stock' }
+    const gameTransactions = await transactionStore.getTransactionsByDays(userId, 2);
+    const stockPurchases = gameTransactions
+      .filter(t => t.context === 'purchase_stock')
+      .sort((a, b) => b.time - a.time); // newest first
+
+    // Return both logbook times and game transactions for matching by amount
+    res.json({
+      purchaseTimes,
+      gameStockPurchases: stockPurchases.map(t => ({
+        time: t.time * 1000, // convert to milliseconds
+        amount: Math.abs(t.cash)
+      }))
+    });
+  } catch (error) {
+    logger.error('[STOCK] Error getting purchase times:', error);
+    res.status(500).json({ error: 'Failed to get purchase times' });
   }
 });
 

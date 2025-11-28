@@ -70,6 +70,7 @@ const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAuto
 const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
+const transactionStore = require('./server/analytics/transaction-store');
 
 // Parent process monitoring - auto-shutdown if parent (Python) dies
 if (process.ppid) {
@@ -122,6 +123,8 @@ const staffRoutes = require('./server/routes/staff');
 const routePlannerRoutes = require('./server/routes/route-planner');
 const stockRoutes = require('./server/routes/stock');
 const broadcastRoutes = require('./server/routes/broadcast');
+const analyticsRoutes = require('./server/routes/analytics');
+const transactionsRoutes = require('./server/routes/transactions');
 
 // Initialize Express app
 const app = express();
@@ -173,6 +176,8 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/route', routePlannerRoutes);
 app.use('/api', stockRoutes);
 app.use('/api/broadcast', broadcastRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/transactions', transactionsRoutes);
 
 // Autopilot pause/resume endpoint
 app.post('/api/autopilot/toggle', async (req, res) => {
@@ -395,6 +400,10 @@ const chatBot = require('./server/chatbot');
   logger.debug('[Messenger] Started 20-second messenger polling');
   logger.debug('[Hijacking] Started 60-second hijacking polling');
   logger.debug('[IPO Alert] Started 5-minute IPO polling');
+
+  // Start transaction history auto-sync (every 5 minutes)
+  transactionStore.startAutoSync(userId);
+  logger.debug('[Transactions] Started 5-minute transaction sync');
 
   // Initialize POI cache and start automatic refresh
   await poiRoutes.initializePOICache();

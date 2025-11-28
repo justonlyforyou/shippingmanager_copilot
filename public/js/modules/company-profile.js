@@ -377,100 +377,6 @@ function startStockSellTimer(container) {
   container.dataset.timerInterval = intervalId;
 }
 
-/**
- * Shows a dialog for selling shares with amount slider
- * Similar to showPurchaseDialog but shows revenue instead of cost
- * @param {Object} options - Configuration options
- * @returns {Promise<number|null>} Selected amount if confirmed, null if cancelled
- */
-function showSellSharesDialog(options) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement('div');
-    overlay.className = 'confirm-dialog-overlay';
-
-    const dialog = document.createElement('div');
-    dialog.className = 'confirm-dialog';
-
-    const maxAmount = options.maxAmount;
-    const price = options.price;
-    const unit = options.unit;
-
-    // Calculate initial values
-    let currentAmount = maxAmount;
-    const initialRevenue = Math.round(currentAmount * price);
-
-    dialog.innerHTML = `
-      <div class="confirm-dialog-header">
-        <h3>${escapeHtml(options.title || 'Sell')}</h3>
-      </div>
-      <div class="confirm-dialog-body">
-        <div class="purchase-slider-container">
-          <div class="purchase-slider-header">
-            <span class="purchase-slider-label">Amount</span>
-            <span class="purchase-slider-value" id="sellAmountValue">${formatNumber(currentAmount)}${unit}</span>
-          </div>
-          <input type="range" class="purchase-amount-slider" id="sellAmountSlider"
-            min="1" max="${maxAmount}" value="${maxAmount}" step="1">
-          <div class="purchase-slider-range">
-            <span>1${unit}</span>
-            <span>${formatNumber(maxAmount)}${unit}</span>
-          </div>
-        </div>
-        <div class="confirm-dialog-details">
-          <div class="confirm-dialog-detail-row">
-            <span class="label">Price per Share</span>
-            <span class="value">$${formatNumber(price)}</span>
-          </div>
-          <div class="confirm-dialog-detail-row income-row" id="sellRevenueRow">
-            <span class="label">Total Revenue</span>
-            <span class="value" id="sellTotalRevenue">$${formatNumber(initialRevenue)}</span>
-          </div>
-        </div>
-      </div>
-      <div class="confirm-dialog-footer">
-        <button class="confirm-dialog-btn cancel" data-action="cancel">Cancel</button>
-        <button class="confirm-dialog-btn confirm" data-action="confirm">${escapeHtml(options.confirmText || 'Confirm')}</button>
-      </div>
-    `;
-
-    overlay.appendChild(dialog);
-    document.body.appendChild(overlay);
-
-    const slider = dialog.querySelector('#sellAmountSlider');
-    const amountDisplay = dialog.querySelector('#sellAmountValue');
-    const revenueDisplay = dialog.querySelector('#sellTotalRevenue');
-
-    // Slider input handler
-    slider.addEventListener('input', () => {
-      currentAmount = parseInt(slider.value, 10);
-      const totalRevenue = Math.round(currentAmount * price);
-
-      amountDisplay.textContent = `${formatNumber(currentAmount)}${unit}`;
-      revenueDisplay.textContent = `$${formatNumber(totalRevenue)}`;
-    });
-
-    const handleClick = (e) => {
-      const action = e.target.dataset.action;
-
-      if (action === 'confirm') {
-        document.body.removeChild(overlay);
-        resolve(currentAmount);
-      } else if (action === 'cancel') {
-        document.body.removeChild(overlay);
-        resolve(null);
-      }
-    };
-
-    overlay.addEventListener('click', (e) => {
-      if (e.target === overlay) {
-        document.body.removeChild(overlay);
-        resolve(null);
-      }
-    });
-
-    dialog.addEventListener('click', handleClick);
-  });
-}
 
 /**
  * Attach click listeners to stock buy/sell buttons
@@ -508,7 +414,8 @@ function attachStockActionListeners(purchaseStock) {
         cash: userCash,
         unit: ' shares',
         priceLabel: 'Price per Share',
-        confirmText: 'Buy Shares'
+        confirmText: 'Buy Shares',
+        feePercent: 0.05
       });
 
       if (!shares) return;
@@ -543,14 +450,30 @@ function attachStockActionListeners(purchaseStock) {
       const price = parseFloat(sellBtn.dataset.price);
       const companyName = sellBtn.dataset.company || '';
 
-      // For selling, we show expected revenue instead of cost
-      // Use a custom dialog for selling (shows revenue instead of cost)
-      const shares = await showSellSharesDialog({
+      // Get current cash
+      let userCash = 0;
+      try {
+        const response = await fetch(window.apiUrl('/api/user/get-company'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        const data = await response.json();
+        userCash = data.user?.cash || 0;
+      } catch (err) {
+        console.error('[Company Profile] Failed to get user cash:', err);
+      }
+
+      const shares = await showPurchaseDialog({
         title: 'Sell Shares',
         maxAmount: maxShares,
         price: price,
+        cash: userCash,
         unit: ' shares',
-        confirmText: 'Sell Shares'
+        priceLabel: 'Price per Share',
+        confirmText: 'Sell Shares',
+        feePercent: 0.05,
+        isSell: true
       });
 
       if (!shares) return;

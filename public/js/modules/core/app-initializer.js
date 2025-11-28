@@ -34,6 +34,7 @@ import { initVesselAppearanceEditor, openVesselAppearanceEditor, handleVesselIma
 import { showSideNotification, showNotification, escapeHtml } from '../utils.js';
 import { initStockManager, showStockManager } from '../stock-manager.js';
 import { initBroadcast } from '../broadcast.js';
+import { initAnalytics } from '../analytics.js';
 
 /**
  * Format number with thousand separators.
@@ -138,6 +139,7 @@ export async function initializeApp(apiPrefix) {
   initAllianceTabs();
   initVesselAppearanceEditor();
   initBroadcast();
+  initAnalytics();
 
   // Initialize Stock Manager and IPO-related visibility
   const userHasIPO = settings.ipo === 1;

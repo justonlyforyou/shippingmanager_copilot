@@ -725,17 +725,33 @@ export function showPurchaseDialog(options) {
     const price = options.price;
     const cash = options.cash;
     const unit = options.unit;
+    const feePercent = options.feePercent || 0;
+    const isSell = options.isSell || false;
 
     // Calculate initial values
     let currentAmount = maxAmount;
-    const initialCost = Math.round(currentAmount * price);
-    const initialCashAfter = Math.round(cash - initialCost);
+    const initialSubtotal = Math.round(currentAmount * price);
+    const initialFee = Math.round(initialSubtotal * feePercent);
+    const initialTotal = isSell ? initialSubtotal - initialFee : initialSubtotal + initialFee;
+    const initialCashAfter = isSell ? Math.round(cash + initialTotal) : Math.round(cash - initialTotal);
 
     const priceValueClass = options.priceClassName ? ` ${options.priceClassName}` : '';
 
+    // Build fee row HTML if fee is specified
+    const feeRowHtml = feePercent > 0 ? `
+          <div class="confirm-dialog-detail-row">
+            <span class="label">Brokerage (${Math.round(feePercent * 100)}%)</span>
+            <span class="value" id="purchaseFee">${isSell ? '-' : '+'}$${formatNumber(initialFee)}</span>
+          </div>
+    ` : '';
+
     dialog.innerHTML = `
-      <div class="confirm-dialog-header">
+      <div class="confirm-dialog-header invoice-header">
         <h3>${escapeHtml(options.title || 'Purchase')}</h3>
+        <div class="confirm-dialog-buttons">
+          <button class="confirm-dialog-btn cancel" data-action="cancel">Cancel</button>
+          <button class="confirm-dialog-btn confirm" data-action="confirm" id="purchaseConfirmBtn">${escapeHtml(options.confirmText || 'Confirm')}</button>
+        </div>
       </div>
       <div class="confirm-dialog-body">
         ${options.message ? `<p>${escapeHtml(options.message)}</p>` : ''}
@@ -756,19 +772,20 @@ export function showPurchaseDialog(options) {
             <span class="label">${escapeHtml(options.priceLabel || 'Price')}</span>
             <span class="value${priceValueClass}">$${formatNumber(price)}/${unit}</span>
           </div>
-          <div class="confirm-dialog-detail-row expense-row" id="purchaseTotalCostRow">
-            <span class="label">Total Cost</span>
-            <span class="value" id="purchaseTotalCost">$${formatNumber(initialCost)}</span>
+          <div class="confirm-dialog-detail-row">
+            <span class="label">Subtotal</span>
+            <span class="value" id="purchaseSubtotal">$${formatNumber(initialSubtotal)}</span>
+          </div>
+          ${feeRowHtml}
+          <div class="confirm-dialog-detail-row ${isSell ? 'income-row' : 'expense-row'}" id="purchaseTotalCostRow">
+            <span class="label">${isSell ? 'Net Revenue' : 'Total Cost'}</span>
+            <span class="value" id="purchaseTotalCost">${isSell ? '+' : '-'}$${formatNumber(initialTotal)}</span>
           </div>
           <div class="confirm-dialog-detail-row" id="purchaseCashAfterRow">
             <span class="label">Cash after</span>
             <span class="value" id="purchaseCashAfter">$${formatNumber(initialCashAfter)}</span>
           </div>
         </div>
-      </div>
-      <div class="confirm-dialog-footer">
-        <button class="confirm-dialog-btn cancel" data-action="cancel">Cancel</button>
-        <button class="confirm-dialog-btn confirm" data-action="confirm" id="purchaseConfirmBtn">${escapeHtml(options.confirmText || 'Confirm')}</button>
       </div>
     `;
 
@@ -777,6 +794,8 @@ export function showPurchaseDialog(options) {
 
     const slider = dialog.querySelector('#purchaseAmountSlider');
     const amountDisplay = dialog.querySelector('#purchaseAmountValue');
+    const subtotalDisplay = dialog.querySelector('#purchaseSubtotal');
+    const feeDisplay = dialog.querySelector('#purchaseFee');
     const totalCostDisplay = dialog.querySelector('#purchaseTotalCost');
     const cashAfterDisplay = dialog.querySelector('#purchaseCashAfter');
     const totalCostRow = dialog.querySelector('#purchaseTotalCostRow');
@@ -805,11 +824,17 @@ export function showPurchaseDialog(options) {
     // Slider input handler
     slider.addEventListener('input', () => {
       currentAmount = parseInt(slider.value, 10);
-      const totalCost = Math.round(currentAmount * price);
-      const cashAfter = Math.round(cash - totalCost);
+      const subtotal = Math.round(currentAmount * price);
+      const fee = Math.round(subtotal * feePercent);
+      const total = isSell ? subtotal - fee : subtotal + fee;
+      const cashAfter = isSell ? Math.round(cash + total) : Math.round(cash - total);
 
       amountDisplay.textContent = `${formatNumber(currentAmount)}${unit}`;
-      totalCostDisplay.textContent = `$${formatNumber(totalCost)}`;
+      subtotalDisplay.textContent = `$${formatNumber(subtotal)}`;
+      if (feeDisplay) {
+        feeDisplay.textContent = `${isSell ? '-' : '+'}$${formatNumber(fee)}`;
+      }
+      totalCostDisplay.textContent = `${isSell ? '+' : '-'}$${formatNumber(total)}`;
       cashAfterDisplay.textContent = `$${formatNumber(cashAfter)}`;
 
       updateAffordability(cashAfter);

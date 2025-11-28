@@ -58,7 +58,8 @@ export function closeAllModalOverlays() {
     'docsOverlay',
     'companyProfileOverlay',
     'stockManagerOverlay',
-    'stockCompanyDetailOverlay'
+    'stockCompanyDetailOverlay',
+    'analyticsOverlay'
   ];
 
   modalOverlayIds.forEach(id => {
@@ -78,7 +79,7 @@ function handleIconAction(action) {
   const modalActions = [
     'buyVessels', 'sellVessels', 'messenger', 'hijacking',
     'campaigns', 'coop', 'allianceChat', 'contactList',
-    'settings', 'forecast', 'logbook', 'docs', 'anchor', 'stockManager'
+    'settings', 'forecast', 'logbook', 'docs', 'anchor', 'stockManager', 'analytics'
   ];
 
   // Close other modals before opening a new one
@@ -105,7 +106,8 @@ function handleIconAction(action) {
     'forecast': () => window.showForecastOverlay?.(),
     'logbook': () => window.showLogbookOverlay?.(),
     'docs': () => window.showDocsOverlay?.(),
-    'stockManager': () => window.showStockManager?.()
+    'stockManager': () => window.showStockManager?.(),
+    'analytics': () => window.showAnalytics?.()
   };
 
   const handler = actionHandlers[action];

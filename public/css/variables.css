@@ -132,6 +132,7 @@
 
   /* Purple RGBA - Background/Border variants */
   --color-purple-10: rgba(139, 92, 246, 0.1);
+  --color-purple-15: rgba(139, 92, 246, 0.15);
   --color-purple-20: rgba(139, 92, 246, 0.2);
   --color-purple-30: rgba(139, 92, 246, 0.3);
 
