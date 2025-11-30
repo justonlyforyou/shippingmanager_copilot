@@ -57,8 +57,7 @@
 /* Content Container */
 .stock-manager-content {
   padding: var(--spacing-8);
-  min-height: 475px;
-  max-height: 80vh;
+  max-height: calc(100vh - 200px);
   overflow-y: auto;
   overflow-x: visible;
 }

@@ -297,6 +297,7 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
 
     let soldCount = 0;
     const errors = [];
+    const soldVessels = []; // Track sold vessels for audit log
 
     // Sell each vessel individually (API only supports single vessel sales)
     for (const vesselId of vessel_ids) {
@@ -307,12 +308,20 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
 
           // Use price from BEFORE selling (from /game/index) or fall back to API response
           const sellPrice = vesselPriceMap.get(vesselId) || data.vessel?.sell_price || 0;
+          const vesselInfo = vesselDetails.find(v => v.id === vesselId);
 
           if (sellPrice === 0) {
             logger.error(`[Vessel Sell] Vessel ${vesselId} sold but no price found (neither in /game/index nor in API response)`);
           } else {
             logger.debug(`[Vessel Sell] Vessel ${vesselId} sold for $${sellPrice.toLocaleString()}`);
           }
+
+          // Track for audit log
+          soldVessels.push({
+            id: vesselId,
+            name: vesselInfo?.name || `Vessel ${vesselId}`,
+            sell_price: sellPrice
+          });
 
           // Delete custom vessel image and appearance data
           const svgFile = path.join(VESSEL_IMAGES_DIR, `${userId}_${vesselId}.svg`);
@@ -347,6 +356,33 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
       }
     } catch (error) {
       logger.error('[Vessel Sell] Failed to fetch updated bunker state:', error);
+    }
+
+    // AUDIT LOG: Vessel sale
+    if (soldVessels.length > 0) {
+      try {
+        const totalPrice = soldVessels.reduce((sum, v) => sum + v.sell_price, 0);
+
+        await auditLog(
+          userId,
+          CATEGORIES.VESSEL,
+          'Manual Vessel Sale',
+          `Sold ${soldVessels.length} vessel${soldVessels.length > 1 ? 's' : ''} for ${formatCurrency(totalPrice)}`,
+          {
+            vessel_count: soldVessels.length,
+            total_price: totalPrice,
+            vessels: soldVessels.map(v => ({
+              id: v.id,
+              name: v.name,
+              sell_price: v.sell_price
+            }))
+          },
+          'SUCCESS',
+          SOURCES.MANUAL
+        );
+      } catch (auditError) {
+        logger.error('[Vessel Sell] Audit logging failed:', auditError.message);
+      }
     }
 
     res.json({
@@ -1243,6 +1279,15 @@ router.post('/build-vessel', express.json(), async (req, res) => {
   try {
     const userId = getUserId();
 
+    // Get cash before build to calculate cost
+    let cashBefore = 0;
+    try {
+      const bunkerData = await apiCall('/game/bunker', 'GET');
+      cashBefore = bunkerData.cash || 0;
+    } catch (bunkerError) {
+      logger.warn('[Build Vessel] Could not fetch cash before build:', bunkerError.message);
+    }
+
     // Forward build request to game API
     const data = await apiCall('/vessel/build-vessel', 'POST', {
       name,
@@ -1421,11 +1466,15 @@ router.post('/build-vessel', express.json(), async (req, res) => {
 
     // AUDIT LOG: Vessel build
     try {
+      // Calculate build cost from cash difference (cash before - cash after)
+      const cashAfter = data.user?.cash || 0;
+      const buildCost = cashBefore - cashAfter;
+
       await auditLog(
         userId,
         CATEGORIES.VESSEL,
         'Manual Vessel Build',
-        `Built vessel "${name}" (${vessel_model}, ${capacity.toLocaleString()} ${vessel_model === 'container' ? 'TEU' : 'BBL'})`,
+        `Built vessel "${name}" (${vessel_model}, ${capacity.toLocaleString()} ${vessel_model === 'container' ? 'TEU' : 'BBL'}) | $${buildCost.toLocaleString()}`,
         {
           name,
           vessel_model,
@@ -1437,7 +1486,8 @@ router.post('/build-vessel', express.json(), async (req, res) => {
           bulbous,
           enhanced_thrusters,
           propeller_types,
-          range
+          range,
+          build_cost: buildCost
         },
         'SUCCESS',
         SOURCES.MANUAL

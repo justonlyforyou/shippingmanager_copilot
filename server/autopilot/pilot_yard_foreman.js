@@ -100,6 +100,7 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
     // Always attempt repair if we have enough cash
     if (costData.totalCost === 0 || bunker.cash >= costData.totalCost) {
       const result = await gameapi.bulkRepairVessels(vesselIds);
+      const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
 
       logger.info(`[Auto-Repair] Repaired ${result.count} vessels - API returned cost: $${result.totalCost.toLocaleString()}, Calculated cost: $${costData.totalCost.toLocaleString()}`);
 
@@ -135,6 +136,7 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
         'Auto-Repair',
         `${result.count} vessels | -${formatCurrency(costData.totalCost)}`,
         {
+          actionTimestamp,
           vesselCount: result.count,
           totalCost: costData.totalCost,
           repairedVessels: vesselList

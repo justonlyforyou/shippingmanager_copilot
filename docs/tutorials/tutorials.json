@@ -1,11 +1,14 @@
 {
-  "installation-guide": {
-    "title": "Installation Guide"
+  "01-installation-guide": {
+    "title": "Installation"
   },
-  "build-guide": {
+  "02-build-guide": {
     "title": "Build Guide"
   },
-  "discovered_formulars": {
-    "title": "Discovered Game Formulas"
+  "03-discovered-formulars": {
+    "title": "Discovered Formulas"
+  },
+  "04-api-reference": {
+    "title": "API Reference"
   }
 }

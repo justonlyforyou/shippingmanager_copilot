@@ -26,9 +26,6 @@
     <link type="text/css" rel="stylesheet" href="styles/prettify.css">
     <link type="text/css" rel="stylesheet" href="styles/jsdoc.css">
     <script src="scripts/nav.js" defer></script>
-    <?js if (env.conf.docdash.commonNav) { ?>
-    <script src="scripts/commonNav.js" defer></script>
-    <?js } ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
         /* Dark theme matching app style - carefully scoped to not break layout */
@@ -41,29 +38,65 @@
             padding: 0 !important;
         }
 
-        /* Custom scrollbar styling for all browsers */
-        * {
-            scrollbar-width: thin !important;
-            scrollbar-color: #404040 #1a1a1a !important;
+        /* Ultra-thin scrollbar with gradient - all webkit browsers */
+        ::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+            background: #1a1a1a;
         }
 
-        /* Webkit browsers (Chrome, Safari, Edge) */
-        *::-webkit-scrollbar {
-            width: 6px !important;
-            height: 6px !important;
+        ::-webkit-scrollbar-track {
+            background: #1a1a1a;
+            border-radius: 2px;
         }
 
-        *::-webkit-scrollbar-track {
-            background: #1a1a1a !important;
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #60a5fa 0%, #a78bfa 100%);
+            border-radius: 2px;
+            border: 1px solid #1a1a1a;
         }
 
-        *::-webkit-scrollbar-thumb {
-            background-color: #404040 !important;
-            border-radius: 3px !important;
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #93c5fd 0%, #c4b5fd 100%);
         }
 
-        *::-webkit-scrollbar-thumb:hover {
-            background-color: #505050 !important;
+        ::-webkit-scrollbar-corner {
+            background: #1a1a1a;
+        }
+
+        ::-webkit-scrollbar-button {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+
+        /* Specific elements scrollbars */
+        body::-webkit-scrollbar,
+        nav::-webkit-scrollbar,
+        #main::-webkit-scrollbar,
+        .container-overview::-webkit-scrollbar,
+        pre::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+            background: #1a1a1a;
+        }
+
+        body::-webkit-scrollbar-thumb,
+        nav::-webkit-scrollbar-thumb,
+        #main::-webkit-scrollbar-thumb,
+        .container-overview::-webkit-scrollbar-thumb,
+        pre::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #60a5fa 0%, #a78bfa 100%);
+            border-radius: 2px;
+            border: 1px solid #1a1a1a;
+        }
+
+        body::-webkit-scrollbar-thumb:hover,
+        nav::-webkit-scrollbar-thumb:hover,
+        #main::-webkit-scrollbar-thumb:hover,
+        .container-overview::-webkit-scrollbar-thumb:hover,
+        pre::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #93c5fd 0%, #c4b5fd 100%);
         }
 
         /* Navigation sidebar - remove padding and white borders */
@@ -74,6 +107,27 @@
             margin: 0 !important;
             overflow-x: hidden !important;
         }
+
+        /* Nav scrollbar - explicit override */
+        nav::-webkit-scrollbar {
+            width: 5px !important;
+            height: 5px !important;
+            background: #242424 !important;
+        }
+
+        nav::-webkit-scrollbar-track {
+            background: #242424 !important;
+        }
+
+        nav::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, #60a5fa 0%, #a78bfa 100%) !important;
+            border-radius: 2px !important;
+        }
+
+        nav::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, #93c5fd 0%, #c4b5fd 100%) !important;
+        }
+
         nav h2, nav h3 {
             color: #e0e0e0 !important;
             border-bottom: 1px solid #404040 !important;
@@ -83,20 +137,24 @@
             font-size: 14px !important;
             font-weight: 600 !important;
         }
+
         nav h3 {
             font-size: 13px !important;
         }
+
         nav ul {
             padding: 0 !important;
             margin: 0 !important;
             background-color: #242424 !important;
         }
+
         nav ul li {
             list-style: none !important;
             margin: 0 !important;
             padding: 0 !important;
             background-color: #242424 !important;
         }
+
         nav ul li a {
             color: #c9d1d9 !important;
             display: block !important;
@@ -109,10 +167,12 @@
             border: none !important;
             font-size: 14px !important;
         }
+
         nav ul li a:hover {
             color: #60a5fa !important;
             background-color: rgba(96, 165, 250, 0.1) !important;
         }
+
         /* Module links (direct children of nav > ul > li) */
         nav > ul > li > a {
             color: #60a5fa !important;
@@ -122,22 +182,27 @@
             border-left: 3px solid #60a5fa !important;
             padding-left: 12px !important;
         }
+
         nav > ul > li > a:hover {
             background-color: rgba(96, 165, 250, 0.15) !important;
         }
+
         /* Sub-items (methods/functions) indented */
         nav ul.methods {
             padding-left: 15px !important;
         }
+
         nav ul.methods li a {
             color: #9ca3af !important;
             font-size: 13px !important;
             padding: 6px 15px !important;
             font-weight: 400 !important;
         }
+
         nav ul.methods li a:hover {
             color: #c9d1d9 !important;
         }
+
         nav > h2:first-child {
             font-size: 16px !important;
             font-weight: 700 !important;
@@ -169,6 +234,7 @@
             color: #60a5fa !important;
             text-decoration: none !important;
         }
+
         a:hover {
             color: #93c5fd !important;
             text-decoration: underline !important;
@@ -180,6 +246,7 @@
             border-bottom-color: #404040 !important;
             background-color: transparent !important;
         }
+
         h4.name {
             background-color: #2a2a2a !important;
             border: 1px solid #404040 !important;
@@ -190,9 +257,11 @@
             background-color: #0d1117 !important;
             border: 1px solid #404040 !important;
         }
+
         pre code {
             background-color: transparent !important;
         }
+
         code {
             background-color: #2a2a2a !important;
             color: #e0e0e0 !important;
@@ -205,20 +274,25 @@
             border-color: #404040 !important;
             background-color: #1a1a1a !important;
         }
+
         table thead tr {
             background-color: #242424 !important;
         }
+
         table tbody tr {
             background-color: #1a1a1a !important;
         }
+
         table tbody tr:nth-child(even) {
             background-color: #1f1f1f !important;
         }
+
         table td, table th {
             border-color: #404040 !important;
             color: #e0e0e0 !important;
             background-color: transparent !important;
         }
+
         .params .name, .props .name {
             color: #10b981 !important;
             font-family: 'Courier New', monospace !important;
@@ -285,18 +359,16 @@
     <?js if (env.conf.docdash.search) { ?>
     <input type="text" id="nav-search" placeholder="Search" />
     <?js } ?>
-    <?js if (!env.conf.docdash.commonNav) { ?>
     <?js= this.nav ?>
-    <?js } ?>
 </nav>
 
 <div id="main">
-    <?js if (title != 'Home') { ?>
+    <?js if (title != 'Home' && !title.startsWith('Tutorial:')) { ?>
     <h1 class="page-title"><?js= title ?></h1>
     <?js } ?>
 
     <?js= content ?>
-    
+
     <?js if (env.conf.docdash.disqus) { ?>
     <div id="disqus_thread"></div>
     <script>
@@ -320,12 +392,6 @@
 <script>prettyPrint();</script>
 <script src="scripts/polyfill.js"></script>
 <script src="scripts/linenumber.js"></script>
-<?js if (env.conf.docdash.search) { ?>
-<script src="scripts/search.js" defer></script>
-<?js } ?>
-<?js if (env.conf.docdash.collapse) { ?>
-<script src="scripts/collapse.js" defer></script>
-<?js } ?>
 <?js if (env.conf.docdash.scripts && env.conf.docdash.scripts.length) {
     for(var i = 0; i < env.conf.docdash.scripts.length; i++){
         if (env.conf.docdash.scripts[i].indexOf(".css") != -1) {

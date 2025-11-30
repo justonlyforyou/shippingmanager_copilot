@@ -117,6 +117,7 @@ async function autoDrydockVessels(autopilotPaused, broadcastToUser, tryUpdateAll
       speed,
       maintenance_type: maintenanceType
     });
+    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
 
     logger.info(`[Auto-Drydock] Sent ${vesselIds.length} vessels to drydock (Total cost: $${totalCost.toLocaleString()})`);
 
@@ -152,6 +153,7 @@ async function autoDrydockVessels(autopilotPaused, broadcastToUser, tryUpdateAll
       'Auto-Drydock',
       `${vesselIds.length} vessels | ${maintenanceType} | ${speed} | ${formatCurrency(totalCost)}`,
       {
+        actionTimestamp,
         vesselCount: vesselIds.length,
         maintenanceType,
         speed,

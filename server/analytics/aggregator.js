@@ -21,7 +21,16 @@ const logger = require('../utils/logger');
 const { getLogDir, getAppDataDir } = require('../config');
 const transactionStore = require('./transaction-store');
 const vesselHistoryStore = require('./vessel-history-store');
+const lookupStore = require('./lookup-store');
 const { formatPortAbbreviation } = require('../routes/harbor-map-aggregator');
+
+// Short-term cache for local file reads (audit log, trip data)
+// Prevents re-reading the same file multiple times during a single analytics request
+const FILE_CACHE_TTL = 2000; // 2 seconds - just enough to cover a single request
+const fileCache = new Map(); // key -> { data, timestamp }
+
+// Hijack history directory (for fallback vessel_name lookup) - uses isPkg defined below
+let HIJACK_HISTORY_DIR = null;
 
 // Port code to country code mapping
 const PORT_COUNTRIES = {
@@ -136,6 +145,11 @@ function formatRouteDisplay(routeStr) {
 // Use AppData when packaged as exe
 const isPkg = !!process.pkg;
 
+// Initialize hijack history directory (for fallback vessel_name lookup)
+HIJACK_HISTORY_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'hijack_history')
+  : path.join(__dirname, '../../userdata/hijack_history');
+
 /**
  * Get audit log file path for a user
  * @param {string} userId - User ID
@@ -159,17 +173,28 @@ function getTripDataPath(userId) {
 }
 
 /**
- * Load audit log for a user
+ * Load audit log for a user (cached for 2 seconds to avoid duplicate reads)
  * @param {string} userId - User ID
  * @returns {Promise<Array>} Array of log entries
  */
 async function loadAuditLog(userId) {
+  const cacheKey = `auditLog-${userId}`;
+  const now = Date.now();
+  const cached = fileCache.get(cacheKey);
+
+  if (cached && (now - cached.timestamp) < FILE_CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const filePath = getAuditLogPath(userId);
     const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    fileCache.set(cacheKey, { data: parsed, timestamp: now });
+    return parsed;
   } catch (error) {
     if (error.code === 'ENOENT') {
+      fileCache.set(cacheKey, { data: [], timestamp: now });
       return [];
     }
     logger.error(`[Analytics] Failed to load audit log for user ${userId}:`, error.message);
@@ -178,17 +203,28 @@ async function loadAuditLog(userId) {
 }
 
 /**
- * Load trip data for a user
+ * Load trip data for a user (cached for 2 seconds to avoid duplicate reads)
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Trip data map
  */
 async function loadTripData(userId) {
+  const cacheKey = `tripData-${userId}`;
+  const now = Date.now();
+  const cached = fileCache.get(cacheKey);
+
+  if (cached && (now - cached.timestamp) < FILE_CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const filePath = getTripDataPath(userId);
     const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
+    const parsed = JSON.parse(data);
+    fileCache.set(cacheKey, { data: parsed, timestamp: now });
+    return parsed;
   } catch (error) {
     if (error.code === 'ENOENT') {
+      fileCache.set(cacheKey, { data: {}, timestamp: now });
       return {};
     }
     logger.error(`[Analytics] Failed to load trip data for user ${userId}:`, error.message);
@@ -203,6 +239,8 @@ async function loadTripData(userId) {
  * @returns {Array} Filtered entries
  */
 function filterByDays(logs, days) {
+  // days === 0 means "all time" - no filtering
+  if (days === 0) return logs;
   const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
   return logs.filter(log => log.timestamp >= cutoff);
 }
@@ -531,7 +569,8 @@ async function getRouteProfitability(userId, days = 30) {
     const avgRevenuePerTrip = route.trips > 0 ? route.totalRevenue / route.trips : 0;
     const avgHarborFee = route.trips > 0 ? route.totalHarborFees / route.trips : 0;
     const harborFeePercent = route.totalRevenue > 0 ? (route.totalHarborFees / route.totalRevenue) * 100 : 0;
-    const revenuePerKm = route.totalDistance > 0 ? route.totalRevenue / route.totalDistance : 0;
+    // Distance is in nautical miles
+    const avgIncomePerNm = route.totalDistance > 0 ? route.totalRevenue / route.totalDistance : 0;
 
     results.push({
       route: route.route,
@@ -545,7 +584,7 @@ async function getRouteProfitability(userId, days = 30) {
       avgRevenuePerTrip,
       avgHarborFee,
       harborFeePercent,
-      revenuePerKm,
+      avgIncomePerNm,
       vesselCount: route.vessels.size
     });
   });
@@ -1442,29 +1481,42 @@ async function getMergedSummary(userId, days = 7) {
     .filter(t => t.context === 'sell_vessel' || t.context === 'Sold_vessel_in_port')
     .reduce((sum, t) => sum + t.cash, 0);
 
-  // Get local log details for enrichment
-  const departures = filterByType(filteredLogs, ['Auto-Depart', 'Manual Depart']);
+  // Get merged departures (local logs + game history) for enrichment
+  const departures = await getMergedDepartures(userId, days);
 
-  // Operations data from local logs (game API doesn't provide this detail)
+  // Operations data from merged departures (local logs + game history)
   let totalTrips = 0;
   let totalFuelUsed = 0;
   let totalCO2Used = 0;
   let totalContribution = 0;
   let totalDistance = 0;
 
-  departures.forEach(log => {
-    if (log.status === 'SUCCESS') {
-      totalTrips += log.details?.vesselCount || 0;
-      totalFuelUsed += log.details?.totalFuelUsed || 0;
-      totalCO2Used += log.details?.totalCO2Used || 0;
-      totalContribution += log.details?.contributionGainedTotal || 0;
+  // Track trips per day for chart
+  const dailyTripsMap = new Map();
 
-      // Sum distance from vessels
-      const vessels = log.details?.departedVessels || log.details?.vessels || [];
-      vessels.forEach(v => {
-        totalDistance += v.distance || 0;
-      });
-    }
+  departures.forEach(log => {
+    // Get vessels array (works for both local logs and game history)
+    const vessels = log.details?.departedVessels || log.details?.vessels || [];
+    const vesselCount = log.details?.vesselCount || vessels.length;
+
+    totalTrips += vesselCount;
+    totalFuelUsed += log.details?.totalFuelUsed || 0;
+    totalCO2Used += log.details?.totalCO2Used || 0;
+    totalContribution += log.details?.contributionGainedTotal || 0;
+
+    // Track trips by day
+    const date = new Date(log.timestamp);
+    const dayKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    dailyTripsMap.set(dayKey, (dailyTripsMap.get(dayKey) || 0) + vesselCount);
+
+    // Sum distance and fuel from vessels
+    vessels.forEach(v => {
+      totalDistance += v.distance || 0;
+      // Game history stores fuel per vessel
+      if (!log.details?.totalFuelUsed && v.fuelUsed) {
+        totalFuelUsed += v.fuelUsed;
+      }
+    });
   });
 
   // Calculate profit
@@ -1486,7 +1538,9 @@ async function getMergedSummary(userId, days = 7) {
         income: 0,
         expenses: 0,
         net: 0,
-        byContext: {}
+        trips: 0,
+        byContext: {},
+        byVessel: {}
       });
     }
     const day = dailyMap.get(date);
@@ -1503,7 +1557,147 @@ async function getMergedSummary(userId, days = 7) {
     day.byContext[t.context] += t.cash;
   });
 
+  // Add trips data from departures to daily breakdown
+  dailyTripsMap.forEach((trips, date) => {
+    if (dailyMap.has(date)) {
+      dailyMap.get(date).trips = trips;
+    } else {
+      // Day has trips but no transactions - still add it
+      dailyMap.set(date, {
+        date,
+        income: 0,
+        expenses: 0,
+        net: 0,
+        trips,
+        byContext: {},
+        byVessel: {}
+      });
+    }
+  });
+
+  // Add byVessel data and utilization from Lookup Store (POD4)
+  try {
+    const lookupEntries = await lookupStore.getEntriesByDays(userId, days);
+    for (const entry of lookupEntries) {
+      // Only departure entries have vessel assignments
+      if (entry.context !== 'vessels_departed') continue;
+
+      // Try pod2_vessel first (audit log match), then pod3_vessel (vessel history) as fallback
+      const vessel = entry.pod2_vessel || entry.pod3_vessel;
+      if (!vessel) continue;
+
+      const vesselId = vessel.vesselId || vessel.vessel_id || vessel.id;
+      if (!vesselId) continue;
+
+      const date = new Date(entry.timestamp).toISOString().split('T')[0];
+      if (!dailyMap.has(date)) continue;
+
+      const day = dailyMap.get(date);
+      if (!day.byVessel) day.byVessel = {};
+      if (!day.byVessel[vesselId]) day.byVessel[vesselId] = 0;
+
+      // Use the income from the departure (brutto = income + harborFee)
+      day.byVessel[vesselId] += entry.cash;
+
+      // Aggregate utilization data per day
+      const utilization = vessel.utilization;
+      if (typeof utilization === 'number') {
+        // Initialize utilization tracking for this day
+        if (!day.utilizationSum) day.utilizationSum = 0;
+        if (!day.utilizationCount) day.utilizationCount = 0;
+        if (!day.utilizationRanges) {
+          day.utilizationRanges = { '0-25': 0, '25-50': 0, '50-75': 0, '75-100': 0 };
+        }
+
+        day.utilizationSum += utilization;
+        day.utilizationCount++;
+
+        // Categorize into ranges (utilization is 0-1)
+        const utilPercent = utilization * 100;
+        if (utilPercent < 25) {
+          day.utilizationRanges['0-25']++;
+        } else if (utilPercent < 50) {
+          day.utilizationRanges['25-50']++;
+        } else if (utilPercent < 75) {
+          day.utilizationRanges['50-75']++;
+        } else {
+          day.utilizationRanges['75-100']++;
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn('[Aggregator] Failed to load lookup entries for byVessel:', err.message);
+  }
+
+  // Calculate avgUtilization per day
+  for (const day of dailyMap.values()) {
+    if (day.utilizationCount > 0) {
+      day.avgUtilization = day.utilizationSum / day.utilizationCount;
+    } else {
+      day.avgUtilization = null;
+    }
+    // Clean up temp fields
+    delete day.utilizationSum;
+    delete day.utilizationCount;
+  }
+
   const dailyBreakdown = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+
+  // Debug: verify dailyBreakdown sums match income/expenses totals
+  const dailyIncomeSum = dailyBreakdown.reduce((sum, d) => sum + d.income, 0);
+  const dailyExpensesSum = dailyBreakdown.reduce((sum, d) => sum + d.expenses, 0);
+  if (Math.abs(dailyIncomeSum - income.total) > 1 || Math.abs(dailyExpensesSum - expenses.total) > 1) {
+    logger.warn(`[Aggregator] dailyBreakdown mismatch! income: ${dailyIncomeSum} vs ${income.total}, expenses: ${dailyExpensesSum} vs ${expenses.total}`);
+  }
+
+  // Build chart entries from game transactions (individual points with timestamps)
+  // LightweightCharts expects time in seconds (Unix timestamp)
+  const chartEntries = gameTransactions.map(t => ({
+    time: t.time, // Already in seconds
+    value: t.cash,
+    type: t.cash >= 0 ? 'income' : 'expense',
+    context: t.context
+  })).sort((a, b) => a.time - b.time);
+
+  // Build utilization and vessel revenue entries from lookup store
+  const utilizationEntries = [];
+  const vesselRevenueEntries = [];
+  try {
+    const lookupEntries = await lookupStore.getEntriesByDays(userId, days);
+    for (const entry of lookupEntries) {
+      if (entry.context !== 'vessels_departed') continue;
+      const vessel = entry.pod2_vessel || entry.pod3_vessel;
+      if (!vessel) continue;
+
+      const vesselId = vessel.vesselId || vessel.vessel_id || vessel.id;
+      const vesselName = vessel.name || vessel.vesselName || 'Unknown';
+      const timeSeconds = Math.floor(entry.timestamp / 1000);
+
+      // Utilization entries
+      const utilization = vessel.utilization;
+      if (typeof utilization === 'number') {
+        utilizationEntries.push({
+          time: timeSeconds,
+          value: utilization * 100, // Convert 0-1 to 0-100%
+          vesselName
+        });
+      }
+
+      // Vessel revenue entries (individual departures with timestamps)
+      if (vesselId && entry.cash) {
+        vesselRevenueEntries.push({
+          time: timeSeconds,
+          value: entry.cash,
+          vesselId,
+          vesselName
+        });
+      }
+    }
+    utilizationEntries.sort((a, b) => a.time - b.time);
+    vesselRevenueEntries.sort((a, b) => a.time - b.time);
+  } catch (err) {
+    logger.warn('[Aggregator] Failed to build utilization/revenue entries:', err.message);
+  }
 
   return {
     source: 'merged',
@@ -1531,6 +1725,10 @@ async function getMergedSummary(userId, days = 7) {
     vesselNetCost: (typeof expenses.vesselPurchases === 'number' ? expenses.vesselPurchases : expenses.vesselPurchases.total) - vesselSalesTotal,
     transactionCount: gameTransactions.length,
     dailyBreakdown,
+    // Individual entries for zoomable charts (timestamp in seconds)
+    chartEntries,
+    utilizationEntries,
+    vesselRevenueEntries,
     // Include raw context totals for detailed breakdown
     byContext: gameTransactions.reduce((acc, t) => {
       if (!acc[t.context]) {
@@ -1760,13 +1958,260 @@ async function getVesselPerformanceMerged(userId, days = 30) {
 }
 
 /**
+ * Load vessel_name from hijack_history file as fallback
+ * @param {string} userId - User ID
+ * @param {string} caseId - Hijacking case ID
+ * @returns {Promise<string|null>} vessel_name or null if not found
+ */
+async function getVesselNameFromHijackHistory(userId, caseId) {
+  try {
+    const filePath = path.join(HIJACK_HISTORY_DIR, `${userId}-${caseId}.json`);
+    const data = await fs.readFile(filePath, 'utf8');
+    const history = JSON.parse(data);
+    return history.vessel_name || null;
+  } catch {
+    // File doesn't exist or parse error - expected for old entries
+    return null;
+  }
+}
+
+/**
+ * Get hijacking risk percentages from stored vessel history data.
+ * Routes are collected from vessel history sync which captures hijacking_risk per route.
+ * UI should only read from stored data - background sync keeps it updated.
+ * @param {string} userId - User ID
+ * @returns {Promise<Map<string, number>>} Route key -> hijacking_risk (0-100)
+ */
+async function fetchGameHijackingRisks(userId) {
+  const riskMap = new Map();
+
+  try {
+    // Get stored hijacking risks from vessel history (synced by background process)
+    const storedRisks = await vesselHistoryStore.getRouteHijackingRisks(userId);
+    for (const [key, value] of storedRisks) {
+      riskMap.set(key, value);
+    }
+    logger.debug(`[Aggregator] Loaded hijacking risk for ${riskMap.size} routes from stored data`);
+
+    return riskMap;
+  } catch (err) {
+    logger.error('[Aggregator] Failed to get hijacking risks:', err.message);
+    return riskMap;
+  }
+}
+
+/**
+ * Calculate actual hijacking counts per route from logbook data.
+ * Matches hijacking cases to departures by vessel name and timestamp.
+ * Returns a Map of "origin<>destination" -> hijack count
+ * @param {string} userId - User ID
+ * @param {number} days - Number of days to analyze
+ * @param {Array} departures - Departure logs (to avoid re-fetching)
+ * @returns {Promise<Map<string, number>>} Route hijack count map
+ */
+async function calculateRouteHijackCounts(userId, days, departures) {
+  const hijackCountMap = new Map();
+
+  try {
+    const logs = await loadAuditLog(userId);
+    const filtered = filterByDays(logs, days);
+
+    // Get all hijacking cases
+    const hijackCases = filtered.filter(log =>
+      log.autopilot === 'Auto-Blackbeard' ||
+      log.autopilot === 'Manual Ransom' ||
+      log.autopilot === 'Manual Pay Ransom'
+    );
+
+    if (hijackCases.length === 0) {
+      logger.debug('[Aggregator] No hijacking cases found in logbook');
+      return hijackCountMap;
+    }
+
+    // Build a lookup of vessel departures sorted by timestamp (newest first)
+    // Key: vessel name (lowercase), Value: array of {timestamp, origin, destination}
+    const vesselDepartures = new Map();
+
+    departures.forEach(log => {
+      const vessels = log.details?.departedVessels || log.details?.vessels || [];
+      const departureTime = log.timestamp;
+
+      vessels.forEach(v => {
+        const vesselName = (v.name || '').toLowerCase().trim();
+        const origin = v.origin || '';
+        const destination = v.destination || '';
+
+        if (!vesselName || !origin || !destination) return;
+
+        if (!vesselDepartures.has(vesselName)) {
+          vesselDepartures.set(vesselName, []);
+        }
+        vesselDepartures.get(vesselName).push({
+          timestamp: departureTime,
+          origin,
+          destination
+        });
+      });
+    });
+
+    // Sort each vessel's departures by timestamp descending (newest first)
+    vesselDepartures.forEach(deps => {
+      deps.sort((a, b) => b.timestamp - a.timestamp);
+    });
+
+    // Match each hijacking case to a departure
+    let matchedCount = 0;
+    for (const hijack of hijackCases) {
+      // Support both old (vesselName) and new (vessel_name) field names
+      let vesselName = (hijack.details?.vessel_name || hijack.details?.vesselName || '').toLowerCase().trim();
+      const hijackTime = hijack.timestamp;
+      const caseId = hijack.details?.case_id;
+
+      // Fallback: try to get vessel_name from hijack_history file if not in audit log
+      if (!vesselName && caseId) {
+        const historyVesselName = await getVesselNameFromHijackHistory(userId, caseId);
+        if (historyVesselName) {
+          vesselName = historyVesselName.toLowerCase().trim();
+        }
+      }
+
+      if (!vesselName) continue;
+
+      const deps = vesselDepartures.get(vesselName);
+      if (!deps || deps.length === 0) continue;
+
+      // Find the most recent departure BEFORE the hijacking
+      const matchedDeparture = deps.find(d => d.timestamp < hijackTime);
+
+      if (matchedDeparture) {
+        const routeKey = `${matchedDeparture.origin}<>${matchedDeparture.destination}`;
+
+        hijackCountMap.set(routeKey, (hijackCountMap.get(routeKey) || 0) + 1);
+        matchedCount++;
+      }
+    }
+
+    logger.debug(`[Aggregator] Matched ${matchedCount}/${hijackCases.length} hijacking cases to routes`);
+  } catch (err) {
+    logger.error('[Aggregator] Failed to calculate hijack counts:', err.message);
+  }
+
+  return hijackCountMap;
+}
+
+
+/**
+ * Aggregate ransom payments from audit log by route.
+ * Returns total ransom paid and incident count per route.
+ * @param {string} userId - User ID
+ * @param {number} days - Number of days to analyze
+ * @param {Array} departures - Departure logs for route matching
+ * @returns {Promise<Map<string, {totalRansom: number, count: number}>>} Map of route -> ransom data
+ */
+async function aggregateRansomPayments(userId, days, departures) {
+  const ransomMap = new Map();
+
+  try {
+    const logs = await loadAuditLog(userId);
+    const filtered = filterByDays(logs, days);
+
+    // Get all ransom payment cases
+    const ransomCases = filtered.filter(log =>
+      log.autopilot === 'Auto-Blackbeard' ||
+      log.autopilot === 'Manual Ransom' ||
+      log.autopilot === 'Manual Pay Ransom'
+    );
+
+    if (ransomCases.length === 0) {
+      logger.debug('[Aggregator] No ransom payment cases found');
+      return ransomMap;
+    }
+
+    // Build vessel departure lookup (newest first)
+    const vesselDepartures = new Map();
+    departures.forEach(log => {
+      const vessels = log.details?.departedVessels || log.details?.vessels || [];
+      const departureTime = log.timestamp;
+
+      vessels.forEach(v => {
+        const vesselName = (v.name || '').toLowerCase().trim();
+        const origin = v.origin || '';
+        const destination = v.destination || '';
+
+        if (!vesselName || !origin || !destination) return;
+
+        if (!vesselDepartures.has(vesselName)) {
+          vesselDepartures.set(vesselName, []);
+        }
+        vesselDepartures.get(vesselName).push({
+          timestamp: departureTime,
+          origin,
+          destination
+        });
+      });
+    });
+
+    // Sort each vessel's departures by timestamp descending
+    vesselDepartures.forEach(deps => {
+      deps.sort((a, b) => b.timestamp - a.timestamp);
+    });
+
+    // Match ransom payments to routes
+    ransomCases.forEach(ransom => {
+      // Extract ransom amount from summary (e.g., "Paid $5.624.000 ransom for Case #1055075")
+      const amountMatch = ransom.summary?.match(/\$([0-9.,]+)/);
+      let ransomAmount = 0;
+      if (amountMatch) {
+        ransomAmount = parseInt(amountMatch[1].replace(/[.,]/g, ''), 10);
+      }
+
+      // Get vessel name from local audit log data
+      const vesselName = (ransom.details?.vessel_name || ransom.details?.vesselName || '').toLowerCase().trim();
+
+      if (!vesselName) return;
+
+      const deps = vesselDepartures.get(vesselName);
+      if (!deps || deps.length === 0) return;
+
+      // Find the most recent departure BEFORE the ransom payment
+      const matchedDeparture = deps.find(d => d.timestamp < ransom.timestamp);
+
+      if (matchedDeparture) {
+        const routeKey = `${matchedDeparture.origin}<>${matchedDeparture.destination}`;
+
+        if (!ransomMap.has(routeKey)) {
+          ransomMap.set(routeKey, { totalRansom: 0, count: 0 });
+        }
+        const data = ransomMap.get(routeKey);
+        data.totalRansom += ransomAmount;
+        data.count++;
+      }
+    });
+
+    logger.debug(`[Aggregator] Aggregated ransom payments for ${ransomMap.size} routes`);
+  } catch (err) {
+    logger.error('[Aggregator] Failed to aggregate ransom payments:', err.message);
+  }
+
+  return ransomMap;
+}
+
+/**
  * Get route profitability using merged departure data (local + game history)
  * @param {string} userId - User ID
  * @param {number} days - Number of days to analyze (default 30)
  * @returns {Promise<Array>} Route profitability data
  */
 async function getRouteProfitabilityMerged(userId, days = 30) {
+  // Get departures first (needed for hijack rate calculation)
   const departures = await getMergedDepartures(userId, days);
+
+  // Fetch data in parallel: hijack counts, ransom payments, and hijack risks from stored data
+  const [hijackCountMap, ransomMap, gameHijackRiskMap] = await Promise.all([
+    calculateRouteHijackCounts(userId, days, departures),
+    aggregateRansomPayments(userId, days, departures),
+    fetchGameHijackingRisks(userId)
+  ]);
 
   // Aggregate by route
   const routeMap = new Map();
@@ -1818,7 +2263,23 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
     const avgRevenuePerTrip = route.trips > 0 ? route.totalRevenue / route.trips : 0;
     const avgHarborFee = route.trips > 0 ? route.totalHarborFees / route.trips : 0;
     const harborFeePercent = route.totalRevenue > 0 ? (route.totalHarborFees / route.totalRevenue) * 100 : 0;
-    const revenuePerKm = route.totalDistance > 0 ? route.totalRevenue / route.totalDistance : 0;
+    // Distance is in nautical miles
+    const avgIncomePerNm = route.totalDistance > 0 ? route.totalRevenue / route.totalDistance : 0;
+
+    // Get historical hijack incidents from logbook (actual count of hijacks on this route)
+    const hijackCount = hijackCountMap.get(route.route);
+
+    // Get hijacking risk percentage from Game API (route probability)
+    // Try both directions since routes can be bidirectional
+    let gameHijackRisk = gameHijackRiskMap.get(route.route);
+    if (gameHijackRisk === undefined) {
+      // Try reverse direction
+      const reverseKey = `${route.destination}<>${route.origin}`;
+      gameHijackRisk = gameHijackRiskMap.get(reverseKey);
+    }
+
+    // Get ransom payment data
+    const ransomData = ransomMap.get(route.route);
 
     results.push({
       route: route.route,
@@ -1833,7 +2294,11 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
       avgRevenuePerTrip,
       avgHarborFee,
       harborFeePercent,
-      revenuePerKm,
+      avgIncomePerNm,
+      hijackingRisk: gameHijackRisk !== undefined ? gameHijackRisk : null,
+      hijackCount: hijackCount !== undefined ? hijackCount : null,
+      totalRansomPaid: ransomData ? ransomData.totalRansom : null,
+      ransomIncidents: ransomData ? ransomData.count : null,
       vesselCount: route.vessels.size,
       dataSources: route.sources
     });

@@ -1,6 +1,6 @@
 # Discovered Game Formulas
 
-All formulas verified against live game data.
+All formulas are from game files itself and verified against live game data as well.
 
 ---
 

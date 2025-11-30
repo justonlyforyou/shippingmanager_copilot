@@ -18,8 +18,45 @@ const express = require('express');
 const router = express.Router();
 const aggregator = require('../analytics/aggregator');
 const vesselHistoryStore = require('../analytics/vessel-history-store');
+const lookupStore = require('../analytics/lookup-store');
+const apiStatsStore = require('../analytics/api-stats-store');
 const { getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
+
+/**
+ * GET /api/analytics/overview
+ * Returns only data needed for Overview tab (fast load)
+ * - summary: merged summary data
+ * - detailedExpenses: expense breakdown
+ *
+ * Query params:
+ * - days: Number of days (default 7)
+ */
+router.get('/overview', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 7;
+
+    // Only fetch what Overview tab needs - much faster than /all
+    const [mergedSummary, detailedExpenses] = await Promise.all([
+      aggregator.getMergedSummary(userId, days),
+      aggregator.getDetailedExpenses(userId, days)
+    ]);
+
+    res.json({
+      summary: mergedSummary,
+      detailedExpenses,
+      days
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting overview:', error);
+    res.status(500).json({ error: 'Failed to get analytics overview' });
+  }
+});
 
 /**
  * GET /api/analytics/summary
@@ -450,6 +487,273 @@ router.get('/vessel-history/departures', async (req, res) => {
   } catch (error) {
     logger.error('[Analytics] Error getting vessel history departures:', error);
     res.status(500).json({ error: 'Failed to get vessel history departures' });
+  }
+});
+
+// ============================================
+// LOOKUP STORE ENDPOINTS (POD4)
+// ============================================
+
+/**
+ * POST /api/analytics/lookup/build
+ * Build/update the lookup table from all PODs
+ *
+ * Query params:
+ * - days: Number of days to process (default: 0 = all)
+ */
+router.post('/lookup/build', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+    logger.info(`[Analytics] Building lookup table (days=${days})...`);
+
+    const result = await lookupStore.buildLookup(userId, days);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    logger.error('[Analytics] Error building lookup:', error);
+    res.status(500).json({ error: 'Failed to build lookup' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/entries
+ * Get all lookup entries
+ *
+ * Query params:
+ * - days: Number of days (default: 0 = all)
+ * - limit: Max entries (default: 100)
+ * - offset: Pagination offset (default: 0)
+ */
+router.get('/lookup/entries', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+    const limit = parseInt(req.query.limit, 10) || 100;
+    const offset = parseInt(req.query.offset, 10) || 0;
+
+    let entries = days > 0
+      ? await lookupStore.getEntriesByDays(userId, days)
+      : await lookupStore.getEntries(userId);
+
+    const total = entries.length;
+
+    // Apply pagination
+    entries = entries.slice(offset, offset + limit);
+
+    res.json({ entries, total, limit, offset });
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup entries:', error);
+    res.status(500).json({ error: 'Failed to get lookup entries' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/totals
+ * Get income/expense totals from lookup
+ *
+ * Query params:
+ * - days: Number of days (default: 0 = all)
+ */
+router.get('/lookup/totals', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+    const totals = await lookupStore.getTotals(userId, days);
+
+    res.json(totals);
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup totals:', error);
+    res.status(500).json({ error: 'Failed to get lookup totals' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/breakdown
+ * Get breakdown by transaction type
+ *
+ * Query params:
+ * - days: Number of days (default: 0 = all)
+ */
+router.get('/lookup/breakdown', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+    const breakdown = await lookupStore.getBreakdownByType(userId, days);
+
+    res.json({ breakdown, days });
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup breakdown:', error);
+    res.status(500).json({ error: 'Failed to get lookup breakdown' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/details/:id
+ * Get full details for a lookup entry from all PODs
+ */
+router.get('/lookup/details/:id', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const lookupId = req.params.id;
+    const details = await lookupStore.getEntryDetails(userId, lookupId);
+
+    if (!details) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    res.json(details);
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup details:', error);
+    res.status(500).json({ error: 'Failed to get lookup details' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/info
+ * Get lookup store metadata
+ */
+router.get('/lookup/info', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const info = await lookupStore.getStoreInfo(userId);
+    res.json(info);
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup info:', error);
+    res.status(500).json({ error: 'Failed to get lookup info' });
+  }
+});
+
+/**
+ * POST /api/analytics/lookup/rebuild
+ * Clear and rebuild the lookup store
+ * Also triggers vessel history sync first
+ *
+ * Query params:
+ * - days: Number of days to process (default: 0 = all)
+ */
+router.post('/lookup/rebuild', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+    logger.info(`[Analytics] Rebuilding lookup table (days=${days})...`);
+
+    // 1. Clear existing lookup
+    await lookupStore.clearStore(userId);
+    logger.info('[Analytics] Lookup store cleared');
+
+    // 2. Sync vessel history first (to ensure POD3 has data)
+    logger.info('[Analytics] Syncing vessel history...');
+    const syncResult = await vesselHistoryStore.syncVesselHistory(userId);
+    logger.info(`[Analytics] Vessel history sync: ${syncResult.newEntries} new entries`);
+
+    // 3. Now rebuild lookup
+    const result = await lookupStore.buildLookup(userId, days);
+
+    res.json({
+      success: true,
+      vesselHistorySync: syncResult,
+      lookup: result
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error rebuilding lookup:', error);
+    res.status(500).json({ error: 'Failed to rebuild lookup' });
+  }
+});
+
+/**
+ * DELETE /api/analytics/lookup/clear
+ * Clear the lookup store (for rebuild)
+ */
+router.delete('/lookup/clear', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    await lookupStore.clearStore(userId);
+    res.json({ success: true, message: 'Lookup store cleared' });
+  } catch (error) {
+    logger.error('[Analytics] Error clearing lookup:', error);
+    res.status(500).json({ error: 'Failed to clear lookup' });
+  }
+});
+
+/**
+ * GET /api/analytics/api-stats
+ * Returns API call statistics with time-series data
+ *
+ * Query params:
+ * - hours: Number of hours to look back (default 24)
+ */
+router.get('/api-stats', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours, 10) || 24;
+    const stats = await apiStatsStore.getStats(hours);
+    res.json(stats);
+  } catch (error) {
+    logger.error('[Analytics] Error getting API stats:', error);
+    res.status(500).json({ error: 'Failed to get API stats' });
+  }
+});
+
+/**
+ * GET /api/analytics/api-stats/hourly
+ * Returns API call statistics aggregated by hour for charts
+ *
+ * Query params:
+ * - hours: Number of hours to look back (default 24)
+ */
+router.get('/api-stats/hourly', async (req, res) => {
+  try {
+    const hours = parseInt(req.query.hours, 10) || 24;
+    const stats = await apiStatsStore.getHourlyStats(hours);
+    res.json(stats);
+  } catch (error) {
+    logger.error('[Analytics] Error getting hourly API stats:', error);
+    res.status(500).json({ error: 'Failed to get hourly API stats' });
+  }
+});
+
+/**
+ * GET /api/analytics/api-stats/dates
+ * Returns list of available stat file dates
+ */
+router.get('/api-stats/dates', async (req, res) => {
+  try {
+    const dates = await apiStatsStore.getAvailableDates();
+    res.json({ dates });
+  } catch (error) {
+    logger.error('[Analytics] Error getting API stats dates:', error);
+    res.status(500).json({ error: 'Failed to get API stats dates' });
   }
 });
 

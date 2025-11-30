@@ -1,11 +1,10 @@
-# Installation Guide for Developers & Linux/Mac Users
-
+# Installation Guide
 Complete guide for setting up ShippingManager CoPilot from source code on Windows, Linux, and macOS.
 
 ## Windows End-Users
 
 **If you're a Windows user**, you don't need this guide! Use the portable .exe instead:
-1. Download `ShippingManagerCoPilot-v0.1.0.exe`
+1. Download `ShippingManagerCoPilot-vX.Y.Z.exe` [Get latest version here](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest)
 2. Run installer :)
 
 This guide is for **developers** and **Linux/Mac users** who need to run from source.

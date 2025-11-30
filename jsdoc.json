@@ -29,6 +29,8 @@
     "monospaceLinks": false
   },
   "docdash": {
+    "search": true,
+    "collapse": true,
     "sectionOrder": [
       "Tutorials",
       "Classes",

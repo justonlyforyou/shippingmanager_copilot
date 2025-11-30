@@ -3075,6 +3075,46 @@ export async function setRouteFilter(pairKey) {
 
     // Show route vessels panel with display name
     showRouteVesselsPanel(portPairGroup.displayName, vesselsToRender);
+  } else if (currentRouteFilter && !portPairGroup) {
+    // Historical route - filter is set but no active vessels on this route
+    // Parse port codes from pairKey (format: "portA<>portB")
+    const [portA, portB] = currentRouteFilter.split('<>');
+
+    if (portA && portB) {
+      console.log(`[Harbor Map] Historical route detected: ${portA} <> ${portB} (no active vessels)`);
+
+      // Close all other panels before showing route panel
+      await closeAllPanels();
+
+      // Filter ports to show only origin and destination
+      const routePorts = rawPorts.filter(p => p.code === portA || p.code === portB);
+
+      // Clear all markers before rendering
+      vesselClusterGroup.clearLayers();
+      portLocationClusterGroup.clearLayers();
+
+      // Render only the route ports (no vessels)
+      renderPorts(routePorts);
+      clearRoute();
+
+      // Format port names for display
+      const formatPortName = (code) => {
+        const port = rawPorts.find(p => p.code === code);
+        if (port && port.name) return port.name;
+        return code.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      };
+
+      const displayName = `${formatPortName(portA)} - ${formatPortName(portB)}`;
+
+      // Show route vessels panel with empty vessels array (will show "No vessels" message)
+      showRouteVesselsPanel(`${displayName} (Historical)`, []);
+    } else {
+      // Invalid pairKey format - fall back to showing all
+      renderVessels(vesselsToRender);
+      renderPorts(currentPorts);
+      clearRoute();
+      hideRouteVesselsPanel();
+    }
   } else {
     // No route selected - show all vessels and ports
     renderVessels(vesselsToRender);

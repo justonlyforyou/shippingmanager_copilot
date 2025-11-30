@@ -138,6 +138,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
 
     // Purchase fuel - pass the price so cost can be calculated
     const result = await gameapi.purchaseFuel(amountToBuy, prices.fuel);
+    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
 
     logger.debug(`[Auto-Rebuy Fuel] Purchase successful, API returned: newTotal=${result.newTotal.toFixed(1)}t, cost=$${result.cost.toLocaleString()}`);
 
@@ -175,6 +176,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       'Auto-Fuel',
       `${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`,
       {
+        actionTimestamp,
         amount: amountToBuy,
         price: prices.fuel,
         totalCost: result.cost,

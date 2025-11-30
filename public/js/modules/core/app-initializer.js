@@ -141,6 +141,8 @@ export async function initializeApp(apiPrefix) {
   initBroadcast();
   initAnalytics();
 
+  // Analytics lookup is built by backend on server startup
+
   // Initialize Stock Manager and IPO-related visibility
   const userHasIPO = settings.ipo === 1;
   initStockManager(settings.userId, userHasIPO);

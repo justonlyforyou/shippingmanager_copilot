@@ -148,6 +148,32 @@ export async function selectRouteVessel(vesselId) {
 export async function closeRoutePanel() {
   hideRoutePanel();
 
+  // Check if we came from analytics and should return there
+  const returnToAnalytics = localStorage.getItem('returnToAnalytics');
+  if (returnToAnalytics === 'true') {
+    localStorage.removeItem('returnToAnalytics');
+    localStorage.removeItem('harborMapRouteFilter');
+
+    // Close harbor map and reopen analytics
+    const harborMapOverlay = document.getElementById('harborMapOverlay');
+    if (harborMapOverlay) {
+      harborMapOverlay.classList.add('hidden');
+    }
+
+    const analyticsOverlay = document.getElementById('analyticsOverlay');
+    if (analyticsOverlay) {
+      analyticsOverlay.classList.remove('hidden');
+    }
+
+    // Remove fullscreen on mobile
+    if (isMobileDevice()) {
+      document.body.classList.remove('map-fullscreen');
+    }
+
+    console.log('[Route Panel] Returning to analytics');
+    return;
+  }
+
   // Clear route filter by setting dropdown to "All Routes"
   const routeSelect = document.getElementById('routeFilterSelect');
   if (routeSelect) {

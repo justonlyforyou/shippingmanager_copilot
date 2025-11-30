@@ -36,6 +36,10 @@ let syncState = {
   newEntriesThisRun: 0
 };
 
+// Short-term cache for loadStore to avoid duplicate file reads
+const FILE_CACHE_TTL = 2000; // 2 seconds
+const storeCache = new Map(); // userId -> { data, timestamp }
+
 /**
  * Get file path for user's vessel history store
  * @param {string} userId - User ID
@@ -59,11 +63,18 @@ async function ensureDir() {
 }
 
 /**
- * Load stored vessel history from disk
+ * Load stored vessel history from disk (cached for 2 seconds)
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Vessel history data
  */
 async function loadStore(userId) {
+  const now = Date.now();
+  const cached = storeCache.get(userId);
+
+  if (cached && (now - cached.timestamp) < FILE_CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const filePath = getStorePath(userId);
     const data = await fs.readFile(filePath, 'utf8');
@@ -71,6 +82,7 @@ async function loadStore(userId) {
     // Ensure all required fields exist
     if (!store.vessels) store.vessels = {};
     if (!store.departures) store.departures = [];
+    if (!store.routeHijackRisks) store.routeHijackRisks = {};
     if (!store.syncProgress) {
       store.syncProgress = {
         status: 'idle',
@@ -78,20 +90,43 @@ async function loadStore(userId) {
         vesselIds: []
       };
     }
+
+    // Migration: Add IDs to departures that don't have them
+    let migrated = 0;
+    for (const d of store.departures) {
+      if (!d.id) {
+        const vesselId = d.details?.departedVessels?.[0]?.vesselId;
+        if (vesselId && d.timestamp) {
+          d.id = generateDepartureId(vesselId, d.timestamp);
+          migrated++;
+        }
+      }
+    }
+
+    // Save if we migrated any entries
+    if (migrated > 0) {
+      logger.info(`[VesselHistoryStore] Migrated ${migrated} departures with new IDs`);
+      await saveStore(userId, store);
+    }
+
+    storeCache.set(userId, { data: store, timestamp: now });
     return store;
   } catch (err) {
     if (err.code === 'ENOENT') {
-      return {
+      const emptyStore = {
         userId,
         lastFullSync: 0,
         vessels: {},
         departures: [],
+        routeHijackRisks: {},
         syncProgress: {
           status: 'idle',
           lastVesselIndex: -1,
           vesselIds: []
         }
       };
+      storeCache.set(userId, { data: emptyStore, timestamp: now });
+      return emptyStore;
     }
     logger.error('[VesselHistoryStore] Failed to load store:', err);
     return {
@@ -99,6 +134,7 @@ async function loadStore(userId) {
       lastFullSync: 0,
       vessels: {},
       departures: [],
+      routeHijackRisks: {},
       syncProgress: {
         status: 'idle',
         lastVesselIndex: -1,
@@ -117,6 +153,8 @@ async function saveStore(userId, store) {
   await ensureDir();
   const filePath = getStorePath(userId);
   await fs.writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+  // Invalidate cache after write
+  storeCache.delete(userId);
 }
 
 /**
@@ -130,6 +168,16 @@ function parseGameDate(dateStr) {
 }
 
 /**
+ * Generate deterministic ID for a vessel history departure
+ * @param {number} vesselId - Vessel ID
+ * @param {number} timestamp - Timestamp in milliseconds
+ * @returns {string} Unique ID
+ */
+function generateDepartureId(vesselId, timestamp) {
+  return `pod3_${vesselId}_${timestamp}`;
+}
+
+/**
  * Transform vessel history entry to audit log format
  * @param {Object} historyEntry - Raw vessel history entry from API
  * @param {Object} vesselInfo - Vessel info (id, name)
@@ -138,8 +186,10 @@ function parseGameDate(dateStr) {
 function transformToAuditEntry(historyEntry, vesselInfo) {
   const timestamp = parseGameDate(historyEntry.created_at);
   const totalCargo = (historyEntry.cargo?.dry || 0) + (historyEntry.cargo?.refrigerated || 0);
+  const id = generateDepartureId(historyEntry.vessel_id, timestamp);
 
   return {
+    id,
     autopilot: 'Game Import',
     status: 'SUCCESS',
     timestamp,
@@ -347,6 +397,24 @@ async function syncVesselHistory(userId, options = {}) {
         entryCount: vesselState?.entryCount || 0
       };
 
+      // Extract hijacking risk from vessel's routes
+      const routes = historyData.vessel.routes;
+      if (routes && Array.isArray(routes)) {
+        for (const route of routes) {
+          const origin = route.origin;
+          const destination = route.destination;
+          const hijackingRisk = route.hijacking_risk;
+          if (origin && destination && hijackingRisk !== undefined && hijackingRisk !== null) {
+            const routeKey = `${origin}<>${destination}`;
+            // Store highest risk if route exists from multiple vessels
+            const existing = store.routeHijackRisks[routeKey];
+            if (existing === undefined || hijackingRisk > existing) {
+              store.routeHijackRisks[routeKey] = hijackingRisk;
+            }
+          }
+        }
+      }
+
       // Process history entries - only add new ones
       let newForThisVessel = 0;
       let latestTimestamp = newestEntryTimestamp;
@@ -466,6 +534,8 @@ async function getDepartures(userId) {
  */
 async function getDeparturesByDays(userId, days) {
   const store = await loadStore(userId);
+  // days === 0 means "all time" - no filtering
+  if (days === 0) return store.departures;
   const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
   return store.departures.filter(d => d.timestamp >= cutoff);
 }
@@ -547,6 +617,87 @@ async function clearStore(userId) {
   logger.info('[VesselHistoryStore] Store cleared');
 }
 
+// Auto-sync interval (5 minutes)
+const SYNC_INTERVAL = 5 * 60 * 1000;
+let autoSyncInterval = null;
+
+/**
+ * Start automatic background sync for vessel history
+ * @param {string} userId - User ID to sync for
+ */
+function startAutoSync(userId) {
+  if (autoSyncInterval) {
+    clearInterval(autoSyncInterval);
+  }
+
+  // Do initial sync
+  logger.info('[VesselHistoryStore] Starting initial sync...');
+  syncVesselHistory(userId).then(result => {
+    logger.info(`[VesselHistoryStore] Initial sync complete: ${result.newEntries} new departures`);
+
+    // Rebuild lookup after initial sync
+    if (result.newEntries > 0) {
+      const lookupStore = require('./lookup-store');
+      lookupStore.buildLookup(userId, 0).then(lookupResult => {
+        logger.info(`[VesselHistoryStore] Lookup rebuilt: ${lookupResult.newEntries} new, POD3=${lookupResult.matchedPod3}`);
+      }).catch(err => {
+        logger.error('[VesselHistoryStore] Failed to rebuild lookup:', err.message);
+      });
+    }
+  }).catch(err => {
+    logger.error('[VesselHistoryStore] Initial sync failed:', err.message);
+  });
+
+  // Set up recurring sync every 5 minutes
+  autoSyncInterval = setInterval(async () => {
+    try {
+      const result = await syncVesselHistory(userId);
+      if (result.newEntries > 0) {
+        logger.info(`[VesselHistoryStore] Auto-sync: ${result.newEntries} new departures`);
+
+        // Rebuild lookup after new departures
+        const lookupStore = require('./lookup-store');
+        const lookupResult = await lookupStore.buildLookup(userId, 0);
+        logger.info(`[VesselHistoryStore] Lookup rebuilt: ${lookupResult.newEntries} new, POD3=${lookupResult.matchedPod3}`);
+      }
+    } catch (err) {
+      logger.error('[VesselHistoryStore] Auto-sync failed:', err.message);
+    }
+  }, SYNC_INTERVAL);
+
+  logger.info('[VesselHistoryStore] Started auto-sync (every 5 minutes)');
+}
+
+/**
+ * Stop automatic background sync
+ */
+function stopAutoSync() {
+  if (autoSyncInterval) {
+    clearInterval(autoSyncInterval);
+    autoSyncInterval = null;
+    logger.info('[VesselHistoryStore] Stopped auto-sync');
+  }
+}
+
+/**
+ * Get stored route hijacking risks
+ * Returns a Map with route keys (origin<>destination) and their hijacking risk percentages
+ * @param {string} userId - User ID
+ * @returns {Promise<Map<string, number>>} Route hijacking risks
+ */
+async function getRouteHijackingRisks(userId) {
+  const store = await loadStore(userId);
+  const riskMap = new Map();
+
+  if (store.routeHijackRisks) {
+    for (const [routeKey, risk] of Object.entries(store.routeHijackRisks)) {
+      riskMap.set(routeKey, risk);
+    }
+  }
+
+  return riskMap;
+}
+
 module.exports = {
   syncVesselHistory,
   startBackgroundSync,
@@ -557,6 +708,10 @@ module.exports = {
   getDeparturesBefore,
   getStoreInfo,
   clearStore,
+  generateDepartureId,
+  startAutoSync,
+  stopAutoSync,
+  getRouteHijackingRisks,
   // Legacy alias
   syncAllVesselHistory: syncVesselHistory
 };

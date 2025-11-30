@@ -1075,6 +1075,22 @@ export async function getAnalyticsAll(days = 7) {
 }
 
 /**
+ * Get overview tab data only (fast load)
+ * @param {number} days - Number of days to analyze (default 7)
+ * @returns {Promise<Object>} Overview data (summary + detailedExpenses)
+ */
+export async function getAnalyticsOverview(days = 7) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/overview?days=${days}`));
+    if (!response.ok) throw new Error('Failed to fetch overview');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching overview:', error);
+    throw error;
+  }
+}
+
+/**
  * Get weekly summary
  * @param {number} weeks - Number of weeks (default 1)
  * @returns {Promise<Object>} Weekly summary data
@@ -1264,6 +1280,150 @@ export async function getTransactionTypes() {
     return await response.json();
   } catch (error) {
     console.error('[Transactions API] Error getting types:', error);
+    throw error;
+  }
+}
+
+// ============================================
+// LOOKUP STORE API (POD4)
+// ============================================
+
+/**
+ * Build/update the lookup table from all PODs
+ * @param {number} days - Number of days to process (0 = all)
+ * @returns {Promise<Object>} Build result
+ */
+export async function buildLookup(days = 0) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/build?days=${days}`), {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to build lookup');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error building lookup:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get lookup entries
+ * @param {Object} options - Query options
+ * @param {number} options.days - Number of days (0 = all)
+ * @param {number} options.limit - Max entries (default 100)
+ * @param {number} options.offset - Pagination offset
+ * @returns {Promise<Object>} Lookup entries with pagination
+ */
+export async function getLookupEntries(options = {}) {
+  try {
+    const params = new URLSearchParams();
+    if (options.days) params.set('days', options.days);
+    if (options.limit) params.set('limit', options.limit);
+    if (options.offset) params.set('offset', options.offset);
+
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/entries?${params.toString()}`));
+    if (!response.ok) throw new Error('Failed to get lookup entries');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting entries:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get income/expense totals from lookup
+ * @param {number} days - Number of days (0 = all)
+ * @returns {Promise<Object>} Totals
+ */
+export async function getLookupTotals(days = 0) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/totals?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get lookup totals');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting totals:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get breakdown by transaction type
+ * @param {number} days - Number of days (0 = all)
+ * @returns {Promise<Object>} Breakdown
+ */
+export async function getLookupBreakdown(days = 0) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/breakdown?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get lookup breakdown');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting breakdown:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get full details for a lookup entry from all PODs
+ * @param {string} lookupId - Lookup entry ID
+ * @returns {Promise<Object>} Full details
+ */
+export async function getLookupDetails(lookupId) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/details/${lookupId}`));
+    if (!response.ok) throw new Error('Failed to get lookup details');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting details:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get lookup store info
+ * @returns {Promise<Object>} Store info
+ */
+export async function getLookupInfo() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/lookup/info'));
+    if (!response.ok) throw new Error('Failed to get lookup info');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting info:', error);
+    throw error;
+  }
+}
+
+/**
+ * Rebuild lookup store (clears, syncs vessel history, rebuilds)
+ * @param {number} days - Number of days to process (0 = all)
+ * @returns {Promise<Object>} Result with sync and lookup stats
+ */
+export async function rebuildLookup(days = 0) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/rebuild?days=${days}`), {
+      method: 'POST'
+    });
+    if (!response.ok) throw new Error('Failed to rebuild lookup');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error rebuilding lookup:', error);
+    throw error;
+  }
+}
+
+/**
+ * Clear lookup store
+ * @returns {Promise<Object>} Result
+ */
+export async function clearLookup() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/lookup/clear'), {
+      method: 'DELETE'
+    });
+    if (!response.ok) throw new Error('Failed to clear lookup');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error clearing lookup:', error);
     throw error;
   }
 }

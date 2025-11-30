@@ -71,6 +71,8 @@ const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
 const transactionStore = require('./server/analytics/transaction-store');
+const lookupStore = require('./server/analytics/lookup-store');
+const vesselHistoryStore = require('./server/analytics/vessel-history-store');
 
 // Parent process monitoring - auto-shutdown if parent (Python) dies
 if (process.ppid) {
@@ -404,6 +406,17 @@ const chatBot = require('./server/chatbot');
   // Start transaction history auto-sync (every 5 minutes)
   transactionStore.startAutoSync(userId);
   logger.debug('[Transactions] Started 5-minute transaction sync');
+
+  // Start vessel history auto-sync (every 5 minutes)
+  vesselHistoryStore.startAutoSync(userId);
+  logger.debug('[VesselHistory] Started 5-minute vessel history sync');
+
+  // Build analytics lookup on startup (after transactions are synced)
+  lookupStore.buildLookup(userId, 0).then(result => {
+    logger.info(`[Analytics] Lookup built: ${result.newEntries} new, ${result.totalEntries} total, POD2=${result.matchedPod2}, POD3=${result.matchedPod3}`);
+  }).catch(err => {
+    logger.error('[Analytics] Failed to build lookup on startup:', err.message);
+  });
 
   // Initialize POI cache and start automatic refresh
   await poiRoutes.initializePOICache();

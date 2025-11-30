@@ -791,11 +791,18 @@ export async function closeVesselPanel() {
   }
 
   await deselectAll();
+
+  // Reopen route panel if route filter is still active
+  const routeSelect = document.getElementById('routeFilterSelect');
+  if (routeSelect && routeSelect.value && routeSelect.value !== 'all') {
+    routeSelect.dispatchEvent(new Event('change'));
+  }
 }
 
 // Queue for individual vessel departures
 const departureQueue = [];
 let isProcessingQueue = false;
+let autopilotWaitNotificationShown = false;
 
 /**
  * Checks if a local departure is in progress (queue not empty or processing)
@@ -832,10 +839,15 @@ async function processDepartureQueue() {
         // Handle special case: autopilot is currently departing vessels
         if (result.reason === 'depart_in_progress') {
           console.log(`[Vessel Panel] Vessel ${vesselId} queued - autopilot departure in progress`);
-          showSideNotification('Queued - waiting for autopilot to finish departing vessels', 'info');
 
-          // Wait a bit and retry
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Only show notification once per queue processing session
+          if (!autopilotWaitNotificationShown) {
+            showSideNotification('Queued - waiting for autopilot to finish departing vessels', 'info');
+            autopilotWaitNotificationShown = true;
+          }
+
+          // Wait 5 seconds before retry (don't spam the server)
+          await new Promise(resolve => setTimeout(resolve, 5000));
           departureQueue.unshift({ vesselId, resolve, reject }); // Add back to front of queue
           continue;
         }
@@ -860,6 +872,7 @@ async function processDepartureQueue() {
   }
 
   isProcessingQueue = false;
+  autopilotWaitNotificationShown = false; // Reset for next queue session
 }
 
 /**

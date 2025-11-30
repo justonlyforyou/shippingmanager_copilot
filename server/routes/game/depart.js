@@ -81,6 +81,19 @@ router.post('/depart', async (req, res) => {
     // (using broadcastToUser imported at top of file)
     const result = await autopilot.departVessels(userId, vesselIds, broadcastToUser, autopilot.autoRebuyAll, autopilot.tryUpdateAllData);
 
+    // Log all departure outcomes for debugging
+    const requestedCount = vesselIds ? vesselIds.length : 'all';
+    const departedCount = result?.departedCount ?? 0;
+    const failedCount = result?.failedCount ?? 0;
+    logger.info(`[Depart API] Result: requested=${requestedCount}, departed=${departedCount}, failed=${failedCount}, success=${result?.success}, reason=${result?.reason || 'none'}`);
+
+    // Log failed vessels with reasons for debugging
+    if (result?.failedVessels?.length > 0) {
+      result.failedVessels.forEach(v => {
+        logger.warn(`[Depart API] Failed: ${v.name} -> ${v.destination || 'N/A'} | Reason: ${v.reason}`);
+      });
+    }
+
     // LOGBOOK: Manual vessel departure (same format as Auto-Depart)
     // NOTE: Contribution data comes from individual vessels in departedVessels array
     if (result && result.success && result.departedCount > 0) {
@@ -133,6 +146,39 @@ router.post('/depart', async (req, res) => {
       }
 
       // NOTE: Harbor fees and contribution gains are already saved in autopilot.departVessels()
+    } else if (result && !result.success) {
+      // Early-exit failures (depart_in_progress, insufficient_fuel) are NOT logged to audit
+      // These happen BEFORE any vessel processing and create confusing entries
+      // The user already sees these via WebSocket notifications in real-time
+      const reasonMap = {
+        'depart_in_progress': 'Another departure operation was already running',
+        'insufficient_fuel': 'Insufficient fuel to depart',
+        'error': result.error || 'Unknown error'
+      };
+      const readableReason = reasonMap[result.reason] || result.reason || 'Unknown reason';
+      logger.warn(`[Depart API] Departure blocked: ${readableReason}`);
+      // No audit log - these pre-processing blocks are noise in the logbook
+    } else if (result && result.success && result.departedCount === 0 && result.failedCount > 0) {
+      // All requested vessels failed to depart - this is useful to log
+      logger.warn(`[Depart API] All vessels failed: ${result.failedCount} failures`);
+
+      if (vesselIds && vesselIds.length > 0 && result.failedVessels?.length > 0) {
+        // Build a readable summary with vessel names and reasons
+        const vesselSummaries = result.failedVessels.map(v => `${v.name}: ${v.reason}`);
+        const summary = vesselSummaries.join(' | ');
+
+        await auditLog(
+          userId,
+          CATEGORIES.VESSEL,
+          'Manual Depart',
+          summary,
+          {
+            failedVessels: result.failedVessels
+          },
+          'WARNING',
+          SOURCES.MANUAL
+        );
+      }
     }
 
     // Trigger Harbor Map refresh (vessels departed)

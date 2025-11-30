@@ -322,7 +322,7 @@ function attachModuleSymbols(doclets, modules) {
     });
 }
 
-function buildMemberNav(items, itemHeading, itemsSeen, linktoFn) {
+function buildMemberNav(items, itemHeading, itemsSeen, linktoFn, asListItem) {
     var nav = '';
 
     if (items && items.length) {
@@ -404,10 +404,9 @@ function buildMemberNav(items, itemHeading, itemsSeen, linktoFn) {
         });
 
         if (itemsNav !== '') {
-            if(docdash.collapse === "top") {
-                nav += '<h3 class="collapsed_header">' + itemHeading + '</h3><ul class="collapse_top">' + itemsNav + '</ul>';
-            }
-            else {
+            if (asListItem) {
+                nav += '<li class="nav-list-toggle"><a>' + itemHeading + '</a><ul style="display: none;">' + itemsNav + '</ul></li>';
+            } else {
                 nav += '<h3>' + itemHeading + '</h3><ul>' + itemsNav + '</ul>';
             }
         }
@@ -440,7 +439,7 @@ function linktoExternal(longName, name) {
  */
 
 function buildNav(members) {
-    var nav = '<h2><a href="index.html">README</a></h2>';
+    var nav = '<h3>Home</h3><ul><li><a href="index.html">README</a></li></ul>';
     var seen = {};
     var seenTutorials = {};
     var docdash = env && env.conf && env.conf.docdash || {};
@@ -459,25 +458,20 @@ function buildNav(members) {
         var ret = "";
         if (members.globals.length) {
             var globalNav = '';
-    
+
             members.globals.forEach(function(g) {
                 if ( (docdash.typedefs || g.kind !== 'typedef') && !hasOwnProp.call(seen, g.longname) ) {
                     globalNav += '<li>' + linkto(g.longname, g.name) + '</li>';
                 }
                 seen[g.longname] = true;
             });
-    
+
             if (!globalNav) {
                 // turn the heading into a link so you can actually get to the global page
-                ret += '<h3>' + linkto('global', 'Global') + '</h3>';
+                ret += '<li>' + linkto('global', 'Global') + '</li>';
             }
             else {
-                if(docdash.collapse === "top") {
-                    ret += '<h3 class="collapsed_header">Global</h3><ul class="collapse_top">' + globalNav + '</ul>';
-                }
-                else {
-                    ret += '<h3>Global</h3><ul>' + globalNav + '</ul>';
-                }
+                ret += '<li class="nav-list-toggle"><a>Global</a><ul style="display: none;">' + globalNav + '</ul></li>';
             }
         }
         return ret;
@@ -486,18 +480,74 @@ function buildNav(members) {
         'Classes', 'Modules', 'Externals', 'Events', 'Namespaces', 'Mixins', 'Tutorials', 'Interfaces', 'Global'
     ];
     var order = docdash.sectionOrder || defaultOrder;
+
+    // Split tutorials into two groups: CoPilot Tutorials and ShippingManager docs
+    var copilotTutorials = [];
+    var shippingManagerDocs = [];
+    var shippingManagerDocNames = ['03-discovered-formulars', '04-api-reference'];
+
+    if (members.tutorials) {
+        members.tutorials.forEach(function(tutorial) {
+            if (shippingManagerDocNames.includes(tutorial.name)) {
+                shippingManagerDocs.push(tutorial);
+            } else {
+                copilotTutorials.push(tutorial);
+            }
+        });
+    }
+
+    // Build ShippingManager nav
+    function buildShippingManagerNav(tutorials) {
+        if (!tutorials || !tutorials.length) return '';
+        var ret = '<h3>ShippingManager</h3><ul>';
+        tutorials.forEach(function(tutorial) {
+            var tutorialUrl = helper.tutorialToUrl(tutorial.name);
+            ret += '<li><a href="' + tutorialUrl + '">' + tutorial.title + '</a></li>';
+        });
+        ret += '</ul>';
+        return ret;
+    }
+
     var sections = {
-        Classes: buildMemberNav(members.classes, 'Classes', seen, linkto),
-        Modules: buildMemberNav(members.modules, 'Modules', {}, linkto),
-        Externals: buildMemberNav(members.externals, 'Externals', seen, linktoExternal),
-        Events: buildMemberNav(members.events, 'Events', seen, linkto),
-        Namespaces: buildMemberNav(members.namespaces, 'Namespaces', seen, linkto),
-        Mixins: buildMemberNav(members.mixins, 'Mixins', seen, linkto),
-        Tutorials: buildMemberNav(members.tutorials, 'Tutorials', seenTutorials, linktoTutorial),
-        Interfaces: buildMemberNav(members.interfaces, 'Interfaces', seen, linkto),
+        Classes: buildMemberNav(members.classes, 'Classes', seen, linkto, true),
+        Modules: buildMemberNav(members.modules, 'Modules', {}, linkto, true),
+        Externals: buildMemberNav(members.externals, 'Externals', seen, linktoExternal, true),
+        Events: buildMemberNav(members.events, 'Events', seen, linkto, true),
+        Namespaces: buildMemberNav(members.namespaces, 'Namespaces', seen, linkto, true),
+        Mixins: buildMemberNav(members.mixins, 'Mixins', seen, linkto, true),
+        Tutorials: buildMemberNav(copilotTutorials, 'Tutorials', seenTutorials, linktoTutorial),
+        ShippingManager: buildShippingManagerNav(shippingManagerDocs),
+        Interfaces: buildMemberNav(members.interfaces, 'Interfaces', seen, linkto, true),
         Global: buildMemberNavGlobal()
     };
-    order.forEach(member => nav += sections[member]);
+
+    // Dev wiki sections (everything except Tutorials and ShippingManager)
+    var devWikiSections = ['Classes', 'Modules', 'Externals', 'Events', 'Namespaces', 'Mixins', 'Interfaces', 'Global'];
+    var devWikiContent = '';
+
+    order.forEach(function(member) {
+        if (devWikiSections.includes(member) && sections[member]) {
+            // Collect dev wiki content
+            devWikiContent += sections[member];
+        }
+    });
+
+    // Add ShippingManager section first (at top)
+    if (sections.ShippingManager) {
+        nav += sections.ShippingManager;
+    }
+
+    // Add COPILOT Tutorials section (after ShippingManager)
+    if (sections.Tutorials) {
+        // Replace the section title from "Tutorials" to "COPILOT Tutorials"
+        nav += sections.Tutorials.replace('>Tutorials<', '>COPILOT Tutorials<');
+    }
+
+    // Add COPILOT Documentation collapsible section if there's content
+    if (devWikiContent) {
+        nav += '<h3>COPILOT DOCUMENTATION</h3>';
+        nav += '<ul>' + devWikiContent + '</ul>';
+    }
 
     return nav;
 }
@@ -757,11 +807,6 @@ exports.publish = function(taffyData, opts, tutorials) {
         ).concat(files),
     indexUrl);
 
-    // common nav generation, no need for templating here, we already have full html
-    if (docdash.commonNav) {
-        fs.writeFileSync(path.join(outdir, 'nav.inc.html'), view.nav, 'utf8');
-    }
-
     // set up the lists that we'll use to generate pages
     var classes = taffy(members.classes);
     var modules = taffy(members.modules);
@@ -802,7 +847,6 @@ exports.publish = function(taffyData, opts, tutorials) {
         }
     });
 
-    // TODO: move the tutorial functions to templateHelper.js
     function generateTutorial(title, tutorial, filename) {
         var tutorialData = {
             title: title,
@@ -828,4 +872,122 @@ exports.publish = function(taffyData, opts, tutorials) {
     }
 
     saveChildren(tutorials);
+
+    // Generate search index for all content (modules, classes, tutorials)
+    if (docdash.search) {
+        var searchIndex = [];
+
+        // Add README/Home - include full content for search
+        var readmeContent = opts.readme;
+        if (readmeContent) {
+            // Strip HTML tags for plain text search
+            readmeContent = readmeContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        }
+        searchIndex.push({
+            type: 'readme',
+            name: 'README',
+            longname: 'readme home',
+            url: 'index.html',
+            description: readmeContent ? readmeContent : 'Main documentation page - Home'
+        });
+
+        // Add modules
+        if (members.modules) {
+            members.modules.forEach(function(m) {
+                searchIndex.push({
+                    type: 'module',
+                    name: m.name,
+                    longname: m.longname,
+                    url: helper.longnameToUrl[m.longname],
+                    description: m.description || ''
+                });
+            });
+        }
+
+        // Add classes
+        if (members.classes) {
+            members.classes.forEach(function(c) {
+                searchIndex.push({
+                    type: 'class',
+                    name: c.name,
+                    longname: c.longname,
+                    url: helper.longnameToUrl[c.longname],
+                    description: c.description || ''
+                });
+            });
+        }
+
+        // Add namespaces
+        if (members.namespaces) {
+            members.namespaces.forEach(function(n) {
+                searchIndex.push({
+                    type: 'namespace',
+                    name: n.name,
+                    longname: n.longname,
+                    url: helper.longnameToUrl[n.longname],
+                    description: n.description || ''
+                });
+            });
+        }
+
+        // Add globals (functions, constants)
+        if (members.globals) {
+            members.globals.forEach(function(g) {
+                searchIndex.push({
+                    type: g.kind || 'global',
+                    name: g.name,
+                    longname: g.longname,
+                    url: helper.longnameToUrl[g.longname] || 'global.html',
+                    description: g.description || ''
+                });
+            });
+        }
+
+        // Add tutorials with full content for search
+        // ShippingManager tutorials (03-, 04-) get type 'shippingmanager', CoPilot tutorials (01-, 02-) get type 'tutorial'
+        function indexTutorials(node) {
+            node.children.forEach(function(child) {
+                var content = '';
+                try {
+                    // Get full content, strip HTML tags
+                    content = child.parse().replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                } catch (e) {
+                    content = '';
+                }
+                // Determine type based on tutorial name prefix
+                var tutorialType = 'tutorial';
+                if (child.name.match(/^0[3-9]-/) || child.name.match(/^[1-9][0-9]-/)) {
+                    // 03-, 04-, etc. are ShippingManager docs
+                    tutorialType = 'shippingmanager';
+                }
+                searchIndex.push({
+                    type: tutorialType,
+                    name: child.title,
+                    longname: child.name,
+                    url: helper.tutorialToUrl(child.name),
+                    description: content
+                });
+                indexTutorials(child);
+            });
+        }
+        indexTutorials(tutorials);
+
+        // Add all documented functions/methods
+        data().each(function(doclet) {
+            if (doclet.kind === 'function' && doclet.memberof) {
+                searchIndex.push({
+                    type: 'method',
+                    name: doclet.name,
+                    longname: doclet.longname,
+                    url: helper.longnameToUrl[doclet.longname],
+                    description: doclet.description || '',
+                    parent: doclet.memberof
+                });
+            }
+        });
+
+        // Write search index
+        var searchIndexPath = path.join(outdir, 'search-index.json');
+        fs.writeFileSync(searchIndexPath, JSON.stringify(searchIndex, null, 2), 'utf8');
+    }
 };

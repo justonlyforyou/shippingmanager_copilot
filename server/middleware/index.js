@@ -119,6 +119,8 @@ function setupMiddleware(app) {
   const baseDir = process.pkg ? path.join(__dirname, '..', '..') : path.join(__dirname, '..', '..');
   app.use(express.static(path.join(baseDir, 'public')));
   app.use('/data', express.static(path.join(baseDir, 'data')));
+  // Serve screenshots at /docs/screenshots/ for JSDoc documentation
+  app.use('/docs/screenshots', express.static(path.join(baseDir, 'screenshots')));
 
   // Global rate limiter
   const limiter = rateLimit(config.RATE_LIMIT);

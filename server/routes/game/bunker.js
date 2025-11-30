@@ -118,6 +118,7 @@ router.post('/purchase-fuel', express.json(), async (req, res) => {
 
     // API expects amount in tons (NOT kg) - send directly
     const data = await apiCall('/bunker/purchase-fuel', 'POST', { amount });
+    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
 
     // Broadcast bunker update to all clients (manual purchase)
     if (userId && data.user) {
@@ -153,6 +154,7 @@ router.post('/purchase-fuel', express.json(), async (req, res) => {
         'Manual Fuel Purchase',
         `+${amount}t @ ${formatCurrency(actualPricePerTon)}/t = ${formatCurrency(actualCost)}`,
         {
+          actionTimestamp,
           amount_tons: amount,
           price_per_ton: actualPricePerTon,
           total_cost: actualCost,
@@ -304,6 +306,7 @@ router.post('/purchase-co2', express.json(), async (req, res) => {
 
     // API expects amount in tons (NOT kg) - send directly
     const data = await apiCall('/bunker/purchase-co2', 'POST', { amount });
+    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
 
     // Broadcast bunker update to all clients (manual purchase)
     if (userId && data.user) {
@@ -340,6 +343,7 @@ router.post('/purchase-co2', express.json(), async (req, res) => {
         'Manual CO2 Purchase',
         `+${amount}t @ ${formatCurrency(actualPricePerTon)}/t = ${formatCurrency(actualCost)}`,
         {
+          actionTimestamp,
           amount_tons: amount,
           price_per_ton: actualPricePerTon,
           total_cost: actualCost,

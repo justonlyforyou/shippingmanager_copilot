@@ -48,6 +48,7 @@ const axios = require('axios');
 const https = require('https');
 const config = require('../config');
 const logger = require('./logger');
+const apiStatsStore = require('../analytics/api-stats-store');
 
 /**
  * User's alliance ID (null if not in alliance)
@@ -213,8 +214,9 @@ const httpsAgent = new https.Agent({
  */
 async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, retryCount = 0) {
   const maxRetries = 3;
+  const startTime = Date.now();
 
-  // Track API request
+  // Track API request (in-memory stats)
   apiStats.totalRequests++;
   apiStats.requestTimestamps.push({ time: Date.now(), endpoint: endpoint });
   const currentCount = apiStats.requestsByEndpoint.get(endpoint) || 0;
@@ -252,6 +254,11 @@ async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, re
       httpsAgent: httpsAgent,      // Use Keep-Alive agent
       timeout: timeout              // Request timeout (configurable, default 90s)
     });
+
+    // Record successful call to time-series store
+    const duration = Date.now() - startTime;
+    apiStatsStore.recordCall(endpoint, duration, true);
+
     return response.data;
   } catch (error) {
     if (error.response) {
@@ -270,6 +277,10 @@ async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, re
         logger.error('[CRITICAL] Cookie preview:', cookiePreview);
         logger.error('[CRITICAL] Cookie length:', config.SESSION_COOKIE ? config.SESSION_COOKIE.length : 0);
       }
+
+      // Record error call to time-series store
+      const duration = Date.now() - startTime;
+      apiStatsStore.recordCall(endpoint, duration, false);
 
       // Return error response with actual API error message
       return {
@@ -297,6 +308,11 @@ async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, re
 
       // Max retries reached or non-retryable error
       logger.error(`API Error: ${endpoint} - ${error.message}`);
+
+      // Record network error to time-series store
+      const duration = Date.now() - startTime;
+      apiStatsStore.recordCall(endpoint, duration, false);
+
       throw new Error(error.message);
     }
   }
@@ -679,6 +695,7 @@ function getUserCompanyName() {
 
 /**
  * Returns the current user's alliance name
+ * @function getAllianceName
  * @returns {string|null} Alliance name or null if not in alliance
  */
 function getAllianceName() {
@@ -687,6 +704,7 @@ function getAllianceName() {
 
 /**
  * Updates the cached alliance ID and name
+ * @function setAllianceId
  * @param {number|null} newAllianceId - New alliance ID or null if user left alliance
  * @param {string|null} newAllianceName - New alliance name (optional)
  */
@@ -703,6 +721,7 @@ function setAllianceId(newAllianceId, newAllianceName = null) {
  *
  * Call this periodically (e.g., in main event loop) to detect alliance switches.
  *
+ * @function checkAndUpdateAllianceId
  * @returns {Promise<boolean>} True if alliance ID changed
  *
  * @example
@@ -769,6 +788,9 @@ async function checkAndUpdateAllianceId() {
     return false;
   }
 }
+
+// Start auto-flush for API stats time-series storage
+apiStatsStore.startAutoFlush();
 
 module.exports = {
   apiCall,

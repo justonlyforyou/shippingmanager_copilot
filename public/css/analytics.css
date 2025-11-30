@@ -37,6 +37,8 @@
   outline: none;
   line-height: 20px;
   height: 20px;
+  position: relative;
+  top: -1px;
 }
 
 .analytics-emoji-btn:hover {
@@ -48,6 +50,18 @@
   background: transparent !important;
   color: inherit !important;
   outline: none;
+}
+
+/* Export button position fix */
+#analyticsExportBtn {
+  position: relative !important;
+  top: -1px !important;
+}
+
+/* Refresh button position fix */
+#analyticsRefreshBtn {
+  position: relative !important;
+  top: 1px !important;
 }
 
 /* Export button - shake animation */
@@ -117,6 +131,7 @@
 
 .messenger-window-wide {
   max-width: 750px;
+  position: relative;
 }
 
 /* ============================================
@@ -127,6 +142,7 @@
   padding: var(--spacing-8);
   overflow-y: auto;
   max-height: calc(100vh - 2px);
+  font-size: var(--font-size-13);
 }
 
 .analytics-loading {
@@ -189,11 +205,53 @@
 }
 
 /* ============================================
+   KEY METRICS ROW (Overview Tab)
+   ============================================ */
+
+.analytics-key-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-16);
+  margin-bottom: var(--spacing-16);
+}
+
+.analytics-metric {
+  background: var(--gray-900);
+  border: 1px solid var(--white-15);
+  border-radius: var(--radius-8);
+  padding: var(--spacing-12) var(--spacing-16);
+  text-align: center;
+}
+
+.analytics-metric-label {
+  font-size: var(--font-size-11);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--spacing-6);
+}
+
+.analytics-metric-value {
+  font-size: var(--font-size-24);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.analytics-metric-value.positive {
+  color: var(--color-success);
+}
+
+.analytics-metric-value.negative {
+  color: var(--color-danger);
+}
+
+/* ============================================
    EXPENSE BREAKDOWN
    ============================================ */
 
 .analytics-section {
-  margin-bottom: var(--spacing-24);
+  margin-bottom: var(--spacing-10);
 }
 
 /* Quick Summary needs extra top padding after summary cards */
@@ -264,6 +322,7 @@ h2.analytics-section-title {
   padding: 2px;
   background: var(--gray-800);
   color: var(--color-text-secondary);
+  font-size: var(--font-size-13) !important;
   font-weight: var(--font-weight-semibold);
   border-bottom: 1px solid var(--white-10);
   white-space: nowrap;
@@ -315,6 +374,7 @@ h2.analytics-section-title {
   padding: 2px;
   border-bottom: 1px solid var(--white-5);
   color: var(--color-text-primary);
+  font-size: var(--font-size-13) !important;
   text-align: center;
 }
 
@@ -345,7 +405,6 @@ h2.analytics-section-title {
 
 .analytics-table td.route {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-12);
 }
 
 .analytics-table td.warning {
@@ -389,12 +448,53 @@ h2.analytics-section-title {
   min-height: 300px;
 }
 
+.analytics-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-8);
+  height: 20px;
+}
+
+.analytics-chart-title {
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.analytics-chart-toggles {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  flex-wrap: wrap;
+  margin-top: var(--spacing-8);
+}
+
+.analytics-metrics-header {
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-8);
+  margin-top: var(--spacing-16);
+}
+
+.analytics-metrics-header #analytics-filter-name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.game-log-chart-filters {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  margin-top: var(--spacing-8);
+}
+
+/* Keep old class for backwards compatibility */
 .analytics-chart-legend {
   display: flex;
-  gap: var(--spacing-16);
-  margin-bottom: var(--spacing-12);
-  font-size: var(--font-size-12);
-  color: var(--color-text-secondary);
+  align-items: center;
+  gap: var(--spacing-4);
+  margin-bottom: var(--spacing-8);
 }
 
 .analytics-chart-legend-item {
@@ -417,12 +517,57 @@ h2.analytics-section-title {
   background: var(--color-info);
 }
 
+.analytics-chart-legend-dot.expenses {
+  background: var(--color-danger);
+}
+
+.analytics-chart-legend-dot.trips {
+  background: var(--color-warning-light);
+}
+
+/* Toggle buttons in chart header - same height as .analytics-tab-btn */
+.analytics-chart-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--spacing-4);
+  padding: 0 var(--spacing-4);
+  background: var(--gray-800-50);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  height: 18px;
+  line-height: 18px;
+}
+
+.analytics-chart-toggle:hover {
+  background: var(--gray-800-80);
+  border-color: var(--white-20);
+}
+
+.analytics-chart-toggle.active {
+  background: var(--color-info-20);
+  border-color: var(--color-info-40);
+  color: var(--color-info-light);
+}
+
+.analytics-chart-toggle.active .analytics-chart-legend-dot {
+  opacity: 1;
+}
+
+.analytics-chart-toggle:not(.active) .analytics-chart-legend-dot {
+  opacity: 0.4;
+}
+
 /* ============================================
    TAB CONTENT
    ============================================ */
 
 .analytics-tab-content {
   display: block;
+  position: relative;
 }
 
 .analytics-tab-content.hidden {
@@ -444,6 +589,45 @@ h2.analytics-section-title {
    GAME LOG TAB
    ============================================ */
 
+/* ============================================
+   LOG STORAGE BOX
+   ============================================ */
+
+.log-storage-box {
+  background: var(--gray-800-95);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-16);
+}
+
+.log-storage-title {
+  margin: 0 0 var(--spacing-8) 0;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.log-storage-stats {
+  display: flex;
+  gap: var(--spacing-20);
+}
+
+.log-storage-item {
+  display: flex;
+  gap: var(--spacing-6);
+  font-size: var(--font-size-13);
+}
+
+.log-storage-label {
+  color: var(--color-text-tertiary);
+}
+
+.log-storage-value {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Legacy game-log-header (deprecated) */
 .game-log-header {
   display: flex;
   justify-content: space-between;
@@ -590,4 +774,477 @@ h2.analytics-section-title {
     flex-direction: column;
     align-items: flex-start;
   }
+}
+
+/* ============================================
+   LOOKUP DETAILS MODAL
+   ============================================ */
+
+.lookup-details-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-black-50);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+}
+
+.lookup-details-overlay.hidden {
+  display: none;
+}
+
+.lookup-details-modal {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-8);
+  width: 550px;
+  max-width: 90vw;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.lookup-details-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--spacing-12) var(--spacing-16);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.lookup-details-header h3 {
+  margin: 0;
+  font-size: var(--font-size-14);
+  color: var(--color-text-primary);
+}
+
+.lookup-details-close {
+  background: transparent;
+  border: none;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-20);
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.lookup-details-close:hover {
+  color: var(--color-text-primary);
+}
+
+.lookup-details-summary {
+  padding: var(--spacing-12) var(--spacing-16);
+  background: var(--color-bg-tertiary);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.lookup-summary-row {
+  display: flex;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-4);
+}
+
+.lookup-summary-row:last-child {
+  margin-bottom: 0;
+}
+
+.lookup-details-pods-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-16);
+  padding: var(--spacing-12) var(--spacing-16);
+}
+
+.lookup-details-pods-full {
+  padding: 0 var(--spacing-16) var(--spacing-12);
+}
+
+.lookup-pod-section {
+  margin-bottom: var(--spacing-8);
+}
+
+.lookup-pod-section:last-child {
+  margin-bottom: 0;
+}
+
+.lookup-pod-section-wide {
+  width: 100%;
+}
+
+.lookup-pod-two-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-4) var(--spacing-24);
+}
+
+.lookup-pod-section h4 {
+  margin: 0 0 var(--spacing-8) 0;
+  font-size: var(--font-size-12);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.lookup-pod-row {
+  display: flex;
+  gap: var(--spacing-8);
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-4);
+}
+
+.lookup-pod-label {
+  color: var(--color-text-tertiary);
+  min-width: 100px;
+}
+
+.lookup-pod-empty {
+  font-size: var(--font-size-12);
+  color: var(--color-text-tertiary);
+  font-style: italic;
+}
+
+/* Clickable rows */
+.analytics-table tr.clickable-row {
+  cursor: pointer;
+}
+
+.analytics-table tr.clickable-row:hover {
+  background: var(--color-bg-hover);
+}
+
+/* ============================================
+   FULL MODAL INDEX BUILDING OVERLAY
+   ============================================ */
+
+.analytics-index-building {
+  position: absolute;
+  top: 48px;  /* Below header */
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.analytics-index-building.hidden {
+  display: none;
+}
+
+.analytics-index-building-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-16);
+  text-align: center;
+  padding: var(--spacing-32);
+}
+
+.analytics-index-building-content h3 {
+  margin: 0;
+  font-size: var(--font-size-18);
+  color: var(--color-text-primary);
+}
+
+.analytics-index-building-content p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-14);
+}
+
+.analytics-index-building-status {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-12);
+}
+
+.analytics-index-building-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--color-border-light);
+  border-top-color: var(--color-info);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+/* ============================================
+   GAME LOG BUILDING OVERLAY (deprecated)
+   ============================================ */
+
+.game-log-building-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--color-bg-secondary-95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: var(--radius-8);
+}
+
+.game-log-building-overlay.hidden {
+  display: none;
+}
+
+.game-log-building-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-16);
+  text-align: center;
+}
+
+.game-log-building-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid var(--color-border-light);
+  border-top-color: var(--color-info);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.game-log-building-text h3 {
+  margin: 0;
+  font-size: var(--font-size-16);
+  color: var(--color-text-primary);
+}
+
+.game-log-building-text p {
+  margin: var(--spacing-4) 0 0 0;
+  font-size: var(--font-size-13);
+  color: var(--color-text-tertiary);
+}
+
+/* ============================================
+   FLEET COMPOSITION (Pie Chart + Treemap)
+   ============================================ */
+
+/* Main wrapper for pie chart and treemap side by side */
+.fleet-composition-wrapper {
+  display: flex;
+  gap: var(--spacing-20);
+  margin: var(--spacing-16) 0;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Pie chart container */
+.fleet-pie-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Pie SVG container with zoom/pan */
+.fleet-pie-svg-container {
+  overflow: hidden;
+  cursor: grab;
+}
+
+.fleet-pie-svg-container:active {
+  cursor: grabbing;
+}
+
+.fleet-pie-svg {
+  transition: transform 0.1s;
+}
+
+.fleet-pie-path {
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+/* Treemap container */
+.fleet-treemap-wrapper {
+  position: relative;
+  flex: 1;
+  min-width: 300px;
+}
+
+/* Label removed - treemap height matches pie diameter */
+
+.fleet-treemap-cell {
+  cursor: pointer;
+}
+
+.fleet-treemap-cell rect {
+  transition: opacity 0.15s;
+}
+
+.fleet-treemap-cell text {
+  pointer-events: none;
+  text-shadow: 0 1px 2px var(--black-80);
+}
+
+/* Shared hover tooltip */
+.fleet-hover-tooltip {
+  position: absolute;
+  background: var(--slate-800-95);
+  border: 1px solid var(--white-20);
+  border-radius: var(--radius-4);
+  padding: var(--spacing-6) var(--spacing-10);
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.1s;
+  z-index: 100;
+  white-space: nowrap;
+}
+
+.fleet-hover-tooltip.visible {
+  opacity: 1;
+}
+
+/* Shared detail panel - centered overlay within container */
+.fleet-detail-panel {
+  position: absolute;
+  background: var(--slate-800-98);
+  border: 1px solid var(--white-20);
+  border-radius: var(--radius-6);
+  padding: var(--spacing-12);
+  font-size: var(--font-size-13);
+  color: var(--color-text-secondary);
+  display: none;
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 101;
+  box-shadow: 0 4px 12px var(--black-40);
+  width: 180px;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.fleet-detail-panel.visible {
+  display: block;
+}
+
+/* Pie chart detail panel */
+.fleet-pie-detail-panel {
+  /* Inherits centered position */
+}
+
+/* Treemap detail panel */
+.fleet-treemap-detail-panel {
+  /* Inherits centered position */
+}
+
+.fleet-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-8);
+}
+
+.fleet-detail-name {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+}
+
+/* Uses global .close-btn class from overlays.css */
+
+.fleet-detail-revenue {
+  margin-bottom: var(--spacing-10);
+  font-size: var(--font-size-12);
+}
+
+.fleet-detail-vessels-label {
+  font-size: var(--font-size-11);
+  color: var(--color-text-tertiary);
+  margin-bottom: var(--spacing-6);
+}
+
+.fleet-vessel-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-6);
+  padding: var(--spacing-4) 0;
+  border-bottom: 1px solid var(--white-10);
+}
+
+.fleet-vessel-item:last-child {
+  border-bottom: none;
+}
+
+.fleet-vessel-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--font-size-12);
+}
+
+.fleet-vessel-pin {
+  background: none;
+  border: none;
+  color: var(--color-info-light);
+  cursor: pointer;
+  padding: var(--spacing-2) var(--spacing-4);
+  font-size: var(--font-size-12);
+}
+
+.fleet-vessel-pin:hover {
+  background: var(--color-info-20);
+}
+
+/* Treemap specific overrides */
+.fleet-treemap-detail-panel .fleet-detail-name {
+  font-size: var(--font-size-12);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fleet-treemap-detail-panel .fleet-detail-revenue {
+  font-size: var(--font-size-11);
+}
+
+.fleet-treemap-detail-panel .fleet-detail-vessels-label {
+  font-size: var(--font-size-10);
+}
+
+.fleet-treemap-detail-panel .fleet-vessel-item {
+  gap: var(--spacing-4);
+  padding: var(--spacing-3) 0;
+}
+
+.fleet-treemap-detail-panel .fleet-vessel-name {
+  font-size: var(--font-size-11);
+}
+
+.fleet-treemap-detail-panel .fleet-vessel-pin {
+  padding: var(--spacing-2);
+  font-size: var(--font-size-11);
+}
+
+/* Lazy loading states for tables */
+.analytics-table-loading,
+.analytics-table-error {
+  text-align: center;
+  padding: var(--spacing-48);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-13);
+}
+
+.analytics-table-error {
+  color: var(--color-danger);
 }

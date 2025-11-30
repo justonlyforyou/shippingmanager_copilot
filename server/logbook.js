@@ -65,6 +65,20 @@ async function loadLogsFromDisk(userId) {
   try {
     const data = await fs.readFile(filePath, 'utf8');
     const logs = JSON.parse(data);
+
+    // Migration: Add IDs to entries that don't have them
+    let migrated = false;
+    for (const log of logs) {
+      if (!log.id) {
+        log.id = `log_${log.timestamp}_${crypto.randomUUID().slice(0, 8)}`;
+        migrated = true;
+      }
+    }
+    if (migrated) {
+      logger.info(`Logbook: Migrated entries with missing IDs for user ${userId}`);
+      dirtyFlags.set(userId, true);
+    }
+
     logCache.set(userId, logs);
     logger.debug(`Logbook: Loaded ${logs.length} entries for user ${userId}`);
     return logs;
@@ -143,13 +157,21 @@ async function flushAllToDisk() {
  * @returns {object} The created log entry
  */
 async function logAutopilotAction(userId, autopilot, status, summary, details = {}) {
+  // Use actionTimestamp from details if provided (for accurate matching with game transactions)
+  // Otherwise fall back to current time
+  const timestamp = details.actionTimestamp || Date.now();
+
+  // Remove actionTimestamp from details to keep it clean
+  const cleanDetails = { ...details };
+  delete cleanDetails.actionTimestamp;
+
   const logEntry = {
     id: crypto.randomUUID(),
-    timestamp: Date.now(),
+    timestamp,
     autopilot,
     status,
     summary,
-    details
+    details: cleanDetails
   };
 
   // Get logs from cache

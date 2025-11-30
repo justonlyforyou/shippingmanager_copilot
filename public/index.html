@@ -614,61 +614,81 @@
                 <h2>Business Analytics</h2>
                 <button id="analyticsCloseBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
+            <!-- Full modal overlay for building index - covers everything below header -->
+            <div id="analyticsIndexBuilding" class="analytics-index-building hidden">
+                <div class="analytics-index-building-content">
+                    <div class="analytics-index-building-spinner"></div>
+                    <h3>Building Transaction Index</h3>
+                    <p>Please wait while the transaction data is being indexed...</p>
+                    <p class="analytics-index-building-status" id="analyticsIndexStatus">This may take a few minutes on first run.</p>
+                </div>
+            </div>
             <div class="analytics-tabs">
                 <button class="analytics-tab-btn active" data-tab="overview">Overview</button>
                 <button class="analytics-tab-btn" data-tab="game-log">Game Log</button>
-                <button class="analytics-tab-btn" data-tab="expenses">Expenses</button>
                 <button class="analytics-tab-btn" data-tab="vessels">Vessels</button>
                 <button class="analytics-tab-btn" data-tab="routes">Routes</button>
-                <button class="analytics-tab-btn" data-tab="trend">Trend</button>
                 <div class="analytics-controls">
                     <select id="analyticsPeriodSelect" class="logbook-filter-select">
-                        <option value="1">Today</option>
-                        <option value="7" selected>Last 7 Days</option>
-                        <option value="30">Last 30 Days</option>
-                        <option value="90">Last 90 Days</option>
-                        <option value="180">Last 180 Days</option>
-                        <option value="360">Last Year</option>
+                        <option value="1">24h</option>
+                        <option value="7" selected>7 Days</option>
+                        <option value="30">30 Days</option>
+                        <option value="90">90 Days</option>
+                        <option value="180">6 Months</option>
+                        <option value="365">1 Year</option>
+                        <option value="0">All Time</option>
                     </select>
                     <button id="analyticsRefreshBtn" class="analytics-emoji-btn" title="Refresh">&#x21BB;</button>
-                    <button id="analyticsExportBtn" class="analytics-emoji-btn" title="Export">&#x1F4BE;</button>
+                    <div class="logbook-export-dropdown">
+                        <button id="analyticsExportBtn" class="analytics-emoji-btn" title="Export">&#x1F4BE;</button>
+                        <div id="analyticsExportMenu" class="logbook-export-menu hidden">
+                            <button id="analyticsExportTxt" class="logbook-export-menu-item">TXT</button>
+                            <button id="analyticsExportCsv" class="logbook-export-menu-item">CSV</button>
+                            <button id="analyticsExportJson" class="logbook-export-menu-item">JSON</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="analyticsLoading" class="analytics-loading hidden">
                 Loading analytics data...
             </div>
             <div id="analyticsContent" class="analytics-content hidden">
-                <!-- Game Log Tab (Official Game Transactions) -->
+                <!-- Game Log Tab (Unified Lookup from all PODs) -->
                 <div id="analytics-game-log" class="analytics-tab-content hidden">
                     <div class="analytics-section">
-                        <div class="game-log-header">
-                            <div class="game-log-info" id="game-log-info">
-                                <span class="game-log-info-item">
-                                    <span class="game-log-label">Stored:</span>
-                                    <span id="game-log-total">-</span> transactions
+                        <div class="log-storage-box">
+                            <h2 class="log-storage-title">Log Storage Data</h2>
+                            <div class="log-storage-stats">
+                                <span class="log-storage-item">
+                                    <span class="log-storage-label">Entries:</span>
+                                    <span class="log-storage-value" id="game-log-total">-</span>
                                 </span>
-                                <span class="game-log-info-item">
-                                    <span class="game-log-label">Span:</span>
-                                    <span id="game-log-span">-</span>
+                                <span class="log-storage-item">
+                                    <span class="log-storage-label">Span:</span>
+                                    <span class="log-storage-value" id="game-log-span">-</span>
                                 </span>
-                                <span class="game-log-info-item">
-                                    <span class="game-log-label">Last Sync:</span>
-                                    <span id="game-log-sync">-</span>
+                                <span class="log-storage-item">
+                                    <span class="log-storage-label">Last Build:</span>
+                                    <span class="log-storage-value" id="game-log-sync">-</span>
                                 </span>
                             </div>
-                            <button id="game-log-sync-btn" class="vessel-filter-btn">Sync from Game</button>
                         </div>
                     </div>
                     <div class="analytics-section">
-                        <h2 class="analytics-section-title">Transaction Summary</h2>
-                        <div id="game-log-summary" class="game-log-summary-grid"></div>
+                        <div class="analytics-chart-container" id="game-log-chart-container"></div>
                     </div>
                     <div class="analytics-section">
-                        <h2 class="analytics-section-title">Transaction Details</h2>
+                        <h2 class="analytics-section-title">Breakdown by Type</h2>
                         <div class="game-log-filter">
+                            <label>Category: </label>
+                            <select id="game-log-category-filter">
+                                <option value="">All</option>
+                                <option value="INCOME">Income</option>
+                                <option value="EXPENSE">Expense</option>
+                            </select>
                             <label>Type: </label>
                             <select id="game-log-type-filter">
-                                <option value="">All Types</option>
+                                <option value="">All</option>
                             </select>
                         </div>
                         <div class="analytics-table-container">
@@ -677,9 +697,9 @@
                                     <tr>
                                         <th>Type</th>
                                         <th class="num">Count</th>
-                                        <th class="num">Income</th>
-                                        <th class="num">Expense</th>
-                                        <th class="num">Net</th>
+                                        <th class="num">Total</th>
+                                        <th class="num">%</th>
+                                        <th>Category</th>
                                     </tr>
                                 </thead>
                                 <tbody id="game-log-tbody"></tbody>
@@ -687,7 +707,7 @@
                         </div>
                     </div>
                     <div class="analytics-section">
-                        <h2 class="analytics-section-title">Raw Transactions</h2>
+                        <h2 class="analytics-section-title">Transactions</h2>
                         <div class="game-log-raw-header">
                             <span class="game-log-info-item">
                                 <span id="game-log-raw-count">0</span> / <span id="game-log-raw-total">0</span> loaded
@@ -698,8 +718,9 @@
                                 <thead>
                                     <tr>
                                         <th data-sort="time">Date</th>
-                                        <th data-sort="context">Type</th>
+                                        <th data-sort="type">Type</th>
                                         <th class="num" data-sort="cash">Amount</th>
+                                        <th>Category</th>
                                     </tr>
                                 </thead>
                                 <tbody id="game-log-raw-tbody"></tbody>
@@ -712,58 +733,55 @@
                 </div>
                 <!-- Overview Tab -->
                 <div id="analytics-overview" class="analytics-tab-content">
-                    <div class="analytics-summary-grid">
-                        <div class="analytics-card">
-                            <div class="analytics-card-label">Revenue</div>
-                            <div class="analytics-card-value" id="analytics-revenue">-</div>
+                    <!-- Trend Chart at top -->
+                    <div class="analytics-chart-container" id="analytics-chart-container">
+                        <div class="analytics-chart-legend">
+                            <span class="analytics-chart-legend-item">
+                                <span class="analytics-chart-legend-dot revenue"></span>
+                                Revenue
+                            </span>
+                            <span class="analytics-chart-legend-item">
+                                <span class="analytics-chart-legend-dot profit"></span>
+                                Profit
+                            </span>
                         </div>
-                        <div class="analytics-card">
-                            <div class="analytics-card-label">Expenses</div>
-                            <div class="analytics-card-value" id="analytics-expenses">-</div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-card-label">Profit</div>
-                            <div class="analytics-card-value" id="analytics-profit">-</div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-card-label">Margin</div>
-                            <div class="analytics-card-value" id="analytics-margin">-</div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-card-label">Trips</div>
-                            <div class="analytics-card-value" id="analytics-trips">-</div>
-                        </div>
-                        <div class="analytics-card">
-                            <div class="analytics-card-label">Avg Fuel Price</div>
-                            <div class="analytics-card-value" id="analytics-avg-fuel">-</div>
-                        </div>
-                        <!-- Quick Summary cards injected here -->
-                        <div id="analytics-quick-summary"></div>
                     </div>
-                </div>
-                <!-- Expenses Tab -->
-                <div id="analytics-expenses" class="analytics-tab-content hidden">
-                    <div class="analytics-section">
-                        <h2 class="analytics-section-title">Expense Breakdown</h2>
-                        <div class="analytics-table-container">
-                            <table class="analytics-table">
-                                <thead>
-                                    <tr>
-                                        <th>Category</th>
-                                        <th class="num">Total</th>
-                                        <th class="num">%</th>
-                                        <th class="num">Auto</th>
-                                        <th class="num">Manual</th>
-                                        <th class="num">Count</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="analytics-expenses-tbody"></tbody>
-                            </table>
+                    <!-- Key Metrics Section -->
+                    <div class="analytics-metrics-header">
+                        <span>Summary filtered by </span><span id="analytics-filter-name">Last 7 Days</span>
+                    </div>
+                    <div class="analytics-key-metrics">
+                        <div class="analytics-metric">
+                            <div class="analytics-metric-label">Revenue</div>
+                            <div class="analytics-metric-value positive" id="analytics-revenue">-</div>
+                        </div>
+                        <div class="analytics-metric">
+                            <div class="analytics-metric-label">Expenses</div>
+                            <div class="analytics-metric-value negative" id="analytics-expenses">-</div>
+                        </div>
+                        <div class="analytics-metric">
+                            <div class="analytics-metric-label">Profit</div>
+                            <div class="analytics-metric-value" id="analytics-profit">-</div>
+                        </div>
+                        <div class="analytics-metric">
+                            <div class="analytics-metric-label">Margin</div>
+                            <div class="analytics-metric-value" id="analytics-margin">-</div>
                         </div>
                     </div>
                 </div>
                 <!-- Vessels Tab -->
                 <div id="analytics-vessels" class="analytics-tab-content hidden">
+                    <div id="analytics-vessels-loading" class="analytics-loading">Loading vessel data...</div>
+                    <div id="analytics-vessels-content" class="hidden">
+                    <div class="analytics-section">
+                        <div class="analytics-chart-container" id="vessels-revenue-chart-container"></div>
+                    </div>
+                    <div class="analytics-section">
+                        <div class="analytics-chart-container" id="vessels-composition-chart-container"></div>
+                    </div>
+                    <div class="analytics-section">
+                        <div class="analytics-chart-container" id="vessels-utilization-chart-container"></div>
+                    </div>
                     <div class="analytics-table-container">
                         <table class="analytics-table">
                             <thead>
@@ -780,38 +798,29 @@
                             <tbody id="analytics-vessels-tbody"></tbody>
                         </table>
                     </div>
+                    </div>
                 </div>
                 <!-- Routes Tab -->
                 <div id="analytics-routes" class="analytics-tab-content hidden">
+                    <div id="analytics-routes-loading" class="analytics-loading">Loading route data...</div>
+                    <div id="analytics-routes-content" class="hidden">
                     <div class="analytics-table-container">
                         <table class="analytics-table">
                             <thead>
                                 <tr>
                                     <th>Route</th>
+                                    <th class="num">Vessels</th>
                                     <th class="num">Trips</th>
                                     <th class="num">Revenue</th>
                                     <th class="num">Avg/Trip</th>
+                                    <th class="num">$/nm</th>
+                                    <th class="num">Hijack %</th>
                                     <th class="num">Harbor Fee %</th>
-                                    <th class="num">Vessels</th>
                                 </tr>
                             </thead>
                             <tbody id="analytics-routes-tbody"></tbody>
                         </table>
                     </div>
-                </div>
-                <!-- Trend Tab -->
-                <div id="analytics-trend" class="analytics-tab-content hidden">
-                    <div class="analytics-chart-container" id="analytics-chart-container">
-                        <div class="analytics-chart-legend">
-                            <span class="analytics-chart-legend-item">
-                                <span class="analytics-chart-legend-dot revenue"></span>
-                                Revenue
-                            </span>
-                            <span class="analytics-chart-legend-item">
-                                <span class="analytics-chart-legend-dot profit"></span>
-                                Profit
-                            </span>
-                        </div>
                     </div>
                 </div>
             </div>

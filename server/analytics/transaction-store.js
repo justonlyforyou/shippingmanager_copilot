@@ -19,6 +19,19 @@ const DATA_DIR = isPkg
   ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'transactions')
   : path.join(__dirname, '../../userdata/transactions');
 
+// Short-term cache for loadStore to avoid duplicate file reads
+const FILE_CACHE_TTL = 2000; // 2 seconds
+const storeCache = new Map(); // userId -> { data, timestamp }
+
+/**
+ * Generate deterministic ID for a transaction
+ * @param {Object} transaction - Transaction object with time, context, cash
+ * @returns {string} Unique ID
+ */
+function generateTransactionId(transaction) {
+  return `pod1_${transaction.time}_${transaction.context}_${transaction.cash}`;
+}
+
 /**
  * Get file path for user's transaction store
  * @param {string} userId - User ID
@@ -42,23 +55,51 @@ async function ensureDir() {
 }
 
 /**
- * Load stored transactions from disk
+ * Load stored transactions from disk (cached for 2 seconds)
+ * Migrates old entries without IDs by generating them
  * @param {string} userId - User ID
  * @returns {Promise<Object>} Transaction data
  */
 async function loadStore(userId) {
+  const now = Date.now();
+  const cached = storeCache.get(userId);
+
+  if (cached && (now - cached.timestamp) < FILE_CACHE_TTL) {
+    return cached.data;
+  }
+
   try {
     const filePath = getStorePath(userId);
     const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
+    const store = JSON.parse(data);
+
+    // Migration: Add IDs to transactions that don't have them
+    let migrated = 0;
+    for (const t of store.transactions) {
+      if (!t.id) {
+        t.id = generateTransactionId(t);
+        migrated++;
+      }
+    }
+
+    // Save if we migrated any entries
+    if (migrated > 0) {
+      logger.info(`[TransactionStore] Migrated ${migrated} transactions with new IDs`);
+      await saveStore(userId, store);
+    }
+
+    storeCache.set(userId, { data: store, timestamp: now });
+    return store;
   } catch (err) {
     if (err.code === 'ENOENT') {
       // File doesn't exist yet
-      return {
+      const emptyStore = {
         userId,
         lastSync: 0,
         transactions: []
       };
+      storeCache.set(userId, { data: emptyStore, timestamp: now });
+      return emptyStore;
     }
     logger.error('[TransactionStore] Failed to load store:', err);
     return {
@@ -78,6 +119,8 @@ async function saveStore(userId, store) {
   await ensureDir();
   const filePath = getStorePath(userId);
   await fs.writeFile(filePath, JSON.stringify(store, null, 2), 'utf8');
+  // Invalidate cache after write
+  storeCache.delete(userId);
 }
 
 /**
@@ -122,6 +165,8 @@ async function syncTransactions(userId) {
   for (const transaction of apiTransactions) {
     const key = `${transaction.time}-${transaction.context}-${transaction.cash}`;
     if (!existingSet.has(key)) {
+      // Add ID to new transaction
+      transaction.id = generateTransactionId(transaction);
       store.transactions.push(transaction);
       existingSet.add(key);
       newCount++;
@@ -156,6 +201,8 @@ async function getTransactions(userId) {
  */
 async function getTransactionsByDays(userId, days) {
   const store = await loadStore(userId);
+  // days === 0 means "all time" - no filtering
+  if (days === 0) return store.transactions;
   const cutoff = Math.floor(Date.now() / 1000) - (days * 24 * 60 * 60);
   return store.transactions.filter(t => t.time >= cutoff);
 }
@@ -301,6 +348,11 @@ function startAutoSync(userId) {
       const result = await syncTransactions(userId);
       if (result.synced > 0) {
         logger.info(`[TransactionStore] Auto-sync: ${result.synced} new transactions`);
+
+        // Rebuild lookup after new transactions
+        const lookupStore = require('./lookup-store');
+        const lookupResult = await lookupStore.buildLookup(userId, 0);
+        logger.info(`[TransactionStore] Lookup rebuilt: ${lookupResult.newEntries} new, POD2=${lookupResult.matchedPod2}`);
       }
     } catch (err) {
       logger.error('[TransactionStore] Auto-sync failed:', err.message);
@@ -330,5 +382,6 @@ module.exports = {
   getTransactionTypes,
   getStoreInfo,
   startAutoSync,
-  stopAutoSync
+  stopAutoSync,
+  generateTransactionId
 };

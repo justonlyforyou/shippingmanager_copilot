@@ -48,7 +48,7 @@ p, ul, ol, blockquote {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Montserrat', sans-serif;
+  font-family: Montserrat, sans-serif;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -67,7 +67,7 @@ h1.page-title {
   font-size: 48px;
   margin: 1em 30px;
   line-height: 100%;
-  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 h2 {
@@ -107,13 +107,13 @@ h4.name a:hover {
 h5, .container-overview .subsection-title {
   font-size: 120%;
   letter-spacing: -0.01em;
-  margin: 8px 0 3px 0;
+  margin: 8px 0 3px;
 }
 
 h6 {
   font-size: 100%;
   letter-spacing: -0.01em;
-  margin: 6px 0 3px 0;
+  margin: 6px 0 3px;
   font-style: italic;
 }
 
@@ -142,7 +142,7 @@ h6 {
 .usertext h4 {
   font-family: "Source Sans Pro";
   font-size: 14px;
-  margin: 0 0 0;
+  margin: 0;
   font-weight: 400;
 }
 
@@ -216,25 +216,42 @@ nav {
   float: left;
   display: block;
   width: 250px;
+  min-width: 250px;
+  max-width: 250px;
   background: #fff;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   position: fixed;
   height: 100%;
 }
 
 nav #nav-search{
-    width: 210px;
-    height: 30px;
-    padding: 5px 10px;
-    font-size: 12px;
+    width: 100%;
+    height: auto;
+    padding: 6px 28px 6px 8px;
+    font-size: 13px;
     line-height: 1.5;
+    margin: 0;
+    box-sizing: border-box;
     border-radius: 3px;
-    margin-right: 20px;
-    margin-top: 20px;
+    background: #2a2a2a !important;
+    border: 1px solid #404040;
+    color: #e0e0e0 !important;
+}
+
+nav #nav-search:focus,
+nav #nav-search:active,
+nav #nav-search:hover {
+    background: #2a2a2a !important;
+    color: #e0e0e0 !important;
+}
+
+nav #nav-search::placeholder {
+    color: #888;
 }
 
 nav.wrap a{
-    word-wrap: break-word;
+    overflow-wrap: break-word;
 }
 
 nav h3 {
@@ -264,7 +281,7 @@ nav ul {
 
 nav ul a,
 nav ul a:active {
-  font-family: 'Montserrat', sans-serif;
+  font-family: Montserrat, sans-serif;
   line-height: 18px;
   padding: 0;
   display: block;
@@ -286,8 +303,8 @@ nav > ul > li > a {
 }
 
 nav ul ul a {
-  color: hsl(207, 1%, 60%);
-  border-left: 1px solid hsl(207, 10%, 86%);
+  color: hsl(207deg, 1%, 60%);
+  border-left: 1px solid hsl(207deg, 10%, 86%);
 }
 
 nav ul ul a,
@@ -297,7 +314,7 @@ nav ul ul a:active {
 
 nav h2 {
    font-size: 13px;
-   margin: 10px 0 0 0;
+   margin: 10px 0 0;
    padding: 0;
 }
 
@@ -307,7 +324,7 @@ nav > h2 > a {
 }
 
 footer {
-  color: hsl(0, 0%, 28%);
+  color: hsl(0deg, 0%, 28%);
   margin-left: 250px;
   display: block;
   padding: 15px;
@@ -436,9 +453,9 @@ footer {
 
 .prettyprint.linenums {
   padding-left: 70px;
-  -webkit-user-select: none;
-  -moz-user-select: none;
-  -ms-user-select: none;
+  user-select: none;
+  user-select: none;
+  user-select: none;
   user-select: none;
 }
 
@@ -455,16 +472,16 @@ footer {
 }
 
 .prettyprint.linenums li * {
-   -webkit-user-select: text;
-   -moz-user-select: text;
-   -ms-user-select: text;
+   user-select: text;
+   user-select: text;
+   user-select: text;
    user-select: text;
 }
 
-.prettyprint.linenums li code:empty:after {
+.prettyprint.linenums li code:empty::after {
   content:"";
   display:inline-block;
-  width:0px;
+  width:0;
 }
 
 table {
@@ -472,14 +489,14 @@ table {
   border: 1px solid #ddd;
   border-collapse: collapse;
   border-radius: 3px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  box-shadow: 0 1px 3px rgb(0,0,0,0.1);
   width: 100%;
   font-size: 14px;
   margin: 1em 0;
 }
 
 td, th {
-   margin: 0px;
+   margin: 0;
    text-align: left;
    vertical-align: top;
    padding: 10px;
@@ -544,26 +561,31 @@ span.param-type, .params td .param-type, .param-type dd {
   padding: 2.0625rem 1.5rem;
   transition: 0.25s;
   cursor: pointer;
-  -webkit-user-select: none;
-     -moz-user-select: none;
-      -ms-user-select: none;
+  user-select: none;
+     user-select: none;
+      user-select: none;
           user-select: none;
   opacity: .8;
 }
-.navicon-button .navicon:before, .navicon-button .navicon:after {
+
+.navicon-button .navicon::before, .navicon-button .navicon::after {
   transition: 0.25s;
 }
+
 .navicon-button:hover {
   transition: 0.5s;
   opacity: 1;
 }
-.navicon-button:hover .navicon:before, .navicon-button:hover .navicon:after {
+
+.navicon-button:hover .navicon::before, .navicon-button:hover .navicon::after {
   transition: 0.25s;
 }
-.navicon-button:hover .navicon:before {
+
+.navicon-button:hover .navicon::before {
   top: .825rem;
 }
-.navicon-button:hover .navicon:after {
+
+.navicon-button:hover .navicon::after {
   top: -.825rem;
 }
 
@@ -576,7 +598,8 @@ span.param-type, .params td .param-type, .param-type dd {
   transition: 0.3s;
   border-radius: 2.5rem;
 }
-.navicon:before, .navicon:after {
+
+.navicon::before, .navicon::after {
   display: block;
   content: "";
   height: .3125rem;
@@ -587,27 +610,29 @@ span.param-type, .params td .param-type, .param-type dd {
   transition: 0.3s 0.25s;
   border-radius: 1rem;
 }
-.navicon:before {
+
+.navicon::before {
   top: .625rem;
 }
-.navicon:after {
+
+.navicon::after {
   top: -.625rem;
 }
 
 /* open */
-.nav-trigger:checked + label:not(.steps) .navicon:before,
-.nav-trigger:checked + label:not(.steps) .navicon:after {
+.nav-trigger:checked + label:not(.steps) .navicon::before,
+.nav-trigger:checked + label:not(.steps) .navicon::after {
   top: 0 !important;
 }
 
-.nav-trigger:checked + label .navicon:before,
-.nav-trigger:checked + label .navicon:after {
+.nav-trigger:checked + label .navicon::before,
+.nav-trigger:checked + label .navicon::after {
   transition: 0.5s;
 }
 
 /* Minus */
 .nav-trigger:checked + label {
-  -webkit-transform: scale(0.75);
+  transform: scale(0.75);
           transform: scale(0.75);
 }
 
@@ -617,22 +642,22 @@ span.param-type, .params td .param-type, .param-type dd {
   background: transparent;
 }
 
-.nav-trigger:checked + label.plus .navicon:before,
-.nav-trigger:checked + label.x .navicon:before {
-  -webkit-transform: rotate(-45deg);
+.nav-trigger:checked + label.plus .navicon::before,
+.nav-trigger:checked + label.x .navicon::before {
+  transform: rotate(-45deg);
           transform: rotate(-45deg);
   background: #FFF;
 }
 
-.nav-trigger:checked + label.plus .navicon:after,
-.nav-trigger:checked + label.x .navicon:after {
-  -webkit-transform: rotate(45deg);
+.nav-trigger:checked + label.plus .navicon::after,
+.nav-trigger:checked + label.x .navicon::after {
+  transform: rotate(45deg);
           transform: rotate(45deg);
   background: #FFF;
 }
 
 .nav-trigger:checked + label.plus {
-  -webkit-transform: scale(0.75) rotate(45deg);
+  transform: scale(0.75) rotate(45deg);
           transform: scale(0.75) rotate(45deg);
 }
 
@@ -659,7 +684,7 @@ span.param-type, .params td .param-type, .param-type dd {
   right: 0;
   width: 100%;
   height: 100%;
-  background: hsla(0, 0%, 0%, 0.5);
+  background: hsl(0deg, 0%, 0%, 0.5);
   z-index: 1;
 }
 
@@ -667,12 +692,13 @@ span.param-type, .params td .param-type, .param-type dd {
 .level-hide {
     display: none;
 }
+
 html[data-search-mode] .level-hide {
     display: block;
 }
 
 
-@media only screen and (max-width: 680px) {
+@media only screen and (width <= 680px) {
   body {
     overflow-x: hidden;
   }
@@ -729,7 +755,7 @@ html[data-search-mode] .level-hide {
 }
 
 @font-face {
-  font-family: 'Montserrat';
+  font-family: Montserrat;
   font-style: normal;
   font-weight: 400;
   src: url('../fonts/Montserrat/Montserrat-Regular.eot'); /* IE9 Compat Modes */
@@ -740,7 +766,7 @@ html[data-search-mode] .level-hide {
 }
 
 @font-face {
-  font-family: 'Montserrat';
+  font-family: Montserrat;
   font-style: normal;
   font-weight: 700;
   src: url('../fonts/Montserrat/Montserrat-Bold.eot'); /* IE9 Compat Modes */
@@ -773,4 +799,143 @@ html[data-search-mode] .level-hide {
     font-weight: 300;
     font-style: normal;
 
+}
+
+/* Expandable list items in COPILOT DOCUMENTATION */
+.nav-list-toggle > a {
+  cursor: pointer;
+}
+
+.nav-list-toggle > a::before {
+  content: '+ ';
+}
+
+.nav-list-toggle.expanded > a::before {
+  content: '- ';
+}
+
+/* Highlight current page in nav */
+.nav-current {
+  font-weight: bold;
+  color: #60a5fa !important;
+}
+
+/* Section toggle indicator */
+nav h3 {
+  cursor: pointer;
+  user-select: none;
+}
+
+nav h3:hover {
+  background-color: rgb(255, 255, 255, 0.05);
+}
+
+/* Search Results */
+#search-results {
+  font-size: 13px;
+  position: relative;
+  z-index: 100;
+}
+
+.search-result-item {
+  display: block;
+  padding: 8px 12px;
+  border-bottom: 1px solid #333;
+  color: #e0e0e0;
+  text-decoration: none;
+  cursor: pointer;
+  position: relative;
+  z-index: 10;
+}
+
+.search-result-item:hover {
+  background-color: #333;
+}
+
+.search-result-item:last-child {
+  border-bottom: none;
+}
+
+.search-result-type {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-right: 8px;
+  text-transform: uppercase;
+  font-weight: bold;
+  pointer-events: none;
+}
+
+.search-type-module {
+  background-color: #2563eb;
+  color: white;
+}
+
+.search-type-class {
+  background-color: #7c3aed;
+  color: white;
+}
+
+.search-type-tutorial {
+  background-color: #059669;
+  color: white;
+}
+
+.search-type-shippingmanager {
+  background-color: #0284c7;
+  color: white;
+}
+
+.search-type-readme {
+  background-color: #6b7280;
+  color: white;
+}
+
+.search-type-method {
+  background-color: #d97706;
+  color: white;
+}
+
+.search-type-namespace {
+  background-color: #dc2626;
+  color: white;
+}
+
+.search-type-function,
+.search-type-global {
+  background-color: #6b7280;
+  color: white;
+}
+
+.search-result-name {
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.search-result-desc {
+  display: block;
+  font-size: 11px;
+  color: #888;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+.search-no-results {
+  padding: 12px;
+  color: #888;
+  text-align: center;
+  font-style: italic;
+}
+
+/* Search highlight on target page */
+.search-highlight {
+  background-color: #fbbf24;
+  color: #000;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-weight: bold;
 }

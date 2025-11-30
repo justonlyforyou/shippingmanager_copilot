@@ -788,6 +788,26 @@ router.post('/hijacking/pay', express.json(), async (req, res) => {
     const cashBefore = caseBeforePay?.user?.cash;
     const expectedAmount = caseBeforePay?.data?.requested_amount;
 
+    // Get vessel info from messenger (hijacking chats contain vessel_name)
+    let vesselName = null;
+    let userVesselId = null;
+    let dangerZone = null;
+    try {
+      const chatsResponse = await apiCall('/messenger/get-chats', 'POST', {});
+      const chats = chatsResponse?.data || [];
+      const hijackChat = chats.find(c =>
+        c.subject === 'vessel_got_hijacked' &&
+        c.values?.case_id === case_id
+      );
+      if (hijackChat?.values) {
+        vesselName = hijackChat.values.vessel_name;
+        userVesselId = hijackChat.values.user_vessel_id;
+        dangerZone = hijackChat.values.tr_danger_zone;
+      }
+    } catch (chatErr) {
+      logger.warn(`[Hijacking Payment] Could not fetch vessel info from messenger: ${chatErr.message}`);
+    }
+
     // Execute payment
     const data = await apiCall('/hijacking/pay', 'POST', { case_id });
 
@@ -803,13 +823,17 @@ router.post('/hijacking/pay', express.json(), async (req, res) => {
     if (userId && actualPaid > 0) {
       const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
 
+      const vesselDisplay = vesselName ? ` for ${vesselName}` : '';
       await auditLog(
         userId,
         CATEGORIES.HIJACKING,
         'Manual Pay Ransom',
-        `Paid ${formatCurrency(actualPaid)} ransom for Case #${case_id}`,
+        `Paid ${formatCurrency(actualPaid)} ransom${vesselDisplay} (Case #${case_id})`,
         {
           case_id,
+          vessel_name: vesselName,
+          user_vessel_id: userVesselId,
+          danger_zone: dangerZone,
           amount_paid: actualPaid,
           expected_amount: expectedAmount,
           cash_before: cashBefore,
@@ -844,6 +868,8 @@ router.post('/hijacking/pay', express.json(), async (req, res) => {
         history: historyData,
         autopilot_resolved: false,  // Manual payment = not autopilot
         resolved_at: resolvedAt || Date.now() / 1000,
+        vessel_name: vesselName,
+        user_vessel_id: userVesselId,
         payment_verification: {
           verified: verified,
           expected_amount: expectedAmount,

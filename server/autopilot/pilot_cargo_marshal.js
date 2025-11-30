@@ -525,13 +525,18 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
           // Check if departure failed
           if (result.success === false) {
-            // SPECIAL CASE: Vessel already departed
+            // SPECIAL CASE: Vessel already departed (race condition)
             if (result.error === 'Vessel not found or status invalid') {
-              logger.debug(`[Depart] Vessel ${vessel.name} was already departed (race condition - ignoring)`);
+              logger.warn(`[Depart] Vessel ${vessel.name} was already departed by another process (race condition)`);
+              failedVessels.push({
+                name: vessel.name,
+                destination: destination,
+                reason: 'Already departed (race condition with autopilot or game)'
+              });
               continue;
             }
 
-            // SPECIAL CASE: CO2 "errors"
+            // SPECIAL CASE: CO2 "errors" - vessel was actually sent
             if (result.errorMessage && (result.errorMessage.toLowerCase().includes('co2') ||
                                        result.errorMessage.toLowerCase().includes('emission'))) {
               logger.debug(`[Depart] ${vessel.name} departed with CO2 warning - vessel sent but no stats available, skipping notification`);
@@ -576,8 +581,14 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             continue;
           }
 
-          // Check for silent failures
+          // Check for silent failures (API returned success but no data)
           if (result.income === 0 && result.fuelUsed === 0) {
+            logger.warn(`[Depart] ${vessel.name}: Silent failure - $0 income, 0 fuel used (API returned no data)`);
+            failedVessels.push({
+              name: vessel.name,
+              destination: destination,
+              reason: 'Silent failure - API returned no departure data'
+            });
             continue;
           }
 
@@ -632,6 +643,9 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           }
 
           // Successfully departed
+          // Capture timestamp immediately after API response
+          const departedAt = Date.now();
+
           const vesselData = {
             vesselId: vessel.id,
             name: result.vesselName,
@@ -650,6 +664,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             fuelUsed: result.fuelUsed,
             co2Used: result.co2Used,
             contributionGained: contributionGained,  // Individual contribution for this vessel
+            departedAt,  // Timestamp when API confirmed departure
             // Include detailed cargo breakdown
             teuDry: result.teuDry,
             teuRefrigerated: result.teuRefrigerated,
@@ -666,7 +681,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
           // Save all trip data for vessel history display
           // Use current timestamp (vessel_history created_at will match this closely)
-          const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          const timestamp = new Date(departedAt).toISOString().slice(0, 19).replace('T', ' ');
           await saveTripData(userId, vessel.id, timestamp, {
             harborFee: result.harborFee,
             contributionGained: contributionGained,
@@ -914,8 +929,14 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
         ? `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)} | +${result.contributionGained} contribution`
         : `${result.departedCount} vessels | +${formatCurrency(result.totalRevenue)}`;
 
+      // Use earliest departedAt timestamp from all vessels (most accurate for matching)
+      const actionTimestamp = result.departedVessels.reduce((earliest, v) => {
+        return v.departedAt && v.departedAt < earliest ? v.departedAt : earliest;
+      }, Date.now());
+
       // Build details - always include contribution (even if 0)
       const details = {
+        actionTimestamp,
         vesselCount: result.departedCount,
         totalRevenue: result.totalRevenue,
         totalFuelUsed: result.totalFuelUsed,

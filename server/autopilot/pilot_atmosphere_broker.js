@@ -137,6 +137,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
 
     // Purchase CO2 - pass the price so cost can be calculated
     const result = await gameapi.purchaseCO2(amountToBuy, prices.co2);
+    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
 
     // Update bunker state
     bunker.co2 = result.newTotal;
@@ -172,6 +173,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       'Auto-CO2',
       `${amountToBuy}t @ ${formatCurrency(prices.co2)}/t | -${formatCurrency(result.cost)}`,
       {
+        actionTimestamp,
         amount: amountToBuy,
         price: prices.co2,
         totalCost: result.cost,
