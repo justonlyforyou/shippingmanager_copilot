@@ -26,25 +26,24 @@ const { getServerLocalTimezone } = require('../routes/forecast');
  */
 async function handleForecastCommand(args, userId, userName, config, isDM, sendResponseFn) {
     // Parse arguments
-    const now = new Date();
     let day;
     let responseType = config.responseType || 'dm';
 
-    // If no arguments, use tomorrow (default forecast behavior)
-    if (args.length === 0) {
-        const tomorrow = new Date(now);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        day = tomorrow.getDate();
-    } else {
-        day = parseInt(args[0]) || now.getDate() + 1; // Default to tomorrow if arg invalid
+    // If no arguments, let API use its default (tomorrow with correct month)
+    // Only set day if user explicitly provided it
+    if (args.length > 0) {
+        day = parseInt(args[0]);
+        if (isNaN(day)) {
+            day = undefined; // Invalid arg - let API use default
+        }
     }
 
     // Default timezone: undefined = server will use its local timezone
     // This allows the API to determine the appropriate timezone
     let timezone = args[1] || undefined;
 
-    // Validate day (1-31)
-    if (day < 1 || day > 31) {
+    // Validate day (1-31) if provided
+    if (day !== undefined && (day < 1 || day > 31)) {
         throw new Error('Invalid day. Please specify a day between 1 and 31.');
     }
 
@@ -98,9 +97,12 @@ async function generateForecastText(day, timezone) {
 
         // Build query parameters
         const params = new URLSearchParams({
-            source: 'chatbot',
-            day: day.toString()
+            source: 'chatbot'
         });
+
+        if (day !== undefined) {
+            params.append('day', day.toString());
+        }
 
         if (timezone) {
             params.append('timezone', timezone);

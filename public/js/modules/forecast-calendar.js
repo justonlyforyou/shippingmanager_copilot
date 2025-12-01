@@ -322,10 +322,11 @@ function renderBook() {
         return;
     }
 
-    // Calculate offset for previous month pages
+    // Calculate offset for previous month pages (only count valid days for that month)
     let prevMonthPagesOffset = 0;
     if (monthDataCache[prevKey]) {
-        prevMonthPagesOffset = monthDataCache[prevKey].length * 2; // 2 pages per day
+        const prevMonthValidDays = monthDataCache[prevKey].filter(d => d.day <= daysInPrevMonth).length;
+        prevMonthPagesOffset = prevMonthValidDays * 2; // 2 pages per day
     }
 
     // Determine start page
@@ -534,7 +535,10 @@ async function loadForecastData(month = null, year = null) {
             // Re-render to include adjacent months
             if (currentPageBeforeReload !== null) {
                 // Adjust page offset: prev month pages will be added, so add their count
-                const prevMonthPages = monthDataCache[`${prevYear}-${String(prevMonth).padStart(2, '0')}`]?.length * 2 || 0;
+                const prevKey = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+                const daysInPrevMonth = new Date(prevYear, prevMonth, 0).getDate();
+                const prevMonthDays = monthDataCache[prevKey] ? monthDataCache[prevKey].filter(d => d.day <= daysInPrevMonth).length : 0;
+                const prevMonthPages = prevMonthDays * 2;
                 requestedStartPage = currentPageBeforeReload + prevMonthPages;
             }
 

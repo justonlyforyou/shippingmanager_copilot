@@ -185,6 +185,39 @@ function getServerLocalTimezone() {
 }
 
 /**
+ * Determine which month a day belongs to based on current date
+ * Days <= current day are current month, days > current day are previous month
+ * @param {number} dayNumber - Day number (1-31)
+ * @returns {Object} { month: 0-11, year: YYYY }
+ */
+function getMonthForDay(dayNumber) {
+    const now = new Date();
+    const currentDay = now.getDate();
+    const currentMonth = now.getMonth(); // 0-indexed
+    const currentYear = now.getFullYear();
+
+    if (dayNumber <= currentDay) {
+        // Current month
+        return { month: currentMonth, year: currentYear };
+    } else {
+        // Previous month
+        const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+        return { month: prevMonth, year: prevYear };
+    }
+}
+
+/**
+ * Get days in a specific month
+ * @param {number} month - Month (0-11)
+ * @param {number} year - Year
+ * @returns {number} Number of days in the month
+ */
+function getDaysInMonth(month, year) {
+    return new Date(year, month + 1, 0).getDate();
+}
+
+/**
  * Get data for previous day, handling month boundaries
  * @param {Array} forecastData - All forecast data
  * @param {number} currentDay - Current day number
@@ -197,12 +230,13 @@ function getPreviousDayData(forecastData, currentDay) {
     }
 
     // Day 1: need last day of previous month
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
+    // Determine which month day 1 belongs to
+    const { month, year } = getMonthForDay(1);
 
     // Get last day of previous month
-    const lastDayOfPrevMonth = new Date(year, month, 0).getDate();
+    const prevMonth = month === 0 ? 11 : month - 1;
+    const prevYear = month === 0 ? year - 1 : year;
+    const lastDayOfPrevMonth = getDaysInMonth(prevMonth, prevYear);
 
     return forecastData.find(d => d.day === lastDayOfPrevMonth);
 }
@@ -211,17 +245,11 @@ function getPreviousDayData(forecastData, currentDay) {
  * Get data for next day, handling month boundaries
  * @param {Array} forecastData - All forecast data
  * @param {number} currentDay - Current day number
+ * @param {number} daysInMonth - Number of days in the month this day belongs to
  * @returns {Object|null} Next day data or null if not available
  */
-function getNextDayData(forecastData, currentDay) {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth(); // 0-indexed
-
-    // Get last day of current month
-    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
-
-    if (currentDay < lastDayOfMonth) {
+function getNextDayData(forecastData, currentDay, daysInMonth) {
+    if (currentDay < daysInMonth) {
         // Simple case: next day in same month
         return forecastData.find(d => d.day === currentDay + 1);
     }
@@ -278,9 +306,13 @@ function convertCESTToTimezone(forecastData, targetTimezone) {
         const currentIntervals = dayData.hourly_intervals;
         const convertedIntervals = [];
 
+        // Determine which month this day belongs to
+        const { month, year } = getMonthForDay(dayData.day);
+        const daysInMonth = getDaysInMonth(month, year);
+
         // Get adjacent day data for wrapping
         const prevDayData = getPreviousDayData(forecastData, dayData.day);
-        const nextDayData = getNextDayData(forecastData, dayData.day);
+        const nextDayData = getNextDayData(forecastData, dayData.day, daysInMonth);
 
         for (let i = 0; i < 48; i++) {
             // Check if current interval exists
@@ -387,16 +419,19 @@ function generateMetadata(targetTimezone, hoursOffset) {
  * Generate formatted text output for chatbot
  * @param {Object} dayData - Day data with intervals
  * @param {number} day - Day number
+ * @param {number} month - Month (0-11)
+ * @param {number} year - Year
  * @param {string} timezone - Timezone abbreviation
  * @param {string} companyName - Company name for header
+ * @param {Object|null} eventDiscount - Event discount info
  * @returns {string} Formatted text
  */
-function generateChatbotText(dayData, day, timezone, companyName, eventDiscount = null) {
-    const now = new Date();
-    const dateStr = `${String(day).padStart(2, '0')}.${String(now.getMonth() + 1).padStart(2, '0')}.${now.getFullYear()}`;
+function generateChatbotText(dayData, day, month, year, timezone, companyName, eventDiscount = null) {
+    // month/year passed as parameters - no recalculation needed
+    const dateStr = `${String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.${year}`;
 
-    let text = `📢 ${companyName}'s Forecast Service\n\n`;
-    text += `Forecast 👉 ${dateStr} (${timezone})\n\n`;
+    let text = `${companyName}'s Forecast Service\n\n`;
+    text += `Forecast ${dateStr} (${timezone})\n\n`;
 
     // Add event discount notice if active
     if (eventDiscount && eventDiscount.percentage && eventDiscount.type) {
@@ -502,11 +537,32 @@ router.get('/', async (req, res) => {
                 // Continue without event discount
             }
 
-            // Determine day (default to tomorrow for chatbot)
+            // Determine day and month/year
             const now = new Date();
             const tomorrow = new Date(now);
             tomorrow.setDate(tomorrow.getDate() + 1);
-            const targetDay = day ? parseInt(day) : tomorrow.getDate();
+
+            let targetDay, month, year;
+
+            if (day) {
+                // Specific day requested - use getMonthForDay logic
+                targetDay = parseInt(day);
+                const monthYear = getMonthForDay(targetDay);
+                month = monthYear.month;
+                year = monthYear.year;
+            } else {
+                // Default to tomorrow - use tomorrow's actual date
+                targetDay = tomorrow.getDate();
+                month = tomorrow.getMonth();
+                year = tomorrow.getFullYear();
+            }
+
+            const daysInMonth = getDaysInMonth(month, year);
+
+            // Reject invalid days (e.g., day 31 in November which only has 30 days)
+            if (targetDay > daysInMonth) {
+                return res.status(404).send(`Day ${targetDay} does not exist in month ${month + 1}/${year}`);
+            }
 
             // Find the day data
             const dayData = convertedData.find(d => d.day === targetDay);
@@ -514,8 +570,8 @@ router.get('/', async (req, res) => {
                 return res.status(404).send(`No forecast data available for day ${targetDay}`);
             }
 
-            // Generate formatted text with event discount
-            const text = generateChatbotText(dayData, targetDay, targetTimezone, companyName, eventDiscount);
+            // Generate formatted text with event discount (pass month/year instead of recalculating)
+            const text = generateChatbotText(dayData, targetDay, month, year, targetTimezone, companyName, eventDiscount);
 
             // Send as plain text
             res.type('text/plain; charset=utf-8').send(text);

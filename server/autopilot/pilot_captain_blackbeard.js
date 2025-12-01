@@ -114,29 +114,30 @@ async function submitOfferWithRetry(userId, caseId, amount, maxRetries) {
  * If equal → "blackbeard"
  * If not equal → "failed"
  */
-async function acceptRansomWithRetry(caseId, expectedAmount, cashBeforePaid, maxRetries) {
+async function acceptRansomWithRetry(caseId, expectedAmount, cashBefore, maxRetries) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await apiCall('/hijacking/pay', 'POST', { case_id: caseId });
       if (response) {
         // Get cash AFTER payment directly from payment response
-        const cashAfterPaid = response.user?.cash;
+        const cashAfter = response.user?.cash;
 
-        // Verification: cash_before_paid - requested_amount === cashAfterPaid
-        const expectedCashAfter = cashBeforePaid - expectedAmount;
-        const verified = (expectedCashAfter === cashAfterPaid);
-        const verificationStatus = verified ? 'blackbeard' : 'failed';
+        // Calculate actual amount paid
+        const actualPaid = cashBefore - cashAfter;
 
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Payment verification - Cash Before: $${cashBeforePaid}, Requested: $${expectedAmount}, Expected Cash After: $${expectedCashAfter}, Actual Cash After: $${cashAfterPaid}, Status: ${verificationStatus}`);
+        // Verification: actual_paid should equal expected_amount
+        const verified = (actualPaid === expectedAmount);
 
+        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Payment verification - Cash Before: $${cashBefore}, Expected: $${expectedAmount}, Actual Paid: $${actualPaid}, Cash After: $${cashAfter}, Verified: ${verified}`);
+
+        // Return EXACT SAME format as manual system (messenger.js lines 963-969)
         return {
           success: true,
           verified: verified,
-          verification_status: verificationStatus,
           expected_amount: expectedAmount,
-          cash_before_paid: cashBeforePaid,
-          cash_after_paid: cashAfterPaid,
-          expected_cash_after: expectedCashAfter
+          actual_paid: actualPaid,
+          cash_before: cashBefore,
+          cash_after: cashAfter
         };
       }
       logger.debug(`[Auto-Negotiate Hijacking] Accept ransom attempt ${attempt}/${maxRetries}: No response`);
@@ -153,7 +154,7 @@ async function acceptRansomWithRetry(caseId, expectedAmount, cashBeforePaid, max
 /**
  * Process a single hijacking case: make max counter offers, then accept.
  */
-async function processHijackingCase(userId, caseId, vesselName, offerPercentage, maxCounterOffers, verifyDelay, maxRetries, broadcastToUser) {
+async function processHijackingCase(userId, caseId, vesselName, userVesselId, offerPercentage, maxCounterOffers, verifyDelay, maxRetries, broadcastToUser) {
   logger.debug(`[Auto-Negotiate Hijacking] Processing case ${caseId}...`);
 
   let negotiationRound = 0;
@@ -281,11 +282,12 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
     if (shouldAccept) {
       logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Reached max counter offers (${counterOffersMade}/${maxCounterOffers}), accepting price $${requestedAmount}, checking cash...`);
 
-      // Get cash BEFORE payment from current case data
-      const cashBeforePaid = caseData.user?.cash;
+      // Get cash BEFORE payment - need FRESH API call because cache doesn't include user data
+      const freshCaseData = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
+      const cashBefore = freshCaseData?.user?.cash;
 
-      if (cashBeforePaid < requestedAmount) {
-        logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: INSUFFICIENT FUNDS - Need $${requestedAmount}, have $${cashBeforePaid}`);
+      if (cashBefore < requestedAmount) {
+        logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: INSUFFICIENT FUNDS - Need $${requestedAmount}, have $${cashBefore}`);
 
         if (broadcastToUser) {
           broadcastToUser(userId, 'hijacking_update', {
@@ -294,14 +296,14 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
               case_id: caseId,
               vessel_name: vesselName,
               required: requestedAmount,
-              available: cashBeforePaid
+              available: cashBefore
             }
           });
         }
         return;
       }
 
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Cash OK ($${cashBeforePaid}), ACCEPTING ransom of $${requestedAmount}`);
+      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Cash OK ($${cashBefore}), ACCEPTING ransom of $${requestedAmount}`);
 
       if (broadcastToUser) {
         broadcastToUser(userId, 'hijacking_update', {
@@ -314,7 +316,7 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
         });
       }
 
-      const paymentResult = await acceptRansomWithRetry(caseId, requestedAmount, cashBeforePaid, maxRetries);
+      const paymentResult = await acceptRansomWithRetry(caseId, requestedAmount, cashBefore, maxRetries);
       if (paymentResult && paymentResult.success) {
         logger.info(`[Auto-Negotiate Hijacking] Case ${caseId}: SOLVED - Vessel released`);
 
@@ -333,22 +335,24 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
             historyData = Array.isArray(existingData) ? existingData : existingData.history;
           }
 
+          // Save EXACT SAME format as manual system (messenger.js lines 957-970)
           const updatedHistory = {
             history: historyData,
             autopilot_resolved: true,
             resolved_at: Date.now() / 1000,
+            vessel_name: vesselName,
+            user_vessel_id: userVesselId,
             payment_verification: {
               verified: paymentResult.verified,
-              verification_status: paymentResult.verification_status,
               expected_amount: paymentResult.expected_amount,
-              cash_before_paid: paymentResult.cash_before_paid,
-              cash_after_paid: paymentResult.cash_after_paid,
-              expected_cash_after: paymentResult.expected_cash_after
+              actual_paid: paymentResult.actual_paid,
+              cash_before: paymentResult.cash_before,
+              cash_after: paymentResult.cash_after
             }
           };
 
           fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Marked as autopilot-resolved with status: ${paymentResult.verification_status}`);
+          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Marked as autopilot-resolved, verified: ${paymentResult.verified}`);
         } catch (error) {
           logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to mark as autopilot-resolved:`, error);
         }
@@ -362,7 +366,7 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
               vessel_name: vesselName,
               success: true,
               payment_verified: paymentResult.verified,
-              verification_status: paymentResult.verification_status
+              actual_paid: paymentResult.actual_paid
             }
           });
         }
@@ -380,7 +384,7 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
             finalPayment: requestedAmount,
             negotiationRounds: negotiationRound,
             verified: paymentResult.verified,
-            verificationStatus: paymentResult.verification_status
+            actual_paid: paymentResult.actual_paid
           },
           'SUCCESS',
           SOURCES.AUTOPILOT
@@ -419,19 +423,47 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
     logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Waiting ${verifyDelay}ms for API to process...`);
     await new Promise(resolve => setTimeout(resolve, verifyDelay));
 
-    const verifiedCase = await getCaseWithRetry(caseId, maxRetries);
+    // Verify the offer was processed - retry with longer delays if price unchanged
+    let verifiedCase = await getCaseWithRetry(caseId, maxRetries);
     if (!verifiedCase) {
       logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to verify offer, aborting`);
       return;
     }
 
-    const newRequestedAmount = verifiedCase.requested_amount;
-    const priceChanged = (newRequestedAmount !== requestedAmount);
+    let newRequestedAmount = verifiedCase.requested_amount;
+    let priceChanged = (newRequestedAmount !== requestedAmount);
+
+    // If price unchanged, wait longer and check again (up to 3 retries)
+    const PRICE_CHECK_RETRIES = 3;
+    const PRICE_CHECK_DELAY = 10000; // 10 seconds between retries
+    let priceCheckAttempt = 0;
+
+    while (!priceChanged && priceCheckAttempt < PRICE_CHECK_RETRIES) {
+      priceCheckAttempt++;
+      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price unchanged, waiting ${PRICE_CHECK_DELAY}ms and rechecking (attempt ${priceCheckAttempt}/${PRICE_CHECK_RETRIES})...`);
+
+      await new Promise(resolve => setTimeout(resolve, PRICE_CHECK_DELAY));
+
+      verifiedCase = await getCaseWithRetry(caseId, maxRetries);
+      if (!verifiedCase) {
+        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to recheck case, aborting`);
+        return;
+      }
+
+      newRequestedAmount = verifiedCase.requested_amount;
+      priceChanged = (newRequestedAmount !== requestedAmount);
+
+      if (priceChanged) {
+        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price finally changed to $${newRequestedAmount} after ${priceCheckAttempt} recheck(s)`);
+      }
+    }
 
     if (priceChanged) {
       logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: OK Offer processed, new price: $${newRequestedAmount}`);
     } else {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price unchanged at $${newRequestedAmount}`);
+      logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Price STILL unchanged at $${newRequestedAmount} after ${PRICE_CHECK_RETRIES} retries - offer may not have been accepted`);
+      // Don't count this as a successful counter offer
+      counterOffersMade--;
     }
 
     // ALWAYS save pirate counter-offer to log (even if price unchanged)
@@ -513,7 +545,7 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
 
   const OFFER_PERCENTAGE = 0.25;
   const MAX_COUNTER_OFFERS = 2;
-  const VERIFY_DELAY = 3000; // 3 seconds is enough for API to process
+  const VERIFY_DELAY = 120000; // 2 MINUTES - pirates need time to respond
   const MAX_RETRIES = 3;
 
   try {
@@ -542,6 +574,7 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
     for (const chat of hijackingChats) {
       const caseId = chat.values?.case_id;
       const vesselName = chat.values?.vessel_name || 'Unknown Vessel';
+      const userVesselId = chat.values?.user_vessel_id;
 
       if (!caseId) {
         logger.debug('[Auto-Negotiate Hijacking] Case missing ID, skipping');
@@ -549,7 +582,7 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
       }
 
       try {
-        await processHijackingCase(userId, caseId, vesselName, OFFER_PERCENTAGE, MAX_COUNTER_OFFERS, VERIFY_DELAY, MAX_RETRIES, broadcastToUser);
+        await processHijackingCase(userId, caseId, vesselName, userVesselId, OFFER_PERCENTAGE, MAX_COUNTER_OFFERS, VERIFY_DELAY, MAX_RETRIES, broadcastToUser);
         processed++;
       } catch (error) {
         logger.error(`[Auto-Negotiate Hijacking] Error processing case ${caseId}:`, error.message);

@@ -2039,6 +2039,14 @@
   },
   {
     "type": "method",
+    "name": "showRouteVesselsInfoTooltip",
+    "longname": "module:analytics~showRouteVesselsInfoTooltip",
+    "url": "module-analytics.html#~showRouteVesselsInfoTooltip",
+    "description": "<p>Show info tooltip for route vessels column</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "sortData",
     "longname": "module:analytics~sortData",
     "url": "module-analytics.html#~sortData",
@@ -2087,10 +2095,26 @@
   },
   {
     "type": "method",
+    "name": "updateRouteFilterIcons",
+    "longname": "module:analytics~updateRouteFilterIcons",
+    "url": "module-analytics.html#~updateRouteFilterIcons",
+    "description": "<p>Update route filter icon visual states</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "updateSortIndicators",
     "longname": "module:analytics~updateSortIndicators",
     "url": "module-analytics.html#~updateSortIndicators",
     "description": "<p>Update sort indicators on table headers</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "updateVesselFilterIcons",
+    "longname": "module:analytics~updateVesselFilterIcons",
+    "url": "module-analytics.html#~updateVesselFilterIcons",
+    "description": "<p>Update vessel filter icon visual states</p>",
     "parent": "module:analytics"
   },
   {
@@ -6514,7 +6538,7 @@
     "name": "getRouteProfitabilityWithContribution",
     "longname": "module:server/analytics/aggregator~getRouteProfitabilityWithContribution",
     "url": "module-server_analytics_aggregator.html#~getRouteProfitabilityWithContribution",
-    "description": "<p>Get route profitability with contribution from merged data (local + game history)</p>",
+    "description": "<p>Get route profitability with contribution from merged data (local + game history)\nAlso includes active vessel counts per route</p>",
     "parent": "module:server/analytics/aggregator"
   },
   {
@@ -6603,6 +6627,14 @@
     "longname": "module:server/analytics/aggregator~mapContextToCategory",
     "url": "module-server_analytics_aggregator.html#~mapContextToCategory",
     "description": "<p>Map game transaction context to expense category</p>",
+    "parent": "module:server/analytics/aggregator"
+  },
+  {
+    "type": "method",
+    "name": "normalizeRouteKey",
+    "longname": "module:server/analytics/aggregator~normalizeRouteKey",
+    "url": "module-server_analytics_aggregator.html#~normalizeRouteKey",
+    "description": "<p>Normalize route key to canonical form (alphabetically sorted)\nThis ensures A&lt;&gt;B and B&lt;&gt;A are treated as the same route</p>",
     "parent": "module:server/analytics/aggregator"
   },
   {
@@ -8439,10 +8471,26 @@
   },
   {
     "type": "method",
+    "name": "getDaysInMonth",
+    "longname": "module:server/routes/forecast~getDaysInMonth",
+    "url": "module-server_routes_forecast.html#~getDaysInMonth",
+    "description": "<p>Get days in a specific month</p>",
+    "parent": "module:server/routes/forecast"
+  },
+  {
+    "type": "method",
     "name": "getForecastDataPath",
     "longname": "module:server/routes/forecast~getForecastDataPath",
     "url": "module-server_routes_forecast.html#~getForecastDataPath",
     "description": "<p>Get forecast data file path based on execution mode</p>",
+    "parent": "module:server/routes/forecast"
+  },
+  {
+    "type": "method",
+    "name": "getMonthForDay",
+    "longname": "module:server/routes/forecast~getMonthForDay",
+    "url": "module-server_routes_forecast.html#~getMonthForDay",
+    "description": "<p>Determine which month a day belongs to based on current date\nDays &lt;= current day are current month, days &gt; current day are previous month</p>",
     "parent": "module:server/routes/forecast"
   },
   {
@@ -8500,6 +8548,14 @@
     "url": "module-server_routes_game_user.html#~compareVersions",
     "description": "<p>Compare two semantic version strings</p>",
     "parent": "module:server/routes/game/user"
+  },
+  {
+    "type": "method",
+    "name": "refreshAndBroadcastHeader",
+    "longname": "module:server/routes/game/vessel~refreshAndBroadcastHeader",
+    "url": "module-server_routes_game_vessel.html#~refreshAndBroadcastHeader",
+    "description": "<p>Fetch current user data from API, update cache and broadcast</p>",
+    "parent": "module:server/routes/game/vessel"
   },
   {
     "type": "method",

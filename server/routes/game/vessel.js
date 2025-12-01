@@ -56,6 +56,48 @@ const VESSEL_IMAGES_DIR = isPkg
 
 const router = express.Router();
 
+/**
+ * Fetch current user data from API, update cache and broadcast
+ * @param {string} userId - User ID
+ */
+async function refreshAndBroadcastHeader(userId) {
+  try {
+    const state = require('../../state');
+    const response = await apiCall('/user/get-user-settings', 'POST', {});
+    const user = response?.user;
+
+    if (!user || !user.anchorpoints) {
+      logger.warn('[Vessel] No user/anchorpoints in API response');
+      return;
+    }
+
+    const currentHeaderData = state.getHeaderData(userId) || {};
+
+    const newHeaderData = {
+      stock: currentHeaderData.stock || {
+        value: user.stock_value,
+        trend: user.stock_trend,
+        ipo: user.ipo
+      },
+      anchor: {
+        available: user.anchorpoints.available,
+        max: user.anchorpoints.max,
+        pending: user.anchorpoints.pending || 0
+      }
+    };
+
+    // Update cache
+    state.updateHeaderData(userId, newHeaderData);
+
+    // Broadcast immediately
+    broadcastToUser(userId, 'header_data_update', newHeaderData);
+
+    logger.info(`[Vessel] Header refresh: anchor=${newHeaderData.anchor.available}/${newHeaderData.anchor.max}`);
+  } catch (err) {
+    logger.warn('[Vessel] Failed to refresh header:', err.message);
+  }
+}
+
 // Maximum file size for uploaded images (20MB)
 const MAX_IMAGE_SIZE = 20 * 1024 * 1024;
 
@@ -357,33 +399,8 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
       logger.debug(`[Vessel Sell] Broadcast bunker update from sell response: cash=$${lastUserData.cash?.toLocaleString()}`);
     }
 
-    // Update anchor points from cache (no API call needed!)
-    const state = require('../../state');
-    const currentHeaderData = state.getHeaderData(userId);
-    const currentAnchor = currentHeaderData?.anchor;
-
-    if (currentAnchor && currentAnchor.available !== undefined) {
-      const newAnchor = {
-        available: currentAnchor.available + soldVessels.length,
-        max: currentAnchor.max,
-        pending: currentAnchor.pending
-      };
-
-      // Update state cache
-      state.updateHeaderData(userId, {
-        ...currentHeaderData,
-        anchor: newAnchor
-      });
-
-      // Broadcast immediately
-      broadcastToUser(userId, 'header_data_update', {
-        stock: currentHeaderData?.stock,
-        anchor: newAnchor
-      });
-      logger.info(`[Vessel Sell] Broadcast anchor update: ${newAnchor.available}/${newAnchor.max} (+${soldVessels.length})`);
-    } else {
-      logger.warn('[Vessel Sell] Could not update anchor points - no cached anchor data');
-    }
+    // Refresh header from API and broadcast
+    await refreshAndBroadcastHeader(userId);
 
     // AUDIT LOG: Vessel sale
     if (soldVessels.length > 0) {
@@ -531,34 +548,9 @@ router.post('/purchase-vessel', express.json(), async (req, res) => {
       logger.debug(`[Vessel Purchase] Broadcast cash update: $${data.user.cash.toLocaleString()}`);
     }
 
-    // Update anchor points - just decrement available by 1 (no extra API call needed!)
+    // Refresh header from API and broadcast
     if (userId) {
-      const state = require('../../state');
-      const currentHeaderData = state.getHeaderData(userId);
-      const currentAnchor = currentHeaderData?.anchor;
-
-      if (currentAnchor && currentAnchor.available !== undefined) {
-        const newAnchor = {
-          available: currentAnchor.available - 1,
-          max: currentAnchor.max,
-          pending: currentAnchor.pending
-        };
-
-        // Update state cache
-        state.updateHeaderData(userId, {
-          ...currentHeaderData,
-          anchor: newAnchor
-        });
-
-        // Broadcast immediately
-        broadcastToUser(userId, 'header_data_update', {
-          stock: currentHeaderData?.stock,
-          anchor: newAnchor
-        });
-        logger.info(`[Vessel Purchase] Broadcast anchor update: ${newAnchor.available}/${newAnchor.max} (-1)`);
-      } else {
-        logger.warn('[Vessel Purchase] Could not update anchor points - no cached anchor data');
-      }
+      await refreshAndBroadcastHeader(userId);
     }
 
     res.json(data);
@@ -1495,31 +1487,9 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       logger.debug(`[Build Vessel] Broadcast cash update: $${data.user.cash.toLocaleString()}`);
     }
 
-    // Broadcast vessel count update (pending vessel added)
+    // Refresh header from API and broadcast
     if (userId) {
-      try {
-        const vesselsResponse = await apiCall('/game/index', 'GET');
-        if (vesselsResponse?.vessels) {
-          const readyToDepart = vesselsResponse.vessels.filter(v =>
-            v.status === 'ready' && v.maintenance > 0
-          ).length;
-          const atAnchor = vesselsResponse.vessels.filter(v =>
-            v.status === 'anchor'
-          ).length;
-          const pending = vesselsResponse.vessels.filter(v =>
-            v.status === 'pending'
-          ).length;
-
-          broadcastToUser(userId, 'vessel_count_update', {
-            readyToDepart,
-            atAnchor,
-            pending
-          });
-          logger.debug(`[Build Vessel] Broadcast vessel count update: pending=${pending}`);
-        }
-      } catch (error) {
-        logger.error('[Build Vessel] Failed to broadcast vessel count update:', error.message);
-      }
+      await refreshAndBroadcastHeader(userId);
     }
 
     // AUDIT LOG: Vessel build

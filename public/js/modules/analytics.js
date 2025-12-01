@@ -37,6 +37,18 @@ const sortState = {
   routes: { column: 'totalRevenue', direction: 'desc' }
 };
 
+// Route filter state (which route types to show)
+const routeFilterState = {
+  showActive: true,
+  showInactive: true
+};
+
+// Vessel filter state (owned vs sold)
+const vesselFilterState = {
+  showOwned: true,
+  showSold: true
+};
+
 // Raw transactions lazy loading state
 const rawTransactionState = {
   transactions: [],
@@ -344,6 +356,73 @@ export function initAnalytics() {
     });
   }
 
+  // Route vessels info icon - shows explanation tooltip
+  const routeVesselsInfo = document.getElementById('route-vessels-info');
+  if (routeVesselsInfo) {
+    routeVesselsInfo.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showRouteVesselsInfoTooltip(routeVesselsInfo);
+    });
+  }
+
+  // Route filter icons - toggle active/inactive route visibility
+  const routeFilterActive = document.getElementById('route-filter-active');
+  const routeFilterInactive = document.getElementById('route-filter-inactive');
+
+  if (routeFilterActive) {
+    routeFilterActive.addEventListener('click', (e) => {
+      e.stopPropagation();
+      routeFilterState.showActive = !routeFilterState.showActive;
+      updateRouteFilterIcons();
+      if (analyticsData?.routes) {
+        renderRouteTable(sortData(analyticsData.routes, sortState.routes));
+      }
+    });
+  }
+
+  if (routeFilterInactive) {
+    routeFilterInactive.addEventListener('click', (e) => {
+      e.stopPropagation();
+      routeFilterState.showInactive = !routeFilterState.showInactive;
+      updateRouteFilterIcons();
+      if (analyticsData?.routes) {
+        renderRouteTable(sortData(analyticsData.routes, sortState.routes));
+      }
+    });
+  }
+
+  // Initialize filter icon states
+  updateRouteFilterIcons();
+
+  // Vessel filter icons - toggle owned/sold vessel visibility
+  const vesselFilterOwned = document.getElementById('vessel-filter-owned');
+  const vesselFilterSold = document.getElementById('vessel-filter-sold');
+
+  if (vesselFilterOwned) {
+    vesselFilterOwned.addEventListener('click', (e) => {
+      e.stopPropagation();
+      vesselFilterState.showOwned = !vesselFilterState.showOwned;
+      updateVesselFilterIcons();
+      if (analyticsData?.vessels) {
+        renderVesselTable(sortData(analyticsData.vessels, sortState.vessels));
+      }
+    });
+  }
+
+  if (vesselFilterSold) {
+    vesselFilterSold.addEventListener('click', (e) => {
+      e.stopPropagation();
+      vesselFilterState.showSold = !vesselFilterState.showSold;
+      updateVesselFilterIcons();
+      if (analyticsData?.vessels) {
+        renderVesselTable(sortData(analyticsData.vessels, sortState.vessels));
+      }
+    });
+  }
+
+  // Initialize vessel filter icon states
+  updateVesselFilterIcons();
+
   // Raw transaction row click handler
   const rawTbody = document.getElementById('game-log-raw-tbody');
   if (rawTbody) {
@@ -457,11 +536,11 @@ function initSortableHeaders() {
   }
 
   // Route table headers
-  // Order: Route, Vessels, Trips, Revenue, Avg/Trip, $/nm, Hijack %, Harbor Fee %
+  // Order: Route, Vessels, Trips, Revenue, Avg/Trip, Avg/h, $/nm, Hijack %, Harbor Fee %
   const routeTable = document.querySelector('#analytics-routes .analytics-table thead');
   if (routeTable) {
     const routeHeaders = routeTable.querySelectorAll('th');
-    const routeColumns = ['route', 'vesselCount', 'trips', 'totalRevenue', 'avgRevenuePerTrip', 'avgIncomePerNm', 'hijackRisk', 'harborFeePercent'];
+    const routeColumns = ['route', 'vesselCount', 'trips', 'totalRevenue', 'avgRevenuePerTrip', 'avgRevenuePerHour', 'avgIncomePerNm', 'hijackRisk', 'harborFeePercent'];
     routeHeaders.forEach((th, index) => {
       if (index < routeColumns.length) {
         th.dataset.column = routeColumns[index];
@@ -990,11 +1069,29 @@ function renderVesselTable(vessels) {
     return;
   }
 
+  // Apply vessel filter (owned vs sold)
+  const filteredVessels = vessels.filter(v => {
+    const isOwned = v.isOwned !== false; // Default to owned if not specified
+    if (isOwned && !vesselFilterState.showOwned) return false;
+    if (!isOwned && !vesselFilterState.showSold) return false;
+    return true;
+  });
+
+  if (filteredVessels.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No vessels match current filter</td></tr>';
+    return;
+  }
+
   let html = '';
-  vessels.forEach(v => {
+  filteredVessels.forEach(v => {
+    const isOwned = v.isOwned !== false;
+    const statusIcon = isOwned
+      ? '<span class="vessel-status owned" title="Currently owned">&#x1F7E2;</span>'
+      : '<span class="vessel-status sold" title="Sold">&#x1F578;&#xFE0F;</span>';
+
     html += `
       <tr data-vessel-id="${v.vesselId}">
-        <td class="vessel-name">${escapeHtml(v.name)}</td>
+        <td class="vessel-name">${statusIcon} ${escapeHtml(v.name)}</td>
         <td class="num">${v.trips}</td>
         <td class="num">${formatCurrency(v.totalRevenue)}</td>
         <td class="num">${formatCurrency(v.avgRevenuePerTrip)}</td>
@@ -2139,6 +2236,40 @@ function renderVesselsUtilizationChart(utilizationEntries) {
 }
 
 /**
+ * Update route filter icon visual states
+ */
+function updateRouteFilterIcons() {
+  const activeIcon = document.getElementById('route-filter-active');
+  const inactiveIcon = document.getElementById('route-filter-inactive');
+
+  if (activeIcon) {
+    activeIcon.classList.toggle('filter-enabled', routeFilterState.showActive);
+    activeIcon.classList.toggle('filter-disabled', !routeFilterState.showActive);
+  }
+  if (inactiveIcon) {
+    inactiveIcon.classList.toggle('filter-enabled', routeFilterState.showInactive);
+    inactiveIcon.classList.toggle('filter-disabled', !routeFilterState.showInactive);
+  }
+}
+
+/**
+ * Update vessel filter icon visual states
+ */
+function updateVesselFilterIcons() {
+  const ownedIcon = document.getElementById('vessel-filter-owned');
+  const soldIcon = document.getElementById('vessel-filter-sold');
+
+  if (ownedIcon) {
+    ownedIcon.classList.toggle('filter-enabled', vesselFilterState.showOwned);
+    ownedIcon.classList.toggle('filter-disabled', !vesselFilterState.showOwned);
+  }
+  if (soldIcon) {
+    soldIcon.classList.toggle('filter-enabled', vesselFilterState.showSold);
+    soldIcon.classList.toggle('filter-disabled', !vesselFilterState.showSold);
+  }
+}
+
+/**
  * Render route profitability table
  * @param {Array} routes - Route data
  */
@@ -2147,12 +2278,25 @@ function renderRouteTable(routes) {
   if (!tbody) return;
 
   if (!routes || routes.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="8" class="no-data">No route data available</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No route data available</td></tr>';
+    return;
+  }
+
+  // Apply route filters
+  const filteredRoutes = routes.filter(r => {
+    const isActive = r.isActive || r.activeVesselCount > 0;
+    if (isActive && !routeFilterState.showActive) return false;
+    if (!isActive && !routeFilterState.showInactive) return false;
+    return true;
+  });
+
+  if (filteredRoutes.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No routes match the current filter</td></tr>';
     return;
   }
 
   let html = '';
-  routes.forEach(r => {
+  filteredRoutes.forEach(r => {
     const feeClass = r.harborFeePercent > 20 ? 'warning' : '';
     const incomePerNm = r.avgIncomePerNm ? `$${formatNumber(Math.round(r.avgIncomePerNm))}` : '-';
 
@@ -2175,13 +2319,28 @@ function renderRouteTable(routes) {
       hijackDisplay = `<span class="hijack-incidents" title="Your hijacking incidents on this route (total ransom: $${formatNumber(r.totalRansomPaid)})">(${incidents})</span>`;
     }
 
+    // Route status icon and vessel count with active vessels
+    const isActive = r.isActive || r.activeVesselCount > 0;
+    const statusIcon = isActive
+      ? '<span class="route-status active" title="Active Route">&#x1F7E2;</span>'
+      : '<span class="route-status inactive" title="Inactive Route">&#x1F578;&#xFE0F;</span>';
+
+    // Format vessel count: "5 (2)" = 5 historical, 2 currently active
+    const activeCount = r.activeVesselCount || 0;
+    const vesselDisplay = activeCount > 0
+      ? `${r.vesselCount} <span class="active-vessel-count" title="Currently ${activeCount} vessel(s) on this route">(${activeCount})</span>`
+      : `${r.vesselCount}`;
+
+    const avgPerHour = r.avgRevenuePerHour ? formatCurrency(r.avgRevenuePerHour) : '-';
+
     html += `
-      <tr data-origin="${escapeHtml(r.origin)}" data-destination="${escapeHtml(r.destination)}">
-        <td class="route-name">${escapeHtml(r.displayRoute || r.origin + ' - ' + r.destination)}</td>
-        <td class="num">${r.vesselCount}</td>
+      <tr data-origin="${escapeHtml(r.origin)}" data-destination="${escapeHtml(r.destination)}" class="${isActive ? '' : 'inactive-route'}">
+        <td class="route-name">${statusIcon} ${escapeHtml(r.displayRoute || r.origin + ' - ' + r.destination)}</td>
+        <td class="num">${vesselDisplay}</td>
         <td class="num">${r.trips}</td>
         <td class="num">${formatCurrency(r.totalRevenue)}</td>
         <td class="num">${formatCurrency(r.avgRevenuePerTrip)}</td>
+        <td class="num">${avgPerHour}</td>
         <td class="num">${incomePerNm}</td>
         <td class="num ${hijackClass}">${hijackDisplay}</td>
         <td class="num ${feeClass}">${formatPercent(r.harborFeePercent)}</td>
@@ -3756,6 +3915,64 @@ async function showLookupEntryDetails(lookupId) {
     console.error('[Analytics] Failed to load entry details:', error);
     showNotification('Failed to load entry details', 'error');
   }
+}
+
+/**
+ * Show info tooltip for route vessels column
+ * @param {HTMLElement} iconElement - The info icon element
+ */
+function showRouteVesselsInfoTooltip(iconElement) {
+  // Remove existing tooltip if any
+  const existingTooltip = document.querySelector('.route-info-tooltip');
+  if (existingTooltip) {
+    existingTooltip.remove();
+    return; // Toggle off
+  }
+
+  // Create tooltip
+  const tooltip = document.createElement('div');
+  tooltip.className = 'route-info-tooltip';
+  tooltip.innerHTML = `
+    <div class="route-info-content">
+      <div class="route-info-title">Route Table Legend</div>
+      <div class="route-info-section">
+        <div class="route-info-row"><span class="route-status active">&#x1F7E2;</span> <strong>Active Route</strong> - Vessels currently sailing this route</div>
+        <div class="route-info-row"><span class="route-status inactive">&#x1F578;&#xFE0F;</span> <strong>Inactive Route</strong> - Historical route, no vessels currently assigned</div>
+      </div>
+      <div class="route-info-section">
+        <div class="route-info-row"><strong>Vessels:</strong> Total unique vessels that have sailed this route</div>
+        <div class="route-info-row"><strong>(n):</strong> Number of vessels currently active on this route</div>
+      </div>
+      <div class="route-info-hint">Click anywhere to close</div>
+    </div>
+  `;
+
+  // Position tooltip below icon
+  const rect = iconElement.getBoundingClientRect();
+  const analyticsContent = document.querySelector('.analytics-content');
+  const contentRect = analyticsContent ? analyticsContent.getBoundingClientRect() : { left: 0, top: 0 };
+
+  tooltip.style.position = 'absolute';
+  tooltip.style.left = (rect.left - contentRect.left - 100) + 'px';
+  tooltip.style.top = (rect.bottom - contentRect.top + 8) + 'px';
+  tooltip.style.zIndex = '1000';
+
+  // Append to analytics content for proper positioning
+  if (analyticsContent) {
+    analyticsContent.appendChild(tooltip);
+  } else {
+    document.body.appendChild(tooltip);
+  }
+
+  // Close on click anywhere
+  const closeHandler = (e) => {
+    if (!tooltip.contains(e.target) || e.target.closest('.route-info-hint')) {
+      tooltip.remove();
+      document.removeEventListener('click', closeHandler);
+    }
+  };
+  // Delay adding listener to prevent immediate close
+  setTimeout(() => document.addEventListener('click', closeHandler), 10);
 }
 
 // Export for global access

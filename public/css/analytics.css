@@ -1248,3 +1248,192 @@ h2.analytics-section-title {
 .analytics-table-error {
   color: var(--color-danger);
 }
+
+/* ============================================
+   ROUTE TABLE - Status Icons & Info Tooltip
+   ============================================ */
+
+/* Route status icons in first column */
+.route-status {
+  font-size: var(--font-size-12);
+  margin-right: var(--spacing-4);
+  vertical-align: middle;
+}
+
+.route-status.active {
+  filter: brightness(1.1);
+}
+
+.route-status.inactive {
+  opacity: 0.7;
+}
+
+/* Route filter icons in header */
+.route-filter-icons {
+  margin-left: var(--spacing-8);
+  display: inline-flex;
+  gap: var(--spacing-4);
+  vertical-align: middle;
+}
+
+.route-filter-icon {
+  cursor: pointer;
+  font-size: var(--font-size-12);
+  transition: all 0.15s ease;
+  padding: var(--spacing-2);
+  border-radius: var(--radius-4);
+}
+
+.route-filter-icon:hover {
+  background: var(--color-bg-hover);
+}
+
+/* Filter enabled - full color */
+.route-filter-icon.filter-enabled {
+  opacity: 1;
+  filter: none;
+}
+
+/* Filter disabled - greyed out */
+.route-filter-icon.filter-disabled {
+  opacity: 0.3;
+  filter: grayscale(100%);
+}
+
+/* Inactive route row styling */
+tr.inactive-route {
+  opacity: 0.65;
+}
+
+tr.inactive-route:hover {
+  opacity: 0.85;
+}
+
+/* Vessel status icons */
+.vessel-status {
+  font-size: var(--font-size-12);
+  margin-right: var(--spacing-4);
+  vertical-align: middle;
+}
+
+.vessel-status.owned {
+  filter: brightness(1.1);
+}
+
+.vessel-status.sold {
+  opacity: 0.7;
+}
+
+/* Vessel filter icons in header */
+.vessel-filter-icons {
+  margin-left: var(--spacing-8);
+  display: inline-flex;
+  gap: var(--spacing-4);
+  vertical-align: middle;
+}
+
+.vessel-filter-icon {
+  cursor: pointer;
+  font-size: var(--font-size-12);
+  transition: all 0.15s ease;
+  padding: var(--spacing-2);
+  border-radius: var(--radius-4);
+}
+
+.vessel-filter-icon:hover {
+  background: var(--color-bg-hover);
+}
+
+/* Filter enabled - full color */
+.vessel-filter-icon.filter-enabled {
+  opacity: 1;
+  filter: none;
+}
+
+/* Filter disabled - greyed out */
+.vessel-filter-icon.filter-disabled {
+  opacity: 0.3;
+  filter: grayscale(100%);
+}
+
+/* Sold vessel row styling */
+tr.sold-vessel {
+  opacity: 0.65;
+}
+
+tr.sold-vessel:hover {
+  opacity: 0.85;
+}
+
+/* Active vessel count in parentheses */
+.active-vessel-count {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* Info icon in header */
+.info-icon {
+  cursor: pointer;
+  font-size: var(--font-size-12);
+  margin-left: var(--spacing-4);
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  vertical-align: middle;
+}
+
+.info-icon:hover {
+  opacity: 1;
+}
+
+/* Route info tooltip */
+.route-info-tooltip {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-8);
+  box-shadow: var(--shadow-lg);
+  padding: var(--spacing-12);
+  min-width: 280px;
+  max-width: 350px;
+}
+
+.route-info-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.route-info-title {
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--color-border-light);
+  padding-bottom: var(--spacing-8);
+}
+
+.route-info-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+.route-info-row {
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+  line-height: 1.4;
+}
+
+.route-info-row strong {
+  color: var(--color-text-primary);
+}
+
+.route-info-row .route-status {
+  font-size: var(--font-size-14);
+}
+
+.route-info-hint {
+  font-size: var(--font-size-11);
+  color: var(--color-text-tertiary);
+  text-align: center;
+  font-style: italic;
+  margin-top: var(--spacing-4);
+}

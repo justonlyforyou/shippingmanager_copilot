@@ -142,6 +142,18 @@ function formatRouteDisplay(routeStr) {
   return `${originCountry} ${originAbbr} <> ${destCountry} ${destAbbr}`;
 }
 
+/**
+ * Normalize route key to canonical form (alphabetically sorted)
+ * This ensures A<>B and B<>A are treated as the same route
+ * @param {string} origin - Origin port
+ * @param {string} destination - Destination port
+ * @returns {string} Normalized route key
+ */
+function normalizeRouteKey(origin, destination) {
+  const [first, second] = [origin, destination].sort();
+  return `${first}<>${second}`;
+}
+
 // Use AppData when packaged as exe
 const isPkg = !!process.pkg;
 
@@ -1759,29 +1771,74 @@ async function getVesselPerformanceWithContribution(userId, days = 30) {
   // Use merged departures (local logs + game import)
   const vesselPerf = await getVesselPerformanceMerged(userId, days);
 
-  // Ensure contribution field is properly named
+  // Get current vessels to determine which are still owned
+  let ownedVesselIds = new Set();
+  try {
+    const gameapi = require('../gameapi');
+    const currentVessels = await gameapi.fetchVessels();
+
+    // Store IDs as numbers for consistent comparison
+    currentVessels.forEach(v => {
+      if (v.id) {
+        ownedVesselIds.add(Number(v.id));
+      }
+    });
+  } catch (err) {
+    logger.warn('[Analytics] Could not fetch current vessels for ownership check:', err.message);
+  }
+
+  // Ensure contribution field is properly named and add ownership info
+  // Convert vesselId to number for comparison (could be string from logs)
   return vesselPerf.map(v => ({
     ...v,
-    contribution: v.totalContribution
+    contribution: v.totalContribution,
+    isOwned: ownedVesselIds.size > 0 ? ownedVesselIds.has(Number(v.vesselId)) : true
   }));
 }
 
 /**
  * Get route profitability with contribution from merged data (local + game history)
+ * Also includes active vessel counts per route
  * @param {string} userId - User ID
  * @param {number} days - Number of days to analyze
- * @returns {Promise<Array>} Route profitability with contribution
+ * @returns {Promise<Array>} Route profitability with contribution and active vessel info
  */
 async function getRouteProfitabilityWithContribution(userId, days = 30) {
   // Use merged departures (local logs + game import)
   const routeProf = await getRouteProfitabilityMerged(userId, days);
 
-  // Ensure contribution field is properly named
-  return routeProf.map(r => ({
-    ...r,
-    contribution: r.totalContribution || 0,
-    avgContribPerTrip: r.totalContribution && r.trips ? r.totalContribution / r.trips : 0
-  }));
+  // Get current vessels to determine active routes
+  // Routes are normalized (alphabetically sorted), so A->B and B->A map to the same key
+  let activeRouteVessels = {};
+  try {
+    const gameapi = require('../gameapi');
+    const currentVessels = await gameapi.fetchVessels();
+
+    // Count vessels per route using normalized key
+    currentVessels.forEach(v => {
+      if (v.route_origin && v.route_destination) {
+        // Use normalized key so A->B and B->A count toward the same route
+        const routeKey = normalizeRouteKey(v.route_origin, v.route_destination);
+
+        if (!activeRouteVessels[routeKey]) activeRouteVessels[routeKey] = 0;
+        activeRouteVessels[routeKey]++;
+      }
+    });
+  } catch (err) {
+    logger.warn('[Analytics] Could not fetch current vessels for active route detection:', err.message);
+  }
+
+  // Ensure contribution field is properly named and add active vessel info
+  return routeProf.map(r => {
+    const activeCount = activeRouteVessels[r.route] || 0;
+    return {
+      ...r,
+      contribution: r.totalContribution || 0,
+      avgContribPerTrip: r.totalContribution && r.trips ? r.totalContribution / r.trips : 0,
+      activeVesselCount: activeCount,
+      isActive: activeCount > 0
+    };
+  });
 }
 
 /**
@@ -2119,7 +2176,7 @@ async function calculateRouteHijackCounts(userId, days, departures) {
       const matchedDeparture = deps.find(d => d.timestamp < hijackTime);
 
       if (matchedDeparture) {
-        const routeKey = `${matchedDeparture.origin}<>${matchedDeparture.destination}`;
+        const routeKey = normalizeRouteKey(matchedDeparture.origin, matchedDeparture.destination);
 
         hijackCountMap.set(routeKey, (hijackCountMap.get(routeKey) || 0) + 1);
         matchedCount++;
@@ -2212,7 +2269,7 @@ async function aggregateRansomPayments(userId, days, departures) {
       const matchedDeparture = deps.find(d => d.timestamp < ransom.timestamp);
 
       if (matchedDeparture) {
-        const routeKey = `${matchedDeparture.origin}<>${matchedDeparture.destination}`;
+        const routeKey = normalizeRouteKey(matchedDeparture.origin, matchedDeparture.destination);
 
         if (!ransomMap.has(routeKey)) {
           ransomMap.set(routeKey, { totalRansom: 0, count: 0 });
@@ -2258,18 +2315,21 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
       const destination = v.destination || '';
       if (!origin || !destination) return;
 
-      const routeKey = `${origin}<>${destination}`;
+      // Normalize route key so A<>B and B<>A are the same route
+      const routeKey = normalizeRouteKey(origin, destination);
+      const [normOrigin, normDest] = routeKey.split('<>');
 
       if (!routeMap.has(routeKey)) {
         routeMap.set(routeKey, {
           route: routeKey,
-          origin,
-          destination,
+          origin: normOrigin,
+          destination: normDest,
           trips: 0,
           totalRevenue: 0,
           totalHarborFees: 0,
           totalFuelUsed: 0,
           totalDistance: 0,
+          totalDuration: 0,
           vessels: new Set(),
           sources: { local: 0, game: 0 }
         });
@@ -2281,6 +2341,7 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
       route.totalHarborFees += Math.abs(v.harborFee || 0);
       route.totalFuelUsed += v.fuelUsed || 0;
       route.totalDistance += v.distance || 0;
+      route.totalDuration += v.duration || 0;
       route.vessels.add(v.vesselId || v.vessel_id);
 
       // Track source
@@ -2300,6 +2361,9 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
     const harborFeePercent = route.totalRevenue > 0 ? (route.totalHarborFees / route.totalRevenue) * 100 : 0;
     // Distance is in nautical miles
     const avgIncomePerNm = route.totalDistance > 0 ? route.totalRevenue / route.totalDistance : 0;
+    // Duration is in seconds, convert to hours for avg/h calculation
+    const totalHours = route.totalDuration / 3600;
+    const avgRevenuePerHour = totalHours > 0 ? route.totalRevenue / totalHours : 0;
 
     // Get historical hijack incidents from logbook (actual count of hijacks on this route)
     const hijackCount = hijackCountMap.get(route.route);
@@ -2326,10 +2390,12 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
       totalHarborFees: route.totalHarborFees,
       totalFuelUsed: route.totalFuelUsed,
       totalDistance: route.totalDistance,
+      totalDuration: route.totalDuration,
       avgRevenuePerTrip,
       avgHarborFee,
       harborFeePercent,
       avgIncomePerNm,
+      avgRevenuePerHour,
       hijackingRisk: gameHijackRisk !== undefined ? gameHijackRisk : null,
       hijackCount: hijackCount !== undefined ? hijackCount : null,
       totalRansomPaid: ransomData ? ransomData.totalRansom : null,
