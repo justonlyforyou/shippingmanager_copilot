@@ -244,7 +244,12 @@ function formatPortAbbreviation(portCode) {
   };
   if (abbr[portCode]) return abbr[portCode];
   const parts = portCode.split('_');
-  return parts[parts.length - 1].substring(0, 3).toUpperCase();
+  const lastPart = parts[parts.length - 1];
+  // Skip country code suffixes - use first word instead
+  if (parts.length > 1 && ['us', 'uk', 'ca', 'au', 'nz', 'br', 'mx', 'l'].includes(lastPart)) {
+    return parts[0].substring(0, 3).toUpperCase();
+  }
+  return lastPart.substring(0, 3).toUpperCase();
 }
 
 module.exports = {

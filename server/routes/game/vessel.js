@@ -298,6 +298,7 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
     let soldCount = 0;
     const errors = [];
     const soldVessels = []; // Track sold vessels for audit log
+    let lastUserData = null; // Track latest user data from sell responses
 
     // Sell each vessel individually (API only supports single vessel sales)
     for (const vesselId of vessel_ids) {
@@ -305,6 +306,11 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
         const data = await apiCall('/vessel/sell-vessel', 'POST', { vessel_id: vesselId });
         if (data.success) {
           soldCount++;
+
+          // Store user data from response (each sell returns updated user state)
+          if (data.user) {
+            lastUserData = data.user;
+          }
 
           // Use price from BEFORE selling (from /game/index) or fall back to API response
           const sellPrice = vesselPriceMap.get(vesselId) || data.vessel?.sell_price || 0;
@@ -337,25 +343,46 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
       }
     }
 
-    // Fetch and broadcast updated bunker state (cash increased)
-    try {
-      const gameData = await apiCallWithRetry('/game/index', 'POST', {});
-      if (gameData.data?.user) {
-        const user = gameData.data.user;
+    // Broadcast updated bunker state using user data from sell response (no extra API call!)
+    if (lastUserData) {
+      const cachedCapacity = autopilot.getCachedCapacity(userId);
 
-        // API doesn't return capacity fields - use cached values from autopilot
-        const cachedCapacity = autopilot.getCachedCapacity(userId);
+      broadcastToUser(userId, 'bunker_update', {
+        fuel: lastUserData.fuel / 1000,
+        co2: (lastUserData.co2 || lastUserData.co2_certificate) / 1000,
+        cash: lastUserData.cash,
+        maxFuel: cachedCapacity.maxFuel,
+        maxCO2: cachedCapacity.maxCO2
+      });
+      logger.debug(`[Vessel Sell] Broadcast bunker update from sell response: cash=$${lastUserData.cash?.toLocaleString()}`);
+    }
 
-        broadcastToUser(userId, 'bunker_update', {
-          fuel: user.fuel / 1000,
-          co2: (user.co2 || user.co2_certificate) / 1000,
-          cash: user.cash,
-          maxFuel: cachedCapacity.maxFuel,
-          maxCO2: cachedCapacity.maxCO2
-        });
-      }
-    } catch (error) {
-      logger.error('[Vessel Sell] Failed to fetch updated bunker state:', error);
+    // Update anchor points from cache (no API call needed!)
+    const state = require('../../state');
+    const currentHeaderData = state.getHeaderData(userId);
+    const currentAnchor = currentHeaderData?.anchor;
+
+    if (currentAnchor && currentAnchor.available !== undefined) {
+      const newAnchor = {
+        available: currentAnchor.available + soldVessels.length,
+        max: currentAnchor.max,
+        pending: currentAnchor.pending
+      };
+
+      // Update state cache
+      state.updateHeaderData(userId, {
+        ...currentHeaderData,
+        anchor: newAnchor
+      });
+
+      // Broadcast immediately
+      broadcastToUser(userId, 'header_data_update', {
+        stock: currentHeaderData?.stock,
+        anchor: newAnchor
+      });
+      logger.info(`[Vessel Sell] Broadcast anchor update: ${newAnchor.available}/${newAnchor.max} (+${soldVessels.length})`);
+    } else {
+      logger.warn('[Vessel Sell] Could not update anchor points - no cached anchor data');
     }
 
     // AUDIT LOG: Vessel sale
@@ -504,30 +531,33 @@ router.post('/purchase-vessel', express.json(), async (req, res) => {
       logger.debug(`[Vessel Purchase] Broadcast cash update: $${data.user.cash.toLocaleString()}`);
     }
 
-    // Broadcast vessel count update (pending vessel added)
+    // Update anchor points - just decrement available by 1 (no extra API call needed!)
     if (userId) {
-      try {
-        const vesselsResponse = await apiCall('/game/index', 'GET');
-        if (vesselsResponse?.vessels) {
-          const readyToDepart = vesselsResponse.vessels.filter(v =>
-            v.status === 'ready' && v.maintenance > 0
-          ).length;
-          const atAnchor = vesselsResponse.vessels.filter(v =>
-            v.status === 'anchor'
-          ).length;
-          const pending = vesselsResponse.vessels.filter(v =>
-            v.status === 'pending'
-          ).length;
+      const state = require('../../state');
+      const currentHeaderData = state.getHeaderData(userId);
+      const currentAnchor = currentHeaderData?.anchor;
 
-          broadcastToUser(userId, 'vessel_count_update', {
-            readyToDepart,
-            atAnchor,
-            pending
-          });
-          logger.debug(`[Vessel Purchase] Broadcast vessel count update: pending=${pending}`);
-        }
-      } catch (error) {
-        logger.error('[Vessel Purchase] Failed to broadcast vessel count update:', error.message);
+      if (currentAnchor && currentAnchor.available !== undefined) {
+        const newAnchor = {
+          available: currentAnchor.available - 1,
+          max: currentAnchor.max,
+          pending: currentAnchor.pending
+        };
+
+        // Update state cache
+        state.updateHeaderData(userId, {
+          ...currentHeaderData,
+          anchor: newAnchor
+        });
+
+        // Broadcast immediately
+        broadcastToUser(userId, 'header_data_update', {
+          stock: currentHeaderData?.stock,
+          anchor: newAnchor
+        });
+        logger.info(`[Vessel Purchase] Broadcast anchor update: ${newAnchor.available}/${newAnchor.max} (-1)`);
+      } else {
+        logger.warn('[Vessel Purchase] Could not update anchor points - no cached anchor data');
       }
     }
 
@@ -682,6 +712,34 @@ router.post('/broadcast-purchase-summary', express.json(), async (req, res) => {
       broadcastHarborMapRefresh(userId, 'vessels_purchased', {
         count: vessels.length
       });
+    }
+
+    // Update anchor points - just decrement available by purchased count (no extra API call needed!)
+    const state = require('../../state');
+    const currentHeaderData = state.getHeaderData(userId);
+    const currentAnchor = currentHeaderData?.anchor;
+
+    if (currentAnchor && currentAnchor.available !== undefined) {
+      const newAnchor = {
+        available: currentAnchor.available - vessels.length,
+        max: currentAnchor.max,
+        pending: currentAnchor.pending
+      };
+
+      // Update state cache
+      state.updateHeaderData(userId, {
+        ...currentHeaderData,
+        anchor: newAnchor
+      });
+
+      // Broadcast immediately
+      broadcastToUser(userId, 'header_data_update', {
+        stock: currentHeaderData?.stock,
+        anchor: newAnchor
+      });
+      logger.info(`[Bulk Purchase] Broadcast anchor update: ${newAnchor.available}/${newAnchor.max} (-${vessels.length})`);
+    } else {
+      logger.warn('[Bulk Purchase] Could not update anchor points - no cached anchor data');
     }
 
     res.json({ success: true });

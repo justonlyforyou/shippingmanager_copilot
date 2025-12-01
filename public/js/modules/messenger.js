@@ -743,28 +743,46 @@ function formatSystemMessage(body, values, subject, caseDetails, messageTimestam
             `;
           } else {
             // User resolved manually - show verification details without Blackbeard signature
+            // Support both manual (actual_paid, cash_before, cash_after) and autopilot (cash_before_paid, cash_after_paid) field names
+            const vExpected = paymentVerification.expected_amount;
+            const vActual = paymentVerification.actual_paid ?? (paymentVerification.cash_before_paid - paymentVerification.cash_after_paid);
+            const vBefore = paymentVerification.cash_before ?? paymentVerification.cash_before_paid;
+            const vAfter = paymentVerification.cash_after ?? paymentVerification.cash_after_paid;
             verificationHTML = `
               <div style="margin-top: 12px; padding: 10px; background: rgba(16, 185, 129, 0.1); border: 2px solid #10b981; border-radius: 4px;">
                 <div style="color: #10b981; font-weight: bold; font-size: 14px; text-align: center;">✓ Payment Verified</div>
                 <div style="margin-top: 8px; font-size: 12px; color: #9ca3af;">
-                  Expected: <strong>$${paymentVerification.expected_amount.toLocaleString()}</strong><br>
-                  Paid: <strong>$${paymentVerification.actual_paid.toLocaleString()}</strong><br>
-                  Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>
-                  Cash After: $${paymentVerification.cash_after.toLocaleString()}
+                  Expected: <strong>$${vExpected.toLocaleString()}</strong><br>
+                  Paid: <strong>$${vActual.toLocaleString()}</strong><br>
+                  Cash Before: $${vBefore.toLocaleString()}<br>
+                  Cash After: $${vAfter.toLocaleString()}
                 </div>
               </div>
             `;
           }
         } else {
           // Payment NOT verified - show FAILED
+          // Build details HTML based on what fields are available
+          let detailsHTML = '';
+          if (paymentVerification.expected_amount !== undefined) {
+            detailsHTML += `Expected: <strong>$${paymentVerification.expected_amount.toLocaleString()}</strong><br>`;
+          }
+          if (paymentVerification.actual_paid !== undefined) {
+            detailsHTML += `Actually Paid: <strong>$${paymentVerification.actual_paid.toLocaleString()}</strong><br>`;
+          }
+          if (paymentVerification.cash_before !== undefined) {
+            detailsHTML += `Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>`;
+          }
+          if (paymentVerification.cash_after !== undefined) {
+            detailsHTML += `Cash After: $${paymentVerification.cash_after.toLocaleString()}`;
+          } else if (paymentVerification.cash_after_paid !== undefined) {
+            detailsHTML += `Cash After: $${paymentVerification.cash_after_paid.toLocaleString()}`;
+          }
           verificationHTML = `
             <div style="margin-top: 12px; padding: 10px; background: rgba(239, 68, 68, 0.2); border: 2px solid #ef4444; border-radius: 4px;">
               <div style="color: #ef4444; font-weight: bold; font-size: 18px; text-align: center;">⚠️ PAYMENT VERIFICATION FAILED ⚠️</div>
               <div style="margin-top: 8px; font-size: 12px; color: #fca5a5;">
-                Expected: <strong>$${paymentVerification.expected_amount.toLocaleString()}</strong><br>
-                Actually Paid: <strong>$${paymentVerification.actual_paid.toLocaleString()}</strong><br>
-                Cash Before: $${paymentVerification.cash_before.toLocaleString()}<br>
-                Cash After: $${paymentVerification.cash_after.toLocaleString()}
+                ${detailsHTML}
               </div>
             </div>
           `;

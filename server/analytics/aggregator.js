@@ -1659,38 +1659,42 @@ async function getMergedSummary(userId, days = 7) {
     context: t.context
   })).sort((a, b) => a.time - b.time);
 
-  // Build utilization and vessel revenue entries from lookup store
+  // Build utilization and vessel revenue entries from merged departures (same source as vessel performance)
   const utilizationEntries = [];
   const vesselRevenueEntries = [];
   try {
-    const lookupEntries = await lookupStore.getEntriesByDays(userId, days);
-    for (const entry of lookupEntries) {
-      if (entry.context !== 'vessels_departed') continue;
-      const vessel = entry.pod2_vessel || entry.pod3_vessel;
-      if (!vessel) continue;
+    // Use getMergedDepartures to get ALL departures (local + game history)
+    const mergedDepartures = await getMergedDepartures(userId, days);
 
-      const vesselId = vessel.vesselId || vessel.vessel_id || vessel.id;
-      const vesselName = vessel.name || vessel.vesselName || 'Unknown';
-      const timeSeconds = Math.floor(entry.timestamp / 1000);
+    for (const log of mergedDepartures) {
+      const vessels = log.details?.departedVessels || log.details?.vessels || [];
+      const logTimestamp = log.timestamp || log.details?.timestamp;
 
-      // Utilization entries
-      const utilization = vessel.utilization;
-      if (typeof utilization === 'number') {
-        utilizationEntries.push({
-          time: timeSeconds,
-          value: utilization * 100, // Convert 0-1 to 0-100%
-          vesselName
-        });
-      }
+      for (const vessel of vessels) {
+        const vesselId = vessel.vesselId || vessel.vessel_id;
+        const vesselName = vessel.name || vessel.vesselName || 'Unknown';
+        const timeSeconds = Math.floor(logTimestamp / 1000);
 
-      // Vessel revenue entries (individual departures with timestamps)
-      if (vesselId && entry.cash) {
-        vesselRevenueEntries.push({
-          time: timeSeconds,
-          value: entry.cash,
-          vesselId,
-          vesselName
-        });
+        // Utilization entries
+        const utilization = vessel.utilization;
+        if (typeof utilization === 'number') {
+          utilizationEntries.push({
+            time: timeSeconds,
+            value: utilization * 100, // Convert 0-1 to 0-100%
+            vesselName
+          });
+        }
+
+        // Vessel revenue entries - use income which can be negative
+        const vesselIncome = vessel.income;
+        if (vesselId && typeof vesselIncome === 'number') {
+          vesselRevenueEntries.push({
+            time: timeSeconds,
+            value: vesselIncome,
+            vesselId,
+            vesselName
+          });
+        }
       }
     }
     utilizationEntries.sort((a, b) => a.time - b.time);
@@ -1816,6 +1820,20 @@ async function getMergedDepartures(userId, days) {
   const DEDUP_WINDOW = 5 * 60 * 1000; // 5 minutes
   const localKeys = new Set();
 
+  // Build map of game departures for duration lookup
+  const gameDurationMap = new Map();
+  gameAfterLocal.forEach(d => {
+    const vessels = d.details?.departedVessels || [];
+    if (vessels.length > 0 && vessels[0]?.vesselId) {
+      const vesselId = vessels[0].vesselId;
+      const roundedTime = Math.floor(d.timestamp / DEDUP_WINDOW) * DEDUP_WINDOW;
+      const key = `${vesselId}-${roundedTime}`;
+      if (vessels[0].duration) {
+        gameDurationMap.set(key, vessels[0].duration);
+      }
+    }
+  });
+
   localDepartures.forEach(log => {
     const vessels = log.details?.departedVessels || log.details?.vessels || [];
     vessels.forEach(v => {
@@ -1824,6 +1842,14 @@ async function getMergedDepartures(userId, days) {
         // Round timestamp to nearest 5 minutes for fuzzy matching
         const roundedTime = Math.floor(log.timestamp / DEDUP_WINDOW) * DEDUP_WINDOW;
         localKeys.add(`${vesselId}-${roundedTime}`);
+        // Enrich local entry with duration from game data if missing
+        if (!v.duration) {
+          const key = `${vesselId}-${roundedTime}`;
+          const gameDuration = gameDurationMap.get(key);
+          if (gameDuration) {
+            v.duration = gameDuration;
+          }
+        }
       }
     });
   });
@@ -1883,6 +1909,7 @@ async function getVesselPerformanceMerged(userId, days = 30) {
           totalHarborFees: 0,
           totalContribution: 0,
           totalDistance: 0,
+          totalDuration: 0,
           utilizationSum: 0,
           routes: new Map(),
           sources: { local: 0, game: 0 }
@@ -1897,6 +1924,7 @@ async function getVesselPerformanceMerged(userId, days = 30) {
       vessel.totalHarborFees += Math.abs(v.harborFee || 0);
       vessel.totalContribution += v.contributionGained || 0;
       vessel.totalDistance += v.distance || 0;
+      vessel.totalDuration += v.duration || 0;
       vessel.utilizationSum += v.utilization || 0;
 
       // Track source
@@ -1921,6 +1949,10 @@ async function getVesselPerformanceMerged(userId, days = 30) {
     const avgUtilization = vessel.trips > 0 ? vessel.utilizationSum / vessel.trips : 0;
     const avgRevenuePerTrip = vessel.trips > 0 ? vessel.totalRevenue / vessel.trips : 0;
     const fuelEfficiency = vessel.totalFuelUsed > 0 ? vessel.totalDistance / vessel.totalFuelUsed : 0;
+    // Duration is in seconds, convert to hours for avg/h calculation
+    const totalHours = vessel.totalDuration / 3600;
+    const avgRevenuePerHour = totalHours > 0 ? vessel.totalRevenue / totalHours : 0;
+    const avgRevenuePerNm = vessel.totalDistance > 0 ? vessel.totalRevenue / vessel.totalDistance : 0;
 
     // Find most used route
     let primaryRoute = null;
@@ -1942,8 +1974,11 @@ async function getVesselPerformanceMerged(userId, days = 30) {
       totalHarborFees: vessel.totalHarborFees,
       totalContribution: vessel.totalContribution,
       totalDistance: vessel.totalDistance,
+      totalDuration: vessel.totalDuration,
       avgUtilization: avgUtilization * 100,
       avgRevenuePerTrip,
+      avgRevenuePerHour,
+      avgRevenuePerNm,
       fuelEfficiency,
       primaryRoute: formatRouteDisplay(primaryRoute),
       routeCount: vessel.routes.size,

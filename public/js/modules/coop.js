@@ -419,6 +419,15 @@ export async function sendCoopMax(userId) {
       // Format error message with Alliance Coop header (use <br> for line breaks)
       const errorMsg = `🤝 Alliance Coop<br><br>ERROR!<br><br>${data.error || 'Unknown error'}<br>${data.target_user ? `COOP not available for ${data.target_user}` : 'COOP operation failed'}`;
       showSideNotification(errorMsg, 'error');
+
+      // Refresh overlay to update button states (available may have changed)
+      const coopOverlay = document.getElementById('coopOverlay');
+      const isAllianceTabsOpen = coopOverlay && !coopOverlay.classList.contains('hidden');
+      if (isAllianceTabsOpen && window.switchTab) {
+        await window.switchTab('coop');
+      } else {
+        await showCoopOverlay();
+      }
       return;
     }
 

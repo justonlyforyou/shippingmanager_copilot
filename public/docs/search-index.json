@@ -862,6 +862,13 @@
   },
   {
     "type": "module",
+    "name": "server/websocket/messenger-content-cache",
+    "longname": "module:server/websocket/messenger-content-cache",
+    "url": "module-server_websocket_messenger-content-cache.html",
+    "description": "<p>Messenger Content Cache</p>\n<p>Local file-based cache for messenger message content.\nStores full message history per chat to enable instant loading.</p>\n<p>Cache Strategy:</p>\n<ul>\n<li>Messages are cached when WebSocket refresh detects new messages</li>\n<li>Cache is updated in background, not blocking UI</li>\n<li>When user opens a chat, messages load from cache instantly</li>\n<li>Fresh data is fetched only if cache is empty or stale</li>\n</ul>"
+  },
+  {
+    "type": "module",
     "name": "server/websocket/messenger-refresh",
     "longname": "module:server/websocket/messenger-refresh",
     "url": "module-server_websocket_messenger-refresh.html",
@@ -1892,6 +1899,14 @@
     "longname": "module:analytics~populateTypeFilter",
     "url": "module-analytics.html#~populateTypeFilter",
     "description": "<p>Populate type filter dropdown dynamically from breakdown data</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "renderBottomVesselsRevenueChart",
+    "longname": "module:analytics~renderBottomVesselsRevenueChart",
+    "url": "module-analytics.html#~renderBottomVesselsRevenueChart",
+    "description": "<p>Render Bottom 10 Vessels by Daily Revenue (worst performers)</p>",
     "parent": "module:analytics"
   },
   {
@@ -4496,10 +4511,10 @@
   },
   {
     "type": "method",
-    "name": "selectRouteInMapFilter",
-    "longname": "module:depart-manager~selectRouteInMapFilter",
-    "url": "module-depart-manager.html#~selectRouteInMapFilter",
-    "description": "<p>Select a route in the map filter (same as clicking in filter panel)</p>",
+    "name": "selectVesselRouteOnMap",
+    "longname": "module:depart-manager~selectVesselRouteOnMap",
+    "url": "module-depart-manager.html#~selectVesselRouteOnMap",
+    "description": "<p>Select a vessel's route on the map (opens route panel with vessel)</p>",
     "parent": "module:depart-manager"
   },
   {
@@ -9949,6 +9964,110 @@
     "url": "module-server_websocket_messenger-cache.html#~getCachedMessengerChats",
     "description": "<p>Fetches messenger chats with shared caching to reduce duplicate API calls.</p>\n<p>Multiple systems need chat data (messenger refresh, hijacking refresh, badge updates).\nWithout caching, each would make separate API calls to /messenger/get-chats.\nThis function implements a 15-second cache that all systems share.</p>\n<p>Cache Logic:</p>\n<ul>\n<li>If cache is fresh (&lt; 15 seconds old), return cached data immediately</li>\n<li>If cache is stale (&gt;= 15 seconds old), fetch fresh data and update cache</li>\n<li>Cache is shared across all callers (messenger, hijacking, badges)</li>\n</ul>\n<p>Impact:</p>\n<ul>\n<li>Reduces ~3 duplicate API calls per 15-second window to just 1 call</li>\n<li>Saves ~12 API calls/minute during typical usage</li>\n<li>All callers get synchronized data from same fetch</li>\n</ul>",
     "parent": "module:server/websocket/messenger-cache"
+  },
+  {
+    "type": "method",
+    "name": "deleteChatFromCache",
+    "longname": "module:server/websocket/messenger-content-cache~deleteChatFromCache",
+    "url": "module-server_websocket_messenger-content-cache.html#~deleteChatFromCache",
+    "description": "<p>Delete a chat from cache</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "ensureCacheDir",
+    "longname": "module:server/websocket/messenger-content-cache~ensureCacheDir",
+    "url": "module-server_websocket_messenger-content-cache.html#~ensureCacheDir",
+    "description": "<p>Ensure messenger cache directory exists</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "flushCache",
+    "longname": "module:server/websocket/messenger-content-cache~flushCache",
+    "url": "module-server_websocket_messenger-content-cache.html#~flushCache",
+    "description": "<p>Force save any pending changes (call on shutdown)</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "getCacheStats",
+    "longname": "module:server/websocket/messenger-content-cache~getCacheStats",
+    "url": "module-server_websocket_messenger-content-cache.html#~getCacheStats",
+    "description": "<p>Get cache statistics</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "getCachedChatList",
+    "longname": "module:server/websocket/messenger-content-cache~getCachedChatList",
+    "url": "module-server_websocket_messenger-content-cache.html#~getCachedChatList",
+    "description": "<p>Get cached chat list</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "getCachedChatMessages",
+    "longname": "module:server/websocket/messenger-content-cache~getCachedChatMessages",
+    "url": "module-server_websocket_messenger-content-cache.html#~getCachedChatMessages",
+    "description": "<p>Get cached messages for a specific chat</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "getMessengerCachePath",
+    "longname": "module:server/websocket/messenger-content-cache~getMessengerCachePath",
+    "url": "module-server_websocket_messenger-content-cache.html#~getMessengerCachePath",
+    "description": "<p>Get cache file path for messenger content</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "hasNewMessages",
+    "longname": "module:server/websocket/messenger-content-cache~hasNewMessages",
+    "url": "module-server_websocket_messenger-content-cache.html#~hasNewMessages",
+    "description": "<p>Check if a chat has new messages compared to cache</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "loadMessengerCache",
+    "longname": "module:server/websocket/messenger-content-cache~loadMessengerCache",
+    "url": "module-server_websocket_messenger-content-cache.html#~loadMessengerCache",
+    "description": "<p>Load messenger cache from disk into memory</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "markChatAsReadInCache",
+    "longname": "module:server/websocket/messenger-content-cache~markChatAsReadInCache",
+    "url": "module-server_websocket_messenger-content-cache.html#~markChatAsReadInCache",
+    "description": "<p>Mark a chat as read in cache (update metadata)</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "saveMessengerCache",
+    "longname": "module:server/websocket/messenger-content-cache~saveMessengerCache",
+    "url": "module-server_websocket_messenger-content-cache.html#~saveMessengerCache",
+    "description": "<p>Save messenger cache to disk (debounced)</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "updateChatList",
+    "longname": "module:server/websocket/messenger-content-cache~updateChatList",
+    "url": "module-server_websocket_messenger-content-cache.html#~updateChatList",
+    "description": "<p>Update cached chat list (from /messenger/get-chats)</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
+    "name": "updateChatMessages",
+    "longname": "module:server/websocket/messenger-content-cache~updateChatMessages",
+    "url": "module-server_websocket_messenger-content-cache.html#~updateChatMessages",
+    "description": "<p>Update cached messages for a specific chat</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
   },
   {
     "type": "method",

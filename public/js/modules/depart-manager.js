@@ -469,13 +469,14 @@ function getVesselStatusText(status) {
  * @param {HTMLElement} contentArea - Content area element
  */
 function addMassMoorEventHandlers(contentArea) {
-  // Route link click handlers
+  // Route link click handlers - get vessel ID from parent element
   const routeLinks = contentArea.querySelectorAll('.depart-route-link');
   routeLinks.forEach(link => {
     link.addEventListener('click', () => {
-      const routeName = link.dataset.routeName;
-      if (routeName && routeName !== 'No route') {
-        selectRouteInMapFilter(routeName);
+      const vesselItem = link.closest('.depart-vessel-item, .mass-moor-item');
+      const vesselId = vesselItem ? parseInt(vesselItem.dataset.vesselId) : null;
+      if (vesselId) {
+        selectVesselRouteOnMap(vesselId);
       }
     });
   });
@@ -856,13 +857,14 @@ function formatETA(vessel) {
  * @param {HTMLElement} contentArea - Content area element
  */
 function addVesselItemEventHandlers(contentArea) {
-  // Route link click handlers
+  // Route link click handlers - get vessel ID from parent element
   const routeLinks = contentArea.querySelectorAll('.depart-route-link');
   routeLinks.forEach(link => {
     link.addEventListener('click', () => {
-      const routeName = link.dataset.routeName;
-      if (routeName && routeName !== 'No route') {
-        selectRouteInMapFilter(routeName);
+      const vesselItem = link.closest('.depart-vessel-item, .mass-moor-item');
+      const vesselId = vesselItem ? parseInt(vesselItem.dataset.vesselId) : null;
+      if (vesselId) {
+        selectVesselRouteOnMap(vesselId);
       }
     });
   });
@@ -979,24 +981,18 @@ function unselectAllVessels() {
 }
 
 /**
- * Select a route in the map filter (same as clicking in filter panel)
- * @param {string} routeName - Route name to select
+ * Select a vessel's route on the map (opens route panel with vessel)
+ * @param {number} vesselId - Vessel ID to show route for
  */
-function selectRouteInMapFilter(routeName) {
+function selectVesselRouteOnMap(vesselId) {
   // Close depart manager first
   closeDepartManager();
 
-  // Trigger route selection in map filter
-  if (window.harborMap && window.harborMap.selectRoute) {
-    window.harborMap.selectRoute(routeName);
+  // Select vessel on route panel (same as clicking route-vessel-item in harbor map)
+  if (window.harborMap && window.harborMap.selectRouteVessel) {
+    window.harborMap.selectRouteVessel(vesselId);
   } else {
-    // Fallback: try to find and click the route in filter
-    const routeItem = document.querySelector(`.route-filter-item[data-route-name="${routeName}"]`);
-    if (routeItem) {
-      routeItem.click();
-    } else {
-      console.warn(`[Depart Manager] Route ${routeName} not found in filter`);
-    }
+    console.warn(`[Depart Manager] harborMap.selectRouteVessel not available`);
   }
 }
 

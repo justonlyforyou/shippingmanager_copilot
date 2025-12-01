@@ -17,6 +17,12 @@ const {
   loadProcessedMessageCache,
   saveProcessedMessageCache
 } = require('./message-cache');
+const {
+  loadMessengerCache,
+  updateChatList,
+  updateChatMessages,
+  getCachedChatMessages
+} = require('./messenger-content-cache');
 
 /**
  * Interval timer for automatic messenger refresh (15-second polling)
@@ -61,8 +67,14 @@ async function performMessengerRefresh() {
       loadProcessedMessageCache(userId);
     }
 
+    // Load messenger content cache for this user
+    loadMessengerCache(userId);
+
     // Fetch messenger chats (using shared cache to reduce API calls)
     const chats = await getCachedMessengerChats();
+
+    // Update chat list cache for instant loading
+    updateChatList(userId, chats);
 
     // Count unread messages (messages with 'new' flag)
     // Exclude hijacking messages - they go to Blackbeard's Phone Booth
@@ -81,6 +93,40 @@ async function performMessengerRefresh() {
       chats: chats.length
     });
 
+    // Pre-fetch and cache messages for unread chats (background caching)
+    // This ensures messages are ready when user opens the chat
+    const unreadChats = chats.filter(chat => chat.new && !chat.system_chat);
+    for (const chat of unreadChats) {
+      try {
+        // Check if we already have this chat cached with same message count
+        const cached = getCachedChatMessages(userId, chat.id);
+        if (cached && cached.messages.length >= (chat.message_count || 0)) {
+          continue; // Already cached and up to date
+        }
+
+        // Fetch messages for this chat
+        const messagesData = await apiCall('/messenger/get-chat', 'POST', {
+          chat_id: chat.id
+        });
+
+        const messages = messagesData?.data?.chat?.messages || messagesData?.data?.messages;
+
+        if (messages && messages.length > 0) {
+          // Cache the messages
+          updateChatMessages(userId, chat.id, messages, {
+            subject: chat.subject,
+            participants: chat.participants_string,
+            isNew: chat.new,
+            isSystemChat: chat.system_chat
+          });
+
+          logger.debug(`[Messenger Cache] Pre-cached ${messages.length} messages for chat ${chat.id}`);
+        }
+      } catch (error) {
+        logger.error(`[Messenger Cache] Error pre-caching chat ${chat.id}:`, error.message);
+      }
+    }
+
     // Process chats with ChatBot - Check ONLY UNREAD chats to reduce API spam
     // The processedMessageIds cache ensures we don't reply twice to the same message
     for (const chat of chats) {
@@ -92,12 +138,31 @@ async function performMessengerRefresh() {
       if (!chat.new) continue;
 
       try {
-        // Fetch messages for this chat
-        const messagesData = await apiCall('/messenger/get-chat', 'POST', {
-          chat_id: chat.id
-        });
+        // Check if we already have this chat cached (from pre-fetch above)
+        let messages;
+        const cached = getCachedChatMessages(userId, chat.id);
 
-        const messages = messagesData?.data?.chat?.messages || messagesData?.data?.messages;
+        if (cached && cached.messages) {
+          // Use cached messages
+          messages = cached.messages;
+        } else {
+          // Fetch messages for this chat
+          const messagesData = await apiCall('/messenger/get-chat', 'POST', {
+            chat_id: chat.id
+          });
+
+          messages = messagesData?.data?.chat?.messages || messagesData?.data?.messages;
+
+          // Cache the messages for future use
+          if (messages && messages.length > 0) {
+            updateChatMessages(userId, chat.id, messages, {
+              subject: chat.subject,
+              participants: chat.participants_string,
+              isNew: chat.new,
+              isSystemChat: chat.system_chat
+            });
+          }
+        }
 
         // Find the latest message from the sender (not from us)
         const senderMessages = messages.filter(msg => msg.is_mine === false).reverse();

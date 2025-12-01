@@ -120,7 +120,7 @@ async function departVessel(vesselId, speed, guards = 0) {
     origin: vesselData?.route_origin || vesselHistory?.route_origin,
     destination: vesselData?.route_destination || vesselHistory?.route_destination,
     distance: vesselData?.route_distance || vesselHistory?.total_distance,
-    duration: vesselHistory?.duration,
+    duration: vesselHistory?.duration || vesselData?.active_route?.duration,
     routeName: vesselData?.route_name || vesselHistory?.route_name,
     income: income, // depart_income is already NET (after harbor fees)
     harborFee: departInfo.harbor_fee,

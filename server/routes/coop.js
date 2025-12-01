@@ -207,7 +207,7 @@ router.post('/coop/send-max', async (req, res) => {
     const available = coopData.data?.coop?.available;
 
     if (available === 0) {
-      return res.status(400).json({ error: 'No coop vessels available to send' });
+      return res.status(400).json({ error: 'No coop tickets available (season limit reached)' });
     }
 
     // Find target member to check their vessel count

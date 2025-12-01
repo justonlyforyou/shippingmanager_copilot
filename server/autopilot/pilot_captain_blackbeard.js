@@ -10,9 +10,16 @@
 const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId, apiCall } = require('../utils/api');
+const { getAppDataDir } = require('../config');
 const path = require('path');
 const fs = require('fs');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
+
+// Use same path logic as messenger.js for hijack history
+const isPkg = !!process.pkg;
+const DATA_DIR = isPkg
+  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata')
+  : path.join(__dirname, '../../userdata');
 
 /**
  * Get hijacking case data with retry logic.
@@ -50,13 +57,7 @@ async function submitOfferWithRetry(userId, caseId, amount, maxRetries) {
       if (response) {
         // Save bot's offer to history immediately
         try {
-          const { getAppDataDir } = require('../config');
-          const historyDir = path.join(
-            getAppDataDir(),
-            'ShippingManagerCoPilot',
-            'data',
-            'hijack_history'
-          );
+          const historyDir = path.join(DATA_DIR, 'hijack_history');
           const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
 
           if (!fs.existsSync(historyDir)) {
@@ -182,13 +183,7 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
     // Save initial pirate demand to history
     if (negotiationRound === 1) {
       try {
-        const { getAppDataDir } = require('../config');
-        const historyDir = path.join(
-          getAppDataDir(),
-          'ShippingManagerCoPilot',
-          'data',
-          'hijack_history'
-        );
+        const historyDir = path.join(DATA_DIR, 'hijack_history');
         const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
 
         if (!fs.existsSync(historyDir)) {
@@ -325,13 +320,7 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
 
         // Mark as autopilot-resolved
         try {
-          const { getAppDataDir } = require('../config');
-          const historyDir = path.join(
-            getAppDataDir(),
-            'ShippingManagerCoPilot',
-            'data',
-            'hijack_history'
-          );
+          const historyDir = path.join(DATA_DIR, 'hijack_history');
           const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
 
           if (!fs.existsSync(historyDir)) {
@@ -448,13 +437,7 @@ async function processHijackingCase(userId, caseId, vesselName, offerPercentage,
     // ALWAYS save pirate counter-offer to log (even if price unchanged)
     // This is the pirate's response after we made our offer
     try {
-      const { getAppDataDir } = require('../config');
-      const historyDir = path.join(
-        getAppDataDir(),
-        'ShippingManagerCoPilot',
-        'data',
-        'hijack_history'
-      );
+      const historyDir = path.join(DATA_DIR, 'hijack_history');
       const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
 
       let historyData = [];
@@ -530,7 +513,7 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
 
   const OFFER_PERCENTAGE = 0.25;
   const MAX_COUNTER_OFFERS = 2;
-  const VERIFY_DELAY = 120000;
+  const VERIFY_DELAY = 3000; // 3 seconds is enough for API to process
   const MAX_RETRIES = 3;
 
   try {
@@ -538,20 +521,22 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
     const chats = await getCachedMessengerChats();
 
     if (!chats || chats.length === 0) {
-      logger.debug('[Auto-Negotiate Hijacking] No messages data');
+      logger.info('[Auto-Negotiate Hijacking] No messages data from cache');
       return;
     }
 
+    logger.info(`[Auto-Negotiate Hijacking] Checking ${chats.length} chats for hijacking cases...`);
+
     const hijackingChats = chats.filter(chat => {
-      return chat.body === 'vessel_got_hijacked';
+      return chat.system_chat && chat.body === 'vessel_got_hijacked';
     });
 
     if (hijackingChats.length === 0) {
-      logger.debug('[Auto-Negotiate Hijacking] No active hijacking cases');
+      logger.info('[Auto-Negotiate Hijacking] No active hijacking cases found');
       return;
     }
 
-    logger.debug(`[Auto-Negotiate Hijacking] Found ${hijackingChats.length} active case(s)`);
+    logger.info(`[Auto-Negotiate Hijacking] Found ${hijackingChats.length} active case(s): ${hijackingChats.map(c => c.values?.case_id).join(', ')}`);
 
     let processed = 0;
     for (const chat of hijackingChats) {

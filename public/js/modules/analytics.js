@@ -444,7 +444,7 @@ function initSortableHeaders() {
   const vesselTable = document.querySelector('#analytics-vessels .analytics-table thead');
   if (vesselTable) {
     const vesselHeaders = vesselTable.querySelectorAll('th');
-    const vesselColumns = ['name', 'trips', 'totalRevenue', 'avgRevenuePerTrip', 'contribution', 'avgUtilization', 'primaryRoute'];
+    const vesselColumns = ['name', 'trips', 'totalRevenue', 'avgRevenuePerTrip', 'contribution', 'avgRevenuePerHour', 'avgRevenuePerNm', 'avgUtilization', 'primaryRoute'];
     vesselHeaders.forEach((th, index) => {
       if (index < vesselColumns.length) {
         th.dataset.column = vesselColumns[index];
@@ -986,7 +986,7 @@ function renderVesselTable(vessels) {
   if (!tbody) return;
 
   if (!vessels || vessels.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" class="no-data">No vessel data available</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="9" class="no-data">No vessel data available</td></tr>';
     return;
   }
 
@@ -999,6 +999,8 @@ function renderVesselTable(vessels) {
         <td class="num">${formatCurrency(v.totalRevenue)}</td>
         <td class="num">${formatCurrency(v.avgRevenuePerTrip)}</td>
         <td class="num">${formatNumber(v.contribution || v.totalContribution || 0)}</td>
+        <td class="num">${formatCurrency(v.avgRevenuePerHour)}</td>
+        <td class="num">${formatCurrency(v.avgRevenuePerNm)}</td>
         <td class="num">${formatPercent(v.avgUtilization)}</td>
         <td class="route">${escapeHtml(v.primaryRoute || '-')}</td>
       </tr>
@@ -1010,6 +1012,7 @@ function renderVesselTable(vessels) {
 
 // Vessel chart instances
 let vesselsRevenueChart = null;
+let bottomVesselsRevenueChart = null;
 let vesselsUtilizationChart = null;
 
 /**
@@ -1022,6 +1025,7 @@ function renderVesselCharts(vessels, dailyData, utilizationEntries, vesselRevenu
   if (!vessels || vessels.length === 0) return;
 
   renderVesselsRevenueChart(vessels, vesselRevenueEntries);
+  renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries);
   renderVesselsCompositionChart(vessels);
   renderVesselsUtilizationChart(utilizationEntries);
 }
@@ -1174,6 +1178,187 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
   const togglesDiv = document.createElement('div');
   togglesDiv.className = 'analytics-chart-toggles';
   togglesDiv.innerHTML = top10.map((v, i) => `
+    <button class="analytics-chart-toggle active" data-vessel-id="${v.vesselId}" style="border-color: ${colors[i]}40;">
+      <span class="analytics-chart-legend-dot" style="background: ${colors[i]};"></span>
+      ${escapeHtml(v.name)}
+    </button>
+  `).join('');
+  container.appendChild(togglesDiv);
+
+  // Toggle handlers
+  togglesDiv.querySelectorAll('.analytics-chart-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const vesselId = btn.dataset.vesselId;
+      const isActive = btn.classList.toggle('active');
+      if (seriesMap[vesselId]) {
+        seriesMap[vesselId].applyOptions({ visible: isActive });
+      }
+    });
+  });
+}
+
+/**
+ * Render Bottom 10 Vessels by Daily Revenue (worst performers)
+ * @param {Array} vessels - Vessel data with totalRevenue
+ * @param {Array} vesselRevenueEntries - Time-series revenue entries
+ */
+function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
+  const container = document.getElementById('vessels-bottom-revenue-chart-container');
+  if (!container) return;
+
+  if (bottomVesselsRevenueChart) {
+    bottomVesselsRevenueChart.remove();
+    bottomVesselsRevenueChart = null;
+  }
+
+  if (typeof LightweightCharts === 'undefined') {
+    container.innerHTML = '<div class="no-data">Chart library not loaded</div>';
+    return;
+  }
+
+  // Sort by revenue ascending and take bottom 10
+  const bottom10 = [...vessels]
+    .sort((a, b) => a.totalRevenue - b.totalRevenue)
+    .slice(0, 10);
+
+  // Colors for vessels (no red - reserved for zero line)
+  const colors = [
+    '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ec4899',
+    '#14b8a6', '#f97316', '#06b6d4', '#a855f7', '#84cc16'
+  ];
+
+  // Header
+  container.innerHTML = `
+    <div class="analytics-chart-header">
+      <span class="analytics-chart-title">Bottom 10 Vessels - Daily Revenue</span>
+    </div>
+  `;
+
+  if (!vesselRevenueEntries || vesselRevenueEntries.length === 0) {
+    container.innerHTML += '<div class="no-data">No vessel revenue data available</div>';
+    return;
+  }
+
+  // Create chart container
+  const chartDiv = document.createElement('div');
+  chartDiv.style.height = '300px';
+  chartDiv.style.width = '100%';
+  container.appendChild(chartDiv);
+
+  // Create chart with timestamp support and zoom enabled
+  bottomVesselsRevenueChart = LightweightCharts.createChart(chartDiv, {
+    autoSize: true,
+    height: 300,
+    layout: {
+      background: { type: 'solid', color: 'transparent' },
+      textColor: '#9ca3af',
+      attributionLogo: false
+    },
+    grid: {
+      vertLines: { color: 'rgba(255,255,255,0.1)' },
+      horzLines: { color: 'rgba(255,255,255,0.1)' }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal
+    },
+    rightPriceScale: {
+      borderColor: 'rgba(255,255,255,0.2)',
+      autoScale: true,
+      entireTextOnly: true
+    },
+    timeScale: {
+      borderColor: 'rgba(255,255,255,0.2)',
+      timeVisible: true,
+      secondsVisible: true,
+      minBarSpacing: 0.0001
+    },
+    handleScroll: {
+      mouseWheel: true,
+      pressedMouseMove: true,
+      horzTouchDrag: true,
+      vertTouchDrag: false
+    },
+    handleScale: {
+      axisPressedMouseMove: true,
+      mouseWheel: true,
+      pinch: true
+    }
+  });
+
+  // Build daily breakdown data per vessel (aggregate by day)
+  const bottom10Ids = new Set(bottom10.map(v => String(v.vesselId)));
+  const dailyByVessel = {};
+
+  for (const vessel of bottom10) {
+    dailyByVessel[vessel.vesselId] = new Map(); // day timestamp -> daily total
+  }
+
+  // Filter entries for bottom 10 vessels and aggregate by day
+  const sortedEntries = vesselRevenueEntries
+    .filter(e => bottom10Ids.has(String(e.vesselId)))
+    .sort((a, b) => a.time - b.time);
+
+  for (const entry of sortedEntries) {
+    const vesselId = String(entry.vesselId);
+    if (dailyByVessel[vesselId]) {
+      // Convert timestamp to day (start of day in UTC)
+      const dayTimestamp = Math.floor(entry.time / 86400) * 86400;
+      const currentTotal = dailyByVessel[vesselId].get(dayTimestamp) || 0;
+      dailyByVessel[vesselId].set(dayTimestamp, currentTotal + entry.value);
+    }
+  }
+
+  // Create series for each vessel (daily bars/lines)
+  const seriesMap = {};
+  bottom10.forEach((vessel, i) => {
+    const lineOptions = {
+      color: colors[i],
+      lineWidth: 2,
+      lastValueVisible: true,
+      priceLineVisible: false,
+      priceFormat: {
+        type: 'custom',
+        formatter: formatChartPrice
+      }
+    };
+
+    let series;
+    if (typeof bottomVesselsRevenueChart.addLineSeries === 'function') {
+      series = bottomVesselsRevenueChart.addLineSeries(lineOptions);
+    } else {
+      series = bottomVesselsRevenueChart.addSeries(LightweightCharts.LineSeries, lineOptions);
+    }
+
+    // Convert daily Map to sorted array
+    const dataMap = dailyByVessel[vessel.vesselId];
+    const data = dataMap
+      ? Array.from(dataMap.entries())
+          .sort((a, b) => a[0] - b[0])
+          .map(([time, value]) => ({ time, value }))
+      : [];
+
+    series.setData(data);
+    seriesMap[vessel.vesselId] = series;
+  });
+
+  bottomVesselsRevenueChart.timeScale().fitContent();
+
+  // Add zero line using createPriceLine on first series
+  const firstVesselId = Object.keys(seriesMap)[0];
+  if (firstVesselId && seriesMap[firstVesselId]) {
+    seriesMap[firstVesselId].createPriceLine({
+      price: 0,
+      color: '#ef4444',
+      lineWidth: 1,
+      lineStyle: 2, // Dashed
+      axisLabelVisible: true
+    });
+  }
+
+  // Add toggles under chart
+  const togglesDiv = document.createElement('div');
+  togglesDiv.className = 'analytics-chart-toggles';
+  togglesDiv.innerHTML = bottom10.map((v, i) => `
     <button class="analytics-chart-toggle active" data-vessel-id="${v.vesselId}" style="border-color: ${colors[i]}40;">
       <span class="analytics-chart-legend-dot" style="background: ${colors[i]};"></span>
       ${escapeHtml(v.name)}
@@ -2757,12 +2942,12 @@ async function exportAnalyticsData(format = 'json') {
 
     // Vessels section - ALL vessels
     lines.push('=== VESSELS ===');
-    lines.push('Name,VesselID,Trips,Revenue,Expenses,Contribution,Avg/Trip,Utilization %,Primary Route');
+    lines.push('Name,VesselID,Trips,Revenue,Expenses,Contribution,Avg/Trip,Avg/h,Avg/nm,Utilization %,Primary Route');
     if (vessels && vessels.length > 0) {
       vessels.forEach(v => {
         const name = (v.name || '').replace(/"/g, '""');
         const route = (v.primaryRoute || '').replace(/"/g, '""');
-        lines.push(`"${name}",${v.vesselId || ''},${v.trips || 0},${v.totalRevenue || 0},${v.totalExpenses || 0},${v.totalContribution || 0},${Math.round(v.avgRevenuePerTrip || 0)},${(v.avgUtilization || 0).toFixed(1)},"${route}"`);
+        lines.push(`"${name}",${v.vesselId || ''},${v.trips || 0},${v.totalRevenue || 0},${v.totalExpenses || 0},${v.totalContribution || 0},${Math.round(v.avgRevenuePerTrip || 0)},${Math.round(v.avgRevenuePerHour || 0)},${Math.round(v.avgRevenuePerNm || 0)},${(v.avgUtilization || 0).toFixed(1)},"${route}"`);
       });
     }
     lines.push('');
@@ -2869,7 +3054,8 @@ async function exportAnalyticsData(format = 'json') {
         const contribution = v.totalContribution >= 0 ? `+$${formatNumber(v.totalContribution)}` : `-$${formatNumber(Math.abs(v.totalContribution))}`;
         lines.push(`${String(i + 1).padStart(3)}. ${v.name}`);
         lines.push(`     Trips: ${v.trips}, Revenue: $${formatNumber(v.totalRevenue)}, Contribution: ${contribution}`);
-        lines.push(`     Avg/Trip: $${formatNumber(Math.round(v.avgRevenuePerTrip || 0))}, Utilization: ${(v.avgUtilization || 0).toFixed(1)}%`);
+        lines.push(`     Avg/Trip: $${formatNumber(Math.round(v.avgRevenuePerTrip || 0))}, Avg/h: $${formatNumber(Math.round(v.avgRevenuePerHour || 0))}, Avg/nm: $${formatNumber(Math.round(v.avgRevenuePerNm || 0))}`);
+        lines.push(`     Utilization: ${(v.avgUtilization || 0).toFixed(1)}%`);
         if (v.primaryRoute) {
           lines.push(`     Primary Route: ${v.primaryRoute}`);
         }

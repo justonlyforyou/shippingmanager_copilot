@@ -46,6 +46,13 @@ const { messageLimiter } = require('../middleware');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
+const {
+  getCachedChatList,
+  getCachedChatMessages,
+  updateChatMessages,
+  markChatAsReadInCache,
+  deleteChatFromCache
+} = require('../websocket/messenger-content-cache');
 
 const router = express.Router();
 
@@ -175,23 +182,54 @@ router.get('/contact/get-contacts', async (req, res) => {
  */
 router.get('/messenger/get-chats', async (req, res) => {
   try {
-    // Unified 90s timeout for messenger chats (can be very slow with many messages)
-    const data = await apiCall('/messenger/get-chats', 'POST', {});
+    const userId = getUserId();
 
+    // Try to get from cache first (instant response)
+    const cached = getCachedChatList(userId);
+    const cacheAge = Date.now() - cached.updatedAt;
+
+    // Use cache if it's less than 30 seconds old
+    if (cached.chatList.length > 0 && cacheAge < 30000) {
+      logger.debug(`[Messenger] Serving ${cached.chatList.length} chats from cache (age: ${Math.round(cacheAge / 1000)}s)`);
+      return res.json({
+        chats: cached.chatList,
+        own_user_id: userId,
+        own_company_name: getUserCompanyName(),
+        from_cache: true
+      });
+    }
+
+    // Cache is stale or empty - fetch fresh data
+    const data = await apiCall('/messenger/get-chats', 'POST', {});
     const chats = data?.data;
 
     res.json({
       chats: chats,
-      own_user_id: getUserId(),
+      own_user_id: userId,
       own_company_name: getUserCompanyName()
     });
   } catch (error) {
     logger.error('Failed to get chats:', error.message, error.stack);
 
+    // Try to return cached data even if stale
+    const userId = getUserId();
+    const cached = getCachedChatList(userId);
+
+    if (cached.chatList.length > 0) {
+      logger.warn('[Messenger] API failed, returning stale cache');
+      return res.json({
+        chats: cached.chatList,
+        own_user_id: userId,
+        own_company_name: getUserCompanyName(),
+        from_cache: true,
+        cache_stale: true
+      });
+    }
+
     // Return empty chats instead of error to prevent UI breaking
     res.json({
       chats: [],
-      own_user_id: getUserId(),
+      own_user_id: userId,
       own_company_name: getUserCompanyName()
     });
   }
@@ -236,23 +274,64 @@ router.get('/messenger/get-chats', async (req, res) => {
  * @returns {Promise<void>} Sends JSON response with messages and user_id
  */
 router.post('/messenger/get-messages', express.json(), async (req, res) => {
-  const { chat_id } = req.body;
+  const { chat_id, force_refresh } = req.body;
 
   if (!chat_id) {
     return res.status(400).json({ error: 'Invalid chat ID' });
   }
 
-  try {
-    const data = await apiCall('/messenger/get-chat', 'POST', { chat_id });
+  const userId = getUserId();
 
+  try {
+    // Try to get from cache first (instant response)
+    if (!force_refresh) {
+      const cached = getCachedChatMessages(userId, chat_id);
+
+      if (cached && cached.messages && cached.messages.length > 0) {
+        const cacheAge = Date.now() - cached.lastUpdated;
+
+        // Use cache if it's less than 60 seconds old
+        if (cacheAge < 60000) {
+          logger.debug(`[Messenger] Serving ${cached.messages.length} messages for chat ${chat_id} from cache (age: ${Math.round(cacheAge / 1000)}s)`);
+          return res.json({
+            messages: cached.messages,
+            user_id: userId,
+            from_cache: true
+          });
+        }
+      }
+    }
+
+    // Cache is stale, empty, or force refresh - fetch fresh data
+    const data = await apiCall('/messenger/get-chat', 'POST', { chat_id });
     const messages = data?.data?.chat?.messages || data?.data?.messages;
+
+    // Update cache with fresh data
+    if (messages && messages.length > 0) {
+      updateChatMessages(userId, chat_id, messages, {
+        lastFetched: Date.now()
+      });
+    }
 
     res.json({
       messages: messages,
-      user_id: getUserId()
+      user_id: userId
     });
   } catch (error) {
     logger.error('Error getting messages:', error);
+
+    // Try to return cached data even if stale
+    const cached = getCachedChatMessages(userId, chat_id);
+    if (cached && cached.messages && cached.messages.length > 0) {
+      logger.warn(`[Messenger] API failed for chat ${chat_id}, returning stale cache`);
+      return res.json({
+        messages: cached.messages,
+        user_id: userId,
+        from_cache: true,
+        cache_stale: true
+      });
+    }
+
     res.status(500).json({ error: 'Failed to retrieve messages' });
   }
 });
@@ -399,6 +478,12 @@ router.post('/messenger/mark-as-read', express.json(), async (req, res) => {
       system_message_ids
     });
 
+    // Update cache to mark chats as read
+    const userId = getUserId();
+    for (const chatId of chat_ids) {
+      markChatAsReadInCache(userId, chatId);
+    }
+
     res.json({ success: true, data });
   } catch (error) {
     logger.error('Error marking chat as read:', error);
@@ -419,9 +504,14 @@ router.post('/messenger/delete-chat', express.json(), async (req, res) => {
       system_message_ids
     });
 
+    // Remove deleted chats from cache
+    const userId = getUserId();
+    for (const chatId of chat_ids) {
+      deleteChatFromCache(userId, chatId);
+    }
+
     // If case_id is provided, delete the corresponding history file
     if (case_id) {
-      const userId = getUserId();
       // (using fs and path imported at top of file)
       const historyDir = path.join(DATA_DIR, 'hijack_history');
       const historyFile = path.join(historyDir, `${userId}-${case_id}.json`);
