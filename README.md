@@ -279,8 +279,8 @@ Comprehensive notification system for critical events and automation feedback wi
 **[Download the latest release here](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest)**
 
 ### Developers & Linux/Mac Users (Running from Source)
-- **Installation Guide**: See [docs/tutorials/installation-guide.md](docs/tutorials/installation-guide.md)
-- **Build Guide**: See [docs/tutorials/build-guide.md](docs/tutorials/build-guide.md)
+- **Installation Guide**: See [docs/tutorials/01-installation-guide.md](docs/tutorials/01-installation-guide.md)
+- **Build Guide**: See [docs/tutorials/02-build-guide.md](docs/tutorials/02-build-guide.md)
 
 __Linux and MacOs are still untested and work in progress__
 
