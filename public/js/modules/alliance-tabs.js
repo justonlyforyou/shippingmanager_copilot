@@ -1190,7 +1190,7 @@ async function renderAllianzTab() {
         <table class="top-contributors-table">
           <thead>
             <tr>
-              <th>#</th>
+              <th></th>
               <th>Member</th>
               <th>Contribution</th>
               <th>Reward</th>
@@ -1203,15 +1203,15 @@ async function renderAllianzTab() {
       const member = membersData.find(m => m.user_id === contributor.user_id);
       const memberName = member ? escapeHtml(member.company_name) : 'Unknown';
       const rank = index + 1;
-      const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+      const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : '\u{1F949}';
       const reward = contributor.point_reward;
 
       html += `
         <tr>
-          <td class="rank-cell">${rank}</td>
+          <td class="rank-cell">${medal}</td>
           <td class="member-cell"><span class="clickable alliance-member-name" data-user-id="${contributor.user_id}">${memberName}</span></td>
           <td class="contribution-cell">${formatNumber(contributor.contribution_score_sum)}</td>
-          <td class="reward-cell">${medal} ${reward} Diamanten</td>
+          <td class="reward-cell">${reward} \u{1F48E}</td>
         </tr>
       `;
     });
@@ -1751,13 +1751,18 @@ async function renderLigaTab() {
   `;
 
   const sortedAlliances = [...league.alliances].sort((a, b) => a.group_position - b.group_position);
+  const totalAlliances = sortedAlliances.length;
 
   sortedAlliances.forEach((alliance) => {
     const isUserAlliance = alliance.id === userAllianceId;
     const positionClass = alliance.group_position <= 3 ? `league-top-${alliance.group_position}` : '';
     const userClass = isUserAlliance ? 'league-user-alliance' : '';
+    // Highlight: position 1 = promotion (green), last 3 = relegation (red)
+    const isPromotion = alliance.group_position === 1;
+    const isRelegation = alliance.group_position > totalAlliances - 3;
+    const highlightClass = isPromotion ? 'league-promotion-zone' : (isRelegation ? 'league-relegation-zone' : '');
 
-    const medal = alliance.group_position === 1 ? '🥇' : alliance.group_position === 2 ? '🥈' : alliance.group_position === 3 ? '🥉' : '';
+    const medal = alliance.group_position === 1 ? '\u{1F947}' : alliance.group_position === 2 ? '\u{1F948}' : alliance.group_position === 3 ? '\u{1F949}' : '';
 
     const promotionBadge = alliance.promotion ? '<span class="league-promotion-badge">↑ Promotion</span>' : '';
     const topTierBadge = alliance.top_tier_reward ? '<span class="league-top-tier-badge">⭐ Top Tier</span>' : '';
@@ -1777,7 +1782,7 @@ async function renderLigaTab() {
     const logoInitials = alliance.name.substring(0, 2).toUpperCase();
 
     html += `
-      <div class="league-alliance-row ${positionClass} ${userClass}">
+      <div class="league-alliance-row ${positionClass} ${userClass} ${highlightClass}">
         <div class="league-position">
           <span class="league-rank">${medal} #${alliance.group_position}</span>
         </div>
@@ -2012,7 +2017,7 @@ async function showAllianceDetailsModal(allianceId) {
           <table class="top-contributors-table">
             <thead>
               <tr>
-                <th>#</th>
+                <th></th>
                 <th>Member</th>
                 <th>Contribution</th>
                 <th>Reward</th>
@@ -2025,15 +2030,15 @@ async function showAllianceDetailsModal(allianceId) {
         const member = members.find(m => m.user_id === contributor.user_id);
         const memberName = member ? escapeHtml(member.company_name) : 'Unknown';
         const rank = index + 1;
-        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : '🥉';
+        const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : '\u{1F949}';
         const reward = contributor.point_reward;
 
         topContributorsHtml += `
           <tr>
-            <td class="rank-cell">${rank}</td>
+            <td class="rank-cell">${medal}</td>
             <td class="member-cell"><span class="clickable alliance-member-name" data-user-id="${contributor.user_id}">${memberName}</span></td>
             <td class="contribution-cell">${formatNumber(contributor.contribution_score_sum)}</td>
-            <td class="reward-cell">${medal} ${reward} 💎</td>
+            <td class="reward-cell">${reward} \u{1F48E}</td>
           </tr>
         `;
       });

@@ -17,9 +17,9 @@
   min-height: 300px;
   height: auto;
   max-height: calc(70vh + 40px);
-  width: 320px;
-  min-width: 280px;
-  max-width: 400px;
+  width: 350px;
+  min-width: 310px;
+  max-width: 430px;
   background: rgba(31, 41, 55, 0.92);
   border-radius: var(--radius-10);
   box-shadow: var(--shadow-modal-dark);
@@ -496,6 +496,49 @@
 }
 
 /* ============================================
+   DEMAND TABLE (Origin vs Destination)
+   ============================================ */
+
+.route-planner-demand-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-11);
+  margin: var(--spacing-2) 0;
+}
+
+.route-planner-demand-table th,
+.route-planner-demand-table td {
+  padding: var(--spacing-2) var(--spacing-4);
+  text-align: right;
+}
+
+.route-planner-demand-table th {
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-10);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.route-planner-demand-table th:first-child,
+.route-planner-demand-table td.demand-label {
+  text-align: left;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-normal);
+  width: 40px;
+}
+
+.route-planner-demand-table td.demand-value {
+  color: var(--color-success);
+  font-weight: var(--font-weight-semibold);
+  font-family: var(--font-mono);
+}
+
+.route-planner-demand-table td.demand-value.zero,
+.route-planner-demand-table td.demand-value.full-demand {
+  color: var(--color-danger);
+}
+
+/* ============================================
    SPEED SELECTOR (Ports Tab)
    ============================================ */
 
@@ -631,36 +674,42 @@
   color: var(--color-text-tertiary);
 }
 
-.route-planner-current-route-details {
+/* 4-column grid for route details */
+.route-planner-current-route-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-4);
+  margin-top: var(--spacing-8);
+}
+
+.route-grid-item {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-4);
+  align-items: center;
+  text-align: center;
 }
 
-.route-planner-current-route-details .route-detail-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: var(--font-size-12);
-}
-
-.route-planner-current-route-details .route-detail-label {
+.route-grid-label {
+  font-size: var(--font-size-10);
   color: var(--color-text-tertiary);
+  margin-bottom: var(--spacing-2);
 }
 
-.route-planner-current-route-details .route-detail-value {
+.route-grid-value {
+  font-size: var(--font-size-12);
   color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
 }
 
-/* Status-specific colors */
-.route-planner-current-route-details .route-status-port {
-  color: var(--color-success);
+/* Ports tab grid - less top margin */
+.route-planner-current-route-grid.ports-tab-grid {
+  margin-top: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
 }
 
-.route-planner-current-route-details .route-status-enroute {
-  color: var(--color-info-light);
-}
-
-.route-planner-current-route-details .route-status-anchor {
-  color: var(--color-warning);
+/* Divider line */
+.route-planner-divider {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--spacing-4) 0;
 }

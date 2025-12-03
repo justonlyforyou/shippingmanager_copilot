@@ -41,6 +41,65 @@ function getPortCountryCode(portCode) {
 }
 
 /**
+ * Formats vessel status for display, including Bug-Using detection
+ * @param {Object} vessel - Vessel object
+ * @returns {string} Formatted status HTML
+ */
+function formatVesselStatus(vessel) {
+  // Bug-Using: vessel is in maintenance but still has pending delivery time
+  if (vessel.status === 'maintenance' && vessel.time_arrival && vessel.time_arrival > 0) {
+    // Calculate original delivery time (crossed out)
+    const deliveryRemaining = vessel.time_arrival;
+    const deliveryDays = Math.floor(deliveryRemaining / 86400);
+    const deliveryHours = Math.floor((deliveryRemaining % 86400) / 3600);
+    const deliveryMinutes = Math.floor((deliveryRemaining % 3600) / 60);
+    let deliveryDisplay = '';
+    if (deliveryDays > 0) {
+      deliveryDisplay = `${deliveryDays}d ${deliveryHours}h`;
+    } else if (deliveryHours > 0) {
+      deliveryDisplay = `${deliveryHours}h ${deliveryMinutes}m`;
+    } else {
+      deliveryDisplay = `${deliveryMinutes}m`;
+    }
+
+    // Calculate actual drydock end time
+    const maintenanceEnd = parseInt(vessel.maintenance_end_time, 10);
+    const now = Math.floor(Date.now() / 1000);
+    const drydockRemaining = Math.max(0, maintenanceEnd - now);
+    const drydockHours = Math.floor(drydockRemaining / 3600);
+    const drydockMinutes = Math.floor((drydockRemaining % 3600) / 60);
+    let drydockDisplay = '';
+    if (drydockRemaining <= 0) {
+      drydockDisplay = 'Ready';
+    } else if (drydockHours > 0) {
+      drydockDisplay = `${drydockHours}h ${drydockMinutes}m`;
+    } else {
+      drydockDisplay = `${drydockMinutes}m`;
+    }
+
+    return `<span style="color: var(--color-success); font-weight: bold;">Bug-Using</span> (<s style="color: var(--color-text-tertiary);">${deliveryDisplay}</s> <span style="color: var(--color-success);">${drydockDisplay}</span>)`;
+  }
+
+  if (vessel.status === 'pending' && vessel.time_arrival && vessel.time_arrival > 0) {
+    const remaining = vessel.time_arrival;
+    const days = Math.floor(remaining / 86400);
+    const hours = Math.floor((remaining % 86400) / 3600);
+    const minutes = Math.floor((remaining % 3600) / 60);
+    let timeDisplay = '';
+    if (days > 0) {
+      timeDisplay = `${days}d ${hours}h`;
+    } else if (hours > 0) {
+      timeDisplay = `${hours}h ${minutes}m`;
+    } else {
+      timeDisplay = `${minutes}m`;
+    }
+    return `${vessel.status} (Delivery in: ${timeDisplay})`;
+  }
+
+  return vessel.status;
+}
+
+/**
  * Shows vessel detail panel with vessel information
  * Displays status, cargo, ETA, and loads trip history
  *
@@ -55,6 +114,25 @@ export async function showVesselPanel(vessel) {
 
   // Fetch sell price for this vessel (non-blocking)
   let sellPrice = null;
+
+  // Fetch fresh vessel data in background and update status display
+  // This ensures Bug-Using status and timers are accurate
+  getVesselById(vessel.id, true).then(freshVessel => {
+    if (!freshVessel) return;
+
+    // Check if status changed
+    if (freshVessel.status !== vessel.status ||
+        freshVessel.time_arrival !== vessel.time_arrival ||
+        freshVessel.maintenance_end_time !== vessel.maintenance_end_time) {
+      // Update the status paragraph
+      const statusSection = panel.querySelector('.vessel-info-section .section-content p:first-child');
+      if (statusSection) {
+        statusSection.innerHTML = `<strong>Status:</strong> ${formatVesselStatus(freshVessel)}`;
+      }
+    }
+  }).catch(error => {
+    console.error('[Vessel Panel] Error fetching fresh vessel data:', error);
+  });
 
   // Start fetching sell price but don't block panel display
   fetch(window.apiUrl('/api/vessel/get-sell-price'), {
@@ -211,11 +289,11 @@ export async function showVesselPanel(vessel) {
           title="Plan route for this vessel"
         >&#x1F9ED;</span>
         <span
-          class="action-emoji park-toggle-btn${vessel.is_parked ? ' parked' : ' not-parked'}"
+          class="action-emoji park-toggle-btn${vessel.is_parked ? ' parked' : ' not-parked'}${vessel.status === 'maintenance' || vessel.status === 'pending' || vessel.status === 'delivery' ? ' disabled' : ''}"
           data-vessel-id="${vessel.id}"
           data-is-parked="${vessel.is_parked ? 'true' : 'false'}"
-          title="Moor vessel"
-          onclick="window.harborMap.toggleParkVessel(this)"
+          title="${vessel.status === 'maintenance' ? 'Cannot moor/resume vessel in drydock' : vessel.status === 'pending' || vessel.status === 'delivery' ? 'Cannot moor/resume pending vessel' : (vessel.is_parked ? 'Resume vessel' : 'Moor vessel')}"
+          onclick="${vessel.status === 'maintenance' || vessel.status === 'pending' || vessel.status === 'delivery' ? 'return false' : 'window.harborMap.toggleParkVessel(this)'}"
         >${vessel.is_parked ? '&#x26D3;&#xFE0F;' : '&#x1F7E2;'}</span>
         <span
           class="action-emoji depart-vessel-btn${vessel.status !== 'port' ? ' disabled' : ''}"
@@ -240,24 +318,7 @@ export async function showVesselPanel(vessel) {
           <span class="toggle-icon">▼</span> Status & Current Cargo
         </h4>
         <div class="section-content">
-          <p><strong>Status:</strong> ${(() => {
-            if (vessel.status === 'pending' && vessel.time_arrival && vessel.time_arrival > 0) {
-              const remaining = vessel.time_arrival;
-              const days = Math.floor(remaining / 86400);
-              const hours = Math.floor((remaining % 86400) / 3600);
-              const minutes = Math.floor((remaining % 3600) / 60);
-              let timeDisplay = '';
-              if (days > 0) {
-                timeDisplay = `${days}d ${hours}h`;
-              } else if (hours > 0) {
-                timeDisplay = `${hours}h ${minutes}m`;
-              } else {
-                timeDisplay = `${minutes}m`;
-              }
-              return `${vessel.status} (Delivery in: ${timeDisplay})`;
-            }
-            return vessel.status;
-          })()}</p>
+          <p><strong>Status:</strong> ${formatVesselStatus(vessel)}</p>
           ${vessel.eta !== 'N/A' ? `<p><strong>ETA:</strong> ${vessel.eta}</p>` : ''}
           ${vessel.current_port_code ? `<p><strong>Current Port:</strong> ${getCountryFlag(getPortCountryCode(vessel.current_port_code))} ${formatPortName(vessel.current_port_code)}</p>` : ''}
           ${(() => {
@@ -342,6 +403,21 @@ export async function showVesselPanel(vessel) {
             ${vessel.active_route?.unloading_time !== undefined ? `<p><strong>Unloading Time:</strong> ${vessel.active_route.unloading_time}h</p>` : ''}
             ${vessel.active_route?.duration !== undefined && vessel.active_route.duration !== null ? `<p><strong>Route Duration:</strong> ${formatNumber(vessel.active_route.duration)}h</p>` : ''}
             ${vessel.routes && vessel.routes[0]?.hijacking_risk !== undefined ? `<p><strong>Hijacking Risk:</strong> ${vessel.routes[0].hijacking_risk}%</p>` : ''}
+
+            <div class="route-port-demands">
+              ${vessel.route_origin ? `
+                <div class="route-port-demand" data-port="${vessel.route_origin}">
+                  <p class="port-demand-header"><strong>Origin Demand (${formatPortName(vessel.route_origin)}):</strong></p>
+                  <div class="port-demand-content" id="origin-demand-${vessel.id}">Loading...</div>
+                </div>
+              ` : ''}
+              ${vessel.route_destination ? `
+                <div class="route-port-demand" data-port="${vessel.route_destination}">
+                  <p class="port-demand-header"><strong>Destination Demand (${formatPortName(vessel.route_destination)}):</strong></p>
+                  <div class="port-demand-content" id="dest-demand-${vessel.id}">Loading...</div>
+                </div>
+              ` : ''}
+            </div>
           </div>
         </div>
       ` : ''}
@@ -424,6 +500,11 @@ export async function showVesselPanel(vessel) {
 
   // Load trip history
   await loadVesselHistory(vessel.id);
+
+  // Load port demands for route details (if vessel is enroute)
+  if (vessel.status === 'enroute' && (vessel.route_origin || vessel.route_destination)) {
+    loadRoutePortDemands(vessel.id, vessel.route_origin, vessel.route_destination);
+  }
 }
 
 /**
@@ -436,6 +517,97 @@ function closeExportMenuOnClickOutside(e) {
 
   if (menu && !menu.classList.contains('hidden') && exportBtn && !exportBtn.contains(e.target) && !menu.contains(e.target)) {
     menu.classList.add('hidden');
+  }
+}
+
+/**
+ * Load and display port demands for route details
+ * Fetches demand data for origin and destination ports
+ * @param {number} vesselId - Vessel ID for element IDs
+ * @param {string} originPort - Origin port code
+ * @param {string} destPort - Destination port code
+ */
+async function loadRoutePortDemands(vesselId, originPort, destPort) {
+  const fetchPortDemand = async (portCode) => {
+    try {
+      const response = await fetch('/api/route/get-port-demand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_code: portCode })
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data.port;
+    } catch (error) {
+      console.warn(`[Vessel Panel] Failed to fetch demand for ${portCode}:`, error);
+      return null;
+    }
+  };
+
+  const formatDemandHtml = (port) => {
+    if (!port || !port.demand) {
+      return '<span class="no-demand">No demand data</span>';
+    }
+
+    const demand = port.demand;
+    const consumed = port.consumed || {};
+    const lines = [];
+
+    if (demand.container) {
+      const dryDemand = demand.container.dry || 0;
+      const dryConsumed = consumed.container?.dry || 0;
+      const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+      const refDemand = demand.container.refrigerated || 0;
+      const refConsumed = consumed.container?.refrigerated || 0;
+      const refRemaining = Math.max(0, refDemand - refConsumed);
+
+      lines.push('<b>Container:</b>');
+      lines.push(`Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU`);
+      lines.push(`Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU`);
+    }
+
+    if (demand.tanker) {
+      const fuelDemand = demand.tanker.fuel || 0;
+      const fuelConsumed = consumed.tanker?.fuel || 0;
+      const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+      const crudeDemand = demand.tanker.crude_oil || 0;
+      const crudeConsumed = consumed.tanker?.crude_oil || 0;
+      const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+      lines.push('<b>Tanker:</b>');
+      lines.push(`Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl`);
+      lines.push(`Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl`);
+    }
+
+    if (lines.length === 0) {
+      return '<span class="no-demand">No demand data</span>';
+    }
+
+    return `<small>Remaining / Total</small><br>${lines.join('<br>')}`;
+  };
+
+  // Fetch both ports in parallel
+  const [originData, destData] = await Promise.all([
+    originPort ? fetchPortDemand(originPort) : null,
+    destPort ? fetchPortDemand(destPort) : null
+  ]);
+
+  // Update origin demand
+  if (originPort) {
+    const originEl = document.getElementById(`origin-demand-${vesselId}`);
+    if (originEl) {
+      originEl.innerHTML = formatDemandHtml(originData);
+    }
+  }
+
+  // Update destination demand
+  if (destPort) {
+    const destEl = document.getElementById(`dest-demand-${vesselId}`);
+    if (destEl) {
+      destEl.innerHTML = formatDemandHtml(destData);
+    }
   }
 }
 
@@ -708,16 +880,16 @@ function renderHistoryPage() {
           ${cargoData.list}
         </div>` : ''}
         <div class="history-row">
-          <span>Income: ${isServiceTrip ? 'Service Trip' : (trip.profit ? '$' + trip.profit.toLocaleString() : 'N/A')}</span>
+          <span>Income: ${isServiceTrip ? 'Service Trip' : '$' + (trip.profit !== null && trip.profit !== undefined ? trip.profit.toLocaleString() : '?')}</span>
         </div>
-        ${trip.harbor_fee ? `
+        ${trip.harbor_fee !== null && trip.harbor_fee !== undefined ? `
         <div class="history-row${isHighHarborFee ? ' high-fee-text' : ''}">
           <span>Harbor Fee: $${trip.harbor_fee.toLocaleString()} (${Math.round(feePercentage)}%)${isHighHarborFee ? ` (>${harborFeeThreshold}%)` : ''}</span>
         </div>
         ` : ''}
         ${trip.contribution !== null && trip.contribution !== undefined ? `
         <div class="history-row">
-          <span>Contribution: +${typeof trip.contribution === 'number' ? trip.contribution.toFixed(2) : trip.contribution}</span>
+          <span>Contribution: +${trip.contribution.toFixed(2)}</span>
         </div>
         ` : ''}
         ${trip.speed !== null && trip.speed !== undefined ? `
@@ -771,9 +943,33 @@ function renderHistoryPage() {
 export async function closeVesselPanel() {
   hideVesselPanel();
 
-  // Close route planner if it's open (planning mode)
-  if (window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode()) {
-    window.harborMap.closeRoutePlanner();
+  // Check if route planner is open - if so, just clear the route but keep planner open
+  const isPlanning = window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode();
+
+  // Check if we came from analytics and should return there
+  const returnToAnalytics = localStorage.getItem('returnToAnalytics');
+  console.log('[Vessel Panel] closeVesselPanel - returnToAnalytics:', returnToAnalytics);
+  if (returnToAnalytics === 'true') {
+    localStorage.removeItem('returnToAnalytics');
+
+    // Close harbor map and reopen analytics
+    const harborMapOverlay = document.getElementById('harborMapOverlay');
+    if (harborMapOverlay) {
+      harborMapOverlay.classList.add('hidden');
+    }
+
+    const analyticsOverlay = document.getElementById('analyticsOverlay');
+    if (analyticsOverlay) {
+      analyticsOverlay.classList.remove('hidden');
+    }
+
+    // Remove fullscreen on mobile
+    if (isMobileDevice()) {
+      document.body.classList.remove('map-fullscreen');
+    }
+
+    console.log('[Vessel Panel] Returning to analytics');
+    return;
   }
 
   // Remove fullscreen on mobile when explicitly closing panel
@@ -788,6 +984,19 @@ export async function closeVesselPanel() {
         map.invalidateSize();
       }, 100);
     }
+  }
+
+  // If route planner is open, just clear route and refresh map but keep planner open
+  if (isPlanning) {
+    // Clear the route line from the map
+    if (window.harborMap && window.harborMap.clearRoute) {
+      window.harborMap.clearRoute();
+    }
+    // Refresh map with current filters (loadOverview will use cached filters)
+    if (window.harborMap && window.harborMap.loadOverview) {
+      await window.harborMap.loadOverview();
+    }
+    return;
   }
 
   await deselectAll();
@@ -832,30 +1041,49 @@ async function processDepartureQueue() {
 
       const result = await departVessels([vesselId]);
 
-      if (result.success) {
-        console.log(`[Vessel Panel] Vessel ${vesselId} departed successfully`);
-        resolve(result);
-      } else {
-        // Handle special case: autopilot is currently departing vessels
-        if (result.reason === 'depart_in_progress') {
-          console.log(`[Vessel Panel] Vessel ${vesselId} queued - autopilot departure in progress`);
+      // Handle special case: autopilot is currently departing vessels
+      if (result.reason === 'depart_in_progress') {
+        console.log(`[Vessel Panel] Vessel ${vesselId} queued - autopilot departure in progress`);
 
-          // Only show notification once per queue processing session
-          if (!autopilotWaitNotificationShown) {
-            showSideNotification('Queued - waiting for autopilot to finish departing vessels', 'info');
-            autopilotWaitNotificationShown = true;
-          }
-
-          // Wait 5 seconds before retry (don't spam the server)
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          departureQueue.unshift({ vesselId, resolve, reject }); // Add back to front of queue
-          continue;
+        // Only show notification once per queue processing session
+        if (!autopilotWaitNotificationShown) {
+          showSideNotification('Queued - waiting for autopilot to finish departing vessels', 'info');
+          autopilotWaitNotificationShown = true;
         }
 
+        // Wait 5 seconds before retry (don't spam the server)
+        await new Promise(r => setTimeout(r, 5000));
+        departureQueue.unshift({ vesselId, resolve, reject }); // Add back to front of queue
+        continue;
+      }
+
+      // Check if vessel was successfully departed (API returns departedCount/failedCount)
+      if (result.departedCount > 0) {
+        console.log(`[Vessel Panel] Vessel ${vesselId} departed successfully`);
+        resolve(result);
+      } else if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
+        // Vessel failed to depart - show detailed error like Depart Manager does
+        const failed = result.failedVessels[0];
+        const vesselName = failed.name ? failed.name.replace(/^(MV|MS|MT|SS)\s+/i, '') : `Vessel ${vesselId}`;
+        const reason = failed.reason || 'Unknown error';
+
+        console.error(`[Vessel Panel] Failed to depart vessel ${vesselId}:`, reason);
+
+        // Show notification with vessel name and reason - matching Depart Manager pattern
+        showSideNotification(`
+          <div style="margin-bottom: 8px;">
+            <strong>Failed to depart</strong>
+          </div>
+          <div style="font-size: 0.9em;">
+            <span style="color: #ef4444;">${escapeHtml(vesselName)}:</span> <span style="color: #9ca3af;">${escapeHtml(reason)}</span>
+          </div>
+        `, 'error', 10000);
+
+        reject(new Error(reason));
+      } else {
+        // Fallback for unexpected response format
         const errorMsg = result.message || result.reason || 'Unknown error';
         console.error(`[Vessel Panel] Failed to depart vessel ${vesselId}:`, errorMsg);
-
-        // Use side notification instead of alert
         showSideNotification(`Failed to depart vessel: ${errorMsg}`, 'error');
         reject(new Error(errorMsg));
       }
@@ -867,7 +1095,7 @@ async function processDepartureQueue() {
 
     // Small delay between departures to avoid overwhelming the server
     if (departureQueue.length > 0) {
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(r => setTimeout(r, 500));
     }
   }
 
@@ -1047,7 +1275,7 @@ export async function sellVesselFromPanel(vesselId, vesselName) {
   try {
     // Import dialog and utils
     const { showConfirmDialog } = await import('../ui-dialogs.js');
-    const { showSideNotification, formatNumber } = await import('../utils.js');
+    const { formatNumber } = await import('../utils.js');
 
     // Get actual sell price from API
     const priceResponse = await fetch(window.apiUrl('/api/vessel/get-sell-price'), {
@@ -1104,7 +1332,26 @@ export async function sellVesselFromPanel(vesselId, vesselName) {
 
     await response.json();
 
-    showSideNotification(`✅ Sold ${vesselName} for $${formatNumber(sellPrice)}`, 'success');
+    // Send summary notification to backend (same as bulkSellVessels)
+    // This triggers WebSocket broadcast with header_data_update
+    try {
+      await fetch(window.apiUrl('/api/vessel/broadcast-sale-summary'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vessels: [{
+            name: vesselName,
+            quantity: 1,
+            price: sellPrice,
+            totalPrice: sellPrice
+          }],
+          totalPrice: sellPrice,
+          totalVessels: 1
+        })
+      });
+    } catch (err) {
+      console.error('[Vessel Panel] Error broadcasting sale summary:', err);
+    }
 
     // Close panel and reload overview
     await closeVesselPanel();
@@ -1113,6 +1360,9 @@ export async function sellVesselFromPanel(vesselId, vesselName) {
     if (window.updateVesselCount) {
       await window.updateVesselCount();
     }
+
+    // NOTE: Success notification is shown via WebSocket (user_action_notification)
+    // from server/routes/game/vessel.js - no duplicate notification here
   } catch (error) {
     console.error('[Vessel Panel] Sell error:', error);
     const errorMsg = error.message || error.toString() || 'Unknown error';

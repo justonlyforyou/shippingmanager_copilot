@@ -1710,24 +1710,45 @@ export function renderPorts(ports) {
     // Check port demand cache first, then port.demand, then fallback
     const cachedData = portDemandCache.get(port.code);
     const demand = cachedData?.demand || port.demand;
+    const consumed = cachedData?.consumed || port.consumed || {};
     const hasDemand = hasValidDemand(demand);
 
-    // Format demand for tooltip
+    // Format REMAINING demand for tooltip (demand - consumed)
+    // More readable format with line breaks
     let demandText = 'Loading...';
     if (hasDemand) {
-      const parts = [];
+      const lines = [];
+
       if (demand.container) {
-        const dry = demand.container.dry || 0;
-        const ref = demand.container.refrigerated || 0;
-        parts.push(`Container: Dry ${dry.toLocaleString()} TEU / Ref ${ref.toLocaleString()} TEU`);
+        const dryDemand = demand.container.dry || 0;
+        const dryConsumed = consumed.container?.dry || 0;
+        const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+        const refDemand = demand.container.refrigerated || 0;
+        const refConsumed = consumed.container?.refrigerated || 0;
+        const refRemaining = Math.max(0, refDemand - refConsumed);
+
+        lines.push('<b>Container:</b>');
+        lines.push(`Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU`);
+        lines.push(`Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU`);
       }
+
       if (demand.tanker) {
-        const fuel = demand.tanker.fuel || 0;
-        const crude = demand.tanker.crude_oil || 0;
-        parts.push(`Tanker: Fuel: ${fuel.toLocaleString()} bbl / Crude: ${crude.toLocaleString()} bbl`);
+        const fuelDemand = demand.tanker.fuel || 0;
+        const fuelConsumed = consumed.tanker?.fuel || 0;
+        const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+        const crudeDemand = demand.tanker.crude_oil || 0;
+        const crudeConsumed = consumed.tanker?.crude_oil || 0;
+        const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+        lines.push('<b>Tanker:</b>');
+        lines.push(`Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl`);
+        lines.push(`Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl`);
       }
-      if (parts.length > 0) {
-        demandText = parts.join('<br>');
+
+      if (lines.length > 0) {
+        demandText = lines.join('<br>');
       }
     }
 
@@ -1737,6 +1758,7 @@ export function renderPorts(ports) {
     // Prepare tooltip content
     const portTooltipContent = `
       <strong>${portName}</strong><br>
+      <small>Remaining / Total</small><br>
       ${demandText}
     `;
 
@@ -1779,26 +1801,52 @@ export function renderPorts(ports) {
 
         // Cache port demand persistently
         portDemandCache.set(port.code, {
-          demand: data.port.demand
+          demand: data.port.demand,
+          consumed: data.port.consumed
         });
 
         // Also update rawPorts for current session
         const rawPort = rawPorts.find(p => p.code === port.code);
         if (rawPort) {
           rawPort.demand = data.port.demand;
+          rawPort.consumed = data.port.consumed;
         }
 
-        // Update tooltip with real demand
+        // Update tooltip with REMAINING demand (demand - consumed)
+        // More readable format with line breaks
         const fetchedDemand = data.port.demand;
-        const parts = [];
+        const fetchedConsumed = data.port.consumed || {};
+        const lines = [];
+
         if (fetchedDemand.container) {
-          parts.push(`Container: Dry ${(fetchedDemand.container.dry || 0).toLocaleString()} TEU / Ref ${(fetchedDemand.container.refrigerated || 0).toLocaleString()} TEU`);
+          const dryDemand = fetchedDemand.container.dry || 0;
+          const dryConsumed = fetchedConsumed.container?.dry || 0;
+          const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+          const refDemand = fetchedDemand.container.refrigerated || 0;
+          const refConsumed = fetchedConsumed.container?.refrigerated || 0;
+          const refRemaining = Math.max(0, refDemand - refConsumed);
+
+          lines.push('<b>Container:</b>');
+          lines.push(`Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU`);
+          lines.push(`Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU`);
         }
         if (fetchedDemand.tanker) {
-          parts.push(`Tanker: Fuel: ${(fetchedDemand.tanker.fuel || 0).toLocaleString()} bbl / Crude: ${(fetchedDemand.tanker.crude_oil || 0).toLocaleString()} bbl`);
+          const fuelDemand = fetchedDemand.tanker.fuel || 0;
+          const fuelConsumed = fetchedConsumed.tanker?.fuel || 0;
+          const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+          const crudeDemand = fetchedDemand.tanker.crude_oil || 0;
+          const crudeConsumed = fetchedConsumed.tanker?.crude_oil || 0;
+          const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+          lines.push('<b>Tanker:</b>');
+          lines.push(`Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl`);
+          lines.push(`Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl`);
         }
 
-        const newTooltip = `<strong>${portName}</strong><br>${parts.length > 0 ? parts.join('<br>') : 'No demand'}`;
+        const demandText = lines.length > 0 ? lines.join('<br>') : 'No demand';
+        const newTooltip = `<strong>${portName}</strong><br><small>Remaining / Total</small><br>${demandText}`;
         marker.setTooltipContent(newTooltip);
       } catch (err) {
         console.warn(`[Harbor Map] Failed to fetch demand for ${port.code}:`, err.message);
@@ -1920,26 +1968,43 @@ export function drawRoute(route, ports = [], autoZoom = true) {
     let demandText = 'N/A';
 
     if (originPortData && originPortData.demand) {
-      const parts = [];
+      const consumed = originPortData.consumed || {};
+      const lines = [];
       if (originPortData.demand.container) {
-        const dry = originPortData.demand.container.dry || 0;
-        const ref = originPortData.demand.container.refrigerated || 0;
-        parts.push(`Container: Dry ${dry.toLocaleString()} TEU / Ref ${ref.toLocaleString()} TEU`);
+        const dryDemand = originPortData.demand.container.dry || 0;
+        const dryConsumed = consumed.container?.dry || 0;
+        const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+        const refDemand = originPortData.demand.container.refrigerated || 0;
+        const refConsumed = consumed.container?.refrigerated || 0;
+        const refRemaining = Math.max(0, refDemand - refConsumed);
+
+        lines.push('<b>Container:</b>');
+        lines.push(`Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU`);
+        lines.push(`Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU`);
       }
       if (originPortData.demand.tanker) {
-        const fuel = originPortData.demand.tanker.fuel || 0;
-        const crude = originPortData.demand.tanker.crude_oil || 0;
-        parts.push(`Tanker: Fuel: ${fuel.toLocaleString()} bbl / Crude: ${crude.toLocaleString()} bbl`);
+        const fuelDemand = originPortData.demand.tanker.fuel || 0;
+        const fuelConsumed = consumed.tanker?.fuel || 0;
+        const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+        const crudeDemand = originPortData.demand.tanker.crude_oil || 0;
+        const crudeConsumed = consumed.tanker?.crude_oil || 0;
+        const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+        lines.push('<b>Tanker:</b>');
+        lines.push(`Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl`);
+        lines.push(`Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl`);
       }
-      if (parts.length > 0) {
-        demandText = parts.join('<br>');
+      if (lines.length > 0) {
+        demandText = lines.join('<br>');
       }
     }
 
     // Bind tooltip - same format as normal ports (mouseover only)
     originMarker.bindTooltip(`
       <strong>${originName}</strong><br>
-      <strong>Demand</strong><br>
+      <small>Remaining / Total</small><br>
       ${demandText}
     `, {
       direction: 'auto',
@@ -1966,26 +2031,43 @@ export function drawRoute(route, ports = [], autoZoom = true) {
     let demandText = 'N/A';
 
     if (destPortData && destPortData.demand) {
-      const parts = [];
+      const consumed = destPortData.consumed || {};
+      const lines = [];
       if (destPortData.demand.container) {
-        const dry = destPortData.demand.container.dry || 0;
-        const ref = destPortData.demand.container.refrigerated || 0;
-        parts.push(`Container: Dry ${dry.toLocaleString()} TEU / Ref ${ref.toLocaleString()} TEU`);
+        const dryDemand = destPortData.demand.container.dry || 0;
+        const dryConsumed = consumed.container?.dry || 0;
+        const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+        const refDemand = destPortData.demand.container.refrigerated || 0;
+        const refConsumed = consumed.container?.refrigerated || 0;
+        const refRemaining = Math.max(0, refDemand - refConsumed);
+
+        lines.push('<b>Container:</b>');
+        lines.push(`Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU`);
+        lines.push(`Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU`);
       }
       if (destPortData.demand.tanker) {
-        const fuel = destPortData.demand.tanker.fuel || 0;
-        const crude = destPortData.demand.tanker.crude_oil || 0;
-        parts.push(`Tanker: Fuel: ${fuel.toLocaleString()} bbl / Crude: ${crude.toLocaleString()} bbl`);
+        const fuelDemand = destPortData.demand.tanker.fuel || 0;
+        const fuelConsumed = consumed.tanker?.fuel || 0;
+        const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+        const crudeDemand = destPortData.demand.tanker.crude_oil || 0;
+        const crudeConsumed = consumed.tanker?.crude_oil || 0;
+        const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+        lines.push('<b>Tanker:</b>');
+        lines.push(`Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl`);
+        lines.push(`Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl`);
       }
-      if (parts.length > 0) {
-        demandText = parts.join('<br>');
+      if (lines.length > 0) {
+        demandText = lines.join('<br>');
       }
     }
 
     // Bind tooltip - same format as normal ports (mouseover only)
     destMarker.bindTooltip(`
       <strong>${destName}</strong><br>
-      <strong>Demand</strong><br>
+      <small>Remaining / Total</small><br>
       ${demandText}
     `, {
       direction: 'auto',
@@ -2446,8 +2528,47 @@ export async function selectVessel(vesselId) {
     // Show vessel panel IMMEDIATELY with cached data
     showVesselPanel(vessel);
 
-    // NOW fetch reachable ports in background
-    console.log(`[Harbor Map] Loading reachable ports in background for vessel ${vesselId}...`);
+    // If we already drew a cached route, just zoom to it without waiting for API
+    if (cachedRoute) {
+      console.log(`[Harbor Map] Route already drawn from cache, zooming immediately`);
+
+      // Zoom to cached route bounds
+      const isMobile = isMobileDevice();
+      const bounds = L.latLngBounds();
+      cachedRoute.path.forEach(p => {
+        if (p && p.lat && p.lon) {
+          bounds.extend([p.lat, p.lon]);
+        }
+      });
+
+      if (bounds.isValid()) {
+        if (isMobile) {
+          map.fitBounds(bounds, {
+            paddingTopLeft: [20, 80],
+            paddingBottomRight: [20, 450],
+            maxZoom: 2
+          });
+        } else {
+          map.fitBounds(bounds, {
+            paddingTopLeft: [20, 20],
+            paddingBottomRight: [420, 20],
+            maxZoom: 6
+          });
+        }
+      }
+
+      // Fire-and-forget: fetch reachable ports in background for future use (don't await)
+      fetchVesselReachablePorts(vesselId).then(() => {
+        console.log(`[Harbor Map] Background fetch completed for vessel ${vesselId}`);
+      }).catch(err => {
+        console.warn(`[Harbor Map] Background fetch failed for vessel ${vesselId}:`, err.message);
+      });
+
+      return; // Done - route already shown from cache
+    }
+
+    // No cached route - need to fetch from API
+    console.log(`[Harbor Map] No cached route, fetching from API for vessel ${vesselId}...`);
     let data = null;
     try {
       data = await fetchVesselReachablePorts(vesselId);
@@ -2455,35 +2576,11 @@ export async function selectVessel(vesselId) {
         vesselId,
         vesselStatus: vessel.status,
         reachablePorts: data.reachablePorts ? data.reachablePorts.length : 0,
-        hasRoute: !!data.route,
-        routeOrigin: data.route?.origin,
-        routeDestination: data.route?.destination,
-        routePathLength: data.route?.path?.length || 0,
-        fullRouteData: data.route ? {
-          origin: data.route.origin,
-          destination: data.route.destination,
-          hasPath: !!data.route.path,
-          pathLength: data.route.path?.length
-        } : null
+        hasRoute: !!data.route
       });
     } catch (error) {
       console.error(`[Harbor Map] Failed to fetch reachable ports for vessel ${vesselId}:`, error);
-      // Try to show route from cached vessel data if available
-      let fallbackRoute = null;
-      if (vessel.active_route && vessel.active_route.path) {
-        fallbackRoute = vessel.active_route;
-      } else if (vessel.routes && vessel.routes[0] && vessel.routes[0].path) {
-        fallbackRoute = vessel.routes[0];
-      }
-
-      if (fallbackRoute) {
-        console.log(`[Harbor Map] Using cached route data from vessel as fallback`);
-        data = {
-          vessel,
-          reachablePorts: [],
-          route: fallbackRoute
-        };
-      } else if (vessel.status !== 'enroute') {
+      if (vessel.status !== 'enroute') {
         // No route needed for vessels not enroute
         data = {
           vessel,
@@ -2492,88 +2589,50 @@ export async function selectVessel(vesselId) {
         };
       } else {
         console.warn(`[Harbor Map] No route data available for enroute vessel ${vesselId}`);
-        return; // Exit only if vessel is enroute but has no route data
+        return;
       }
     }
 
-    // Update map with reachable ports and route data
-
-    // Draw route if vessel has one (this will draw the 2 port markers)
-    // drawRoute() draws: blue line + red origin marker + green destination marker
+    // Draw route if vessel has one
     if (data && data.route && data.route.path && data.route.path.length > 0) {
-      console.log(`[Harbor Map] Drawing route from API for vessel ${vesselId}:`, {
-        vesselStatus: vessel.status,
-        pathPoints: data.route.path.length,
-        origin: data.route.origin,
-        destination: data.route.destination
-      });
-      // Prefer assignedPorts (correct demand) over allPorts (no demand for non-assigned)
       const portsForDemand = data.assignedPorts || data.allPorts || currentPorts;
-      drawRoute(data.route, portsForDemand, false); // false = no auto-zoom
+      drawRoute(data.route, portsForDemand, false);
     } else if (data && (data.vessel.status === 'port' || data.vessel.status === 'anchor')) {
       // Vessel in port - try to show assigned route if available
-      console.log('[Harbor Map] Vessel in port, checking for assigned route...', {
-        hasRoute: !!data.route,
-        routeOrigin: data.route?.origin,
-        routeDestination: data.route?.destination,
-        routePathLength: data.route?.path?.length || 0,
-        reachablePortsCount: data.reachablePorts?.length || 0,
-        currentPort: data.vessel.port_code
-      });
-
-      // Check if we have route data with origin and destination
       if (data.route && (data.route.origin || data.route.origin_port_code) && (data.route.destination || data.route.destination_port_code)) {
         const routeOrigin = data.route.origin || data.route.origin_port_code;
         const routeDestination = data.route.destination || data.route.destination_port_code;
-
-        console.log(`[Harbor Map] Drawing route for vessel in port: ${routeOrigin} → ${routeDestination}`);
-
-        // Get port data for drawing - use allPorts/assignedPorts or current map ports
         const portsForRoute = data.assignedPorts || data.allPorts || currentPorts || rawPorts;
+        drawRoute(data.route, portsForRoute, false);
 
-        // Draw the route
-        drawRoute(data.route, portsForRoute, false); // false = no auto-zoom
-
-        // Also render the two route ports
         const originPortData = portsForRoute.find(p => p.code === routeOrigin);
         const destPortData = portsForRoute.find(p => p.code === routeDestination);
         const routePorts = [originPortData, destPortData].filter(Boolean);
-
         if (routePorts.length > 0) {
           renderPorts(routePorts);
         }
       } else if (data.reachablePorts && data.reachablePorts.length >= 2 && data.vessel.port_code) {
-        // Fallback: If we have reachable ports (usually 2 for assigned route), create a route
         const currentPortCode = data.vessel.port_code;
         const otherPort = data.reachablePorts.find(p => p.code !== currentPortCode);
-
         if (otherPort) {
-          console.log(`[Harbor Map] Creating route from reachable ports: ${currentPortCode} → ${otherPort.code}`);
-
           const routeToShow = {
             origin: currentPortCode,
             destination: otherPort.code,
-            path: [] // Will draw straight line
+            path: []
           };
-
           drawRoute(routeToShow, data.reachablePorts, false);
           renderPorts(data.reachablePorts);
         }
       } else if (data.vessel.port_code) {
-        // No assigned route - just show current port
-        console.log('[Harbor Map] Vessel in port with no assigned route, showing only current port:', data.vessel.port_code);
-
         const currentPort = data.reachablePorts?.find(p => p.code === data.vessel.port_code) ||
                            currentPorts.find(p => p.code === data.vessel.port_code);
-
         if (currentPort) {
           renderPorts([currentPort]);
         }
       }
     }
-    // If no route and not in port: show nothing (just the vessel)
 
-    // Zoom to show route (prioritize route over all ports)
+    // Zoom to show route
     const isMobile = isMobileDevice();
 
     if (data.route && data.route.path && data.route.path.length > 0) {
@@ -3171,6 +3230,16 @@ export function highlightPorts(ports, vesselId) {
 
   // Render only the highlighted ports
   renderPorts(fullPorts);
+
+  // Keep the current vessel visible on the map
+  if (vesselId) {
+    const vessel = currentVessels.find(v => v.id === vesselId);
+    if (vessel) {
+      vesselClusterGroup.clearLayers();
+      renderVessels([vessel]);
+      console.log(`[Harbor Map] Keeping vessel ${vesselId} visible during port highlight`);
+    }
+  }
 }
 
 /**

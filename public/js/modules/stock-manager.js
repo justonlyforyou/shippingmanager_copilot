@@ -1263,8 +1263,30 @@ async function loadMarketList(filter, page, search = '', append = false) {
   }
 }
 
-// 48 hours in milliseconds
+// 48 hours in milliseconds and seconds
 const STOCK_LOCK_PERIOD_MS = 48 * 60 * 60 * 1000;
+const STOCK_LOCK_PERIOD_SEC = 48 * 60 * 60;
+
+/**
+ * Format a Unix timestamp as a short date (e.g., "Jan 15" or "Jan 15 '24")
+ * @param {number} timestampSec - Unix timestamp in seconds
+ * @returns {string} Formatted date string
+ */
+function formatPurchaseDate(timestampSec) {
+  if (!timestampSec) return '-';
+  const date = new Date(timestampSec * 1000);
+  const now = new Date();
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const month = months[date.getMonth()];
+  const day = date.getDate();
+
+  // If same year, just show "Jan 15", otherwise "Jan 15 '24"
+  if (date.getFullYear() === now.getFullYear()) {
+    return `${month} ${day}`;
+  }
+  const yearShort = String(date.getFullYear()).slice(-2);
+  return `${month} ${day} '${yearShort}`;
+}
 
 /**
  * Load investments tab content
@@ -1325,6 +1347,7 @@ async function loadInvestments(container) {
             <th>Buy Price</th>
             <th>Current</th>
             <th>P/L</th>
+            <th>Purchased</th>
             <th>Sell</th>
           </tr>
         </thead>
@@ -1341,28 +1364,55 @@ async function loadInvestments(container) {
             // Sell availability from API
             const availableToSell = parseInt(inv.available_to_sell, 10) || 0;
 
+            // Calculate purchase time - try multiple sources:
+            // 1. API next_available_sale_time (purchase_time + 48h) - only set if still locked
+            // 2. Logbook entry for this company
+            // 3. POD1 transaction matching by amount
+            const apiNextSaleTime = parseInt(inv.next_available_sale_time, 10) || 0;
+            let purchaseTimeSec = apiNextSaleTime > 0 ? apiNextSaleTime - STOCK_LOCK_PERIOD_SEC : 0;
+
             // Calculate unlock time from logbook or game transactions
             let nextSaleTime = 0;
             let purchaseTimeMs = purchaseTimes[inv.id];
 
-            // If not in logbook, try to match from game transactions by invested amount
-            if (!purchaseTimeMs && inv.invested) {
-              const investedAmount = Math.round(parseFloat(inv.invested));
-              // Game transaction includes 5% brokerage fee
-              const expectedTxAmount = Math.round(investedAmount * 1.05);
-              // Find matching transaction (within 1% tolerance for rounding)
-              const matchingTx = gameStockPurchases.find(tx => {
-                const diff = Math.abs(tx.amount - expectedTxAmount);
-                return diff <= expectedTxAmount * 0.01;
-              });
-              if (matchingTx) {
-                purchaseTimeMs = matchingTx.time;
+            // If not in logbook, try to match from game transactions
+            if (!purchaseTimeMs && gameStockPurchases.length > 0) {
+              // If we have next_available_sale_time from API, find transaction near that time - 48h
+              if (apiNextSaleTime > 0) {
+                const expectedPurchaseTime = (apiNextSaleTime - STOCK_LOCK_PERIOD_SEC) * 1000;
+                // Find transaction within 1 hour of expected purchase time
+                const matchingTx = gameStockPurchases.find(tx => {
+                  const timeDiff = Math.abs(tx.time - expectedPurchaseTime);
+                  return timeDiff <= 3600000; // 1 hour tolerance
+                });
+                if (matchingTx) {
+                  purchaseTimeMs = matchingTx.time;
+                }
+              }
+              // Fallback: try to match by invested amount (for older purchases)
+              if (!purchaseTimeMs && inv.invested) {
+                const investedAmount = Math.round(parseFloat(inv.invested));
+                // Game transaction includes 5% brokerage fee
+                const expectedTxAmount = Math.round(investedAmount * 1.05);
+                // Find matching transaction (within 5% tolerance for multiple purchases)
+                const matchingTx = gameStockPurchases.find(tx => {
+                  const diff = Math.abs(tx.amount - expectedTxAmount);
+                  return diff <= expectedTxAmount * 0.05;
+                });
+                if (matchingTx) {
+                  purchaseTimeMs = matchingTx.time;
+                }
               }
             }
 
             if (purchaseTimeMs) {
               // Unlock time = purchase time + 48h (convert to seconds)
               nextSaleTime = Math.floor((purchaseTimeMs + STOCK_LOCK_PERIOD_MS) / 1000);
+            }
+
+            // If we still don't have a purchase time, use the logbook/transaction time
+            if (!purchaseTimeSec && purchaseTimeMs) {
+              purchaseTimeSec = Math.floor(purchaseTimeMs / 1000);
             }
 
             const hasLockedShares = nextSaleTime > nowSec;
@@ -1409,6 +1459,7 @@ async function loadInvestments(container) {
                 <td>$${formatNumber(buyPrice)}</td>
                 <td>$${formatNumber(currentPrice)}</td>
                 <td class="${plClass}">${plSign}$${formatNumber(Math.abs(pl))} (${plSign}${plPercent}%)</td>
+                <td class="stock-purchased-cell">${formatPurchaseDate(purchaseTimeSec)}</td>
                 <td class="stock-sell-cell">${sellCell}</td>
               </tr>
             `;
@@ -1426,6 +1477,42 @@ async function loadInvestments(container) {
 
   // Start countdown timers
   startSellTimers(container);
+}
+
+/**
+ * Estimate purchase date by finding when stock price matched bought_at price
+ * @param {number} boughtAt - Price per share when bought
+ * @param {Array} history - Stock price history array
+ * @returns {number} Estimated timestamp in seconds, or 0 if not found
+ */
+function estimatePurchaseDateFromPrice(boughtAt, history) {
+  if (!history || history.length === 0 || !boughtAt) return 0;
+
+  // Sort history by time (oldest first)
+  const sortedHistory = [...history].sort((a, b) => a.time - b.time);
+
+  // Find the first time the stock price was close to bought_at (within 1%)
+  const tolerance = boughtAt * 0.01;
+  for (const entry of sortedHistory) {
+    const price = parseFloat(entry.value);
+    if (Math.abs(price - boughtAt) <= tolerance) {
+      return entry.time;
+    }
+  }
+
+  // If no exact match, find closest price
+  let closestEntry = null;
+  let closestDiff = Infinity;
+  for (const entry of sortedHistory) {
+    const price = parseFloat(entry.value);
+    const diff = Math.abs(price - boughtAt);
+    if (diff < closestDiff) {
+      closestDiff = diff;
+      closestEntry = entry;
+    }
+  }
+
+  return closestEntry ? closestEntry.time : 0;
 }
 
 /**
@@ -1470,6 +1557,9 @@ async function loadInvestors(container) {
     return;
   }
 
+  // Get stock history to estimate purchase dates
+  const stockHistory = financeData.data.stock?.history || [];
+
   container.innerHTML = `
     <div class="stock-investors">
       <table class="stock-table">
@@ -1478,16 +1568,22 @@ async function loadInvestors(container) {
             <th>Investor</th>
             <th>Shares</th>
             <th>Bought At</th>
+            <th>Purchased</th>
           </tr>
         </thead>
         <tbody>
-          ${investors.map(inv => `
+          ${investors.map(inv => {
+            const boughtAt = parseFloat(inv.bought_at);
+            const estimatedTime = estimatePurchaseDateFromPrice(boughtAt, stockHistory);
+            return `
             <tr class="stock-table-row" data-user-id="${inv.id}">
               <td class="stock-company-name clickable" data-user-id="${inv.id}">${escapeHtml(inv.company_name)}</td>
               <td>${formatNumber(inv.total_shares)}</td>
-              <td>$${formatNumber(inv.bought_at)}</td>
+              <td>$${formatNumber(boughtAt)}</td>
+              <td class="stock-purchased-cell">${formatPurchaseDate(estimatedTime)}</td>
             </tr>
-          `).join('')}
+          `;
+          }).join('')}
         </tbody>
       </table>
     </div>

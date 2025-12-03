@@ -172,12 +172,9 @@ async function autoAnchorPointPurchase(userId) {
               <span>$${price.toLocaleString()}</span>
             </div>
             <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
-            <div style="display: flex; justify-content: space-between; font-size: 15px; margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 15px;">
               <span><strong>Total:</strong></span>
               <span style="color: #ef4444;"><strong>$${totalCost.toLocaleString()}</strong></span>
-            </div>
-            <div style="text-align: center; color: #10b981; font-size: 12px; font-style: italic;">
-              ✓ Instantly available
             </div>
           </div>
         `

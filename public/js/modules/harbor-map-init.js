@@ -9,7 +9,7 @@
 import { initMap, loadOverview, updateWeatherDataSetting, setRouteFilter, setVesselFilter, highlightPorts, resetPortDisplay, drawRoute, clearRoute, deselectAll } from './harbor-map/map-controller.js';
 import { prefetchHarborMapData, invalidateOverviewCache } from './harbor-map/api-client.js';
 import { initializeMapIconBar, closeAllModalOverlays } from './map-icon-bar.js';
-import { initializeDepartManager, openDepartManager, updateDepartManagerLockState } from './depart-manager.js';
+import { initializeDepartManager, openDepartManager, updateDepartManagerLockState, refreshDepartManagerIfOpen } from './depart-manager.js';
 import { initializeRoutePlanner, openRoutePlanner, closeRoutePlanner, isPlanningMode, selectPortForRoute, restorePlanningState } from './route-planner.js';
 
 let mapInitialized = false;
@@ -190,6 +190,7 @@ export async function initHarborMap() {
   // Export depart manager functions to window
   window.openDepartManager = openDepartManager;
   window.updateDepartManagerLockState = updateDepartManagerLockState;
+  window.refreshDepartManagerIfOpen = refreshDepartManagerIfOpen;
 
   // Export closeAllModalOverlays for use by Leaflet controls and other modules
   window.closeAllModalOverlays = closeAllModalOverlays;
@@ -315,3 +316,4 @@ window.harborMap.drawRoute = drawRoute;
 window.harborMap.clearRoute = clearRoute;
 window.harborMap.deselectAll = deselectAll;
 window.harborMap.setVesselFilter = setVesselFilter;
+window.harborMap.loadOverview = loadOverview;

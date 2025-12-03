@@ -21,6 +21,7 @@ let selectedRoute = null;
 let vesselPorts = null;
 let currentHighlightedPorts = null; // Currently filtered/highlighted ports
 let currentVesselData = null; // Vessel data for formula calculations
+let currentRouteDistance = null; // Distance of current route (for Route tab calculations)
 
 // Planning mode state (exported for map-controller)
 let planningMode = false;
@@ -391,6 +392,7 @@ export function closeRoutePlanner(keepRouteVisible = false) {
   vesselPorts = null;
   currentHighlightedPorts = null;
   currentVesselData = null;
+  currentRouteDistance = null;
 
   console.log('[Route Planner] Closed');
 }
@@ -514,59 +516,111 @@ function updateRouteTabWithCurrentRoute(vessel) {
   // Build route info display
   const originName = formatPortName(vessel.route_origin);
   const destName = formatPortName(vessel.route_destination);
-  const distance = vessel.route_distance ? Math.floor(vessel.route_distance).toLocaleString() : 'N/A';
-  const speed = vessel.route_speed || 'N/A';
+  const distanceNum = vessel.route_distance ? Math.floor(vessel.route_distance) : 0;
+  const distance = distanceNum ? distanceNum.toLocaleString() : 'N/A';
+  const speed = vessel.route_speed || 6;
 
-  // Calculate ETA as remaining time (only for enroute vessels)
-  let etaHtml = '';
+  // Store distance for slider calculations
+  currentRouteDistance = distanceNum;
+
+  // Calculate travel time based on speed (for port status or as default)
+  // For enroute vessels, we show remaining ETA instead
+  let travelTimeDisplay = '-';
   if (vessel.status === 'enroute' && vessel.route_end_time) {
+    // Show remaining time for enroute vessels
     const now = Math.floor(Date.now() / 1000);
     const remainingSeconds = vessel.route_end_time - now;
     if (remainingSeconds > 0) {
       const hours = Math.floor(remainingSeconds / 3600);
       const minutes = Math.floor((remainingSeconds % 3600) / 60);
-      etaHtml = `
-      <div class="route-detail-row">
-        <span class="route-detail-label">ETA:</span>
-        <span class="route-detail-value">${hours}h ${minutes}m</span>
-      </div>`;
+      travelTimeDisplay = `${hours}h ${minutes}m`;
     }
+  } else if (distanceNum > 0) {
+    // Calculate travel time from formula for port vessels
+    const travelTimeSeconds = calculateTravelTime(distanceNum, speed);
+    travelTimeDisplay = formatTravelTime(travelTimeSeconds);
   }
 
-  // Build guards info (only show if defined)
-  let guardsHtml = '';
-  if (vessel.route_guards !== undefined && vessel.route_guards !== null) {
-    guardsHtml = `
-      <div class="route-detail-row">
-        <span class="route-detail-label">Guards:</span>
-        <span class="route-detail-value">${vessel.route_guards}</span>
-      </div>`;
+  // Get guards value
+  const guards = vessel.route_guards !== undefined && vessel.route_guards !== null ? vessel.route_guards : '-';
+
+  // Label depends on status
+  const timeLabel = vessel.status === 'enroute' ? 'ETA' : 'Time';
+
+  // Calculate fuel consumption
+  let fuelDisplay = '-';
+  if (distanceNum > 0 && currentVesselData) {
+    const fuel = calculateFuelConsumption(
+      currentVesselData.capacity,
+      distanceNum,
+      speed,
+      currentVesselData.fuelFactor,
+      currentVesselData.capacityType
+    );
+    fuelDisplay = `${fuel.toFixed(1)} t`;
   }
 
   routeInfoSection.innerHTML = `
-    <div class="route-planner-current-route-header">Current Route</div>
+    <div class="route-planner-current-route-header">Current Route (${vessel.status})</div>
     <div class="route-planner-current-route-ports">
       <span class="route-origin">${originName}</span>
       <span class="route-arrow">-></span>
       <span class="route-destination">${destName}</span>
     </div>
-    <div class="route-planner-current-route-details">
-      <div class="route-detail-row">
-        <span class="route-detail-label">Distance:</span>
-        <span class="route-detail-value">${distance} nm</span>
+    <div class="route-planner-current-route-grid">
+      <div class="route-grid-item">
+        <span class="route-grid-label">Distance</span>
+        <span class="route-grid-value">${distance} nm</span>
       </div>
-      <div class="route-detail-row">
-        <span class="route-detail-label">Speed:</span>
-        <span class="route-detail-value">${speed} kn</span>
+      <div class="route-grid-item">
+        <span class="route-grid-label">${timeLabel}</span>
+        <span class="route-grid-value" id="routeTabTravelTime">${travelTimeDisplay}</span>
       </div>
-      ${guardsHtml}
-      ${etaHtml}
-      <div class="route-detail-row">
-        <span class="route-detail-label">Status:</span>
-        <span class="route-detail-value route-status-${vessel.status}">${vessel.status}</span>
+      <div class="route-grid-item">
+        <span class="route-grid-label">Fuel</span>
+        <span class="route-grid-value" id="routeTabFuelConsumption">${fuelDisplay}</span>
+      </div>
+      <div class="route-grid-item">
+        <span class="route-grid-label">Guards</span>
+        <span class="route-grid-value">${guards}</span>
       </div>
     </div>
+    <div class="route-planner-section-header">Remaining Demand</div>
+    <table class="route-planner-demand-table route-tab-demand-table">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Origin</th>
+          <th>Destination</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="demand-label">Dry</td>
+          <td class="demand-value" data-route-demand="origin-dry">-</td>
+          <td class="demand-value" data-route-demand="dest-dry">-</td>
+        </tr>
+        <tr>
+          <td class="demand-label">Ref</td>
+          <td class="demand-value" data-route-demand="origin-ref">-</td>
+          <td class="demand-value" data-route-demand="dest-ref">-</td>
+        </tr>
+        <tr>
+          <td class="demand-label">Fuel</td>
+          <td class="demand-value" data-route-demand="origin-fuel">-</td>
+          <td class="demand-value" data-route-demand="dest-fuel">-</td>
+        </tr>
+        <tr>
+          <td class="demand-label">Crude</td>
+          <td class="demand-value" data-route-demand="origin-crude">-</td>
+          <td class="demand-value" data-route-demand="dest-crude">-</td>
+        </tr>
+      </tbody>
+    </table>
   `;
+
+  // Fetch and display demand for both ports
+  fetchRouteTabDemand(vessel.route_origin, vessel.route_destination);
 
   // Update speed slider with current route speed
   const speedSlider = document.getElementById('routePlannerSpeedSlider');
@@ -916,11 +970,22 @@ async function updateSelectedPortDisplay() {
   infoSection.classList.remove('hidden');
 
   // Port name - show "Origin -> Destination"
+  const originName = currentOriginPort ? formatPortName(currentOriginPort) : 'Unknown';
+  const destName = selectedPort.name || formatPortName(selectedPort.code);
+
   const portNameEl = infoSection.querySelector('.route-planner-port-name');
   if (portNameEl) {
-    const originName = currentOriginPort ? formatPortName(currentOriginPort) : 'Unknown';
-    const destName = selectedPort.name || formatPortName(selectedPort.code);
     portNameEl.textContent = `${originName} -> ${destName}`;
+  }
+
+  // Update demand table headers with port names
+  const originHeader = infoSection.querySelector('[data-demand-header="origin"]');
+  const destHeader = infoSection.querySelector('[data-demand-header="destination"]');
+  if (originHeader) {
+    originHeader.textContent = originName;
+  }
+  if (destHeader) {
+    destHeader.textContent = destName;
   }
 
   // Vessel Capacity display
@@ -1041,8 +1106,8 @@ async function updateSelectedPortDisplay() {
     createBtn.disabled = !canCreateRoute;
   }
 
-  // Fetch and display port demand data
-  await fetchAndDisplayDemand(selectedPort.code);
+  // Fetch and display port demand data for BOTH origin and destination
+  await fetchAndDisplayDemand(currentOriginPort, selectedPort.code);
 }
 
 /**
@@ -1088,67 +1153,190 @@ function updateVesselCapacityDisplay() {
 }
 
 /**
- * Fetch port demand data and update display
- * Uses /api/route/get-port-demand which works for ALL ports (not just assigned)
- * @param {string} portCode - Port code
+ * Calculate remaining demand (demand - consumed)
+ * @param {Object} port - Port object with demand and consumed
+ * @returns {Object} Remaining demand values
  */
-async function fetchAndDisplayDemand(portCode) {
+function calculateRemainingDemand(port) {
+  const demand = port.demand || {};
+  const consumed = port.consumed || {};
+
+  return {
+    dryRemaining: Math.max(0, (demand.container?.dry || 0) - (consumed.container?.dry || 0)),
+    dryTotal: demand.container?.dry || 0,
+    refRemaining: Math.max(0, (demand.container?.refrigerated || 0) - (consumed.container?.refrigerated || 0)),
+    refTotal: demand.container?.refrigerated || 0,
+    fuelRemaining: Math.max(0, (demand.tanker?.fuel || 0) - (consumed.tanker?.fuel || 0)),
+    fuelTotal: demand.tanker?.fuel || 0,
+    crudeRemaining: Math.max(0, (demand.tanker?.crude_oil || 0) - (consumed.tanker?.crude_oil || 0)),
+    crudeTotal: demand.tanker?.crude_oil || 0
+  };
+}
+
+/**
+ * Format demand for table cell (compact: "1,234 / 5,678")
+ * @param {number} remaining - Remaining amount
+ * @param {number} total - Total demand
+ * @returns {string} Formatted string without unit
+ */
+function formatDemandCell(remaining, total) {
+  if (total === 0) return '-';
+  return `${remaining.toLocaleString()} / ${total.toLocaleString()}`;
+}
+
+/**
+ * Update demand display elements in the table
+ * @param {Object} remaining - Remaining demand values
+ * @param {string} prefix - Element prefix ('origin-' or '' for destination)
+ */
+function updateDemandDisplay(remaining, prefix = '') {
+  const dryEl = document.querySelector(`[data-demand="${prefix}dry"]`);
+  const refEl = document.querySelector(`[data-demand="${prefix}ref"]`) || document.querySelector(`[data-demand="${prefix}refrigerated"]`);
+  const fuelEl = document.querySelector(`[data-demand="${prefix}fuel"]`);
+  const crudeEl = document.querySelector(`[data-demand="${prefix}crude"]`) || document.querySelector(`[data-demand="${prefix}crude_oil"]`);
+
+  if (dryEl) {
+    dryEl.textContent = formatDemandCell(remaining.dryRemaining, remaining.dryTotal);
+    dryEl.classList.toggle('zero', remaining.dryRemaining === 0 && remaining.dryTotal > 0);
+    dryEl.classList.toggle('full-demand', remaining.dryRemaining === 0 && remaining.dryTotal > 0);
+  }
+  if (refEl) {
+    refEl.textContent = formatDemandCell(remaining.refRemaining, remaining.refTotal);
+    refEl.classList.toggle('zero', remaining.refRemaining === 0 && remaining.refTotal > 0);
+    refEl.classList.toggle('full-demand', remaining.refRemaining === 0 && remaining.refTotal > 0);
+  }
+  if (fuelEl) {
+    fuelEl.textContent = formatDemandCell(remaining.fuelRemaining, remaining.fuelTotal);
+    fuelEl.classList.toggle('zero', remaining.fuelRemaining === 0 && remaining.fuelTotal > 0);
+    fuelEl.classList.toggle('full-demand', remaining.fuelRemaining === 0 && remaining.fuelTotal > 0);
+  }
+  if (crudeEl) {
+    crudeEl.textContent = formatDemandCell(remaining.crudeRemaining, remaining.crudeTotal);
+    crudeEl.classList.toggle('zero', remaining.crudeRemaining === 0 && remaining.crudeTotal > 0);
+    crudeEl.classList.toggle('full-demand', remaining.crudeRemaining === 0 && remaining.crudeTotal > 0);
+  }
+}
+
+/**
+ * Fetch port demand data and update display for BOTH origin and destination
+ * Uses /api/route/get-port-demand which works for ALL ports (not just assigned)
+ * @param {string} originPort - Origin port code
+ * @param {string} destPort - Destination port code
+ */
+async function fetchAndDisplayDemand(originPort, destPort) {
   try {
-    // Use the route planner endpoint that calls /api/port/get-ports
-    // This works for ALL ports, not just assigned ones
-    const response = await fetch('/api/route/get-port-demand', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ port_code: portCode })
-    });
+    // Fetch both ports in parallel
+    const [originResponse, destResponse] = await Promise.all([
+      originPort ? fetch('/api/route/get-port-demand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_code: originPort })
+      }) : Promise.resolve(null),
+      destPort ? fetch('/api/route/get-port-demand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_code: destPort })
+      }) : Promise.resolve(null)
+    ]);
 
-    if (!response.ok) {
-      console.warn(`[Route Planner] Failed to fetch port demand for ${portCode}`);
-      return;
+    // Process origin port
+    if (originResponse && originResponse.ok) {
+      const originData = await originResponse.json();
+      if (originData.port && originData.port.demand) {
+        const remaining = calculateRemainingDemand(originData.port);
+        updateDemandDisplay(remaining, 'origin-');
+        console.log(`[Route Planner] Updated origin demand for ${originPort}`);
+      }
     }
 
-    const data = await response.json();
-    const port = data.port;
-
-    if (!port || !port.demand) {
-      console.log('[Route Planner] No demand data for port');
-      return;
+    // Process destination port
+    if (destResponse && destResponse.ok) {
+      const destData = await destResponse.json();
+      if (destData.port && destData.port.demand) {
+        const remaining = calculateRemainingDemand(destData.port);
+        updateDemandDisplay(remaining, '');
+        console.log(`[Route Planner] Updated destination demand for ${destPort}`);
+      }
     }
-
-    const demand = port.demand;
-
-    // Update container demand
-    const dryValue = document.querySelector('[data-demand="dry"]');
-    const refValue = document.querySelector('[data-demand="refrigerated"]');
-    if (dryValue && demand.container) {
-      const dry = demand.container.dry;
-      dryValue.textContent = dry ? `${dry.toLocaleString()} TEU` : '-';
-      dryValue.classList.toggle('zero', !dry);
-    }
-    if (refValue && demand.container) {
-      const ref = demand.container.refrigerated;
-      refValue.textContent = ref ? `${ref.toLocaleString()} TEU` : '-';
-      refValue.classList.toggle('zero', !ref);
-    }
-
-    // Update tanker demand
-    const fuelValue = document.querySelector('[data-demand="fuel"]');
-    const crudeValue = document.querySelector('[data-demand="crude_oil"]');
-    if (fuelValue && demand.tanker) {
-      const fuel = demand.tanker.fuel;
-      fuelValue.textContent = fuel ? `${fuel.toLocaleString()} bbl` : '-';
-      fuelValue.classList.toggle('zero', !fuel);
-    }
-    if (crudeValue && demand.tanker) {
-      const crude = demand.tanker.crude_oil;
-      crudeValue.textContent = crude ? `${crude.toLocaleString()} bbl` : '-';
-      crudeValue.classList.toggle('zero', !crude);
-    }
-
-    console.log(`[Route Planner] Updated demand display for ${portCode}`);
 
   } catch (error) {
     console.error('[Route Planner] Error fetching port demand:', error);
+  }
+}
+
+/**
+ * Update Route Tab demand display elements
+ * Uses data-route-demand attributes to differentiate from Ports tab
+ * @param {Object} remaining - Remaining demand values
+ * @param {string} prefix - Element prefix ('origin-' or 'dest-')
+ */
+function updateRouteTabDemandDisplay(remaining, prefix) {
+  const dryEl = document.querySelector(`[data-route-demand="${prefix}dry"]`);
+  const refEl = document.querySelector(`[data-route-demand="${prefix}ref"]`);
+  const fuelEl = document.querySelector(`[data-route-demand="${prefix}fuel"]`);
+  const crudeEl = document.querySelector(`[data-route-demand="${prefix}crude"]`);
+
+  if (dryEl) {
+    dryEl.textContent = formatDemandCell(remaining.dryRemaining, remaining.dryTotal);
+    dryEl.classList.toggle('zero', remaining.dryRemaining === 0 && remaining.dryTotal > 0);
+    dryEl.classList.toggle('full-demand', remaining.dryRemaining === 0 && remaining.dryTotal > 0);
+  }
+  if (refEl) {
+    refEl.textContent = formatDemandCell(remaining.refRemaining, remaining.refTotal);
+    refEl.classList.toggle('zero', remaining.refRemaining === 0 && remaining.refTotal > 0);
+    refEl.classList.toggle('full-demand', remaining.refRemaining === 0 && remaining.refTotal > 0);
+  }
+  if (fuelEl) {
+    fuelEl.textContent = formatDemandCell(remaining.fuelRemaining, remaining.fuelTotal);
+    fuelEl.classList.toggle('zero', remaining.fuelRemaining === 0 && remaining.fuelTotal > 0);
+    fuelEl.classList.toggle('full-demand', remaining.fuelRemaining === 0 && remaining.fuelTotal > 0);
+  }
+  if (crudeEl) {
+    crudeEl.textContent = formatDemandCell(remaining.crudeRemaining, remaining.crudeTotal);
+    crudeEl.classList.toggle('zero', remaining.crudeRemaining === 0 && remaining.crudeTotal > 0);
+    crudeEl.classList.toggle('full-demand', remaining.crudeRemaining === 0 && remaining.crudeTotal > 0);
+  }
+}
+
+/**
+ * Fetch and display demand for Route tab (current route)
+ * @param {string} originPort - Origin port code
+ * @param {string} destPort - Destination port code
+ */
+async function fetchRouteTabDemand(originPort, destPort) {
+  try {
+    const [originResponse, destResponse] = await Promise.all([
+      originPort ? fetch('/api/route/get-port-demand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_code: originPort })
+      }) : Promise.resolve(null),
+      destPort ? fetch('/api/route/get-port-demand', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port_code: destPort })
+      }) : Promise.resolve(null)
+    ]);
+
+    if (originResponse && originResponse.ok) {
+      const originData = await originResponse.json();
+      if (originData.port && originData.port.demand) {
+        const remaining = calculateRemainingDemand(originData.port);
+        updateRouteTabDemandDisplay(remaining, 'origin-');
+        console.log(`[Route Planner] Route tab: updated origin demand for ${originPort}`);
+      }
+    }
+
+    if (destResponse && destResponse.ok) {
+      const destData = await destResponse.json();
+      if (destData.port && destData.port.demand) {
+        const remaining = calculateRemainingDemand(destData.port);
+        updateRouteTabDemandDisplay(remaining, 'dest-');
+        console.log(`[Route Planner] Route tab: updated destination demand for ${destPort}`);
+      }
+    }
+  } catch (error) {
+    console.error('[Route Planner] Error fetching route tab demand:', error);
   }
 }
 
@@ -1286,7 +1474,30 @@ function updateSliderDisplays() {
   const guardsCost = document.getElementById('routePlannerGuardsCost');
 
   if (speedSlider && speedValue) {
-    speedValue.textContent = `${speedSlider.value} kn`;
+    const speed = parseInt(speedSlider.value, 10);
+    speedValue.textContent = `${speed} kn`;
+
+    // Update travel time and fuel consumption in Route tab grid
+    if (currentRouteDistance > 0) {
+      const travelTimeEl = document.getElementById('routeTabTravelTime');
+      const fuelEl = document.getElementById('routeTabFuelConsumption');
+
+      if (travelTimeEl) {
+        const travelTimeSeconds = calculateTravelTime(currentRouteDistance, speed);
+        travelTimeEl.textContent = formatTravelTime(travelTimeSeconds);
+      }
+
+      if (fuelEl && currentVesselData) {
+        const fuel = calculateFuelConsumption(
+          currentVesselData.capacity,
+          currentRouteDistance,
+          speed,
+          currentVesselData.fuelFactor,
+          currentVesselData.capacityType
+        );
+        fuelEl.textContent = `${fuel.toFixed(1)} t`;
+      }
+    }
   }
 
   if (guardsSlider && guardsValue && guardsCost) {

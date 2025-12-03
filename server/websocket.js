@@ -172,7 +172,7 @@ function initWebSocket() {
                   v.status === 'pending'
                 ).length;
 
-                vesselCounts = { readyToDepart, atAnchor, pending };
+                vesselCounts = { readyToDepart, atAnchor, pending, total: vesselsResponse.vessels.length };
                 state.updateVesselCounts(userId, vesselCounts);
                 logger.debug('[WebSocket] Vessel counts fetched from API');
               }

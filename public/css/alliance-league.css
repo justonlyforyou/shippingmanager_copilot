@@ -208,6 +208,24 @@
   border-left: 4px solid #CD7F32;
 }
 
+/* Promotion zone - rank 1 (green highlight) */
+.league-promotion-zone {
+  background: var(--color-success-08);
+}
+
+.league-promotion-zone:hover {
+  background: var(--color-success-10);
+}
+
+/* Relegation zone - last 3 ranks (red highlight) */
+.league-relegation-zone {
+  background: var(--color-danger-08);
+}
+
+.league-relegation-zone:hover {
+  background: var(--color-danger-10);
+}
+
 .league-position {
   display: flex;
   align-items: center;
@@ -353,6 +371,8 @@
   border-radius: var(--radius-3);
   border: 1px solid var(--color-danger-30);
 }
+
+/* ============================================
    ALLIANCE SEARCH TAB
    ============================================ */
 
@@ -549,7 +569,7 @@
 .alliance-search-logo-text {
   font-size: var(--font-size-16);
   font-weight: var(--font-weight-black);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  text-shadow: 0 1px 2px rgb(0, 0, 0, 0.2);
 }
 
 .alliance-search-card-info {
@@ -685,7 +705,7 @@
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(35, 35, 35, 0.95);
+  background: rgb(35, 35, 35, 0.95);
   display: flex;
   justify-content: center;
   align-items: center;

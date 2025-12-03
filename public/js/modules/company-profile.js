@@ -1092,8 +1092,8 @@ function buildSection(title, data) {
       const isStockField = stockFields.includes(key);
       const isGrayed = isStockField && !hasIpo;
 
-      // Combine stock_value with stock_midnight_value
-      if (key === 'stock_value' && data.stock_midnight_value !== undefined) {
+      // Combine stock_value with stock_midnight_value (only if not null)
+      if (key === 'stock_value' && data.stock_midnight_value !== undefined && data.stock_midnight_value !== null) {
         const midnightFormatted = formatValue(data.stock_midnight_value);
         formattedValue = `${formattedValue} (${midnightFormatted})`;
       }

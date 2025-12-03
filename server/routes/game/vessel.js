@@ -63,13 +63,38 @@ const router = express.Router();
 async function refreshAndBroadcastHeader(userId) {
   try {
     const state = require('../../state');
+
+    // 1. Get anchor_points from the small API (not /game/index!)
     const response = await apiCall('/user/get-user-settings', 'POST', {});
     const user = response?.user;
+    const gameSettings = response?.data?.settings;
 
-    if (!user || !user.anchorpoints) {
-      logger.warn('[Vessel] No user/anchorpoints in API response');
+    if (!user || !gameSettings || gameSettings.anchor_points === undefined) {
+      logger.warn('[Vessel] No user/settings in API response');
       return;
     }
+
+    // 2. Fetch vessel counts fresh from API (cache may be stale after vessel build)
+    const gameIndex = await apiCall('/game/index', 'POST', {});
+    const vessels = gameIndex?.data?.user_vessels || [];
+    const totalVessels = vessels.length;
+    const pendingVessels = vessels.filter(v => v.status === 'pending').length;
+
+    // Update vessel counts cache for other modules
+    const readyToDepart = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
+    const atAnchor = vessels.filter(v => v.status === 'anchor').length;
+    state.updateVesselCounts(userId, { readyToDepart, atAnchor, pending: pendingVessels, total: totalVessels });
+
+    // 3. Calculate available: max - delivered - pending
+    const maxAnchorPoints = gameSettings.anchor_points;
+    const deliveredVessels = totalVessels - pendingVessels;
+    const availableCapacity = maxAnchorPoints - deliveredVessels - pendingVessels;
+
+    // 4. Get pending anchor points from settings (for anchor build timer)
+    const settings = state.getSettings(userId);
+    const anchorNextBuild = gameSettings.anchor_next_build || null;
+    const now = Math.floor(Date.now() / 1000);
+    const pendingAnchorPoints = (anchorNextBuild && anchorNextBuild > now) ? (settings?.pendingAnchorPoints || 0) : 0;
 
     const currentHeaderData = state.getHeaderData(userId) || {};
 
@@ -80,9 +105,10 @@ async function refreshAndBroadcastHeader(userId) {
         ipo: user.ipo
       },
       anchor: {
-        available: user.anchorpoints.available,
-        max: user.anchorpoints.max,
-        pending: user.anchorpoints.pending || 0
+        available: availableCapacity,
+        max: maxAnchorPoints,
+        pending: pendingAnchorPoints,
+        nextBuild: anchorNextBuild
       }
     };
 
@@ -1255,7 +1281,8 @@ router.post('/build-vessel', express.json(), async (req, res) => {
     container_color_3,
     container_color_4,
     name_color,
-    custom_image
+    custom_image,
+    build_price
   } = req.body;
 
   // Validate required fields
@@ -1328,15 +1355,6 @@ router.post('/build-vessel', express.json(), async (req, res) => {
 
   try {
     const userId = getUserId();
-
-    // Get cash before build to calculate cost
-    let cashBefore = 0;
-    try {
-      const bunkerData = await apiCall('/game/bunker', 'GET');
-      cashBefore = bunkerData.cash || 0;
-    } catch (bunkerError) {
-      logger.warn('[Build Vessel] Could not fetch cash before build:', bunkerError.message);
-    }
 
     // Forward build request to game API
     const data = await apiCall('/vessel/build-vessel', 'POST', {
@@ -1468,14 +1486,41 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       }
     }
 
-    // Broadcast notification
+    // Use build_price from frontend (calculated before build)
+    const buildCost = build_price || 0;
+
+    // Broadcast notification with receipt-style format
     if (userId) {
       const safeVesselName = validator.escape(name);
       const capacityUnit = vessel_model === 'container' ? 'TEU' : 'BBL';
+      const vesselTypeLabel = vessel_model === 'container' ? 'Container' : 'Tanker';
 
       broadcastToUser(userId, 'user_action_notification', {
         type: 'success',
-        message: `🔨 <strong>Vessel Build Started!</strong><br><br>${safeVesselName}<br>${capacity.toLocaleString()} ${capacityUnit}`
+        message: `
+          <div style="font-family: monospace; font-size: 13px;">
+            <div style="text-align: center; border-bottom: 2px solid rgba(255,255,255,0.3); padding-bottom: 8px; margin-bottom: 12px;">
+              <strong style="font-size: 14px;">🔨 Vessel Build Started</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>Vessel:</span>
+              <span><strong>${safeVesselName}</strong></span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>Type:</span>
+              <span>${vesselTypeLabel}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <span>Capacity:</span>
+              <span><strong>${capacity.toLocaleString('en-US')} ${capacityUnit}</strong></span>
+            </div>
+            <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
+            <div style="display: flex; justify-content: space-between; font-size: 15px;">
+              <span><strong>Total:</strong></span>
+              <span style="color: #ef4444;"><strong>$${buildCost.toLocaleString('en-US')}</strong></span>
+            </div>
+          </div>
+        `
       });
     }
 
@@ -1494,9 +1539,6 @@ router.post('/build-vessel', express.json(), async (req, res) => {
 
     // AUDIT LOG: Vessel build
     try {
-      // Calculate build cost from cash difference (cash before - cash after)
-      const cashAfter = data.user?.cash || 0;
-      const buildCost = cashBefore - cashAfter;
 
       await auditLog(
         userId,

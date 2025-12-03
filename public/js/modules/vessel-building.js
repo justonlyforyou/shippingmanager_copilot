@@ -1126,7 +1126,8 @@ async function submitBuild() {
         container_color_3: buildState.containerColor3,
         container_color_4: buildState.containerColor4,
         name_color: buildState.nameColor,
-        custom_image: buildState.customImage
+        custom_image: buildState.customImage,
+        build_price: Math.round(price)
       })
     });
 

@@ -1,0 +1,364 @@
+name: Multi-Platform Build
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      platforms:
+        description: 'Platforms to build'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - windows
+          - macos
+          - linux
+
+jobs:
+  # =============================================================================
+  # WINDOWS BUILD (existing flow)
+  # =============================================================================
+  build-windows:
+    if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install global npm packages
+        run: npm install -g pkg
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller
+          pip install pywin32 cryptography keyring pystray pillow requests urllib3 selenium
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build application
+        run: npm run build:all
+
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist/ShippingManagerCoPilot-Installer-*.exe
+            dist/checksums.txt
+          retention-days: 7
+
+
+  # =============================================================================
+  # MACOS BUILD
+  # =============================================================================
+  build-macos:
+    if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller
+          pip install cryptography keyring pystray pillow requests urllib3 selenium
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build Node.js server for macOS (Intel)
+        run: npx @yao-pkg/pkg . --targets node22-macos-x64 --output dist/ShippingManagerCoPilot-Server
+
+      - name: Build Python helper scripts
+        run: |
+          cd build
+          pyinstaller build-python-crossplatform.spec --distpath ../dist
+
+      - name: Build main application
+        run: |
+          cd build
+          pyinstaller build-start-crossplatform.spec --distpath ../dist
+
+      - name: Create macOS DMG
+        run: |
+          # Create a simple DMG from the .app bundle
+          mkdir -p dist/dmg-staging
+          cp -r dist/ShippingManagerCoPilot.app dist/dmg-staging/
+
+          # Create symlink to Applications folder
+          ln -s /Applications dist/dmg-staging/Applications
+
+          # Create DMG
+          hdiutil create -volname "ShippingManagerCoPilot" \
+            -srcfolder dist/dmg-staging \
+            -ov -format UDZO \
+            dist/ShippingManagerCoPilot-macos-x64.dmg
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 ShippingManagerCoPilot-macos-x64.dmg > checksums-macos.txt
+
+      - name: Upload macOS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-build
+          path: |
+            dist/ShippingManagerCoPilot-macos-x64.dmg
+            dist/checksums-macos.txt
+          retention-days: 7
+
+
+  # =============================================================================
+  # MACOS ARM64 BUILD (Apple Silicon)
+  # =============================================================================
+  build-macos-arm64:
+    if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos'
+    runs-on: macos-14  # macos-14 is ARM64 (M1/M2/M3)
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller
+          pip install cryptography keyring pystray pillow requests urllib3 selenium
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build Node.js server for macOS ARM64
+        run: npx @yao-pkg/pkg . --targets node22-macos-arm64 --output dist/ShippingManagerCoPilot-Server
+
+      - name: Build Python helper scripts
+        run: |
+          cd build
+          pyinstaller build-python-crossplatform.spec --distpath ../dist
+
+      - name: Build main application
+        run: |
+          cd build
+          pyinstaller build-start-crossplatform.spec --distpath ../dist
+
+      - name: Create macOS DMG
+        run: |
+          mkdir -p dist/dmg-staging
+          cp -r dist/ShippingManagerCoPilot.app dist/dmg-staging/
+          ln -s /Applications dist/dmg-staging/Applications
+
+          hdiutil create -volname "ShippingManagerCoPilot" \
+            -srcfolder dist/dmg-staging \
+            -ov -format UDZO \
+            dist/ShippingManagerCoPilot-macos-arm64.dmg
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          shasum -a 256 ShippingManagerCoPilot-macos-arm64.dmg > checksums-macos-arm64.txt
+
+      - name: Upload macOS ARM64 artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-build
+          path: |
+            dist/ShippingManagerCoPilot-macos-arm64.dmg
+            dist/checksums-macos-arm64.txt
+          retention-days: 7
+
+
+  # =============================================================================
+  # LINUX BUILD
+  # =============================================================================
+  build-linux:
+    if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libsecret-1-dev \
+            python3-tk \
+            libx11-dev \
+            libxkbcommon-x11-0
+
+      - name: Install Python dependencies
+        run: |
+          pip install pyinstaller
+          pip install cryptography keyring SecretStorage pystray pillow requests urllib3 selenium
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Build Node.js server for Linux
+        run: npx @yao-pkg/pkg . --targets node22-linux-x64 --output dist/ShippingManagerCoPilot-Server
+
+      - name: Build Python helper scripts
+        run: |
+          cd build
+          pyinstaller build-python-crossplatform.spec --distpath ../dist
+
+      - name: Build main application
+        run: |
+          cd build
+          pyinstaller build-start-crossplatform.spec --distpath ../dist
+
+      - name: Create tarball
+        run: |
+          cd dist
+          tar -czvf ShippingManagerCoPilot-linux-x64.tar.gz ShippingManagerCoPilot
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum ShippingManagerCoPilot-linux-x64.tar.gz > checksums-linux.txt
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: |
+            dist/ShippingManagerCoPilot-linux-x64.tar.gz
+            dist/checksums-linux.txt
+          retention-days: 7
+
+
+  # =============================================================================
+  # CREATE RELEASE (after all builds complete)
+  # =============================================================================
+  create-release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-macos, build-macos-arm64, build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f -ls
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          version="${{ github.ref_name }}"
+          version="${version#v}"
+          echo "VERSION=$version" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ShippingManager CoPilot ${{ github.ref_name }}
+          body: |
+            ## ShippingManager CoPilot ${{ github.ref_name }}
+
+            ### Downloads
+
+            | Platform | Download | Notes |
+            |----------|----------|-------|
+            | Windows | `ShippingManagerCoPilot-Installer-*.exe` | Full features (Steam + Browser login) |
+            | macOS (Intel) | `ShippingManagerCoPilot-macos-x64.dmg` | Browser login only |
+            | macOS (Apple Silicon) | `ShippingManagerCoPilot-macos-arm64.dmg` | Browser login only (M1/M2/M3) |
+            | Linux | `ShippingManagerCoPilot-linux-x64.tar.gz` | Browser login only |
+
+            ### Platform Notes
+
+            - **Windows**: Full Steam integration for automatic session extraction
+            - **macOS/Linux**: Browser-based login only (Steam extraction not available)
+
+            ### Features
+
+            - Alliance chat with real-time updates
+            - Private messaging system
+            - Automated game management (fuel, CO2, vessel departures)
+            - Steam session cookie extraction (Windows only)
+
+            ### Verification
+
+            SHA256 checksums are provided in the respective `checksums-*.txt` files.
+
+            ### Requirements
+
+            - **Windows**: Windows 10/11
+            - **macOS**: macOS 10.15+ (Catalina or later)
+            - **Linux**: Ubuntu 20.04+ or equivalent
+            - Modern web browser (Chrome/Chromium recommended)
+            - Active Shipping Manager account
+
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/windows-build/*
+            artifacts/macos-build/*
+            artifacts/macos-arm64-build/*
+            artifacts/linux-build/*

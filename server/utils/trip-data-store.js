@@ -160,10 +160,39 @@ function findTripDataFuzzy(allData, vesselId, entryTimestamp) {
 }
 
 /**
+ * Find matching lookup entry from POD4 by vessel ID and timestamp
+ * @param {Array} lookupEntries - All lookup entries
+ * @param {number} vesselId - Vessel ID to match
+ * @param {number} entryTimestamp - Timestamp in milliseconds
+ * @returns {Object|null} pod2_vessel data or null
+ */
+function findLookupDataFuzzy(lookupEntries, vesselId, entryTimestamp) {
+  // 10 minute tolerance for lookup matching (same as lookup-store uses)
+  const LOOKUP_TOLERANCE_MS = 10 * 60 * 1000;
+
+  for (const entry of lookupEntries) {
+    // Only check departure entries with pod2_vessel data
+    if (entry.context !== 'vessels_departed') continue;
+    if (!entry.pod2_vessel) continue;
+    if (entry.pod2_vessel.vesselId !== vesselId) continue;
+
+    // Check if timestamp is within tolerance
+    const diff = Math.abs(entryTimestamp - entry.timestamp);
+    if (diff <= LOOKUP_TOLERANCE_MS) {
+      return entry.pod2_vessel;
+    }
+  }
+  return null;
+}
+
+/**
  * Enriches vessel history entries with all stored trip data
  *
  * Uses fuzzy timestamp matching (up to 60 seconds tolerance) because
  * timestamps can differ between our store and the game API.
+ *
+ * Falls back to lookup-store (POD4) for historical data when trip-data-store
+ * doesn't have the entry (e.g., older trips before tracking was implemented).
  *
  * @param {number} userId - User ID
  * @param {Array<Object>} historyEntries - Vessel history entries from game API
@@ -172,18 +201,27 @@ function findTripDataFuzzy(allData, vesselId, entryTimestamp) {
 async function enrichHistoryWithTripData(userId, historyEntries) {
   const allData = await loadTripData(userId);
 
+  // Load lookup-store (POD4) as fallback for older trips
+  let lookupEntries = [];
+  try {
+    const lookupStore = require('../analytics/lookup-store');
+    lookupEntries = await lookupStore.getEntries(userId);
+  } catch (error) {
+    logger.debug('[Trip Data Store] Could not load lookup-store for fallback:', error.message);
+  }
+
   return historyEntries.map(entry => {
-    // Try exact match first
+    // Try exact match first from trip-data-store
     const exactKey = `${entry.vessel_id}_${entry.created_at}`;
     let tripData = allData[exactKey];
 
-    // If no exact match, try fuzzy matching
+    // If no exact match, try fuzzy matching in trip-data-store
     if (!tripData) {
       const entryTimestamp = new Date(entry.created_at).getTime();
       tripData = findTripDataFuzzy(allData, entry.vessel_id, entryTimestamp);
     }
 
-    // Return entry with trip data merged
+    // Return entry with trip data merged from trip-data-store
     // API provides: fuel_used (kg), route_income, cargo, distance, duration, wear
     // Our store provides: harbor_fee, contribution, speed, guards, co2_used, rates, utilization
     if (tripData) {
@@ -204,7 +242,29 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
       };
     }
 
-    // No match found - keep API values, only add nulls for fields API doesn't provide
+    // Fallback: Try lookup-store (POD4) for historical data
+    const entryTimestamp = new Date(entry.created_at).getTime();
+    const lookupData = findLookupDataFuzzy(lookupEntries, entry.vessel_id, entryTimestamp);
+
+    if (lookupData) {
+      return {
+        ...entry,
+        // pod2_vessel has: harborFee (negative), contributionGained, speed, guards, co2Used, etc.
+        harbor_fee: lookupData.harborFee ? Math.abs(lookupData.harborFee) : null,
+        contribution_gained: lookupData.contributionGained,
+        speed: lookupData.speed,
+        guards: lookupData.guards,
+        co2_used: lookupData.co2Used,
+        capacity: lookupData.capacity,
+        utilization: lookupData.utilization,
+        dry_rate: lookupData.dryRate,
+        ref_rate: lookupData.refRate,
+        fuel_rate: lookupData.fuelRate,
+        crude_rate: lookupData.crudeRate
+      };
+    }
+
+    // No match found in either store - keep API values, only add nulls for fields API doesn't provide
     return {
       ...entry,
       // fuel_used comes from API (in kg) - already in entry, don't touch it

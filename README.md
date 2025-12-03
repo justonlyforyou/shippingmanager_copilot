@@ -282,6 +282,8 @@ Comprehensive notification system for critical events and automation feedback wi
 - **Installation Guide**: See [docs/tutorials/installation-guide.md](docs/tutorials/installation-guide.md)
 - **Build Guide**: See [docs/tutorials/build-guide.md](docs/tutorials/build-guide.md)
 
+__Linux and MacOs are still untested and work in progress__
+
 ***
 
 ## Documentation

@@ -170,7 +170,12 @@ function setupMiddleware(app) {
  *   // Max 30 calls per minute per IP
  * });
  */
-const messageLimiter = rateLimit(config.MESSAGE_RATE_LIMIT);
+const messageLimiter = rateLimit({
+  ...config.MESSAGE_RATE_LIMIT,
+  handler: (req, res) => {
+    res.status(429).json({ error: config.MESSAGE_RATE_LIMIT.message });
+  }
+});
 
 module.exports = {
   setupMiddleware,

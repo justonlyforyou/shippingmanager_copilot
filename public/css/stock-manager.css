@@ -1164,8 +1164,14 @@ body > div[class*="lightweight"] {
 }
 
 /* ============================================
-   SELL BUTTON & TIMER (Investments Tab)
+   PURCHASED DATE & SELL BUTTON (Investments Tab)
    ============================================ */
+
+.stock-purchased-cell {
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
 
 .stock-sell-cell {
   white-space: nowrap;

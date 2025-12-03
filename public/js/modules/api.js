@@ -395,16 +395,17 @@ export async function fetchMessengerChats() {
  * Fetches all messages for a specific chat conversation.
  *
  * @param {number} chatId - Chat ID to fetch messages for
+ * @param {boolean} forceRefresh - If true, bypasses cache and fetches fresh data
  * @returns {Promise<Object>} Messages data
  * @property {Array<Object>} messages - Array of message objects
  * @throws {Error} If fetch fails
  */
-export async function fetchMessengerMessages(chatId) {
+export async function fetchMessengerMessages(chatId, forceRefresh = false) {
   try {
     const response = await fetch(window.apiUrl('/api/messenger/get-messages'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId })
+      body: JSON.stringify({ chat_id: chatId, force_refresh: forceRefresh })
     });
 
     if (!response.ok) throw new Error('Failed to load messages');
@@ -425,12 +426,16 @@ export async function fetchMessengerMessages(chatId) {
  * @property {boolean} success - Whether message was sent
  * @throws {Error} If send fails or validation fails
  */
-export async function sendPrivateMessage(targetUserId, subject, message) {
+export async function sendPrivateMessage(targetUserId, subject, message, retryCount = 0) {
+  const maxRetries = 3;
+  const retryDelay = 2000; // 2 seconds
+
   if (window.DEBUG_MODE) {
     console.log('[API DEBUG] sendPrivateMessage called with:');
     console.log('  targetUserId:', targetUserId, 'type:', typeof targetUserId);
     console.log('  subject:', subject);
     console.log('  message:', message);
+    console.log('  retryCount:', retryCount);
   }
 
   const payload = {
@@ -452,6 +457,13 @@ export async function sendPrivateMessage(targetUserId, subject, message) {
 
     if (window.DEBUG_MODE) {
       console.log('[API DEBUG] Response status:', response.status, response.statusText);
+    }
+
+    // Handle rate limiting with retry
+    if (response.status === 429 && retryCount < maxRetries) {
+      console.log(`[Messenger] Rate limited, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      return sendPrivateMessage(targetUserId, subject, message, retryCount + 1);
     }
 
     if (!response.ok) {
@@ -1139,6 +1151,24 @@ export async function getAnalyticsRoutes(days = 30) {
 }
 
 /**
+ * Get vessel performance for a specific route
+ * @param {string} origin - Route origin port
+ * @param {string} destination - Route destination port
+ * @param {number} days - Number of days (default 30)
+ * @returns {Promise<Object>} Route vessel comparison data
+ */
+export async function getRouteVessels(origin, destination, days = 30) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/route-vessels?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&days=${days}`));
+    if (!response.ok) throw new Error('Failed to fetch route vessels');
+    return await response.json();
+  } catch (error) {
+    console.error('[Analytics API] Error fetching route vessels:', error);
+    throw error;
+  }
+}
+
+/**
  * Get daily revenue trend
  * @param {number} days - Number of days (default 30)
  * @returns {Promise<Object>} Trend data
@@ -1358,6 +1388,22 @@ export async function getLookupBreakdown(days = 0) {
     return await response.json();
   } catch (error) {
     console.error('[Lookup API] Error getting breakdown:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get daily breakdown from lookup store
+ * @param {number} days - Number of days (0 = all)
+ * @returns {Promise<Object>} Daily breakdown
+ */
+export async function getLookupDaily(days = 0) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/daily?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get lookup daily');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting daily:', error);
     throw error;
   }
 }

@@ -239,12 +239,16 @@
                     <button class="depart-tab-btn" data-status="mass-moor" title="Moor/resume vessels">Moor</button>
                 </div>
                 <div class="depart-manager-actions">
-                    <button id="departAllFromPanel" class="vessel-filter-btn depart-primary-btn" title="Depart selected vessels">🚢 Depart Selected (0)</button>
-                    <button id="selectAllVesselsBtn" class="vessel-filter-btn" title="Select all vessels">✓ All</button>
-                    <button id="unselectAllVesselsBtn" class="vessel-filter-btn" title="Unselect all vessels">✗ None</button>
-                    <button id="moorAllBtn" class="vessel-filter-btn depart-primary-btn" title="Moor selected vessels" style="display: none;">⛓️ Moor (0)</button>
-                    <button id="resumeAllBtn" class="vessel-filter-btn" title="Resume selected vessels" style="display: none;">🟢 Resume (0)</button>
-                    <button id="refreshDepartListBtn" class="vessel-filter-btn" title="Refresh vessel list">🔄</button>
+                    <div class="depart-manager-actions-row">
+                        <button id="departAllFromPanel" class="vessel-filter-btn depart-primary-btn" title="Depart selected vessels">🚢 Depart (0)</button>
+                        <button id="moorAllBtn" class="vessel-filter-btn" title="Moor selected vessels">⛓️ Moor (0)</button>
+                        <button id="resumeAllBtn" class="vessel-filter-btn" title="Resume selected vessels">🟢 Resume (0)</button>
+                    </div>
+                    <div class="depart-manager-actions-row">
+                        <button id="selectAllVesselsBtn" class="vessel-filter-btn" title="Select all vessels">✓ All</button>
+                        <button id="unselectAllVesselsBtn" class="vessel-filter-btn" title="Unselect all vessels">✗ None</button>
+                        <button id="refreshDepartListBtn" class="vessel-filter-btn" title="Refresh vessel list">🔄</button>
+                    </div>
                 </div>
                 <div class="depart-manager-content">
                     <!-- Future: Vessel list, filters, etc. -->
@@ -278,34 +282,60 @@
                                 <span class="route-planner-info-label">Capacity:</span>
                                 <span class="route-planner-info-value" data-info="vessel-capacity">-</span>
                             </div>
-                            <div class="route-planner-section-header">Demand Analytics</div>
-                            <div class="route-planner-info-row">
-                                <span class="route-planner-info-label">Container:</span>
-                                <span class="route-planner-info-value">Dry <span class="route-planner-demand-value" data-demand="dry">-</span> / Ref <span class="route-planner-demand-value" data-demand="refrigerated">-</span></span>
+                            <div class="route-planner-section-header">Remaining Demand</div>
+                            <table class="route-planner-demand-table">
+                                <thead>
+                                    <tr>
+                                        <th></th>
+                                        <th data-demand-header="origin">Origin</th>
+                                        <th data-demand-header="destination">Destination</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td class="demand-label">Dry</td>
+                                        <td class="demand-value" data-demand="origin-dry">-</td>
+                                        <td class="demand-value" data-demand="dry">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="demand-label">Ref</td>
+                                        <td class="demand-value" data-demand="origin-ref">-</td>
+                                        <td class="demand-value" data-demand="refrigerated">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="demand-label">Fuel</td>
+                                        <td class="demand-value" data-demand="origin-fuel">-</td>
+                                        <td class="demand-value" data-demand="fuel">-</td>
+                                    </tr>
+                                    <tr>
+                                        <td class="demand-label">Crude</td>
+                                        <td class="demand-value" data-demand="origin-crude">-</td>
+                                        <td class="demand-value" data-demand="crude_oil">-</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                            <div class="route-planner-current-route-grid ports-tab-grid">
+                                <div class="route-grid-item">
+                                    <span class="route-grid-label">Distance</span>
+                                    <span class="route-grid-value" data-info="distance">-</span>
+                                </div>
+                                <div class="route-grid-item">
+                                    <span class="route-grid-label">Time</span>
+                                    <span class="route-grid-value" data-info="travel-time">-</span>
+                                </div>
+                                <div class="route-grid-item">
+                                    <span class="route-grid-label">Fuel</span>
+                                    <span class="route-grid-value" data-info="fuel-consumption">-</span>
+                                </div>
+                                <div class="route-grid-item">
+                                    <span class="route-grid-label">Channel</span>
+                                    <span class="route-grid-value" data-info="channel-fee">$0</span>
+                                </div>
                             </div>
-                            <div class="route-planner-info-row">
-                                <span class="route-planner-info-label">Tanker:</span>
-                                <span class="route-planner-info-value">Fuel <span class="route-planner-demand-value" data-demand="fuel">-</span> / Crude <span class="route-planner-demand-value" data-demand="crude_oil">-</span></span>
-                            </div>
-                            <div class="route-planner-info-row">
-                                <span class="route-planner-info-label">Distance:</span>
-                                <span class="route-planner-info-value" data-info="distance">-</span>
-                            </div>
-                            <div class="route-planner-info-row">
-                                <span class="route-planner-info-label">Channel Fee:</span>
-                                <span class="route-planner-info-value" data-info="channel-fee">$0</span>
-                            </div>
-                            <div class="route-planner-info-row">
-                                <span class="route-planner-info-label">Travel Time:</span>
-                                <span class="route-planner-info-value" data-info="travel-time">-</span>
-                            </div>
+                            <hr class="route-planner-divider">
                             <div class="route-planner-info-row">
                                 <span class="route-planner-info-label">Harbor Fee/TEU:</span>
                                 <span class="route-planner-info-value" data-info="harbor-fee">-</span>
-                            </div>
-                            <div class="route-planner-info-row">
-                                <span class="route-planner-info-label">Fuel Consumption:</span>
-                                <span class="route-planner-info-value" data-info="fuel-consumption">-</span>
                             </div>
                             <div class="route-planner-speed-selector">
                                 <span class="route-planner-info-label">Speed:</span>
@@ -678,6 +708,23 @@
                         <div class="analytics-chart-container" id="game-log-chart-container"></div>
                     </div>
                     <div class="analytics-section">
+                        <h2 class="analytics-section-title">Daily Breakdown</h2>
+                        <div class="analytics-table-container">
+                            <table class="analytics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Date</th>
+                                        <th class="num">Income</th>
+                                        <th class="num">Expenses</th>
+                                        <th class="num">Net</th>
+                                        <th class="num">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="game-log-daily-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="analytics-section">
                         <h2 class="analytics-section-title">Breakdown by Type</h2>
                         <div class="game-log-filter">
                             <label>Category: </label>
@@ -768,17 +815,18 @@
                             <div class="analytics-metric-value" id="analytics-margin">-</div>
                         </div>
                     </div>
-                </div>
-                <!-- Vessels Tab -->
-                <div id="analytics-vessels" class="analytics-tab-content hidden">
-                    <div id="analytics-vessels-loading" class="analytics-loading">Loading vessel data...</div>
-                    <div id="analytics-vessels-content" class="hidden">
+                    <!-- Top/Bottom Vessels Charts -->
                     <div class="analytics-section">
                         <div class="analytics-chart-container" id="vessels-revenue-chart-container"></div>
                     </div>
                     <div class="analytics-section">
                         <div class="analytics-chart-container" id="vessels-bottom-revenue-chart-container"></div>
                     </div>
+                </div>
+                <!-- Vessels Tab -->
+                <div id="analytics-vessels" class="analytics-tab-content hidden">
+                    <div id="analytics-vessels-loading" class="analytics-loading">Loading vessel data...</div>
+                    <div id="analytics-vessels-content" class="hidden">
                     <div class="analytics-section">
                         <div class="analytics-chart-container" id="vessels-composition-chart-container"></div>
                     </div>
@@ -809,6 +857,17 @@
                 <div id="analytics-routes" class="analytics-tab-content hidden">
                     <div id="analytics-routes-loading" class="analytics-loading">Loading route data...</div>
                     <div id="analytics-routes-content" class="hidden">
+                    <!-- Top 10 Routes Highlight -->
+                    <div class="analytics-top-routes">
+                        <div class="top-routes-section">
+                            <h4>Top 10 by $/Hour</h4>
+                            <div id="top-routes-by-hour" class="top-routes-list"></div>
+                        </div>
+                        <div class="top-routes-section">
+                            <h4>Top 10 by $/NM</h4>
+                            <div id="top-routes-by-nm" class="top-routes-list"></div>
+                        </div>
+                    </div>
                     <div class="analytics-table-container">
                         <table class="analytics-table">
                             <thead>
@@ -836,7 +895,7 @@
     <div id="hijackingOverlay" class="overlay hidden">
         <div class="messenger-window messenger-window-narrow">
             <div class="messenger-header">
-                <h2>☠️ Blackbeard's Phone Booth</h2>
+                <h2>&#x2620;&#xFE0F; Blackbeard's Phone Booth</h2>
                 <button id="closeHijackingBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
             </div>
             <div class="messenger-feed" id="hijackingFeed">

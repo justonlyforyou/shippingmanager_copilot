@@ -403,9 +403,9 @@ router.get('/stock/purchase-times', async (req, res) => {
       }
     });
 
-    // Also get game transactions for stock purchases (last 2 days)
+    // Also get ALL game transactions for stock purchases (days=0 means all time)
     // These have { time, cash, context: 'purchase_stock' }
-    const gameTransactions = await transactionStore.getTransactionsByDays(userId, 2);
+    const gameTransactions = await transactionStore.getTransactionsByDays(userId, 0);
     const stockPurchases = gameTransactions
       .filter(t => t.context === 'purchase_stock')
       .sort((a, b) => b.time - a.time); // newest first

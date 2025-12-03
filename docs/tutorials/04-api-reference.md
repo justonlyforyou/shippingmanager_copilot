@@ -936,6 +936,38 @@ const profit_per_hour = profit / duration_hours;
 
 ---
 
+### Upgrade Vessel
+**Endpoint**: `POST /api/maintenance/upgrade-vessel`
+
+**Request**:
+```json
+{
+  "vessel_id": 18429537,
+  "antifouling_model": "type_a",
+  "bulbous": 1
+}
+```
+
+**Parameters**:
+- `vessel_id`: The vessel ID to upgrade (required)
+- `antifouling_model`: `"type_a"`, `"type_b"`, or `"type_c"` (optional) - Antifouling coating type
+- `bulbous`: `1` to add bulbous bow, `0` or omit to skip (optional)
+
+**Response**: `upgrade-vessel.json`
+
+**Returns**: Updated vessel data with upgrades applied
+
+**Notes**:
+- **DESTRUCTIVE ACTION** - Spends money immediately
+- Vessel must be parked (`is_parked: true`) to perform upgrades
+- Upgrades trigger a maintenance period (`status` changes to `"maintenance"`)
+- `maintenance_start_time` and `maintenance_end_time` indicate the maintenance window
+- After upgrade: `antifouling` field shows the model, `bulbous_bow` becomes `true`
+- Antifouling types affect fuel efficiency (type_a < type_b < type_c)
+- Bulbous bow reduces fuel consumption
+
+---
+
 ## Bunker (Fuel & CO2)
 
 ### Get Bunker Prices

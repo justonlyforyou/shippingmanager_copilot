@@ -919,6 +919,47 @@ async function getTotals(userId, days = 0) {
 }
 
 /**
+ * Get breakdown by day
+ * @param {string} userId - User ID
+ * @param {number} days - Number of days (0 = all)
+ * @returns {Promise<Array>} Daily breakdown sorted by date descending
+ */
+async function getBreakdownByDay(userId, days = 0) {
+  const entries = days > 0
+    ? await getEntriesByDays(userId, days)
+    : await getEntries(userId);
+
+  const daily = {};
+
+  for (const entry of entries) {
+    // Convert timestamp (ms) to date string (YYYY-MM-DD)
+    const date = new Date(entry.timestamp).toISOString().split('T')[0];
+
+    if (!daily[date]) {
+      daily[date] = {
+        date,
+        income: 0,
+        expenses: 0,
+        net: 0,
+        count: 0
+      };
+    }
+
+    daily[date].count++;
+    daily[date].net += entry.cash;
+
+    if (entry.cash >= 0) {
+      daily[date].income += entry.cash;
+    } else {
+      daily[date].expenses += Math.abs(entry.cash);
+    }
+  }
+
+  // Convert to array and sort by date descending (newest first)
+  return Object.values(daily).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/**
  * Get breakdown by type
  * @param {string} userId - User ID
  * @param {number} days - Number of days (0 = all)
@@ -1105,6 +1146,7 @@ module.exports = {
   getEntriesByDays,
   getTotals,
   getBreakdownByType,
+  getBreakdownByDay,
   getEntryDetails,
   getStoreInfo,
   clearStore,

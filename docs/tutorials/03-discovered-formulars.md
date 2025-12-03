@@ -190,14 +190,45 @@ if (speedBoostActive) {
 **Location:** `app.js` module 2576, function `qs` (exported as `s`)
 
 ```javascript
-risk = Math.max(5, Math.min(35, Math.ceil(5.7 * (factor / speed) + speed / 1000)))
+risk = Math.max(5, Math.min(35, Math.ceil(5.7 * (distance_in_danger_zone / speed) + speed / 1000)))
 ```
 
 **Parameters:**
-- `factor` = unknown factor (possibly distance or cargo value)
+- `distance_in_danger_zone` = nautical miles the route passes through a piracy zone
 - `speed` = vessel speed in knots
 
-**Output:** Risk percentage (5% - 35%)
+**Output:** Risk percentage (5% - 35%), or 0% if route doesn't cross any danger zone
+
+**Calculating the Danger Zone Distance:**
+
+The `distance_in_danger_zone` factor can be reverse-calculated from known values:
+
+```javascript
+distance_in_danger_zone = (risk - 1) * speed / 5.7
+```
+
+Example: Vessel with 19% risk at 8 kn speed:
+```
+distance_in_danger_zone = (19 - 1) * 8 / 5.7 = 25.3 nm
+```
+
+**Verified Examples:**
+
+| Vessel | Total Distance | Speed | Risk | Danger Zone Distance |
+|--------|---------------|-------|------|---------------------|
+| Triumph | 4,407 nm | 22 kn | 10% | 35 nm |
+| OCEAN DAME | 2,787 nm | 10 kn | 12% | 20 nm |
+| Sea Spirit | 920 nm | 5 kn | 13% | 11 nm |
+| SS Valley | 2,584 nm | 8 kn | 14% | 19 nm |
+| SS Valley_6128 | 2,209 nm | 8 kn | 19% | 26 nm |
+| Blue Ocean | 4,561 nm | 8 kn | 28% | 38 nm |
+
+**Notes:**
+- If route doesn't cross a danger zone: `hijacking_risk = 0` (not 5%)
+- The factor is NOT the total route distance, only the portion INSIDE the danger zone
+- Higher speed = less time in zone = lower risk
+- Server returns `hijacking_risk` directly in route API responses
+- Danger zones: Gulf of Aden, South China Sea, Caribbean Sea, West African Coast, Madagascar, Indonesian Ocean
 
 ---
 
@@ -242,6 +273,8 @@ if (userHasPerk("cheap_guards")) {
 result = (value === 0) ? 0 : Math.pow(value, 3)
 ```
 
+**Note:** No usage found in captured frontend code. May be used in backend or called dynamically.
+
 ---
 
 ## Module 2576 Export Summary
@@ -275,4 +308,4 @@ result = (value === 0) ? 0 : Math.pow(value, 3)
 
 ---
 
-*Last updated: 2025-11-22*
+*Last updated: 2025-12-01*

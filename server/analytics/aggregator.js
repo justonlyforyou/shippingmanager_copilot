@@ -1675,6 +1675,20 @@ async function getMergedSummary(userId, days = 7) {
   const utilizationEntries = [];
   const vesselRevenueEntries = [];
   try {
+    // Get current vessel names to use instead of historical names
+    let currentVesselNames = new Map();
+    try {
+      const gameapi = require('../gameapi');
+      const currentVessels = await gameapi.fetchVessels();
+      currentVessels.forEach(v => {
+        if (v.id && v.name) {
+          currentVesselNames.set(Number(v.id), v.name);
+        }
+      });
+    } catch (err) {
+      logger.warn('[Aggregator] Could not fetch current vessel names:', err.message);
+    }
+
     // Use getMergedDepartures to get ALL departures (local + game history)
     const mergedDepartures = await getMergedDepartures(userId, days);
 
@@ -1684,7 +1698,9 @@ async function getMergedSummary(userId, days = 7) {
 
       for (const vessel of vessels) {
         const vesselId = vessel.vesselId || vessel.vessel_id;
-        const vesselName = vessel.name || vessel.vesselName || 'Unknown';
+        // Use current name if available, otherwise fall back to historical name
+        const historicalName = vessel.name || vessel.vesselName || 'Unknown';
+        const vesselName = (vesselId && currentVesselNames.get(Number(vesselId))) || historicalName;
         const timeSeconds = Math.floor(logTimestamp / 1000);
 
         // Utilization entries
@@ -1771,29 +1787,40 @@ async function getVesselPerformanceWithContribution(userId, days = 30) {
   // Use merged departures (local logs + game import)
   const vesselPerf = await getVesselPerformanceMerged(userId, days);
 
-  // Get current vessels to determine which are still owned
+  // Get current vessels to determine which are still owned and get current names
   let ownedVesselIds = new Set();
+  let currentVesselNames = new Map(); // vesselId -> current name
   try {
     const gameapi = require('../gameapi');
     const currentVessels = await gameapi.fetchVessels();
 
-    // Store IDs as numbers for consistent comparison
+    // Store IDs and names for consistent comparison
     currentVessels.forEach(v => {
       if (v.id) {
-        ownedVesselIds.add(Number(v.id));
+        const numId = Number(v.id);
+        ownedVesselIds.add(numId);
+        if (v.name) {
+          currentVesselNames.set(numId, v.name);
+        }
       }
     });
   } catch (err) {
     logger.warn('[Analytics] Could not fetch current vessels for ownership check:', err.message);
   }
 
-  // Ensure contribution field is properly named and add ownership info
+  // Ensure contribution field is properly named, add ownership info, and update names
   // Convert vesselId to number for comparison (could be string from logs)
-  return vesselPerf.map(v => ({
-    ...v,
-    contribution: v.totalContribution,
-    isOwned: ownedVesselIds.size > 0 ? ownedVesselIds.has(Number(v.vesselId)) : true
-  }));
+  return vesselPerf.map(v => {
+    const numId = Number(v.vesselId);
+    const currentName = currentVesselNames.get(numId);
+    return {
+      ...v,
+      // Use current name if vessel still owned, otherwise keep historical name
+      name: currentName || v.name,
+      contribution: v.totalContribution,
+      isOwned: ownedVesselIds.size > 0 ? ownedVesselIds.has(numId) : true
+    };
+  });
 }
 
 /**
@@ -1968,6 +1995,8 @@ async function getVesselPerformanceMerged(userId, days = 30) {
           totalDistance: 0,
           totalDuration: 0,
           utilizationSum: 0,
+          totalCargoTeu: 0,
+          totalCargoBbl: 0,
           routes: new Map(),
           sources: { local: 0, game: 0 }
         });
@@ -1983,6 +2012,14 @@ async function getVesselPerformanceMerged(userId, days = 30) {
       vessel.totalDistance += v.distance || 0;
       vessel.totalDuration += v.duration || 0;
       vessel.utilizationSum += v.utilization || 0;
+
+      // Aggregate cargo - TEU for containers, bbl for tankers
+      if (v.cargo) {
+        const teu = (v.cargo.dry || 0) + (v.cargo.refrigerated || 0);
+        const bbl = (v.cargo.fuel || 0) + (v.cargo.crude || 0);
+        vessel.totalCargoTeu += teu;
+        vessel.totalCargoBbl += bbl;
+      }
 
       // Track source
       if (log.source === 'game-api') {
@@ -2011,6 +2048,15 @@ async function getVesselPerformanceMerged(userId, days = 30) {
     const avgRevenuePerHour = totalHours > 0 ? vessel.totalRevenue / totalHours : 0;
     const avgRevenuePerNm = vessel.totalDistance > 0 ? vessel.totalRevenue / vessel.totalDistance : 0;
 
+    // Cargo efficiency metrics - TEU for containers, bbl for tankers
+    const cargoType = vessel.totalCargoTeu > vessel.totalCargoBbl ? 'TEU' : 'bbl';
+    const primaryCargo = vessel.totalCargoTeu > vessel.totalCargoBbl ? vessel.totalCargoTeu : vessel.totalCargoBbl;
+    // Revenue per cargo unit per NM (how efficiently is cargo transported)
+    const avgRevenuePerCargoNm = (primaryCargo > 0 && vessel.totalDistance > 0)
+      ? vessel.totalRevenue / primaryCargo / vessel.totalDistance
+      : 0;
+    const avgCargoPerTrip = vessel.trips > 0 ? primaryCargo / vessel.trips : 0;
+
     // Find most used route
     let primaryRoute = null;
     let maxRouteTrips = 0;
@@ -2032,10 +2078,15 @@ async function getVesselPerformanceMerged(userId, days = 30) {
       totalContribution: vessel.totalContribution,
       totalDistance: vessel.totalDistance,
       totalDuration: vessel.totalDuration,
+      totalCargoTeu: vessel.totalCargoTeu,
+      totalCargoBbl: vessel.totalCargoBbl,
+      cargoType,
       avgUtilization: avgUtilization * 100,
       avgRevenuePerTrip,
       avgRevenuePerHour,
       avgRevenuePerNm,
+      avgRevenuePerCargoNm,
+      avgCargoPerTrip,
       fuelEfficiency,
       primaryRoute: formatRouteDisplay(primaryRoute),
       routeCount: vessel.routes.size,
@@ -2330,6 +2381,8 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
           totalFuelUsed: 0,
           totalDistance: 0,
           totalDuration: 0,
+          totalCargoTeu: 0,
+          totalCargoBbl: 0,
           vessels: new Set(),
           sources: { local: 0, game: 0 }
         });
@@ -2343,6 +2396,12 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
       route.totalDistance += v.distance || 0;
       route.totalDuration += v.duration || 0;
       route.vessels.add(v.vesselId || v.vessel_id);
+
+      // Aggregate cargo - TEU for containers, bbl for tankers
+      if (v.cargo) {
+        route.totalCargoTeu += (v.cargo.dry || 0) + (v.cargo.refrigerated || 0);
+        route.totalCargoBbl += (v.cargo.fuel || 0) + (v.cargo.crude || 0);
+      }
 
       // Track source
       if (log.source === 'game-api') {
@@ -2364,6 +2423,19 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
     // Duration is in seconds, convert to hours for avg/h calculation
     const totalHours = route.totalDuration / 3600;
     const avgRevenuePerHour = totalHours > 0 ? route.totalRevenue / totalHours : 0;
+
+    // Cargo efficiency metrics - TEU for containers, bbl for tankers
+    const cargoType = route.totalCargoTeu > route.totalCargoBbl ? 'TEU' : 'bbl';
+    const primaryCargo = route.totalCargoTeu > route.totalCargoBbl ? route.totalCargoTeu : route.totalCargoBbl;
+    // Revenue per cargo unit per NM (how efficiently is cargo transported on this route)
+    const avgRevenuePerCargoNm = (primaryCargo > 0 && route.totalDistance > 0)
+      ? route.totalRevenue / primaryCargo / route.totalDistance
+      : 0;
+    const avgCargoPerTrip = route.trips > 0 ? primaryCargo / route.trips : 0;
+    // Revenue per cargo unit per hour (how much does each TEU/bbl earn per hour on this route)
+    const avgRevenuePerCargoHour = (primaryCargo > 0 && totalHours > 0)
+      ? route.totalRevenue / primaryCargo / totalHours
+      : 0;
 
     // Get historical hijack incidents from logbook (actual count of hijacks on this route)
     const hijackCount = hijackCountMap.get(route.route);
@@ -2391,11 +2463,17 @@ async function getRouteProfitabilityMerged(userId, days = 30) {
       totalFuelUsed: route.totalFuelUsed,
       totalDistance: route.totalDistance,
       totalDuration: route.totalDuration,
+      totalCargoTeu: route.totalCargoTeu,
+      totalCargoBbl: route.totalCargoBbl,
+      cargoType,
       avgRevenuePerTrip,
       avgHarborFee,
       harborFeePercent,
       avgIncomePerNm,
       avgRevenuePerHour,
+      avgRevenuePerCargoNm,
+      avgRevenuePerCargoHour,
+      avgCargoPerTrip,
       hijackingRisk: gameHijackRisk !== undefined ? gameHijackRisk : null,
       hijackCount: hijackCount !== undefined ? hijackCount : null,
       totalRansomPaid: ransomData ? ransomData.totalRansom : null,
@@ -2457,6 +2535,95 @@ async function getMergedOperationsSummary(userId, days) {
   };
 }
 
+/**
+ * Get vessel performance for a specific route
+ * @param {string} userId - User ID
+ * @param {string} origin - Route origin port
+ * @param {string} destination - Route destination port
+ * @param {number} days - Number of days to analyze (default 30)
+ * @returns {Promise<Array>} Vessel performance on this route
+ */
+async function getVesselsByRoute(userId, origin, destination, days = 30) {
+  const departures = await getMergedDepartures(userId, days);
+
+  // Normalize route key (A<>B should match B<>A)
+  const targetRouteKey = normalizeRouteKey(origin, destination);
+
+  // Aggregate by vessel, but only for trips on this route
+  const vesselMap = new Map();
+
+  departures.forEach(log => {
+    const vessels = log.details?.departedVessels || log.details?.vessels || [];
+    vessels.forEach(v => {
+      const vOrigin = v.origin || '';
+      const vDestination = v.destination || '';
+      if (!vOrigin || !vDestination) return;
+
+      // Check if this trip matches our target route
+      const tripRouteKey = normalizeRouteKey(vOrigin, vDestination);
+      if (tripRouteKey !== targetRouteKey) return;
+
+      const id = v.vesselId || v.vessel_id;
+      if (!id) return;
+
+      if (!vesselMap.has(id)) {
+        vesselMap.set(id, {
+          vesselId: id,
+          name: v.name || v.vesselName || `Vessel ${id}`,
+          trips: 0,
+          totalRevenue: 0,
+          totalDistance: 0,
+          totalDuration: 0,
+          totalCargoTeu: 0,
+          totalCargoBbl: 0
+        });
+      }
+
+      const vessel = vesselMap.get(id);
+      vessel.trips++;
+      vessel.totalRevenue += v.income || 0;
+      vessel.totalDistance += v.distance || 0;
+      vessel.totalDuration += v.duration || 0;
+
+      if (v.cargo) {
+        vessel.totalCargoTeu += (v.cargo.dry || 0) + (v.cargo.refrigerated || 0);
+        vessel.totalCargoBbl += (v.cargo.fuel || 0) + (v.cargo.crude || 0);
+      }
+    });
+  });
+
+  // Calculate metrics and convert to array
+  const results = [];
+  vesselMap.forEach((vessel) => {
+    const avgRevenuePerTrip = vessel.trips > 0 ? vessel.totalRevenue / vessel.trips : 0;
+    const totalHours = vessel.totalDuration / 3600;
+    const avgRevenuePerHour = totalHours > 0 ? vessel.totalRevenue / totalHours : 0;
+    const avgRevenuePerNm = vessel.totalDistance > 0 ? vessel.totalRevenue / vessel.totalDistance : 0;
+
+    // Cargo metrics
+    const cargoType = vessel.totalCargoTeu > vessel.totalCargoBbl ? 'TEU' : 'bbl';
+    const primaryCargo = vessel.totalCargoTeu > vessel.totalCargoBbl ? vessel.totalCargoTeu : vessel.totalCargoBbl;
+    const avgCargoPerTrip = vessel.trips > 0 ? primaryCargo / vessel.trips : 0;
+
+    results.push({
+      vesselId: vessel.vesselId,
+      name: vessel.name,
+      trips: vessel.trips,
+      totalRevenue: vessel.totalRevenue,
+      avgRevenuePerTrip,
+      avgRevenuePerHour,
+      avgRevenuePerNm,
+      cargoType,
+      avgCargoPerTrip
+    });
+  });
+
+  // Sort by avgRevenuePerHour descending (most efficient first)
+  results.sort((a, b) => b.avgRevenuePerHour - a.avgRevenuePerHour);
+
+  return results;
+}
+
 module.exports = {
   loadAuditLog,
   loadTripData,
@@ -2477,5 +2644,7 @@ module.exports = {
   getMergedDepartures,
   getVesselPerformanceMerged,
   getRouteProfitabilityMerged,
-  getMergedOperationsSummary
+  getMergedOperationsSummary,
+  getVesselsByRoute,
+  formatRouteDisplay
 };

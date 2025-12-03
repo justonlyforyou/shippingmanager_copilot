@@ -419,9 +419,9 @@ export function openNewChat(targetCompanyName, targetUserId) {
  * @param {number} chatId - Chat ID to load messages for
  * @returns {Promise<void>}
  */
-async function loadPrivateMessages(chatId) {
+async function loadPrivateMessages(chatId, forceRefresh = false) {
   try {
-    const { messages, user_id: ownUserId } = await fetchMessengerMessages(chatId);
+    const { messages, user_id: ownUserId } = await fetchMessengerMessages(chatId, forceRefresh);
     displayPrivateMessages(messages, ownUserId);
   } catch (error) {
     document.getElementById('messengerFeed').innerHTML =
@@ -1389,12 +1389,17 @@ ${notificationBody}`,
 }
 
 export async function sendPrivateMessage() {
+  console.log('[Messenger] sendPrivateMessage called');
   const messageInput = document.getElementById('messengerInput');
   const subjectInput = document.getElementById('subjectInput');
   const sendBtn = document.getElementById('sendPrivateMessageBtn');
   const message = messageInput.value.trim();
 
+  console.log('[Messenger] Message:', message, 'Length:', message.length);
+  console.log('[Messenger] currentPrivateChat:', JSON.stringify(currentPrivateChat));
+
   if (!message || message.length > 1000) {
+    console.log('[Messenger] Invalid message length, aborting');
     alert('Invalid message length.');
     return;
   }
@@ -1418,7 +1423,9 @@ export async function sendPrivateMessage() {
   messageInput.disabled = true;
 
   try {
+    console.log('[Messenger] Sending to API...');
     await apiSendPrivateMessage(currentPrivateChat.targetUserId, subject, message);
+    console.log('[Messenger] API call successful');
 
     // Show success notification
     showSideNotification(`📬 <strong>Message sent</strong><br><br>Sent to ${escapeHtml(currentPrivateChat.targetCompanyName)}`, 'success', 3000);
@@ -1432,9 +1439,12 @@ export async function sendPrivateMessage() {
 
     // Reload messages to show the new message in the chat
     if (currentPrivateChat.chatId) {
-      // Existing chat - reload messages
-      await loadPrivateMessages(currentPrivateChat.chatId);
+      console.log('[Messenger] Reloading messages for chatId:', currentPrivateChat.chatId);
+      // Existing chat - reload messages with force refresh to bypass cache
+      await loadPrivateMessages(currentPrivateChat.chatId, true);
+      console.log('[Messenger] Messages reloaded');
     } else {
+      console.log('[Messenger] New chat - reopening messenger');
       // New chat - refresh to get the chat ID
       const savedCompanyName = currentPrivateChat.targetCompanyName;
       const savedUserId = currentPrivateChat.targetUserId;
@@ -1445,6 +1455,7 @@ export async function sendPrivateMessage() {
     }
 
   } catch (error) {
+    console.error('[Messenger] Error sending message:', error);
     showSideNotification(`📬 <strong>Error</strong><br><br>${escapeHtml(error.message)}`, 'error', 5000);
   } finally {
     sendBtn.textContent = originalBtnText;

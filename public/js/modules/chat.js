@@ -1530,6 +1530,11 @@ Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.tota
   if (window.updateVesselCount) {
     window.updateVesselCount();
   }
+
+  // Refresh depart manager if open to remove departed vessels from list
+  if (window.refreshDepartManagerIfOpen) {
+    window.refreshDepartManagerIfOpen();
+  }
 }
 
 /**

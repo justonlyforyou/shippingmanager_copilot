@@ -225,7 +225,8 @@ router.post('/create-user-route', async (req, res) => {
           broadcastToUser(userId, 'vessel_count_update', {
             readyToDepart,
             atAnchor,
-            pending
+            pending,
+            total: vessels.length
           });
 
           logger.debug(`[Route Planner] Broadcast vessel count: ready=${readyToDepart}, anchor=${atAnchor}, pending=${pending}`);

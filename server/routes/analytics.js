@@ -604,6 +604,30 @@ router.get('/lookup/breakdown', async (req, res) => {
 });
 
 /**
+ * GET /api/analytics/lookup/daily
+ * Get breakdown by day
+ *
+ * Query params:
+ * - days: Number of days (default: 0 = all)
+ */
+router.get('/lookup/daily', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+    const daily = await lookupStore.getBreakdownByDay(userId, days);
+
+    res.json({ daily, days });
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup daily:', error);
+    res.status(500).json({ error: 'Failed to get lookup daily' });
+  }
+});
+
+/**
  * GET /api/analytics/lookup/details/:id
  * Get full details for a lookup entry from all PODs
  */
@@ -754,6 +778,42 @@ router.get('/api-stats/dates', async (req, res) => {
   } catch (error) {
     logger.error('[Analytics] Error getting API stats dates:', error);
     res.status(500).json({ error: 'Failed to get API stats dates' });
+  }
+});
+
+/**
+ * GET /api/analytics/route-vessels
+ * Returns all vessels that have traveled a specific route with performance comparison
+ *
+ * Query params:
+ * - origin: Route origin port (required)
+ * - destination: Route destination port (required)
+ * - days: Number of days (default 30)
+ */
+router.get('/route-vessels', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { origin, destination } = req.query;
+    if (!origin || !destination) {
+      return res.status(400).json({ error: 'Origin and destination are required' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 30;
+
+    const vesselStats = await aggregator.getVesselsByRoute(userId, origin, destination, days);
+
+    res.json({
+      route: `${origin}<>${destination}`,
+      displayRoute: aggregator.formatRouteDisplay(`${origin}<>${destination}`),
+      vessels: vesselStats
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting route vessels:', error);
+    res.status(500).json({ error: 'Failed to get route vessel data' });
   }
 });
 

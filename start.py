@@ -276,9 +276,15 @@ def prepare_session():
             if str(helper_path) not in sys.path:
                 sys.path.insert(0, str(helper_path))
 
-        # Import renamed module (no hyphens!)
-        import get_session_windows
-        user_id = get_session_windows.get_user_session()
+        # Import platform-specific session module
+        # Windows: get_session_windows (Steam + Browser)
+        # macOS/Linux: get_session (Browser only)
+        if platform.system() == 'Windows':
+            import get_session_windows as session_module
+        else:
+            import get_session as session_module
+
+        user_id = session_module.get_user_session()
 
         if user_id is not None:
             print(f"[SM-CoPilot] Session prepared for user ID: {user_id}", file=sys.stderr)
@@ -289,7 +295,7 @@ def prepare_session():
             max_retries = 3
             for attempt in range(max_retries):
                 try:
-                    sessions = get_session_windows.load_sessions()
+                    sessions = session_module.load_sessions()
                     if str(user_id) in sessions:
                         print(f"[SM-CoPilot] Session verified in file for user ID: {user_id}", file=sys.stderr)
                         log_to_server_file('info', f'Session verified for user ID: {user_id}')

@@ -12,7 +12,7 @@
  * @module analytics
  */
 
-import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupInfo, getLookupDetails } from './api.js';
+import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails } from './api.js';
 import { escapeHtml, showNotification, formatNumber } from './utils.js';
 
 // State
@@ -21,8 +21,8 @@ let lookupData = null; // Used for export
 let currentDays = 7;
 let trendChart = null;
 
-// Cache TTL in milliseconds (10 seconds)
-const CACHE_TTL = 10000;
+// Cache TTL in milliseconds (1 minute)
+const CACHE_TTL = 60000;
 
 // Lazy loading state for tabs with timestamps
 const lazyLoadState = {
@@ -34,7 +34,7 @@ const lazyLoadState = {
 // Sort state for tables
 const sortState = {
   vessels: { column: 'totalRevenue', direction: 'desc' },
-  routes: { column: 'totalRevenue', direction: 'desc' }
+  routes: { column: 'avgRevenuePerHour', direction: 'desc' }
 };
 
 // Route filter state (which route types to show)
@@ -230,11 +230,24 @@ export function initAnalytics() {
       lazyLoadState.overview.loadedAt = 0;
       lazyLoadState.vessels.loadedAt = 0;
       lazyLoadState.routes.loadedAt = 0;
+      // Clear cached analyticsData for vessels and routes
+      if (analyticsData) {
+        analyticsData.vessels = null;
+        analyticsData.routes = null;
+      }
       await loadAnalyticsData();
-      // If Game Log tab is active, reload its data too (must wait for analyticsData to be loaded)
+      // Reload active tab data
       const gameLogTab = document.getElementById('analytics-game-log');
+      const vesselsTab = document.getElementById('analytics-vessels');
+      const routesTab = document.getElementById('analytics-routes');
       if (gameLogTab && !gameLogTab.classList.contains('hidden')) {
         await loadGameLogData();
+      }
+      if (vesselsTab && !vesselsTab.classList.contains('hidden')) {
+        await lazyLoadVessels();
+      }
+      if (routesTab && !routesTab.classList.contains('hidden')) {
+        await lazyLoadRoutes();
       }
     });
     // Set initial filter name
@@ -249,11 +262,24 @@ export function initAnalytics() {
       lazyLoadState.overview.loadedAt = 0;
       lazyLoadState.vessels.loadedAt = 0;
       lazyLoadState.routes.loadedAt = 0;
+      // Clear cached analyticsData for vessels and routes
+      if (analyticsData) {
+        analyticsData.vessels = null;
+        analyticsData.routes = null;
+      }
       await loadAnalyticsData();
-      // If Game Log tab is active, reload its data too (must wait for analyticsData to be loaded)
+      // Reload active tab data
       const gameLogTab = document.getElementById('analytics-game-log');
+      const vesselsTab = document.getElementById('analytics-vessels');
+      const routesTab = document.getElementById('analytics-routes');
       if (gameLogTab && !gameLogTab.classList.contains('hidden')) {
         await loadGameLogData();
+      }
+      if (vesselsTab && !vesselsTab.classList.contains('hidden')) {
+        await lazyLoadVessels();
+      }
+      if (routesTab && !routesTab.classList.contains('hidden')) {
+        await lazyLoadRoutes();
       }
     });
   }
@@ -454,6 +480,10 @@ export function initAnalytics() {
  * @param {string} vesselId - Vessel ID
  */
 async function handleVesselClick(vesselId) {
+  // Mark that we came from analytics so closing vessel panel returns here
+  localStorage.setItem('returnToAnalytics', 'true');
+  console.log('[Analytics] handleVesselClick - set returnToAnalytics=true for vesselId:', vesselId);
+
   // Close analytics overlay
   const overlay = document.getElementById('analyticsOverlay');
   if (overlay) {
@@ -735,15 +765,8 @@ async function loadAnalyticsData() {
       setTimeout(() => renderTrendChart(analyticsData.summary.dailyBreakdown), 50);
     }
 
-    // If vessels or routes tab is already active, trigger lazy load
-    const vesselsTab = document.getElementById('analytics-vessels');
-    const routesTab = document.getElementById('analytics-routes');
-    if (vesselsTab && !vesselsTab.classList.contains('hidden')) {
-      lazyLoadVessels();
-    }
-    if (routesTab && !routesTab.classList.contains('hidden')) {
-      lazyLoadRoutes();
-    }
+    // Preload all tabs in background (parallel)
+    preloadAllTabs();
 
   } catch (error) {
     console.error('[Analytics] Failed to load data:', error);
@@ -768,7 +791,7 @@ async function lazyLoadVessels() {
     if (loadingEl) loadingEl.classList.add('hidden');
     if (contentEl) contentEl.classList.remove('hidden');
     renderVesselTable(sortData(analyticsData.vessels, sortState.vessels));
-    setTimeout(() => renderVesselCharts(analyticsData.vessels, analyticsData.summary?.dailyBreakdown, analyticsData.summary?.utilizationEntries, analyticsData.summary?.vesselRevenueEntries), 100);
+    setTimeout(() => renderVesselCharts(analyticsData.vessels, analyticsData.summary?.utilizationEntries), 100);
     return;
   }
 
@@ -790,7 +813,7 @@ async function lazyLoadVessels() {
     renderVesselTable(sortData(analyticsData.vessels, sortState.vessels));
 
     // Render vessel charts
-    setTimeout(() => renderVesselCharts(analyticsData.vessels, analyticsData.summary?.dailyBreakdown, analyticsData.summary?.utilizationEntries, analyticsData.summary?.vesselRevenueEntries), 100);
+    setTimeout(() => renderVesselCharts(analyticsData.vessels, analyticsData.summary?.utilizationEntries), 100);
   } catch (error) {
     console.error('[Analytics] Failed to load vessels:', error);
     // Show error in loading div
@@ -842,6 +865,47 @@ async function lazyLoadRoutes() {
   } finally {
     lazyLoadState.routes.loading = false;
   }
+}
+
+/**
+ * Preload all tabs in background (parallel)
+ * Data is cached so tabs open instantly when clicked
+ */
+async function preloadAllTabs() {
+  // Load vessels and routes in parallel
+  const vesselsPromise = (async () => {
+    try {
+      if (analyticsData?.vessels) return; // Already cached
+
+      const data = await getAnalyticsVessels(currentDays);
+      analyticsData.vessels = data.vessels;
+      lazyLoadState.vessels.loaded = true;
+      lazyLoadState.vessels.loadedAt = Date.now();
+
+      // Render Top/Bottom charts in Overview
+      const entries = analyticsData.summary?.vesselRevenueEntries;
+      renderVesselsRevenueChart(data.vessels, entries);
+      renderBottomVesselsRevenueChart(data.vessels, entries);
+    } catch (error) {
+      console.error('[Analytics] Failed to preload vessels:', error);
+    }
+  })();
+
+  const routesPromise = (async () => {
+    try {
+      if (analyticsData?.routes) return; // Already cached
+
+      const data = await getAnalyticsRoutes(currentDays);
+      analyticsData.routes = data.routes;
+      lazyLoadState.routes.loaded = true;
+      lazyLoadState.routes.loadedAt = Date.now();
+    } catch (error) {
+      console.error('[Analytics] Failed to preload routes:', error);
+    }
+  })();
+
+  // Wait for both (non-blocking for UI)
+  await Promise.all([vesselsPromise, routesPromise]);
 }
 
 /**
@@ -1113,23 +1177,22 @@ let bottomVesselsRevenueChart = null;
 let vesselsUtilizationChart = null;
 
 /**
- * Render all vessel charts
+ * Render vessel charts for Vessels tab (composition and utilization only)
+ * Top/Bottom revenue charts are now in Overview tab
  * @param {Array} vessels - Vessel data
- * @param {Array} dailyData - Daily breakdown data for trend chart
  * @param {Array} utilizationEntries - Individual utilization entries with timestamps
  */
-function renderVesselCharts(vessels, dailyData, utilizationEntries, vesselRevenueEntries) {
+function renderVesselCharts(vessels, utilizationEntries) {
   if (!vessels || vessels.length === 0) return;
 
-  renderVesselsRevenueChart(vessels, vesselRevenueEntries);
-  renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries);
+  // Top/Bottom revenue charts are now rendered in Overview tab
   renderVesselsCompositionChart(vessels);
   renderVesselsUtilizationChart(utilizationEntries);
 }
 
 /**
  * Render Top 10 Vessels by Revenue line chart with timestamp-based zoom
- * @param {Array} vessels - Vessel data (for top 10 selection)
+ * @param {Array|null} vessels - Vessel data (optional, can derive top 10 from entries)
  * @param {Array} vesselRevenueEntries - Individual entries with {time, value, vesselId, vesselName}
  */
 function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
@@ -1146,10 +1209,29 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
     return;
   }
 
-  // Sort by revenue and take top 10
-  const top10 = [...vessels]
-    .sort((a, b) => b.totalRevenue - a.totalRevenue)
-    .slice(0, 10);
+  // Determine top 10 vessels by total revenue
+  let top10;
+  if (vessels && vessels.length > 0) {
+    // Use provided vessels data
+    top10 = [...vessels]
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      .slice(0, 10);
+  } else if (vesselRevenueEntries && vesselRevenueEntries.length > 0) {
+    // Calculate from entries
+    const vesselTotals = new Map();
+    for (const entry of vesselRevenueEntries) {
+      const id = String(entry.vesselId);
+      if (!vesselTotals.has(id)) {
+        vesselTotals.set(id, { vesselId: id, vesselName: entry.vesselName, totalRevenue: 0 });
+      }
+      vesselTotals.get(id).totalRevenue += entry.value;
+    }
+    top10 = [...vesselTotals.values()]
+      .sort((a, b) => b.totalRevenue - a.totalRevenue)
+      .slice(0, 10);
+  } else {
+    top10 = [];
+  }
 
   // Colors for vessels
   const colors = [
@@ -1157,10 +1239,11 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
     '#ec4899', '#14b8a6', '#f97316', '#06b6d4', '#a855f7'
   ];
 
-  // Header
+  // Header with filter info
+  const filterText = currentDays === 0 ? 'All Time' : `${currentDays} Days`;
   container.innerHTML = `
     <div class="analytics-chart-header">
-      <span class="analytics-chart-title">Top 10 Vessels - Daily Revenue</span>
+      <span class="analytics-chart-title">Top 10 Vessels - Daily Revenue (filtered by ${filterText})</span>
     </div>
   `;
 
@@ -1277,7 +1360,7 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
   togglesDiv.innerHTML = top10.map((v, i) => `
     <button class="analytics-chart-toggle active" data-vessel-id="${v.vesselId}" style="border-color: ${colors[i]}40;">
       <span class="analytics-chart-legend-dot" style="background: ${colors[i]};"></span>
-      ${escapeHtml(v.name)}
+      ${escapeHtml(v.name || v.vesselName)}
     </button>
   `).join('');
   container.appendChild(togglesDiv);
@@ -1296,7 +1379,7 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
 
 /**
  * Render Bottom 10 Vessels by Daily Revenue (worst performers)
- * @param {Array} vessels - Vessel data with totalRevenue
+ * @param {Array|null} vessels - Vessel data (optional, can derive bottom 10 from entries)
  * @param {Array} vesselRevenueEntries - Time-series revenue entries
  */
 function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
@@ -1313,10 +1396,29 @@ function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
     return;
   }
 
-  // Sort by revenue ascending and take bottom 10
-  const bottom10 = [...vessels]
-    .sort((a, b) => a.totalRevenue - b.totalRevenue)
-    .slice(0, 10);
+  // Determine bottom 10 vessels by total revenue (ascending)
+  let bottom10;
+  if (vessels && vessels.length > 0) {
+    // Use provided vessels data
+    bottom10 = [...vessels]
+      .sort((a, b) => a.totalRevenue - b.totalRevenue)
+      .slice(0, 10);
+  } else if (vesselRevenueEntries && vesselRevenueEntries.length > 0) {
+    // Calculate from entries
+    const vesselTotals = new Map();
+    for (const entry of vesselRevenueEntries) {
+      const id = String(entry.vesselId);
+      if (!vesselTotals.has(id)) {
+        vesselTotals.set(id, { vesselId: id, vesselName: entry.vesselName, totalRevenue: 0 });
+      }
+      vesselTotals.get(id).totalRevenue += entry.value;
+    }
+    bottom10 = [...vesselTotals.values()]
+      .sort((a, b) => a.totalRevenue - b.totalRevenue)
+      .slice(0, 10);
+  } else {
+    bottom10 = [];
+  }
 
   // Colors for vessels (no red - reserved for zero line)
   const colors = [
@@ -1324,10 +1426,11 @@ function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
     '#14b8a6', '#f97316', '#06b6d4', '#a855f7', '#84cc16'
   ];
 
-  // Header
+  // Header with filter info
+  const filterText = currentDays === 0 ? 'All Time' : `${currentDays} Days`;
   container.innerHTML = `
     <div class="analytics-chart-header">
-      <span class="analytics-chart-title">Bottom 10 Vessels - Daily Revenue</span>
+      <span class="analytics-chart-title">Bottom 10 Vessels - Daily Revenue (filtered by ${filterText})</span>
     </div>
   `;
 
@@ -1458,7 +1561,7 @@ function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
   togglesDiv.innerHTML = bottom10.map((v, i) => `
     <button class="analytics-chart-toggle active" data-vessel-id="${v.vesselId}" style="border-color: ${colors[i]}40;">
       <span class="analytics-chart-legend-dot" style="background: ${colors[i]};"></span>
-      ${escapeHtml(v.name)}
+      ${escapeHtml(v.name || v.vesselName)}
     </button>
   `).join('');
   container.appendChild(togglesDiv);
@@ -2270,12 +2373,84 @@ function updateVesselFilterIcons() {
 }
 
 /**
+ * Render Top 10 Routes highlight boxes
+ * @param {Array} routes - Route data (unsorted, we sort here)
+ */
+function renderTop10Routes(routes) {
+  const byHourEl = document.getElementById('top-routes-by-hour');
+  const byNmEl = document.getElementById('top-routes-by-nm');
+
+  if (!byHourEl || !byNmEl || !routes || routes.length === 0) return;
+
+  // Filter to only routes with valid data
+  const validRoutes = routes.filter(r => r.avgRevenuePerHour > 0 || r.avgIncomePerNm > 0);
+
+  // Top 10 by $/Hour
+  const topByHour = [...validRoutes]
+    .filter(r => r.avgRevenuePerHour > 0)
+    .sort((a, b) => b.avgRevenuePerHour - a.avgRevenuePerHour)
+    .slice(0, 10);
+
+  // Top 10 by $/NM
+  const topByNm = [...validRoutes]
+    .filter(r => r.avgIncomePerNm > 0)
+    .sort((a, b) => b.avgIncomePerNm - a.avgIncomePerNm)
+    .slice(0, 10);
+
+  // Reset headers
+  const hourHeader = byHourEl.closest('.top-routes-section')?.querySelector('h4');
+  if (hourHeader) hourHeader.textContent = 'Top 10 by $/Hour';
+
+  const nmHeader = byNmEl.closest('.top-routes-section')?.querySelector('h4');
+  if (nmHeader) nmHeader.textContent = 'Top 10 by $/NM';
+
+  // Render $/Hour list
+  byHourEl.innerHTML = topByHour.length > 0
+    ? topByHour.map((r, i) => `
+        <div class="top-route-item" data-route="${escapeHtml(r.route)}" title="Click to scroll to route">
+          <span class="top-route-rank">${i + 1}</span>
+          <span class="top-route-name">${escapeHtml(r.displayRoute || r.route)}</span>
+          <span class="top-route-value">${formatCurrency(r.avgRevenuePerHour)}/h</span>
+        </div>
+      `).join('')
+    : '<div class="top-routes-empty">No data</div>';
+
+  // Render $/NM list
+  byNmEl.innerHTML = topByNm.length > 0
+    ? topByNm.map((r, i) => `
+        <div class="top-route-item" data-route="${escapeHtml(r.route)}" title="Click to scroll to route">
+          <span class="top-route-rank">${i + 1}</span>
+          <span class="top-route-name">${escapeHtml(r.displayRoute || r.route)}</span>
+          <span class="top-route-value">$${formatNumber(Math.round(r.avgIncomePerNm))}/nm</span>
+        </div>
+      `).join('')
+    : '<div class="top-routes-empty">No data</div>';
+
+  // Add click handlers to scroll to route in table
+  document.querySelectorAll('.top-route-item').forEach(item => {
+    item.addEventListener('click', () => {
+      const routeKey = item.dataset.route;
+      // Find row in table and scroll to it
+      const row = document.querySelector(`#analytics-routes-tbody tr[data-route="${routeKey}"]`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.classList.add('highlight-row');
+        setTimeout(() => row.classList.remove('highlight-row'), 2000);
+      }
+    });
+  });
+}
+
+/**
  * Render route profitability table
  * @param {Array} routes - Route data
  */
 function renderRouteTable(routes) {
   const tbody = document.getElementById('analytics-routes-tbody');
   if (!tbody) return;
+
+  // Also render Top 10 boxes with original (unsorted) data
+  renderTop10Routes(routes);
 
   if (!routes || routes.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9" class="no-data">No route data available</td></tr>';
@@ -2334,7 +2509,7 @@ function renderRouteTable(routes) {
     const avgPerHour = r.avgRevenuePerHour ? formatCurrency(r.avgRevenuePerHour) : '-';
 
     html += `
-      <tr data-origin="${escapeHtml(r.origin)}" data-destination="${escapeHtml(r.destination)}" class="${isActive ? '' : 'inactive-route'}">
+      <tr data-origin="${escapeHtml(r.origin)}" data-destination="${escapeHtml(r.destination)}" data-route="${escapeHtml(r.route)}" class="${isActive ? '' : 'inactive-route'}">
         <td class="route-name">${statusIcon} ${escapeHtml(r.displayRoute || r.origin + ' - ' + r.destination)}</td>
         <td class="num">${vesselDisplay}</td>
         <td class="num">${r.trips}</td>
@@ -2619,21 +2794,24 @@ function destroyChart() {
  */
 async function loadGameLogData() {
   try {
-    // Fetch totals, breakdown, and info in parallel from lookup store
-    const [totalsRes, breakdownRes, info] = await Promise.all([
+    // Fetch totals, breakdown, daily, and info in parallel from lookup store
+    const [totalsRes, breakdownRes, dailyRes, info] = await Promise.all([
       getLookupTotals(currentDays),
       getLookupBreakdown(currentDays),
+      getLookupDaily(currentDays),
       getLookupInfo()
     ]);
 
     // Extract data from response wrappers
     const totals = totalsRes;
     const breakdown = breakdownRes.breakdown;
+    const daily = dailyRes.daily;
 
     // Store data for export
-    lookupData = { info, totals, breakdown };
+    lookupData = { info, totals, breakdown, daily };
 
     renderGameLogInfo(info);
+    renderGameLogDailyTable(daily);
     renderGameLogTable(breakdown);
     renderGameLogChart(analyticsData?.summary?.chartEntries);
 
@@ -2762,7 +2940,7 @@ function renderGameLogChart(chartEntries) {
   // Header only with title
   const headerHtml = `
     <div class="analytics-chart-header">
-      <span class="analytics-chart-title">Transaction Breakdown</span>
+      <span class="analytics-chart-title">Daily Breakdown</span>
     </div>
   `;
   container.innerHTML = headerHtml;
@@ -2824,29 +3002,31 @@ function renderGameLogChart(chartEntries) {
 
   console.log('[GameLogChart] After filter:', sortedEntries.length, 'entries (was', chartEntries.length, ')');
 
-  // Build cumulative data per context
-  // Important: LightweightCharts requires unique timestamps per series
-  // We aggregate all transactions at the same second into one data point
-  const cumulativeByContext = {};
+  // Build daily aggregated data per context
+  // Aggregate all transactions per day - show daily totals (not cumulative)
+  const dailyByContext = {};
   sortedCategories.forEach(cat => {
-    cumulativeByContext[cat] = { total: 0, dataMap: new Map() };
+    dailyByContext[cat] = { dataMap: new Map() };
   });
 
   sortedEntries.forEach(entry => {
-    if (entry.context && cumulativeByContext[entry.context]) {
-      cumulativeByContext[entry.context].total += Math.abs(entry.value);
-      // Store latest cumulative value for each timestamp (overwrites if same second)
-      cumulativeByContext[entry.context].dataMap.set(entry.time, cumulativeByContext[entry.context].total);
+    if (entry.context && dailyByContext[entry.context]) {
+      // Convert timestamp to start of day (midnight UTC)
+      const dayTimestamp = Math.floor(entry.time / 86400) * 86400;
+      const currentValue = dailyByContext[entry.context].dataMap.get(dayTimestamp) || 0;
+      dailyByContext[entry.context].dataMap.set(dayTimestamp, currentValue + Math.abs(entry.value));
     }
   });
 
-  // Convert Maps to sorted arrays
+  // Convert Maps to sorted arrays - daily totals, NOT cumulative
   sortedCategories.forEach(cat => {
-    const dataMap = cumulativeByContext[cat].dataMap;
-    cumulativeByContext[cat].data = Array.from(dataMap.entries())
+    const dataMap = dailyByContext[cat].dataMap;
+    dailyByContext[cat].data = Array.from(dataMap.entries())
       .sort((a, b) => a[0] - b[0])
       .map(([time, value]) => ({ time, value }));
   });
+
+  const cumulativeByContext = dailyByContext;
 
   // Create series for each category (only those with data)
   const seriesMap = {};
@@ -2986,6 +3166,39 @@ function renderGameLogTable(breakdown) {
         <td class="num ${amountClass}">${amountStr}</td>
         <td class="num">${percentStr}</td>
         <td class="${categoryClass}">${entry.value}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+/**
+ * Render daily breakdown table
+ * @param {Array} daily - Daily breakdown array from lookup
+ */
+function renderGameLogDailyTable(daily) {
+  const tbody = document.getElementById('game-log-daily-tbody');
+  if (!tbody) return;
+
+  if (!daily || daily.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="analytics-empty">No daily data available</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = daily.map(day => {
+    const netClass = day.net >= 0 ? 'positive' : 'negative';
+    const netStr = day.net >= 0 ? '+' + formatCurrency(day.net) : '-' + formatCurrency(Math.abs(day.net));
+
+    // Format date nicely (e.g., "Dec 2, 2025")
+    const dateObj = new Date(day.date + 'T00:00:00');
+    const dateStr = dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+    return `
+      <tr>
+        <td>${dateStr}</td>
+        <td class="num positive">+${formatCurrency(day.income)}</td>
+        <td class="num negative">-${formatCurrency(day.expenses)}</td>
+        <td class="num ${netClass}">${netStr}</td>
+        <td class="num">${formatNumber(day.count)}</td>
       </tr>
     `;
   }).join('');

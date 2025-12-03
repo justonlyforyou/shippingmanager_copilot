@@ -1286,35 +1286,38 @@ def browser_login():
 
         time.sleep(3)
 
-        # Re-extract cookie to ensure we have the latest version
-        # (Game might have updated the cookie after initial validation)
-        print("[*] Re-extracting cookie to ensure latest version...", file=sys.stderr)
+        # Extract ALL cookies for this account (session, app_platform, app_version)
+        print("[*] Extracting all cookies for this account...", file=sys.stderr)
+        all_cookies = {}
         try:
             final_cookies = driver.get_cookies()
             for c in final_cookies:
-                if c['name'] == TARGET_COOKIE_NAME:
-                    final_cookie = urllib.parse.unquote(c['value']).strip()
-                    if final_cookie != cookie:
-                        print(f"[!] Cookie changed during login process!", file=sys.stderr)
-                        print(f"[!] Old cookie length: {len(cookie)}", file=sys.stderr)
-                        print(f"[!] New cookie length: {len(final_cookie)}", file=sys.stderr)
-                        cookie = final_cookie
-                    else:
-                        print("[+] Cookie unchanged - using validated cookie", file=sys.stderr)
-                    break
+                cookie_name = c['name']
+                raw_value = c['value']
+                # Decode URL encoding (e.g., %3D -> =)
+                cookie_value = urllib.parse.unquote(raw_value).strip()
+
+                if cookie_name == TARGET_COOKIE_NAME:
+                    all_cookies['shipping_manager_session'] = cookie_value
+                    print(f"[+] Session cookie: {len(cookie_value)} chars (was {len(raw_value)} raw)", file=sys.stderr)
+                elif cookie_name == 'app_platform':
+                    all_cookies['app_platform'] = cookie_value
+                    print(f"[+] Found app_platform cookie: {len(cookie_value)} chars", file=sys.stderr)
+                elif cookie_name == 'app_version':
+                    all_cookies['app_version'] = cookie_value
+                    print(f"[+] Found app_version cookie: {len(cookie_value)} chars", file=sys.stderr)
+
         except Exception as e:
-            print(f"[!] Could not re-extract cookie: {e}", file=sys.stderr)
-            print("[!] Using initially validated cookie", file=sys.stderr)
+            print(f"[!] Could not extract all cookies: {e}", file=sys.stderr)
+            print("[!] Using session cookie only", file=sys.stderr)
+            all_cookies['shipping_manager_session'] = cookie
 
-        # Debug: Log final cookie before return
-        debug_log.append(f"\n3. Final cookie to be returned:")
-        debug_log.append(f"   Value: {cookie[:60]}...{cookie[-20:]}")
-        debug_log.append(f"   Length: {len(cookie)}")
-        debug_log.append(f"   Contains %: {('%' in cookie)}")
+        # Ensure we have at least the session cookie
+        if 'shipping_manager_session' not in all_cookies:
+            all_cookies['shipping_manager_session'] = cookie
 
-
-        print("[+] Browser login successful!", file=sys.stderr)
-        return cookie
+        print(f"[+] Browser login successful! Extracted {len(all_cookies)} cookie(s)", file=sys.stderr)
+        return all_cookies
 
     except Exception as e:
         # Restore stderr before printing error

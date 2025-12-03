@@ -15,6 +15,43 @@ let dragOffsetY = 0;
 let currentStatus = 'port'; // Current active tab status filter
 let searchQuery = ''; // Current search query (searches across all tabs)
 let searchDebounceTimer = null; // Debounce timer for search input
+let portsCache = null; // Cache for port data (including drydock info)
+
+/**
+ * Update the At Port tab button to show count of vessels ready to depart
+ * @param {Array} vessels - All vessels from API
+ */
+function updateAtPortTabCount(vessels) {
+  const tabBtn = document.querySelector('.depart-tab-btn[data-status="port"]');
+  if (!tabBtn) return;
+
+  const count = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
+  tabBtn.textContent = count > 0 ? `At Port (${count})` : 'At Port';
+}
+
+/**
+ * Update the At Sea tab button to show count of vessels enroute
+ * @param {Array} vessels - All vessels from API
+ */
+function updateAtSeaTabCount(vessels) {
+  const tabBtn = document.querySelector('.depart-tab-btn[data-status="enroute"]');
+  if (!tabBtn) return;
+
+  const count = vessels.filter(v => v.status === 'enroute').length;
+  tabBtn.textContent = count > 0 ? `At Sea (${count})` : 'At Sea';
+}
+
+/**
+ * Update the Pending tab button to show count of pending vessels
+ * @param {Array} vessels - All vessels from API
+ */
+function updatePendingTabCount(vessels) {
+  const tabBtn = document.querySelector('.depart-tab-btn[data-status="pending"]');
+  if (!tabBtn) return;
+
+  const count = vessels.filter(v => v.status === 'pending' || v.status === 'delivery').length;
+  tabBtn.textContent = count > 0 ? `Pending (${count})` : 'Pending';
+}
 
 /**
  * Update the Moor tab button to show count of moored vessels
@@ -27,7 +64,7 @@ function updateMoorTabCount(vessels) {
   let mooredCount;
 
   if (vessels) {
-    // Count from API data
+    // Count from API data - ALL moored vessels (any status)
     mooredCount = vessels.filter(v => v.is_parked).length;
   } else {
     // Count from DOM elements (used after moor/resume operations)
@@ -57,6 +94,62 @@ function updateAnchorTabCount(vessels) {
   } else {
     anchorTabBtn.textContent = 'Anchored';
   }
+}
+
+/**
+ * Update the DryDock tab button to show count of vessels in maintenance
+ * @param {Array} vessels - All vessels from API
+ */
+function updateDryDockTabCount(vessels) {
+  const dryDockTabBtn = document.querySelector('.depart-tab-btn[data-status="maintenance"]');
+  if (!dryDockTabBtn) return;
+
+  const maintenanceCount = vessels.filter(v => v.status === 'maintenance').length;
+
+  if (maintenanceCount > 0) {
+    dryDockTabBtn.textContent = `DryDock (${maintenanceCount})`;
+  } else {
+    dryDockTabBtn.textContent = 'DryDock';
+  }
+}
+
+/**
+ * Load and cache port data (for drydock info)
+ * @returns {Promise<Object>} Map of port_code -> port data
+ */
+async function loadPortsData() {
+  if (portsCache) {
+    return portsCache;
+  }
+
+  try {
+    const response = await fetch('/api/port/get-assigned-ports');
+    const data = await response.json();
+
+    if (response.ok && data.data?.ports) {
+      // Create a map by port code for quick lookup
+      portsCache = {};
+      for (const port of data.data.ports) {
+        portsCache[port.code] = port;
+      }
+      return portsCache;
+    }
+  } catch (error) {
+    console.error('[Depart Manager] Error loading ports data:', error);
+  }
+
+  return {};
+}
+
+/**
+ * Get drydock info for a port
+ * @param {string} portCode - The port code (e.g., "hamburg", "new_york_city")
+ * @returns {string|null} Drydock size ("L", "M", "S") or null if no drydock
+ */
+function getPortDrydock(portCode) {
+  if (!portsCache || !portCode) return null;
+  const port = portsCache[portCode];
+  return port?.drydock || null;
 }
 
 /**
@@ -214,16 +307,24 @@ async function loadVesselsByStatus(status) {
   contentArea.innerHTML = '<div class="depart-loading">Loading vessels...</div>';
 
   try {
-    const response = await fetch('/api/vessel/get-vessels');
-    const data = await response.json();
+    // Load vessels and ports data in parallel
+    const [vesselResponse, _] = await Promise.all([
+      fetch('/api/vessel/get-vessels'),
+      loadPortsData() // Cache ports data for drydock info
+    ]);
+    const data = await vesselResponse.json();
 
-    if (!response.ok) {
+    if (!vesselResponse.ok) {
       throw new Error(data.error || 'Failed to fetch vessels');
     }
 
     // Always update the tab counts when vessels are loaded
+    updateAtPortTabCount(data.vessels);
+    updateAtSeaTabCount(data.vessels);
+    updatePendingTabCount(data.vessels);
     updateMoorTabCount(data.vessels);
     updateAnchorTabCount(data.vessels);
+    updateDryDockTabCount(data.vessels);
 
     // Handle mass-moor tab separately
     if (status === 'mass-moor') {
@@ -378,32 +479,49 @@ async function clearSearch() {
  * @param {Array} allVessels - All vessels from API
  */
 async function renderMassMoorTab(contentArea, allVessels) {
-  // Filter vessels that can be moored/resumed: port, enroute, anchor, or already parked
-  const moorableVessels = allVessels.filter(v =>
-    v.status === 'port' || v.status === 'enroute' || v.status === 'anchor'
-  );
+  // Filter vessels into two groups:
+  // 1. Moored & at port (is_parked && status === 'port')
+  // 2. Moored but not at port (is_parked && status !== 'port')
+  const mooredAtPort = allVessels.filter(v => v.is_parked && v.status === 'port');
+  const mooredNotAtPort = allVessels.filter(v => v.is_parked && v.status !== 'port');
 
-  if (moorableVessels.length === 0) {
-    contentArea.innerHTML = '<div class="depart-empty-state">No vessels available to moor/resume</div>';
+  if (mooredAtPort.length === 0 && mooredNotAtPort.length === 0) {
+    contentArea.innerHTML = '<div class="depart-empty-state">No moored vessels</div>';
     updateDepartButtonCount();
     return;
   }
 
-  // Sort: parked vessels first (already moored), then by name
-  moorableVessels.sort((a, b) => {
-    if (a.is_parked && !b.is_parked) return -1;
-    if (!a.is_parked && b.is_parked) return 1;
-    return a.name.localeCompare(b.name);
-  });
+  // Sort by name
+  mooredAtPort.sort((a, b) => a.name.localeCompare(b.name));
+  mooredNotAtPort.sort((a, b) => a.name.localeCompare(b.name));
 
-  // Build HTML vessel list
-  let html = '<div class="depart-vessel-list">';
+  // Build HTML with two sections
+  let html = '';
 
-  moorableVessels.forEach(vessel => {
-    html += renderMassMoorVesselItem(vessel);
-  });
+  // Section 1: At Port
+  html += '<div class="moor-section-header">At Port</div>';
+  if (mooredAtPort.length > 0) {
+    html += '<div class="depart-vessel-list">';
+    mooredAtPort.forEach(vessel => {
+      html += renderMassMoorVesselItem(vessel);
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="moor-section-empty">No moored vessels at port</div>';
+  }
 
-  html += '</div>';
+  // Section 2: Not At Port
+  html += '<div class="moor-section-header">Not At Port</div>';
+  if (mooredNotAtPort.length > 0) {
+    html += '<div class="depart-vessel-list">';
+    mooredNotAtPort.forEach(vessel => {
+      html += renderMassMoorVesselItem(vessel);
+    });
+    html += '</div>';
+  } else {
+    html += '<div class="moor-section-empty">No moored vessels in transit</div>';
+  }
+
   contentArea.innerHTML = html;
 
   // Add event handlers
@@ -444,7 +562,7 @@ function renderMassMoorVesselItem(vessel) {
         </div>
       </div>
       <div class="depart-vessel-actions">
-        <input type="checkbox" class="moor-vessel-checkbox" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked}" ${vessel.is_parked ? 'checked' : ''}>
+        <input type="checkbox" class="moor-vessel-checkbox" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked}">
       </div>
     </div>
   `;
@@ -507,14 +625,17 @@ function addMassMoorEventHandlers(contentArea) {
 }
 
 /**
- * Update moor/resume button counts
+ * Update moor/resume button counts (works on all tabs)
+ * Checks both .moor-vessel-checkbox (mass-moor tab) and .depart-vessel-checkbox (other tabs)
  */
-function updateMassMoorButtonCounts() {
-  const checkboxes = document.querySelectorAll('.moor-vessel-checkbox:checked');
+function updateMoorResumeButtonCounts() {
   let toMoorCount = 0;
   let toResumeCount = 0;
 
-  checkboxes.forEach(cb => {
+  // Check both checkbox types (moor tab and other tabs)
+  const allCheckboxes = document.querySelectorAll('.moor-vessel-checkbox:checked, .depart-vessel-checkbox:checked');
+
+  allCheckboxes.forEach(cb => {
     const isParked = cb.dataset.isParked === 'true';
     if (isParked) {
       toResumeCount++;
@@ -538,11 +659,19 @@ function updateMassMoorButtonCounts() {
 }
 
 /**
+ * Legacy alias for updateMoorResumeButtonCounts
+ */
+function updateMassMoorButtonCounts() {
+  updateMoorResumeButtonCounts();
+}
+
+/**
  * Moor selected vessels (skip already moored)
  */
 async function moorSelectedVessels() {
   const { showSideNotification } = await import('./utils.js');
-  const checkboxes = document.querySelectorAll('.moor-vessel-checkbox:checked');
+  // Check both checkbox types
+  const checkboxes = document.querySelectorAll('.moor-vessel-checkbox:checked, .depart-vessel-checkbox:checked');
   const vesselIds = [];
 
   checkboxes.forEach(cb => {
@@ -596,8 +725,8 @@ async function moorSelectedVessels() {
     showSideNotification(`Failed to moor ${errorCount} vessel${errorCount > 1 ? 's' : ''}`, 'error');
   }
 
-  updateMassMoorButtonCounts();
-  updateMoorTabCount(); // Update tab count from DOM
+  // Reload current tab to reflect changes
+  await loadVesselsByStatus(currentStatus);
 }
 
 /**
@@ -605,7 +734,8 @@ async function moorSelectedVessels() {
  */
 async function resumeSelectedVessels() {
   const { showSideNotification } = await import('./utils.js');
-  const checkboxes = document.querySelectorAll('.moor-vessel-checkbox:checked');
+  // Check both checkbox types
+  const checkboxes = document.querySelectorAll('.moor-vessel-checkbox:checked, .depart-vessel-checkbox:checked');
   const vesselIds = [];
 
   checkboxes.forEach(cb => {
@@ -659,8 +789,8 @@ async function resumeSelectedVessels() {
     showSideNotification(`Failed to resume ${errorCount} vessel${errorCount > 1 ? 's' : ''}`, 'error');
   }
 
-  updateMassMoorButtonCounts();
-  updateMoorTabCount(); // Update tab count from DOM
+  // Reload current tab to reflect changes
+  await loadVesselsByStatus(currentStatus);
 }
 
 /**
@@ -755,8 +885,11 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
   if (status === 'port') {
     // At port - show destination and duration
     const durationText = formatDuration(vessel);
+    // Check if current port has drydock
+    const drydock = getPortDrydock(vessel.current_port_code);
+    const drydockText = drydock ? '(with Drydock)' : '(no Drydock)';
     detailsHtml = `
-      <div>At port: <span class="depart-port-name">${currentPort}</span></div>
+      <div>At port: <span class="depart-port-name">${currentPort}</span> ${drydockText}</div>
       <div>Destination: <span class="depart-port-name">${nextDestination || 'No route'}</span></div>
       <div>Duration: <span class="depart-duration">${durationText}</span></div>
     `;
@@ -773,9 +906,28 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
       <div>Status: <span class="depart-status-pending">Pending Delivery</span></div>
     `;
   } else if (status === 'maintenance') {
-    // In drydock
+    // In drydock - calculate time remaining
+    const maintenanceEnd = parseInt(vessel.maintenance_end_time, 10);
+    const now = Math.floor(Date.now() / 1000);
+    const secondsRemaining = maintenanceEnd - now;
+
+    let timerHtml = '';
+    if (secondsRemaining > 0) {
+      const hours = Math.floor(secondsRemaining / 3600);
+      const minutes = Math.floor((secondsRemaining % 3600) / 60);
+      timerHtml = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+    } else {
+      timerHtml = 'Ready';
+    }
+
+    // Check if this is a Bug-Using vessel (maintenance + still pending delivery)
+    const isBugUsing = vessel.time_arrival && vessel.time_arrival > 0;
+    const statusLabel = isBugUsing ? 'Bug-Using' : 'In Drydock';
+    const statusClass = isBugUsing ? 'depart-status-bug-using' : 'depart-status-maintenance';
+
     detailsHtml = `
-      <div>Status: <span class="depart-status-maintenance">In Drydock</span></div>
+      <div>Status: <span class="${statusClass}">${statusLabel}</span></div>
+      <div>Ready in: <span class="depart-eta">${timerHtml}</span></div>
     `;
   } else if (status === 'anchor') {
     // Anchored
@@ -785,14 +937,17 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
     `;
   }
 
-  // Show checkbox only for 'port' status (departable vessels)
-  const showCheckbox = status === 'port';
-
   // Check if custom-built vessel (type_name is "N/A")
   const isCustomBuild = vessel.type_name === 'N/A';
 
+  // Show checkbox only on tabs where moor/resume is possible (not maintenance/pending)
+  const showCheckbox = status !== 'maintenance' && status !== 'pending';
+  const checkboxHtml = showCheckbox
+    ? `<input type="checkbox" class="depart-vessel-checkbox" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked || false}">`
+    : '';
+
   return `
-    <div class="depart-vessel-item" data-vessel-id="${vessel.id}">
+    <div class="depart-vessel-item" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked || false}">
       <span class="depart-route-link depart-route-corner" data-route-name="${routeName}" title="Click to filter map by this route">(${routeName})</span>
       <div class="depart-vessel-info">
         <div class="depart-vessel-name">
@@ -805,11 +960,9 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
           ${detailsHtml}
         </div>
       </div>
-      ${showCheckbox ? `
       <div class="depart-vessel-actions">
-        <input type="checkbox" class="depart-vessel-checkbox" data-vessel-id="${vessel.id}" checked>
+        ${checkboxHtml}
       </div>
-      ` : ''}
     </div>
   `;
 }
@@ -896,19 +1049,20 @@ function addVesselItemEventHandlers(contentArea) {
  */
 function updateDepartButtonCount() {
   const departAllBtn = document.getElementById('departAllFromPanel');
-  const selectAllBtn = document.getElementById('selectAllVesselsBtn');
-  const unselectAllBtn = document.getElementById('unselectAllVesselsBtn');
   const moorBtn = document.getElementById('moorAllBtn');
   const resumeBtn = document.getElementById('resumeAllBtn');
+  const selectAllBtn = document.getElementById('selectAllVesselsBtn');
+  const unselectAllBtn = document.getElementById('unselectAllVesselsBtn');
 
-  // Determine which buttons to show based on current tab
-  const showDepartButtons = currentStatus === 'port';
-  const showMoorButtons = currentStatus === 'mass-moor';
+  // Depart button only shown on 'port' tab
+  const showDepartButton = currentStatus === 'port';
+  // Moor/Resume buttons NOT shown on 'maintenance' (DryDock) or 'pending' tabs - game doesn't support it
+  const showMoorResumeButtons = currentStatus !== 'maintenance' && currentStatus !== 'pending';
 
-  // Depart-related buttons (only for 'port' tab)
+  // Depart button (only for 'port' tab)
   if (departAllBtn) {
-    departAllBtn.style.display = showDepartButtons ? '' : 'none';
-    if (showDepartButtons) {
+    departAllBtn.style.display = showDepartButton ? '' : 'none';
+    if (showDepartButton) {
       const checkboxes = document.querySelectorAll('.depart-vessel-checkbox:checked');
       const count = checkboxes.length;
       const isLocked = isDepartInProgress() || isLocalDepartInProgress();
@@ -916,30 +1070,29 @@ function updateDepartButtonCount() {
         departAllBtn.textContent = '🚢 Departure in progress...';
         departAllBtn.disabled = true;
       } else {
-        departAllBtn.textContent = `🚢 Depart Selected (${count})`;
+        departAllBtn.textContent = `🚢 Depart (${count})`;
         departAllBtn.disabled = count === 0;
       }
     }
   }
 
-  if (selectAllBtn) {
-    selectAllBtn.style.display = showDepartButtons ? '' : 'none';
-  }
-  if (unselectAllBtn) {
-    unselectAllBtn.style.display = showDepartButtons ? '' : 'none';
-  }
-
-  // Moor-related buttons (only for 'mass-moor' tab)
+  // Moor/Resume buttons (hidden on DryDock tab)
   if (moorBtn) {
-    moorBtn.style.display = showMoorButtons ? '' : 'none';
+    moorBtn.style.display = showMoorResumeButtons ? '' : 'none';
   }
   if (resumeBtn) {
-    resumeBtn.style.display = showMoorButtons ? '' : 'none';
+    resumeBtn.style.display = showMoorResumeButtons ? '' : 'none';
+  }
+  if (selectAllBtn) {
+    selectAllBtn.style.display = showMoorResumeButtons ? '' : 'none';
+  }
+  if (unselectAllBtn) {
+    unselectAllBtn.style.display = showMoorResumeButtons ? '' : 'none';
   }
 
-  // Update moor/resume counts if on mass-moor tab
-  if (showMoorButtons) {
-    updateMassMoorButtonCounts();
+  // Update moor/resume counts based on selected checkboxes (only if visible)
+  if (showMoorResumeButtons) {
+    updateMoorResumeButtonCounts();
   }
 }
 
@@ -985,8 +1138,7 @@ function unselectAllVessels() {
  * @param {number} vesselId - Vessel ID to show route for
  */
 function selectVesselRouteOnMap(vesselId) {
-  // Close depart manager first
-  closeDepartManager();
+  // Keep depart manager open - it's a floating panel that should stay visible
 
   // Select vessel on route panel (same as clicking route-vessel-item in harbor map)
   if (window.harborMap && window.harborMap.selectRouteVessel) {
@@ -1001,8 +1153,7 @@ function selectVesselRouteOnMap(vesselId) {
  * @param {number} vesselId - Vessel ID to locate
  */
 function locateVesselOnMap(vesselId) {
-  // Close depart manager first
-  closeDepartManager();
+  // Keep depart manager open - it's a floating panel that should stay visible
 
   // Select vessel on map (opens vessel panel and zooms to it)
   if (window.harborMap && window.harborMap.selectVesselFromMap) {
@@ -1174,6 +1325,17 @@ export function toggleDepartManager() {
     } else {
       closeDepartManager();
     }
+  }
+}
+
+/**
+ * Refresh the depart manager if it's currently open
+ * Called after vessel departures or route assignments to update the list
+ */
+export async function refreshDepartManagerIfOpen() {
+  const panel = document.getElementById('departManagerPanel');
+  if (panel && !panel.classList.contains('hidden')) {
+    await loadVesselsByStatus(currentStatus);
   }
 }
 

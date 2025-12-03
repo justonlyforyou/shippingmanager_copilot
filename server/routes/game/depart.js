@@ -34,6 +34,7 @@ const router = express.Router();
  *
  * @route POST /api/route/depart
  * @body {array} [vessel_ids] - Optional array of specific vessel IDs to depart. If not provided, departs all vessels.
+ * @body {number} [user_vessel_id] - Optional single vessel ID (alternative to vessel_ids for automation)
  *
  * @returns {object} Departure result with:
  *   - success {boolean} - Whether departure was successful
@@ -61,7 +62,16 @@ router.post('/depart', async (req, res) => {
     const userId = getUserId();
 
     // Extract vessel IDs from request body (optional)
-    const vesselIds = req.body?.vessel_ids || null;
+    // Support both formats:
+    // - vessel_ids: [1,2,3] - array of vessel IDs (used by Depart Manager)
+    // - user_vessel_id: 123 - single vessel ID (used by automation/autopilot)
+    let vesselIds = req.body?.vessel_ids || null;
+
+    // Handle single vessel ID from automation.js departVessel() calls
+    if (!vesselIds && req.body?.user_vessel_id) {
+      vesselIds = [req.body.user_vessel_id];
+      logger.debug(`[Depart API] Single vessel departure: ${req.body.user_vessel_id}`);
+    }
 
     if (vesselIds && !Array.isArray(vesselIds)) {
       return res.status(400).json({ error: 'vessel_ids must be an array' });

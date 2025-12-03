@@ -28,6 +28,7 @@ const { autoDrydockVessels } = require('./autopilot/pilot_drydock_master');
 const { autoCampaignRenewal } = require('./autopilot/pilot_reputation_chief');
 const { autoCoop } = require('./autopilot/pilot_fair_hand');
 const { autoAnchorPointPurchase, setBroadcastFunction: setHarbormasterBroadcast } = require('./autopilot/pilot_harbormaster');
+const vesselHistoryStore = require('./analytics/vessel-history-store');
 const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
 
 // WebSocket broadcasting function (injected by websocket.js)
@@ -516,7 +517,8 @@ async function updateAllData() {
       const vesselCountUpdate = {
         readyToDepart,
         atAnchor,
-        pending
+        pending,
+        total: vessels.length
       };
       state.updateVesselCounts(userId, vesselCountUpdate);
 
@@ -738,14 +740,15 @@ async function mainEventLoop() {
     const pending = vessels.filter(v => v.status === 'pending').length;
 
     // Update state cache (so reconnecting clients get correct data)
-    state.updateVesselCounts(userId, { readyToDepart, atAnchor, pending });
+    state.updateVesselCounts(userId, { readyToDepart, atAnchor, pending, total: vessels.length });
 
     // Always update vessel count badges
     if (broadcastToUser) {
       broadcastToUser(userId, 'vessel_count_update', {
         readyToDepart,
         atAnchor,
-        pending
+        pending,
+        total: vessels.length
       });
     }
 
@@ -881,6 +884,18 @@ async function mainEventLoop() {
 
     // Campaign status update and auto-renewal
     await updateCampaigns();
+
+    // Sync vessel history (incremental - only fetches new departures)
+    // This keeps the analytics "Utilization Over Time" chart up-to-date
+    try {
+      const syncResult = await vesselHistoryStore.syncVesselHistory(userId);
+      if (syncResult.newEntries > 0) {
+        logger.info(`[Loop] Vessel history sync: +${syncResult.newEntries} new entries`);
+      }
+    } catch (syncError) {
+      // Don't fail the main loop if sync fails
+      logger.debug('[Loop] Vessel history sync skipped:', syncError.message);
+    }
 
   } catch (error) {
     logger.error('[Loop] FATAL ERROR in main event loop:', error);

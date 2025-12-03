@@ -418,11 +418,18 @@ router.post('/messenger/send-private', messageLimiter, express.json(), async (re
   }
 
   try {
-    await apiCall('/messenger/send-message', 'POST', {
+    const result = await apiCall('/messenger/send-message', 'POST', {
       subject: trimmedSubject,
       body: trimmedMessage,
       recipient: targetUserIdNum
     });
+
+    // Check if API returned an error
+    if (result.success === false || result.error) {
+      const errorMessage = result.message || result.error || 'Message rejected by game server';
+      logger.error('Message rejected by API:', errorMessage);
+      return res.status(400).json({ error: errorMessage });
+    }
 
     res.json({ success: true });
   } catch (error) {

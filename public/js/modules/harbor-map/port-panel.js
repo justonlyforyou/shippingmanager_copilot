@@ -162,12 +162,12 @@ function renderTypicalDemandSection(port) {
 
 /**
  * Renders demand analytics section for port
- * Shows container and tanker demand if available
+ * Shows REMAINING demand (demand - consumed) for container and tanker
  *
- * @param {Object} port - Port object with demand data
+ * @param {Object} port - Port object with demand and consumed data
  * @returns {string} HTML string for demand section
  * @example
- * const html = renderDemandSection({ demand: { dry: 12000, refrigerated: 3000, ... } });
+ * const html = renderDemandSection({ demand: { container: { dry: 12000 } }, consumed: { container: { dry: 5000 } } });
  */
 function renderDemandSection(port) {
   if (!port.demand) {
@@ -175,19 +175,41 @@ function renderDemandSection(port) {
   }
 
   const demand = port.demand;
+  const consumed = port.consumed || {};
+
+  // Calculate remaining demand (demand - consumed)
+  const dryDemand = demand.container?.dry || 0;
+  const dryConsumed = consumed.container?.dry || 0;
+  const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+  const refDemand = demand.container?.refrigerated || 0;
+  const refConsumed = consumed.container?.refrigerated || 0;
+  const refRemaining = Math.max(0, refDemand - refConsumed);
+
+  const fuelDemand = demand.tanker?.fuel || 0;
+  const fuelConsumed = consumed.tanker?.fuel || 0;
+  const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+  const crudeDemand = demand.tanker?.crude_oil || 0;
+  const crudeConsumed = consumed.tanker?.crude_oil || 0;
+  const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+  // Check if any demand is fully consumed (remaining = 0)
+  const containerFullyConsumed = dryRemaining === 0 && refRemaining === 0 && (dryDemand > 0 || refDemand > 0);
+  const tankerFullyConsumed = fuelRemaining === 0 && crudeRemaining === 0 && (fuelDemand > 0 || crudeDemand > 0);
 
   return `
     <div class="port-info-section">
-      <h4>Demand Analytics</h4>
+      <h4>Remaining Demand</h4>
       ${demand.container ? `
-        <p style="margin-bottom: 2px;"><strong>Container:</strong><br>
-        Dry ${demand.container.dry !== undefined ? demand.container.dry.toLocaleString() : '0'} TEU<br>
-        Ref ${demand.container.refrigerated !== undefined ? demand.container.refrigerated.toLocaleString() : '0'} TEU</p>
+        <p style="margin-bottom: 2px;"${containerFullyConsumed ? ' class="no-demand-warning"' : ''}><strong>Container:</strong><br>
+        Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU${dryRemaining === 0 && dryDemand > 0 ? ' (FULL)' : ''}<br>
+        Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU${refRemaining === 0 && refDemand > 0 ? ' (FULL)' : ''}</p>
       ` : ''}
       ${demand.tanker ? `
-        <p style="margin-bottom: 2px;"><strong>Tanker:</strong><br>
-        Fuel: ${demand.tanker.fuel !== undefined ? demand.tanker.fuel.toLocaleString() : '0'} bbl<br>
-        Crude: ${demand.tanker.crude_oil !== undefined ? demand.tanker.crude_oil.toLocaleString() : '0'} bbl</p>
+        <p style="margin-bottom: 2px;"${tankerFullyConsumed ? ' class="no-demand-warning"' : ''}><strong>Tanker:</strong><br>
+        Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl${fuelRemaining === 0 && fuelDemand > 0 ? ' (FULL)' : ''}<br>
+        Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl${crudeRemaining === 0 && crudeDemand > 0 ? ' (FULL)' : ''}</p>
       ` : ''}
     </div>
   `;
@@ -297,9 +319,16 @@ export async function closePortPanel() {
     }
   }
 
-  // If planning mode is active, restore planning state instead of deselecting all
+  // If planning mode is active, clear route and refresh map but keep planner open
   if (window.harborMap && window.harborMap.isPlanningMode && window.harborMap.isPlanningMode()) {
-    await window.harborMap.restorePlanningState();
+    // Clear the route line from the map
+    if (window.harborMap.clearRoute) {
+      window.harborMap.clearRoute();
+    }
+    // Refresh map with current filters
+    if (window.harborMap.loadOverview) {
+      await window.harborMap.loadOverview();
+    }
   } else {
     await deselectAll();
   }
@@ -426,8 +455,30 @@ export async function fetchAndUpdatePortDemand(portCode) {
       return;
     }
 
-    // Get demand data
+    // Get demand and consumed data
     const demand = port.demand;
+    const consumed = port.consumed || {};
+
+    // Calculate remaining demand (demand - consumed)
+    const dryDemand = demand.container?.dry || 0;
+    const dryConsumed = consumed.container?.dry || 0;
+    const dryRemaining = Math.max(0, dryDemand - dryConsumed);
+
+    const refDemand = demand.container?.refrigerated || 0;
+    const refConsumed = consumed.container?.refrigerated || 0;
+    const refRemaining = Math.max(0, refDemand - refConsumed);
+
+    const fuelDemand = demand.tanker?.fuel || 0;
+    const fuelConsumed = consumed.tanker?.fuel || 0;
+    const fuelRemaining = Math.max(0, fuelDemand - fuelConsumed);
+
+    const crudeDemand = demand.tanker?.crude_oil || 0;
+    const crudeConsumed = consumed.tanker?.crude_oil || 0;
+    const crudeRemaining = Math.max(0, crudeDemand - crudeConsumed);
+
+    // Check if any demand is fully consumed
+    const containerFullyConsumed = dryRemaining === 0 && refRemaining === 0 && (dryDemand > 0 || refDemand > 0);
+    const tankerFullyConsumed = fuelRemaining === 0 && crudeRemaining === 0 && (fuelDemand > 0 || crudeDemand > 0);
 
     // Find existing demand section and update it
     const allSections = document.querySelectorAll('#port-detail-panel .port-info-section');
@@ -435,19 +486,19 @@ export async function fetchAndUpdatePortDemand(portCode) {
 
     for (const section of allSections) {
       const header = section.querySelector('h4');
-      if (header && header.textContent === 'Demand Analytics') {
+      if (header && (header.textContent === 'Remaining Demand' || header.textContent === 'Demand Analytics')) {
         // Update existing section content
         section.innerHTML = `
-          <h4>Demand Analytics</h4>
+          <h4>Remaining Demand</h4>
           ${demand.container ? `
-            <p><strong>Container:</strong><br>
-            Dry ${demand.container.dry !== undefined ? demand.container.dry.toLocaleString() : '0'} TEU<br>
-            Ref ${demand.container.refrigerated !== undefined ? demand.container.refrigerated.toLocaleString() : '0'} TEU</p>
+            <p${containerFullyConsumed ? ' class="no-demand-warning"' : ''}><strong>Container:</strong><br>
+            Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU${dryRemaining === 0 && dryDemand > 0 ? ' (FULL)' : ''}<br>
+            Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU${refRemaining === 0 && refDemand > 0 ? ' (FULL)' : ''}</p>
           ` : ''}
           ${demand.tanker ? `
-            <p><strong>Tanker:</strong><br>
-            Fuel: ${demand.tanker.fuel !== undefined ? demand.tanker.fuel.toLocaleString() : '0'} bbl<br>
-            Crude: ${demand.tanker.crude_oil !== undefined ? demand.tanker.crude_oil.toLocaleString() : '0'} bbl</p>
+            <p${tankerFullyConsumed ? ' class="no-demand-warning"' : ''}><strong>Tanker:</strong><br>
+            Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl${fuelRemaining === 0 && fuelDemand > 0 ? ' (FULL)' : ''}<br>
+            Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl${crudeRemaining === 0 && crudeDemand > 0 ? ' (FULL)' : ''}</p>
           ` : ''}
         `;
         demandSectionFound = true;
@@ -460,16 +511,16 @@ export async function fetchAndUpdatePortDemand(portCode) {
       const newSection = document.createElement('div');
       newSection.className = 'port-info-section';
       newSection.innerHTML = `
-        <h4>Demand Analytics</h4>
+        <h4>Remaining Demand</h4>
         ${demand.container ? `
-          <p><strong>Container:</strong><br>
-          Dry ${demand.container.dry !== undefined ? demand.container.dry.toLocaleString() : '0'} TEU<br>
-          Ref ${demand.container.refrigerated !== undefined ? demand.container.refrigerated.toLocaleString() : '0'} TEU</p>
+          <p${containerFullyConsumed ? ' class="no-demand-warning"' : ''}><strong>Container:</strong><br>
+          Dry: ${dryRemaining.toLocaleString()} / ${dryDemand.toLocaleString()} TEU${dryRemaining === 0 && dryDemand > 0 ? ' (FULL)' : ''}<br>
+          Ref: ${refRemaining.toLocaleString()} / ${refDemand.toLocaleString()} TEU${refRemaining === 0 && refDemand > 0 ? ' (FULL)' : ''}</p>
         ` : ''}
         ${demand.tanker ? `
-          <p><strong>Tanker:</strong><br>
-          Fuel: ${demand.tanker.fuel !== undefined ? demand.tanker.fuel.toLocaleString() : '0'} bbl<br>
-          Crude: ${demand.tanker.crude_oil !== undefined ? demand.tanker.crude_oil.toLocaleString() : '0'} bbl</p>
+          <p${tankerFullyConsumed ? ' class="no-demand-warning"' : ''}><strong>Tanker:</strong><br>
+          Fuel: ${fuelRemaining.toLocaleString()} / ${fuelDemand.toLocaleString()} bbl${fuelRemaining === 0 && fuelDemand > 0 ? ' (FULL)' : ''}<br>
+          Crude: ${crudeRemaining.toLocaleString()} / ${crudeDemand.toLocaleString()} bbl${crudeRemaining === 0 && crudeDemand > 0 ? ' (FULL)' : ''}</p>
         ` : ''}
       `;
       allSections[0].after(newSection);

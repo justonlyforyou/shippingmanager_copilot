@@ -1437,3 +1437,116 @@ tr.sold-vessel:hover {
   font-style: italic;
   margin-top: var(--spacing-4);
 }
+
+/* ============================================
+   TOP 10 ROUTES HIGHLIGHT
+   ============================================ */
+
+.analytics-top-routes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-16);
+  margin-bottom: var(--spacing-16);
+  padding: var(--spacing-12);
+  background: var(--gray-900-50);
+  border: 1px solid var(--white-05);
+  border-radius: var(--radius-8);
+}
+
+.top-routes-section h4 {
+  margin: 0 0 var(--spacing-8) 0;
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.top-routes-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.top-route-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+  padding: var(--spacing-6) var(--spacing-8);
+  background: var(--gray-800-50);
+  border: 1px solid var(--white-05);
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.top-route-item:hover {
+  background: var(--gray-700-50);
+  border-color: var(--white-10);
+}
+
+.top-route-rank {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-info-10);
+  color: var(--color-info);
+  border-radius: var(--radius-4);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-bold);
+  flex-shrink: 0;
+}
+
+.top-route-item:nth-child(1) .top-route-rank {
+  background: var(--color-warning-20);
+  color: var(--color-warning);
+}
+
+.top-route-item:nth-child(2) .top-route-rank {
+  background: var(--white-10);
+  color: var(--color-text-secondary);
+}
+
+.top-route-item:nth-child(3) .top-route-rank {
+  background: var(--color-warning-10);
+  color: var(--color-warning-muted);
+}
+
+.top-route-name {
+  flex: 1;
+  font-size: var(--font-size-12);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.top-route-value {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-success);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.top-routes-empty {
+  padding: var(--spacing-12);
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-12);
+}
+
+/* Highlight animation for scrolled-to row */
+.highlight-row {
+  animation: highlight-pulse 2s ease-out;
+}
+
+@keyframes highlight-pulse {
+  0% {
+    background: var(--color-info-20);
+  }
+
+  100% {
+    background: transparent;
+  }
+}

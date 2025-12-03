@@ -2,7 +2,13 @@
  * @fileoverview Captain Blackbeard - Auto-Negotiate Hijacking Pilot
  *
  * Automatically negotiates hijacked vessels.
- * Offers 25% and accepts after 2 pirate counter-offers.
+ * Strategy: Make exactly 2 counter-offers (25%), then accept pirate's price.
+ *
+ * Flow (identical to manual):
+ * 1. Pirate demands X
+ * 2. We offer 25% -> API returns pirate counter Y immediately
+ * 3. We offer 25% of Y -> API returns pirate counter Z immediately
+ * 4. We ACCEPT Z (pay ransom)
  *
  * @module server/autopilot/pilot_captain_blackbeard
  */
@@ -22,515 +28,255 @@ const DATA_DIR = isPkg
   : path.join(__dirname, '../../userdata');
 
 /**
- * Get hijacking case data with retry logic.
+ * Save negotiation entry to history file.
  */
-async function getCaseWithRetry(caseId, maxRetries) {
-  const { getCachedHijackingCase } = require('../websocket');
+function saveToHistory(userId, caseId, entry, metadata = {}) {
+  try {
+    const historyDir = path.join(DATA_DIR, 'hijack_history');
+    const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
 
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const result = await getCachedHijackingCase(caseId);
-      if (result && result.details) {
-        return result.details;
+    if (!fs.existsSync(historyDir)) {
+      fs.mkdirSync(historyDir, { recursive: true });
+    }
+
+    let existingData = { history: [] };
+    if (fs.existsSync(historyPath)) {
+      existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+      if (Array.isArray(existingData)) {
+        existingData = { history: existingData };
       }
-      logger.debug(`[Auto-Negotiate Hijacking] Get case attempt ${attempt}/${maxRetries}: No data`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Get case attempt ${attempt}/${maxRetries}: ${error.message}`);
     }
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
+
+    if (entry) {
+      existingData.history.push(entry);
     }
+
+    // Merge metadata
+    Object.assign(existingData, metadata);
+
+    fs.writeFileSync(historyPath, JSON.stringify(existingData, null, 2));
+    return true;
+  } catch (error) {
+    logger.error(`[Blackbeard] Failed to save history for case ${caseId}:`, error.message);
+    return false;
   }
-  return null;
 }
 
 /**
- * Submit negotiation offer with retry logic.
+ * Process a single hijacking case with exactly 2 counter-offers then accept.
  */
-async function submitOfferWithRetry(userId, caseId, amount, maxRetries) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await apiCall('/hijacking/submit-offer', 'POST', {
-        case_id: caseId,
-        amount: amount
-      });
-      if (response) {
-        // Save bot's offer to history immediately
-        try {
-          const historyDir = path.join(DATA_DIR, 'hijack_history');
-          const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-          if (!fs.existsSync(historyDir)) {
-            fs.mkdirSync(historyDir, { recursive: true });
-          }
-
-          let historyData = [];
-          let autopilotResolved = false;
-          let resolvedAt = null;
-          if (fs.existsSync(historyPath)) {
-            const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-            historyData = Array.isArray(existingData) ? existingData : existingData.history;
-            autopilotResolved = existingData.autopilot_resolved;
-            resolvedAt = existingData.resolved_at;
-          }
-
-          historyData.push({
-            type: 'user',
-            amount: amount,
-            timestamp: Date.now() / 1000
-          });
-
-          const updatedHistory = {
-            history: historyData,
-            autopilot_resolved: autopilotResolved,
-            resolved_at: resolvedAt
-          };
-
-          fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Bot offer $${amount} saved to history`);
-        } catch (error) {
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to save bot offer to history:`, error);
-        }
-
-        return true;
-      }
-      logger.debug(`[Auto-Negotiate Hijacking] Submit offer attempt ${attempt}/${maxRetries}: No response`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Submit offer attempt ${attempt}/${maxRetries}: ${error.message}`);
-    }
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-  }
-  return false;
-}
-
-/**
- * Accept ransom with retry logic and cash verification.
- *
- * Cash verification formula:
- * cash_before_paid - requested_amount === paymentResponse.user.cash
- *
- * If equal → "blackbeard"
- * If not equal → "failed"
- */
-async function acceptRansomWithRetry(caseId, expectedAmount, cashBefore, maxRetries) {
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await apiCall('/hijacking/pay', 'POST', { case_id: caseId });
-      if (response) {
-        // Get cash AFTER payment directly from payment response
-        const cashAfter = response.user?.cash;
-
-        // Calculate actual amount paid
-        const actualPaid = cashBefore - cashAfter;
-
-        // Verification: actual_paid should equal expected_amount
-        const verified = (actualPaid === expectedAmount);
-
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Payment verification - Cash Before: $${cashBefore}, Expected: $${expectedAmount}, Actual Paid: $${actualPaid}, Cash After: $${cashAfter}, Verified: ${verified}`);
-
-        // Return EXACT SAME format as manual system (messenger.js lines 963-969)
-        return {
-          success: true,
-          verified: verified,
-          expected_amount: expectedAmount,
-          actual_paid: actualPaid,
-          cash_before: cashBefore,
-          cash_after: cashAfter
-        };
-      }
-      logger.debug(`[Auto-Negotiate Hijacking] Accept ransom attempt ${attempt}/${maxRetries}: No response`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Accept ransom attempt ${attempt}/${maxRetries}: ${error.message}`);
-    }
-    if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, 5000));
-    }
-  }
-  return null;
-}
-
-/**
- * Process a single hijacking case: make max counter offers, then accept.
- */
-async function processHijackingCase(userId, caseId, vesselName, userVesselId, offerPercentage, maxCounterOffers, verifyDelay, maxRetries, broadcastToUser) {
-  logger.debug(`[Auto-Negotiate Hijacking] Processing case ${caseId}...`);
-
-  let negotiationRound = 0;
-  let counterOffersMade = 0;
-  let initialDemand = null;
-  const MAX_ROUNDS = 50;
-
-  while (negotiationRound < MAX_ROUNDS) {
-    negotiationRound++;
-
-    const caseData = await getCaseWithRetry(caseId, maxRetries);
-    if (!caseData) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to get case data, aborting`);
-      return;
-    }
-
-    const requestedAmount = caseData.requested_amount;
-    const status = caseData.status;
-
-    logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId} Round ${negotiationRound}: Status="${status}", Price=$${requestedAmount}`);
-
-    // Capture initial demand on first round
-    if (negotiationRound === 1) {
-      initialDemand = requestedAmount;
-    }
-
-    // Save initial pirate demand to history
-    if (negotiationRound === 1) {
-      try {
-        const historyDir = path.join(DATA_DIR, 'hijack_history');
-        const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-        if (!fs.existsSync(historyDir)) {
-          fs.mkdirSync(historyDir, { recursive: true });
-        }
-
-        if (!fs.existsSync(historyPath)) {
-          const initialHistory = {
-            history: [{
-              type: 'pirate',
-              amount: requestedAmount,
-              timestamp: Date.now() / 1000
-            }],
-            autopilot_resolved: false,
-            resolved_at: null
-          };
-
-          fs.writeFileSync(historyPath, JSON.stringify(initialHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Initial pirate demand $${requestedAmount} saved to history`);
-        }
-      } catch (error) {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to save initial demand to history:`, error);
-      }
-    }
-
-    // Broadcast current price
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'hijacking_update', {
-        action: 'price_check',
-        data: {
-          case_id: caseId,
-          round: negotiationRound,
-          current_price: requestedAmount,
-          status: status
-        }
-      });
-    }
-
-    // Check if already resolved
-    if (status === 'solved' || status === 'paid') {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Already resolved (status="${status}"), stopping`);
-      return;
-    }
-
-    // Check for $0 bug
-    if (requestedAmount === 0) {
-      logger.error(`[Auto-Negotiate Hijacking] Case ${caseId}: CRITICAL BUG - Price is $0`);
-      logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Attempting to fix by submitting new offers (max 3 attempts)...`);
-
-      let fixAttempts = 0;
-      const MAX_FIX_ATTEMPTS = 3;
-
-      while (fixAttempts < MAX_FIX_ATTEMPTS) {
-        fixAttempts++;
-        const fixOfferAmount = 100;
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Fix attempt ${fixAttempts}/${MAX_FIX_ATTEMPTS}: Offering $${fixOfferAmount}`);
-
-        const offered = await submitOfferWithRetry(userId, caseId, fixOfferAmount, maxRetries);
-        if (!offered) {
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to submit fix offer`);
-          continue;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, verifyDelay));
-
-        const fixedCase = await getCaseWithRetry(caseId, maxRetries);
-        if (fixedCase && fixedCase.requested_amount > 0) {
-          logger.info(`[Auto-Negotiate Hijacking] Case ${caseId}: OK Bug fixed! New price: $${fixedCase.requested_amount}`);
-          break;
-        }
-
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price still $0 after attempt ${fixAttempts}`);
-      }
-
-      const recheckCase = await getCaseWithRetry(caseId, maxRetries);
-      if (!recheckCase || recheckCase.requested_amount === 0) {
-        logger.error(`[Auto-Negotiate Hijacking] Case ${caseId}: Unable to fix $0 bug, ABORTING`);
-
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'negotiation_failed',
-            data: { case_id: caseId }
-          });
-        }
-        return;
-      }
-
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Continuing with valid price $${recheckCase.requested_amount}`);
-      continue;
-    }
-
-    // Check if we should accept (reached max counter offers)
-    const shouldAccept = counterOffersMade >= maxCounterOffers;
-
-    if (shouldAccept) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Reached max counter offers (${counterOffersMade}/${maxCounterOffers}), accepting price $${requestedAmount}, checking cash...`);
-
-      // Get cash BEFORE payment - need FRESH API call because cache doesn't include user data
-      const freshCaseData = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
-      const cashBefore = freshCaseData?.user?.cash;
-
-      if (cashBefore < requestedAmount) {
-        logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: INSUFFICIENT FUNDS - Need $${requestedAmount}, have $${cashBefore}`);
-
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'insufficient_funds',
-            data: {
-              case_id: caseId,
-              vessel_name: vesselName,
-              required: requestedAmount,
-              available: cashBefore
-            }
-          });
-        }
-        return;
-      }
-
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Cash OK ($${cashBefore}), ACCEPTING ransom of $${requestedAmount}`);
-
-      if (broadcastToUser) {
-        broadcastToUser(userId, 'hijacking_update', {
-          action: 'accepting_price',
-          data: {
-            case_id: caseId,
-            final_price: requestedAmount,
-            counter_offers_made: counterOffersMade
-          }
-        });
-      }
-
-      const paymentResult = await acceptRansomWithRetry(caseId, requestedAmount, cashBefore, maxRetries);
-      if (paymentResult && paymentResult.success) {
-        logger.info(`[Auto-Negotiate Hijacking] Case ${caseId}: SOLVED - Vessel released`);
-
-        // Mark as autopilot-resolved
-        try {
-          const historyDir = path.join(DATA_DIR, 'hijack_history');
-          const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-          if (!fs.existsSync(historyDir)) {
-            fs.mkdirSync(historyDir, { recursive: true });
-          }
-
-          let historyData = [];
-          if (fs.existsSync(historyPath)) {
-            const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-            historyData = Array.isArray(existingData) ? existingData : existingData.history;
-          }
-
-          // Save EXACT SAME format as manual system (messenger.js lines 957-970)
-          const updatedHistory = {
-            history: historyData,
-            autopilot_resolved: true,
-            resolved_at: Date.now() / 1000,
-            vessel_name: vesselName,
-            user_vessel_id: userVesselId,
-            payment_verification: {
-              verified: paymentResult.verified,
-              expected_amount: paymentResult.expected_amount,
-              actual_paid: paymentResult.actual_paid,
-              cash_before: paymentResult.cash_before,
-              cash_after: paymentResult.cash_after
-            }
-          };
-
-          fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Marked as autopilot-resolved, verified: ${paymentResult.verified}`);
-        } catch (error) {
-          logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to mark as autopilot-resolved:`, error);
-        }
-
-        if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'hijacking_resolved',
-            data: {
-              case_id: caseId,
-              final_amount: requestedAmount,
-              vessel_name: vesselName,
-              success: true,
-              payment_verified: paymentResult.verified,
-              actual_paid: paymentResult.actual_paid
-            }
-          });
-        }
-
-        // Log to autopilot logbook
-        await auditLog(
-          userId,
-          CATEGORIES.HIJACKING,
-          'Auto-Blackbeard',
-          `${vesselName} | ${formatCurrency(requestedAmount)}`,
-          {
-            caseId,
-            vesselName,
-            initialDemand: initialDemand || requestedAmount,
-            finalPayment: requestedAmount,
-            negotiationRounds: negotiationRound,
-            verified: paymentResult.verified,
-            actual_paid: paymentResult.actual_paid
-          },
-          'SUCCESS',
-          SOURCES.AUTOPILOT
-        );
-      } else {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to accept ransom`);
-      }
-      return;
-    }
-
-    // Make counter offer (25% of requested amount)
-    counterOffersMade++;
-    const offerAmount = Math.floor(requestedAmount * offerPercentage);
-    logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Counter offer ${counterOffersMade}/${maxCounterOffers}: Offering $${offerAmount} (${offerPercentage * 100}%)`);
-
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'hijacking_update', {
-        action: 'offer_submitted',
-        data: {
-          case_id: caseId,
-          round: negotiationRound,
-          counter_offer_number: counterOffersMade,
-          max_counter_offers: maxCounterOffers,
-          your_offer: offerAmount,
-          pirate_demand: requestedAmount
-        }
-      });
-    }
-
-    const offered = await submitOfferWithRetry(userId, caseId, offerAmount, maxRetries);
-    if (!offered) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to submit offer, aborting`);
-      return;
-    }
-
-    logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Waiting ${verifyDelay}ms for API to process...`);
-    await new Promise(resolve => setTimeout(resolve, verifyDelay));
-
-    // Verify the offer was processed - retry with longer delays if price unchanged
-    let verifiedCase = await getCaseWithRetry(caseId, maxRetries);
-    if (!verifiedCase) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to verify offer, aborting`);
-      return;
-    }
-
-    let newRequestedAmount = verifiedCase.requested_amount;
-    let priceChanged = (newRequestedAmount !== requestedAmount);
-
-    // If price unchanged, wait longer and check again (up to 3 retries)
-    const PRICE_CHECK_RETRIES = 3;
-    const PRICE_CHECK_DELAY = 10000; // 10 seconds between retries
-    let priceCheckAttempt = 0;
-
-    while (!priceChanged && priceCheckAttempt < PRICE_CHECK_RETRIES) {
-      priceCheckAttempt++;
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price unchanged, waiting ${PRICE_CHECK_DELAY}ms and rechecking (attempt ${priceCheckAttempt}/${PRICE_CHECK_RETRIES})...`);
-
-      await new Promise(resolve => setTimeout(resolve, PRICE_CHECK_DELAY));
-
-      verifiedCase = await getCaseWithRetry(caseId, maxRetries);
-      if (!verifiedCase) {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to recheck case, aborting`);
-        return;
-      }
-
-      newRequestedAmount = verifiedCase.requested_amount;
-      priceChanged = (newRequestedAmount !== requestedAmount);
-
-      if (priceChanged) {
-        logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Price finally changed to $${newRequestedAmount} after ${priceCheckAttempt} recheck(s)`);
-      }
-    }
-
-    if (priceChanged) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: OK Offer processed, new price: $${newRequestedAmount}`);
-    } else {
-      logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Price STILL unchanged at $${newRequestedAmount} after ${PRICE_CHECK_RETRIES} retries - offer may not have been accepted`);
-      // Don't count this as a successful counter offer
-      counterOffersMade--;
-    }
-
-    // ALWAYS save pirate counter-offer to log (even if price unchanged)
-    // This is the pirate's response after we made our offer
-    try {
-      const historyDir = path.join(DATA_DIR, 'hijack_history');
-      const historyPath = path.join(historyDir, `${userId}-${caseId}.json`);
-
-      let historyData = [];
-      let autopilotResolved = false;
-      let resolvedAt = null;
-      if (fs.existsSync(historyPath)) {
-        const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-        historyData = Array.isArray(existingData) ? existingData : existingData.history;
-        autopilotResolved = existingData.autopilot_resolved;
-        resolvedAt = existingData.resolved_at;
-      }
-
-      historyData.push({
-        type: 'pirate',
-        amount: newRequestedAmount,
-        timestamp: Date.now() / 1000
-      });
-
-      const updatedHistory = {
-        history: historyData,
-        autopilot_resolved: autopilotResolved,
-        resolved_at: resolvedAt
-      };
-
-      fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Pirate counter $${newRequestedAmount} saved to log`);
-    } catch (error) {
-      logger.debug(`[Auto-Negotiate Hijacking] Case ${caseId}: Failed to save pirate counter:`, error);
-    }
-
-    if (broadcastToUser && priceChanged) {
-      broadcastToUser(userId, 'hijacking_update', {
-        action: 'pirate_counter_offer',
-        data: {
-          case_id: caseId,
-          round: negotiationRound,
-          your_offer: offerAmount,
-          pirate_counter: newRequestedAmount,
-          old_price: requestedAmount
-        }
-      });
-    }
+async function processHijackingCase(userId, caseId, vesselName, userVesselId, broadcastToUser) {
+  const OFFER_PERCENTAGE = 0.25;
+  const MAX_COUNTER_OFFERS = 2;
+
+  logger.info(`[Blackbeard] Processing case ${caseId} for ${vesselName}...`);
+
+  // Step 1: Get current case data
+  let caseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
+  if (!caseResponse || !caseResponse.data) {
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to get case data`);
+    return { success: false, reason: 'failed_to_get_case' };
   }
 
-  logger.warn(`[Auto-Negotiate Hijacking] Case ${caseId}: Reached maximum rounds (${MAX_ROUNDS})`);
+  let currentPrice = caseResponse.data.requested_amount;
+  const initialDemand = currentPrice;
+  const status = caseResponse.data.status;
 
+  logger.info(`[Blackbeard] Case ${caseId}: Initial demand $${currentPrice}, status=${status}`);
+
+  // Check if already resolved
+  if (status === 'solved' || status === 'paid') {
+    logger.info(`[Blackbeard] Case ${caseId}: Already resolved`);
+    return { success: true, reason: 'already_resolved' };
+  }
+
+  // Save initial pirate demand to history
+  saveToHistory(userId, caseId, {
+    type: 'pirate',
+    amount: currentPrice,
+    timestamp: Date.now() / 1000
+  });
+
+  // Notify frontend
   if (broadcastToUser) {
-    broadcastToUser(null, {
-      type: 'hijacking_update',
-      action: 'negotiation_failed',
-      data: { case_id: caseId }
+    broadcastToUser(userId, 'notification', {
+      type: 'info',
+      message: `<p><strong>Captain Blackbeard</strong></p><p>Negotiating for ${vesselName}...<br>Pirate demand: $${currentPrice.toLocaleString()}</p>`
     });
   }
+
+  // Step 2: Make exactly 2 counter-offers
+  for (let offerNum = 1; offerNum <= MAX_COUNTER_OFFERS; offerNum++) {
+    const offerAmount = Math.floor(currentPrice * OFFER_PERCENTAGE);
+
+    logger.info(`[Blackbeard] Case ${caseId}: Counter-offer ${offerNum}/${MAX_COUNTER_OFFERS}: $${offerAmount} (25% of $${currentPrice})`);
+
+    // Submit offer - API returns pirate counter IMMEDIATELY
+    const offerResponse = await apiCall('/hijacking/submit-offer', 'POST', {
+      case_id: caseId,
+      amount: offerAmount
+    });
+
+    if (!offerResponse) {
+      logger.error(`[Blackbeard] Case ${caseId}: Failed to submit offer ${offerNum}`);
+      return { success: false, reason: 'failed_to_submit_offer' };
+    }
+
+    // Save our offer to history
+    saveToHistory(userId, caseId, {
+      type: 'user',
+      amount: offerAmount,
+      timestamp: Date.now() / 1000
+    });
+
+    // Get pirate's counter-offer from response (IMMEDIATE - no waiting!)
+    const pirateCounter = offerResponse.data?.requested_amount;
+
+    if (!pirateCounter) {
+      logger.error(`[Blackbeard] Case ${caseId}: API did not return counter-offer`);
+      return { success: false, reason: 'no_counter_offer' };
+    }
+
+    logger.info(`[Blackbeard] Case ${caseId}: Pirate counter: $${pirateCounter}`);
+
+    // Save pirate counter to history
+    saveToHistory(userId, caseId, {
+      type: 'pirate',
+      amount: pirateCounter,
+      timestamp: Date.now() / 1000
+    });
+
+    // Update current price for next iteration
+    currentPrice = pirateCounter;
+
+    // Notify frontend of progress
+    if (broadcastToUser) {
+      broadcastToUser(userId, 'hijacking_update', {
+        action: 'counter_offer_made',
+        data: {
+          case_id: caseId,
+          offer_number: offerNum,
+          our_offer: offerAmount,
+          pirate_counter: pirateCounter
+        }
+      });
+    }
+  }
+
+  // Step 3: ACCEPT the final pirate price (pay ransom)
+  logger.info(`[Blackbeard] Case ${caseId}: Accepting final price $${currentPrice}`);
+
+  // Get fresh case data with user cash BEFORE payment
+  caseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
+  if (!caseResponse || !caseResponse.data) {
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to get case data before payment`);
+    return { success: false, reason: 'failed_to_get_case_before_payment' };
+  }
+
+  const cashBefore = caseResponse.user?.cash;
+  const finalPrice = caseResponse.data.requested_amount;
+
+  // Verify we have enough cash
+  if (cashBefore < finalPrice) {
+    logger.warn(`[Blackbeard] Case ${caseId}: Insufficient funds - need $${finalPrice}, have $${cashBefore}`);
+
+    if (broadcastToUser) {
+      broadcastToUser(userId, 'notification', {
+        type: 'error',
+        message: `<p><strong>Captain Blackbeard</strong></p><p>Cannot pay ransom for ${vesselName}!<br>Need: $${finalPrice.toLocaleString()}<br>Have: $${cashBefore.toLocaleString()}</p>`
+      });
+    }
+
+    return { success: false, reason: 'insufficient_funds', required: finalPrice, available: cashBefore };
+  }
+
+  // PAY the ransom
+  const payResponse = await apiCall('/hijacking/pay', 'POST', { case_id: caseId });
+
+  if (!payResponse) {
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to pay ransom`);
+    return { success: false, reason: 'failed_to_pay' };
+  }
+
+  // Get cash AFTER payment for verification
+  const cashAfter = payResponse.user?.cash;
+  const actualPaid = cashBefore - cashAfter;
+  const verified = (actualPaid === finalPrice);
+
+  logger.info(`[Blackbeard] Case ${caseId}: Payment verification - Expected: $${finalPrice}, Actual: $${actualPaid}, Verified: ${verified}`);
+
+  // Save resolution to history (same format as manual)
+  saveToHistory(userId, caseId, null, {
+    autopilot_resolved: true,
+    resolved_at: Date.now() / 1000,
+    vessel_name: vesselName,
+    user_vessel_id: userVesselId,
+    payment_verification: {
+      verified: verified,
+      expected_amount: finalPrice,
+      actual_paid: actualPaid,
+      cash_before: cashBefore,
+      cash_after: cashAfter
+    }
+  });
+
+  // Notify frontend
+  if (broadcastToUser) {
+    const verificationMsg = verified
+      ? `<span style="color: #4ade80;">Payment verified</span>`
+      : `<span style="color: #ef4444;">Payment verification FAILED</span>`;
+
+    broadcastToUser(userId, 'notification', {
+      type: verified ? 'success' : 'warning',
+      message: `<p><strong>Captain Blackbeard</strong></p><p>${vesselName} released!<br>Initial demand: $${initialDemand.toLocaleString()}<br>Final payment: $${actualPaid.toLocaleString()}<br>${verificationMsg}</p>`
+    });
+
+    broadcastToUser(userId, 'hijacking_update', {
+      action: 'hijacking_resolved',
+      data: {
+        case_id: caseId,
+        vessel_name: vesselName,
+        initial_demand: initialDemand,
+        final_payment: actualPaid,
+        verified: verified
+      }
+    });
+  }
+
+  // Log to autopilot logbook
+  await auditLog(
+    userId,
+    CATEGORIES.HIJACKING,
+    'Captain Blackbeard',
+    `${vesselName} | Initial: ${formatCurrency(initialDemand)} | Paid: ${formatCurrency(actualPaid)}`,
+    {
+      caseId,
+      vesselName,
+      initialDemand,
+      finalPayment: actualPaid,
+      counterOffersMade: MAX_COUNTER_OFFERS,
+      verified,
+      cashBefore,
+      cashAfter
+    },
+    verified ? 'SUCCESS' : 'WARNING',
+    SOURCES.AUTOPILOT
+  );
+
+  return {
+    success: true,
+    initialDemand,
+    finalPayment: actualPaid,
+    verified
+  };
 }
 
 /**
- * Automatically negotiates hijacked vessels.
+ * Main autopilot entry point - processes all active hijacking cases.
  */
 async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdateAllData) {
   if (autopilotPaused) {
-    logger.debug('[Auto-Negotiate Hijacking] Skipped - Autopilot is PAUSED');
+    logger.debug('[Blackbeard] Skipped - Autopilot is PAUSED');
     return;
   }
 
@@ -539,36 +285,30 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
 
   const settings = state.getSettings(userId);
   if (!settings.autoNegotiateHijacking) {
-    logger.debug('[Auto-Negotiate Hijacking] Feature disabled in settings');
+    logger.debug('[Blackbeard] Feature disabled in settings');
     return;
   }
-
-  const OFFER_PERCENTAGE = 0.25;
-  const MAX_COUNTER_OFFERS = 2;
-  const VERIFY_DELAY = 120000; // 2 MINUTES - pirates need time to respond
-  const MAX_RETRIES = 3;
 
   try {
     const { getCachedMessengerChats } = require('../websocket');
     const chats = await getCachedMessengerChats();
 
     if (!chats || chats.length === 0) {
-      logger.info('[Auto-Negotiate Hijacking] No messages data from cache');
+      logger.debug('[Blackbeard] No messages data from cache');
       return;
     }
 
-    logger.info(`[Auto-Negotiate Hijacking] Checking ${chats.length} chats for hijacking cases...`);
-
+    // Find active hijacking cases
     const hijackingChats = chats.filter(chat => {
       return chat.system_chat && chat.body === 'vessel_got_hijacked';
     });
 
     if (hijackingChats.length === 0) {
-      logger.info('[Auto-Negotiate Hijacking] No active hijacking cases found');
+      logger.debug('[Blackbeard] No active hijacking cases');
       return;
     }
 
-    logger.info(`[Auto-Negotiate Hijacking] Found ${hijackingChats.length} active case(s): ${hijackingChats.map(c => c.values?.case_id).join(', ')}`);
+    logger.info(`[Blackbeard] Found ${hijackingChats.length} active hijacking case(s)`);
 
     let processed = 0;
     for (const chat of hijackingChats) {
@@ -577,36 +317,35 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
       const userVesselId = chat.values?.user_vessel_id;
 
       if (!caseId) {
-        logger.debug('[Auto-Negotiate Hijacking] Case missing ID, skipping');
+        logger.debug('[Blackbeard] Case missing ID, skipping');
         continue;
       }
 
       try {
-        await processHijackingCase(userId, caseId, vesselName, userVesselId, OFFER_PERCENTAGE, MAX_COUNTER_OFFERS, VERIFY_DELAY, MAX_RETRIES, broadcastToUser);
-        processed++;
-      } catch (error) {
-        logger.error(`[Auto-Negotiate Hijacking] Error processing case ${caseId}:`, error.message);
+        const result = await processHijackingCase(userId, caseId, vesselName, userVesselId, broadcastToUser);
 
-        // Log error to autopilot logbook
+        if (result.success) {
+          processed++;
+        } else {
+          logger.warn(`[Blackbeard] Case ${caseId} failed: ${result.reason}`);
+        }
+      } catch (error) {
+        logger.error(`[Blackbeard] Error processing case ${caseId}:`, error.message);
+
         await auditLog(
           userId,
           CATEGORIES.HIJACKING,
-          'Auto-Blackbeard',
-          `Negotiation failed for ${vesselName}: ${error.message}`,
-          {
-            caseId,
-            vesselName,
-            error: error.message,
-            stack: error.stack
-          },
+          'Captain Blackbeard',
+          `Failed: ${vesselName} - ${error.message}`,
+          { caseId, vesselName, error: error.message },
           'ERROR',
           SOURCES.AUTOPILOT
         );
 
         if (broadcastToUser) {
-          broadcastToUser(userId, 'hijacking_update', {
-            action: 'negotiation_failed',
-            data: { case_id: caseId }
+          broadcastToUser(userId, 'notification', {
+            type: 'error',
+            message: `<p><strong>Captain Blackbeard</strong></p><p>Failed to negotiate for ${vesselName}:<br>${error.message}</p>`
           });
         }
       }
@@ -617,18 +356,14 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
     }
 
   } catch (error) {
-    logger.error('[Auto-Negotiate Hijacking] Error:', error.message);
+    logger.error('[Blackbeard] Error:', error.message);
 
-    // Log error to autopilot logbook
     await auditLog(
       userId,
       CATEGORIES.HIJACKING,
-      'Auto-Blackbeard',
+      'Captain Blackbeard',
       `Operation failed: ${error.message}`,
-      {
-        error: error.message,
-        stack: error.stack
-      },
+      { error: error.message, stack: error.stack },
       'ERROR',
       SOURCES.AUTOPILOT
     );

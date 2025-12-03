@@ -118,6 +118,11 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
   // Set lock and broadcast to all clients
   state.setLockStatus(userId, 'depart', true);
   if (broadcastToUser) {
+    // First broadcast lock_status to immediately disable depart buttons
+    broadcastToUser(userId, 'lock_status', {
+      depart: true
+    });
+    // Then broadcast depart_start for notifications
     broadcastToUser(userId, 'autopilot_depart_start', {
       vesselCount: vesselIds ? vesselIds.length : 'all'
     });
@@ -208,6 +213,14 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           repair: state.getLockStatus(userId, 'repair'),
           bulkBuy: state.getLockStatus(userId, 'bulkBuy')
         });
+
+        // Notify user if this was a specific vessel request (not autopilot)
+        if (vesselIds && vesselIds.length > 0) {
+          broadcastToUser(userId, 'notification', {
+            type: 'warning',
+            message: '<p><strong>Cargo Marshal</strong></p><p>No vessels ready to depart in harbor.</p>'
+          });
+        }
       }
 
       return { success: true, reason: 'no_vessels' };
@@ -861,6 +874,31 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     if (trackContribution && totalContributionGained > 0) {
       result.contributionGained = totalContributionGained;
       result.contributionPerVessel = totalContributionGained / allDepartedVessels.length;
+    }
+
+    // Notify user if ALL vessels failed (0 departed, some failed)
+    if (broadcastToUser && allDepartedVessels.length === 0 && allFailedVessels.length > 0) {
+      // Group failures by reason with vessel names
+      const reasonGroups = {};
+      allFailedVessels.forEach(v => {
+        const reason = v.reason || 'Unknown';
+        if (!reasonGroups[reason]) {
+          reasonGroups[reason] = [];
+        }
+        // Strip MV/MS/MT prefix from vessel name
+        const vesselName = (v.name || 'Unknown').replace(/^(MV|MS|MT)\s+/i, '');
+        reasonGroups[reason].push(vesselName);
+      });
+
+      // Build reason summary with vessel names
+      const reasonSummary = Object.entries(reasonGroups)
+        .map(([reason, vessels]) => `<strong>${reason}:</strong><br>${vessels.join(', ')}`)
+        .join('<br><br>');
+
+      broadcastToUser(userId, 'notification', {
+        type: 'error',
+        message: `<p><strong>Cargo Marshal</strong></p><p>Failed to depart ${allFailedVessels.length} vessel${allFailedVessels.length > 1 ? 's' : ''}:</p><p style="font-size: 0.9em; color: #9ca3af;">${reasonSummary}</p>`
+      });
     }
 
     return result;
