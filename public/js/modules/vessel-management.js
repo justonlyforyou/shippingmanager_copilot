@@ -184,6 +184,10 @@ export function updateLockStateFromServer(locks) {
     if (window.updateDepartManagerLockState) {
       window.updateDepartManagerLockState();
     }
+    // Update ALL vessel panel depart buttons (harbor map vessel detail panel)
+    if (window.updateVesselPanelDepartButtons) {
+      window.updateVesselPanelDepartButtons();
+    }
   }
 
   if (locks.repair !== undefined) {
@@ -2065,6 +2069,9 @@ export async function purchaseSingleVessel(vessel, quantity = 1) {
       } else {
         successCount++;
         purchasedVessels.push({ name: vessel.name, price: vessel.price });
+        if (data.verified) {
+          console.info(`[Purchase] ${vessel.name} was verified after network recovery`);
+        }
         if (data.user && data.user.cash !== undefined) {
           updateCurrentCash(data.user.cash);
         }
@@ -2075,7 +2082,8 @@ export async function purchaseSingleVessel(vessel, quantity = 1) {
       }
     } catch (error) {
       console.error('Error purchasing vessel:', error);
-      showSideNotification(`🚢 <strong>Network error purchasing ${vessel.name}</strong>`, 'error', null, true);
+      showSideNotification(`🚢 <strong>Network error purchasing ${vessel.name} - please check your fleet</strong>`, 'error', null, true);
+      break; // Stop attempting further purchases on network failure
     }
   }
 
@@ -2095,6 +2103,11 @@ export async function purchaseSingleVessel(vessel, quantity = 1) {
 
   if (successCount > 0 && window.updateVesselCount) {
     await updateVesselCount();
+  }
+
+  // Refresh harbor map to include new vessel in rawVessels
+  if (successCount > 0 && window.harborMap && window.harborMap.forceRefresh) {
+    await window.harborMap.forceRefresh();
   }
 
   selectedVessels = selectedVessels.filter(v => v.vessel.id !== vessel.id);
@@ -2252,6 +2265,11 @@ export async function purchaseBulk() {
 
   if (successCount > 0 && window.updateVesselCount) {
     await updateVesselCount();
+  }
+
+  // Refresh harbor map to include new vessels in rawVessels
+  if (successCount > 0 && window.harborMap && window.harborMap.forceRefresh) {
+    await window.harborMap.forceRefresh();
   }
 
   await loadAcquirableVessels(true);

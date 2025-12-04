@@ -190,6 +190,13 @@
   font-size: var(--font-size-10) !important;
 }
 
+.depart-type-corner {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: var(--font-size-12);
+}
+
 .depart-vessel-item:hover {
   background: rgba(55, 65, 81, 0.8);
   border-color: var(--color-info-30);

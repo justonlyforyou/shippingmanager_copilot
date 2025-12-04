@@ -644,8 +644,30 @@ export async function fetchAcquirableVessels(useCache = true) {
 }
 
 /**
+ * Verifies if a vessel with given name exists in fleet.
+ * Used to check if a purchase succeeded after network error.
+ *
+ * @param {string} vesselName - Name of vessel to check
+ * @returns {Promise<boolean>} True if vessel exists in fleet
+ */
+async function verifyVesselPurchased(vesselName) {
+  try {
+    // Force fresh fetch, bypass cache
+    invalidateVesselCache('owned');
+    const data = await fetchVessels(false);
+    if (data && data.vessels) {
+      return data.vessels.some(v => v.name === vesselName);
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Purchases a vessel from the market.
  * User provides name and antifouling choice during purchase.
+ * Includes retry logic for network errors with verification to prevent duplicates.
  *
  * @param {number} vesselId - Vessel ID to purchase
  * @param {string} name - Custom name for the vessel
@@ -656,29 +678,60 @@ export async function fetchAcquirableVessels(useCache = true) {
  * @throws {Error} If purchase fails (insufficient funds, invalid name)
  */
 export async function purchaseVessel(vesselId, name, antifouling, silent = false) {
-  try {
-    const response = await fetch(window.apiUrl('/api/vessel/purchase-vessel'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        vessel_id: vesselId,
-        name: name,
-        antifouling_model: antifouling,
-        silent: silent
-      })
-    });
+  const maxRetries = 2;
+  let lastError = null;
 
-    const result = await response.json();
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(window.apiUrl('/api/vessel/purchase-vessel'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vessel_id: vesselId,
+          name: name,
+          antifouling_model: antifouling,
+          silent: silent
+        })
+      });
 
-    // Invalidate vessel cache after successful purchase
-    if (result.success || response.ok) {
-      invalidateVesselCache('owned');
+      const result = await response.json();
+
+      // Invalidate vessel cache after successful purchase
+      if (result.success || response.ok) {
+        invalidateVesselCache('owned');
+      }
+
+      return result;
+    } catch (error) {
+      lastError = error;
+      console.warn(`[Purchase] Network error on attempt ${attempt + 1}:`, error.message);
+
+      // Wait for network to stabilize
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Check if vessel was actually purchased despite network error
+      const wasActuallyPurchased = await verifyVesselPurchased(name);
+      if (wasActuallyPurchased) {
+        console.info(`[Purchase] Verified: ${name} was purchased despite network error`);
+        invalidateVesselCache('owned');
+        return {
+          success: true,
+          verified: true,
+          message: 'Purchase verified after network recovery'
+        };
+      }
+
+      // If last attempt, throw error
+      if (attempt === maxRetries) {
+        console.error(`[Purchase] All ${maxRetries + 1} attempts failed for ${name}`);
+        throw lastError;
+      }
+
+      console.info(`[Purchase] Retrying purchase of ${name} (attempt ${attempt + 2})`);
     }
-
-    return result;
-  } catch (error) {
-    throw error;
   }
+
+  throw lastError;
 }
 
 /**

@@ -1371,60 +1371,28 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       propeller_types
     });
 
+    // Debug: Log raw API response to find vessel_id location
+    logger.debug(`[Build Vessel] Raw API response: ${JSON.stringify(data, null, 2)}`);
+
     // Check if API returned an error
     if (data.error) {
       logger.warn(`[Build Vessel] API rejected build request: ${data.error}`);
       return res.status(400).json({ error: data.error });
     }
 
-    // Verify build was successful - API returns { data: { success: true }, user: {...} }
-    if (!data.data?.success) {
+    // Verify build was successful - API returns { success: true, vessel_id: ..., cost: ..., delivery_time: ... }
+    if (!data.success && !data.data?.success) {
       logger.error('[Build Vessel] API did not confirm success');
       return res.status(500).json({ error: 'Build failed - API did not confirm' });
     }
 
-    logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW)`);
+    // Get vessel_id directly from API response
+    const newVesselId = data.vessel_id || data.data?.vessel_id;
 
-    // Fetch vessel list to get the new vessel's ID (API doesn't return it directly)
-    // Retry up to 3 times with delay - API sometimes needs time to register the new vessel
-    let newVesselId = null;
-    const maxRetries = 3;
-    const retryDelay = 500; // ms
-
-    for (let attempt = 1; attempt <= maxRetries && !newVesselId; attempt++) {
-      try {
-        if (attempt > 1) {
-          logger.debug(`[Build Vessel] Retry ${attempt}/${maxRetries} - waiting ${retryDelay}ms...`);
-          await new Promise(resolve => setTimeout(resolve, retryDelay));
-        }
-
-        const vesselsData = await apiCall('/vessel/get-vessels', 'GET');
-        const pendingVessels = vesselsData.data?.user_vessels?.filter(v =>
-          v.status === 'pending' || v.status === 'delivery'
-        ) || [];
-
-        // First try exact name match
-        let newVessel = pendingVessels.find(v => v.name === name);
-
-        // If not found by name, take the newest pending vessel (highest ID)
-        if (!newVessel && pendingVessels.length > 0) {
-          newVessel = pendingVessels.reduce((newest, v) =>
-            v.id > newest.id ? v : newest
-          , pendingVessels[0]);
-          logger.debug(`[Build Vessel] Name match failed, using newest pending vessel: ${newVessel.id} (${newVessel.name})`);
-        }
-
-        if (newVessel) {
-          newVesselId = newVessel.id;
-          logger.debug(`[Build Vessel] Found new vessel ID: ${newVesselId} (status: ${newVessel.status}, attempt: ${attempt})`);
-        }
-      } catch (fetchError) {
-        logger.warn(`[Build Vessel] Attempt ${attempt} - Could not fetch vessel ID:`, fetchError.message);
-      }
-    }
+    logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW) - ID: ${newVesselId}`);
 
     if (!newVesselId) {
-      logger.error('[Build Vessel] Failed to find new vessel ID after all retries');
+      logger.error('[Build Vessel] API did not return vessel_id');
     }
 
     // Store vessel appearance data if we found the vessel ID
@@ -1566,7 +1534,11 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       logger.error('[Build Vessel] Audit logging failed:', auditError.message);
     }
 
-    res.json(data);
+    // Return response with vessel ID included for frontend (needed for fast delivery drydock trigger)
+    res.json({
+      ...data,
+      vessel_id: newVesselId
+    });
   } catch (error) {
     logger.error('[Build Vessel] Error:', error);
 

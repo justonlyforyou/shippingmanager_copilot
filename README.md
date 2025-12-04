@@ -23,45 +23,11 @@ A comprehensive "Addon" for the beloved game [Shipping Manager](https://shipping
 
 ## Table of Contents
 
-- [🛠️ The Bug That Became The Tool](#️-the-bug-that-became-the-tool)
-- [📢 A Message to Trophy Games](#-a-message-to-trophy-games)
-- [🚀 Features](#-features)
-  - [Alliance Chat](#alliance-chat)
-  - [Private Messaging](#private-messaging)
-  - [Fuel Management](#fuel-management)
-  - [CO2 Management](#co2-management)
-  - [Vessel Management](#vessel-management)
-  - [Vessel Appearance Editor](#vessel-appearance-editor)
-  - [Depart Manager](#depart-manager)
-  - [Bulk Repair](#bulk-repair)
-  - [Marketing Campaigns](#marketing-campaigns)
-  - [Vessel Purchase Catalog](#vessel-purchase-catalog)
-  - [Bulk Vessel Purchasing](#bulk-vessel-purchasing)
-  - [Vessel Selling](#vessel-selling)
-  - [Harbor Map](#harbor-map)
-  - [Route Planner](#route-planner)
-  - [Logbook](#logbook)
-  - [Alliance Cooperation](#alliance-cooperation)
-  - [Hijacking/Piracy Management](#hijackingpiracy-management)
-  - [Forecast Calendar](#forecast-calendar)
-  - [Company Profile](#company-profile)
-  - [Header Data Display](#header-data-display)
-  - [Notifications System](#notifications-system)
-  - [Anchor Point Management](#anchor-point-management)
-  - [ChatBot](#chatbot)
-  - [Auto-Rebuy Fuel by Barrel Boss](#auto-rebuy-fuel-by-barrel-boss)
-  - [Auto-Rebuy CO2 by Atmosphere Broker](#auto-rebuy-co2-by-atmosphere-broker)
-  - [Auto-Depart All Vessels by Cargo Marshal](#auto-depart-all-vessels-by-cargo-marshal)
-  - [Auto Bulk Repair by Yard Foreman](#auto-bulk-repair-by-yard-foreman)
-  - [Auto Campaign Renewal by Reputation Chief](#auto-campaign-renewal-by-reputation-chief)
-  - [Auto Coop Vessel Sending by Fair Hand](#auto-coop-vessel-sending-by-fair-hand)
-  - [Auto Anchor Point Purchase by Harbormaster](#auto-anchor-point-purchase-by-harbormaster)
-  - [Auto Negotiate Hijacking by Cap'n Blackbeard](#auto-negotiate-hijacking-by-capn-blackbeard)
-  - [HTTPS Support & Certificate Management](#https-support--certificate-management)
-- [Installation](#Installation)
+- [The Bug That Became The Tool](#️-the-bug-that-became-the-tool)
+- [Features](#-features)
+- [Installation](#installation)
 - [Documentation](#documentation)
 - [Session Cookie Encryption](#session-cookie-encryption)
-- [Route Optimization Detection & Tracking](#route-optimization-detection--tracking)
 - [Legal Disclaimer & Risk Notice](#legal-disclaimer--risk-notice)
 - [Security Notice](#security-notice)
 - [Privacy & Data Collection](#privacy--data-collection)
@@ -88,201 +54,91 @@ This **comprehensive standalone web interface** connects directly to the Shippin
 
 ## 🚀 Features
 
-Here are the first available features. I'm sure I forgot a few, but you're welcome to explore!
+### Core Features
 
-### Chat
-- **Advanced Alliance Chat** Features multi-line support, member mentions, and integrated price forecast.
-- **Private Messaging System** Enables direct 1-on-1 conversations with a dedicated inbox and unread message indicators.
+| Feature | Description |
+|---------|-------------|
+| **Bug-Free Chat** | Alliance chat and private messaging without Steam's page reload bugs |
+| **Harbor Map** | Interactive world map with live fleet tracking, weather overlays, route visualization, and maritime POIs |
+| **Logbook** | Comprehensive event tracking with search, filters, and CSV/JSON export |
+| **Forecast Calendar** | 30-minute precision fuel/CO2 price forecasts with multi-day planning |
+| **Route Planner** | Visual destination selection with real-time cost/fuel/piracy calculations |
+| **Company Profile** | Achievement tracking, analytics dashboard, and performance metrics |
 
-### Fuel & CO² Management
-- **Fuel Management:** Displays current capacity and color-coded prices, featuring a one-click option to purchase max fuel with a confirmation dialog.
-- **CO2 Management:** Shows current quota and color-coded prices, featuring a one-click option to purchase max CO2 with a confirmation dialog.
+### Fleet Management
 
-### Vessel Management
-- **Smart Vessel Management:** Tracks fleet status and construction timers, featuring a "Depart All" tool that calculates costs and explicitly validates destination demand and configurable cargo utilization before dispatching.
-- **Vessel Appearance Editor:** Enables complete visual customization via secure custom image uploads or detailed SVG color grading (hull, deck, containers), including real-time previews and vessel renaming.
+| Feature | Description |
+|---------|-------------|
+| **Depart Manager** | Fleet dashboard with bulk departures, status tabs, and map integration |
+| **Drydock Management** | Bulk drydock operations with cost previews and maintenance scheduling |
+| **Bulk Repair** | One-click repairs with configurable wear thresholds and cost preview |
+| **Vessel Building** | Custom vessel construction with appearance editor and fast delivery option |
+| **Vessel Selling** | Bulk sales with shopping cart and real-time price verification |
+| **Anchor Points** | Fleet capacity management with one-click purchasing |
 
-### Depart Manager
+### Business & Analytics
 
-- **Fleet Dashboard & Bulk Operations:** Organizes vessels into detailed status tabs (Port, En Route, Maintenance) and provides checkboxes for selective bulk departures and mass mooring management.
-- **Map Integration & UI:** Features a fully draggable panel with tools to instantly locate vessels on the map or filter views by route.
+| Feature | Description |
+|---------|-------------|
+| **Business Analytics** | BI tools with performance metrics, trends, and historical data |
+| **Stock Manager** | IPO stock tracking, price alerts, and portfolio management |
+| **The Purser** | Automated dividend collection and stock monitoring (IPO users) |
+| **Alliance League** | Real-time league standings, progress tracking, and seasonal stats |
+| **Marketing Campaigns** | Campaign management with status badges and one-click activation |
 
-### Bulk Repair
-- **Automatic detection** of vessels with high wear
-- **Configurable wear threshold** (2%, 3%, 4%, 5%, 10%, 15%, 20%, 25%)
-- **One-click bulk repair** with cost preview
-- **Badge showing number** of vessels needing repair
-- **Prevents repair** if insufficient funds
+### AutoPilot System
 
-### Marketing Campaigns
-- **View all available** marketing campaigns
-- **Badges for campaign status** (active/inactive)
-- **One-click campaign activation**
-- **Badge shows number** of available campaigns
+Intelligent automation with configurable thresholds and emergency buy override:
 
-### Vessel Purchase Catalog
-- **Bulk Purchasing Cart:** Features a full shopping cart system with quantity controls, total cost analysis against available cash, and automatic safeguards for vessel limits or insufficient funds.
-- **Advanced Selling System:** Supports individual and bulk sales via a summary-first cart that displays original vs. API-verified real-time prices, optimized with mobile-friendly controls.
+| AutoPilot | Function |
+|-----------|----------|
+| **Barrel Boss** | Auto-rebuy fuel when price drops below threshold |
+| **Atmosphere Broker** | Auto-rebuy CO2 when price drops below threshold |
+| **Cargo Marshal** | Auto-depart vessels with demand validation and route optimization |
+| **Yard Foreman** | Auto bulk repair when wear exceeds threshold |
+| **Reputation Chief** | Auto campaign renewal to prevent downtime |
+| **Fair Hand** | Auto coop vessel distribution to alliance members |
+| **Harbormaster** | Auto anchor point purchasing when capacity needed |
+| **Cap'n Blackbeard** | Auto hijacking negotiation with aggressive counter-offers |
+| **The Purser** | Auto dividend collection (IPO users only) |
 
-### Harbor Map
-
-- **Interactive World Map:** Features live fleet tracking, dynamic route lines, and switchable themes (Satellite/Dark), enhanced with real-time weather overlays and POIs like shipwrecks.
-- **Smart Analytics Panels:** Draggable detail views provide deep data on vessels and ports, including real-time demand analysis, route profitability calculations, and direct management actions.
-
-### Route Planner
-
-- **Interactive Route Planner:** Visually selects destinations using smart filters and demand indicators, featuring real-time map previews of the route path.
-- **Precision Calculation & Configuration:** Computes exact game formulas for costs, fuel, and piracy risk, allowing dynamic optimization via speed and guard sliders in a draggable panel.
-
-### Logbook
-
-- **Detailed Event Tracking:** Logs comprehensive alliance activities (cooperation, member changes) and vessel operations, capturing specific details like route earnings, maintenance, and hijacking incidents.
-- **History & Analysis:** Features a searchable chronological timeline with CSV/JSON export options, real-time notifications, and statistical insights into event trends.
-
-### Alliance Center
-- **Alliance Statistics Dashboard:** Features a modern, real-time updating layout displaying league info, interactive progress bars, and detailed seasonal/historical metrics via WebSocket.
-- **Coop Management System:** Streamlines alliance interactions with a sorted member list and color-coded status indicators, featuring a one-click "Send max" button for efficient vessel dispatch.
-
-### Hijacking/Piracy Management
-
-- **Interactive Ransom Management:** Manages active hijackings with multi-tier negotiation offers (25%/50%/75%), visual history tracking, and direct payment integration for immediate vessel release.
-- **Smart Alerts & Automation:** Features real-time desktop notifications for incidents and includes "Captain Blackbeard AutoPilot" to automatically negotiate and resolve cases.
-
-### Forecast Calendar
-
-Plan your fuel and CO2 purchases strategically with detailed price forecasts!
-
-- **Strategic Price Forecasting:** Visualizes future fuel and CO2 prices on a detailed, color-coded calendar with 30-minute precision to pinpoint the cheapest buying windows.
-- **Interactive Multi-Day Planning:** Features intuitive swipe navigation and automatic timezone conversion to easily compare prices and schedule purchases days in advance.
-
-### Company Profile
-
-- **Visual Achievement Tracking:** Displays progress via organized tables and bars, tracking specific milestones (revenue, routes) with completion dates.
-- **Company Analytics Dashboard:** Provides a comprehensive overview of performance metrics, historical data, and long-term trends.
-
-### Notifications System
-
-Comprehensive notification system for critical events and automation feedback with in-app and desktop notification:
-
-- Price alerts when fuel/CO2 drops below configured thresholds
-- AutoPilot action notifications (purchases, departures, repairs, campaigns)
-
-### Anchor Point Management
-
-- View current anchor points and maximum capacity
-- Purchase anchor points to increase fleet size
+All AutoPilots support **Emergency Buy Override**: Configure minimum bunker level, ships at port threshold, and max price for emergency purchases.
 
 ### ChatBot
 
-* **Advanced Command System:** Features built-in commands (e.g., `!forecast`, `!welcome`) with smart syntax validation and strict role-based access control for admins (CEO, COO, Management).
-* **Automated Scheduling:** Handles daily forecast announcements with automatic timezone detection (CEST/CET) and fully configurable execution times.
-* **Customization & Interaction:** Supports unlimited custom commands, configurable prefixes, anti-spam cooldowns, and operates across both Alliance Chat and Private Messages.
+Automated alliance assistant with role-based commands, scheduled announcements (forecast, welcome), custom commands, anti-spam cooldowns, and configurable prefixes.
 
-### Auto-Rebuy Fuel by Barrel Boss
+### Additional Features
 
-- Monitors fuel prices continuously
-- Automatically purchases fuel when price drops at/below configured threshold
-- Configurable threshold
-- Event-driven: Triggers immediately when price drops
-- Continues buying until bunker is full or funds threshold depleted
-- Pure price-based strategy (no time windows)
-
-### Auto-Rebuy CO2 by Atmosphere Broker
-
-- Monitors CO2 prices continuously
-- Automatically purchases CO2 when price drops at/below configured threshold
-- Configurable threshold
-- Event-driven: Triggers immediately when price drops
-- Continues buying until bunker is full or funds depleted
-- Pure price-based strategy (no time windows)
-
-### Auto-Depart All Vessels by Cargo Marshal
-
-- Continuously monitors vessels in port
-- Automatically departs all ready vessels when fuel is available
-- **Important**: We check the demand per port before sending - vessels are only sent if demand exists at the destination port
-- **Two Operation Modes**:
-  - **Use Route Defaults Mode** (default): Respects per-route configured settings (speed, utilization)
-  - **Custom Global Settings Mode**: Override with global settings (minVesselUtilization, autoVesselSpeed)
-- **Configurable vessel utilization threshold**: Set minimum cargo load percentage required before departure (e.g., only depart if vessel is at least 70% full)
-- **Configurable vessel speed**: Set vessel speed as percentage of max_speed for fuel optimization
-- Detects failed departures (insufficient fuel/CO2)
-- Shows green success notification for successful departures
-- Shows red error notification for failed departures ("Auto-Depart\nNo fuel - no vessels sent")
-
-### Auto Bulk Repair by Yard Foreman
-
-- Monitors all vessels for wear/maintenance needs
-- Automatically repairs all vessels with wear > configured threshold
-- Only repairs when sufficient funds are available
-
-### Auto Campaign Renewal by Reputation Chief
-
-- Monitors active marketing campaigns
-- Automatically renews expired campaigns (reputation, awareness, green) with the best available
-- Prevents campaign downtime
-- Only activates when funds are sufficient
-
-### Auto Coop Vessel Sending by Fair Hand
-
-- Automatically sends cooperation vessels to alliance members
-- Monitors available coop capacity
-- Distributes vessels according to configured settings
-
-### Auto Anchor Point Purchase by Harbormaster
-
-- Automatically purchases additional anchor points when needed
-- Monitors current fleet capacity vs available slots
-- Only purchases when sufficient funds are available
-
-### Auto Negotiate Hijacking by Cap'n Blackbeard
-
-- Automated ransom negotiation
-- Automatically negotiates with pirates to reduce ransom demands
-- Uses aggressive negotiation tactics to achieve significant price reductions you can't have normally ;-)
-- **Counter-Offer Strategy**: Makes 25% offers (25% of pirate's current demand)
-- **Max 2 Counter-Offers**: After 2 counter-offers, automatically accepts the next pirate price
-- **No Price Threshold**: Always accepts after 2 negotiations regardless of final price
-- Automatically verifies payment and releases vessel
-- Real-time negotiation notifications show progress
-
-### HTTPS Support & Certificate Management
-
-- **Automated Certificate Management**:
-  - Self-signed certificates with automatic generation via dedicated `certificate_manager.py` module
-  - **Automatic certificate installation** to OS certificate store on first start (may require user confirmation)
-  - **Smart certificate renewal**: Automatically regenerates certificates when network configuration changes
-  - **Multi-host support**: Certificates include all network IP addresses (localhost + LAN IPs) in Subject Alternative Names
-  - **Cross-platform compatibility**: Works on Windows, macOS, and Linux
-- **Network Access**:
-  - Accessible from all devices on local network (https://your-local-ip:12345)
-  - **Mobile device setup**: CA certificate download available in settings for manual installation on phones/tablets
-  - **QR Code**: Settings page provides QR code for easy mobile access
-- **Certificate Details**:
-  - Valid for 365 days from generation
-  - Automatically includes all network interfaces (WiFi, Ethernet, VPN)
-  - Can be replaced with your own certificates if needed
-  - Stored in `certs/` directory (localhost.pem + localhost-key.pem)
-- **Security Notes**:
-  - Self-signed certificates will show browser warnings on first visit (this is normal)
-  - Certificate trust is automatically established during installation
-  - All communication encrypted with TLS 1.2+
+- **Price Alerts**: Custom fuel/CO2 price notifications with desktop alerts
+- **Alliance Coop Center**: Member list with color-coded status and one-click vessel dispatch
+- **Hijacking Management**: Multi-tier negotiation (25%/50%/75%) with payment integration
+- **Mobile Notifications**: Receive game alerts via Wi-Fi on mobile devices
+- **HTTPS & Certificates**: Auto-generated certificates with LAN access and QR codes for mobile
 
 ***
 
 ## Installation
 
-### Windows End-Users (Using .exe Installer)
+- **Installation Guide**: See [docs/tutorials/01-installation-guide.md](docs/tutorials/01-installation-guide.md)
+
+### Windows Users (Using .exe Installer)
 - Modern web browser (Chrome/Chromium recommended)
 - Active Shipping Manager account (Steam, Browser, or Mobile Account)
 
 **[Download the latest release here](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest)**
 
-### Developers & Linux/Mac Users (Running from Source)
-- **Installation Guide**: See [docs/tutorials/01-installation-guide.md](docs/tutorials/01-installation-guide.md)
-- **Build Guide**: See [docs/tutorials/02-build-guide.md](docs/tutorials/02-build-guide.md)
+###  Linux/Mac Users
+- Modern web browser (Chrome/Chromium recommended)
+- Active Shipping Manager account (Steam, Browser, or Mobile Account)
 
-__Linux and MacOs are still untested and work in progress__
+**NOTE:** Please, keep in mind Mac & Linux is fully untested!
+
+**[Download the latest release here](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest)**
+
+### Developers (Running from Source)
+
+- **Build Guide**: See [docs/tutorials/02-build-guide.md](docs/tutorials/02-build-guide.md)
 
 ***
 
@@ -338,21 +194,6 @@ If OS keyring is unavailable:
 - **Machine-locked**: Cookies can only be decrypted on the same machine by the same user
 - **Zero configuration**: Works automatically, no setup required
 - **New sessions protected**: All newly saved sessions are encrypted immediately
-
-***
-
-## Route Optimization Detection & Tracking
-
-**Sub-Optimal Route Detection**
-
-The application analyzes harbor fees and earnings for each route to identify potentially sub-optimal routes. When a route's harbor fees significantly reduce profitability, this indicates the route might not be optimal for that vessel.
-
-When a sub-optimal route is detected during AutoPilot vessel departure, the application:
-- Shows a warning side notification with route details
-- Logs the transaction to the logbook with "⚠️ WARNING" status
-- Preserves departure details for route optimization analysis
-- Helps you identify which routes need optimization
-- Allows you to adjust routes for better profitability
 
 ***
 

@@ -223,6 +223,14 @@ export function registerVesselCatalogEventListeners(handlers, settings) {
   // Buy vessels overlay wrapper
   window.showBuyVesselsOverlay = async () => {
     await updateBunkerStatus(settings);
+
+    // Set tanker checkbox based on company type (only check if user has tanker ops)
+    const tankerCheckbox = document.querySelector('#filterDropdownMenu input[value="tanker"]');
+    if (tankerCheckbox) {
+      const hasTanker = window.USER_COMPANY_TYPE && window.USER_COMPANY_TYPE.includes('tanker');
+      tankerCheckbox.checked = hasTanker;
+    }
+
     document.getElementById('buyVesselsOverlay').classList.remove('hidden');
     await loadAcquirableVessels();
   };
@@ -368,7 +376,8 @@ export function registerAutoPilotListeners(settings, toggleAutoPilotAgentCheckbo
     'notifyReputationChiefInApp', 'notifyReputationChiefDesktop',
     'notifyFairHandInApp', 'notifyFairHandDesktop',
     'notifyHarbormasterInApp', 'notifyHarbormasterDesktop',
-    'notifyCaptainBlackbeardInApp', 'notifyCaptainBlackbeardDesktop'
+    'notifyCaptainBlackbeardInApp', 'notifyCaptainBlackbeardDesktop',
+    'notifyThePurserInApp', 'notifyThePurserDesktop'
   ];
 
   agentNotificationIds.forEach(id => {
@@ -425,6 +434,28 @@ export function registerAutoRebuyFuelListeners(settings) {
     this.value = formatNumberWithSeparator(settings.autoRebuyFuelMinCash);
     saveSettings(settings);
   });
+
+  // Emergency Buy Override
+  document.getElementById('autoRebuyFuelEmergency').addEventListener('change', function() {
+    settings.autoRebuyFuelEmergency = this.checked;
+    document.getElementById('autoRebuyFuelEmergencyOptions').classList.toggle('hidden', !this.checked);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoRebuyFuelEmergencyBelow').addEventListener('change', function() {
+    settings.autoRebuyFuelEmergencyBelow = parseInt(this.value);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoRebuyFuelEmergencyShips').addEventListener('change', function() {
+    settings.autoRebuyFuelEmergencyShips = parseInt(this.value);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoRebuyFuelEmergencyMaxPrice').addEventListener('change', function() {
+    settings.autoRebuyFuelEmergencyMaxPrice = parseInt(this.value);
+    saveSettings(settings);
+  });
 }
 
 /**
@@ -468,6 +499,28 @@ export function registerAutoRebuyCO2Listeners(settings) {
   document.getElementById('autoRebuyCO2MinCash').addEventListener('change', function() {
     settings.autoRebuyCO2MinCash = parseInt(this.value.replace(/,/g, ''));
     this.value = formatNumberWithSeparator(settings.autoRebuyCO2MinCash);
+    saveSettings(settings);
+  });
+
+  // Emergency Buy Override
+  document.getElementById('autoRebuyCO2Emergency').addEventListener('change', function() {
+    settings.autoRebuyCO2Emergency = this.checked;
+    document.getElementById('autoRebuyCO2EmergencyOptions').classList.toggle('hidden', !this.checked);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoRebuyCO2EmergencyBelow').addEventListener('change', function() {
+    settings.autoRebuyCO2EmergencyBelow = parseInt(this.value);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoRebuyCO2EmergencyShips').addEventListener('change', function() {
+    settings.autoRebuyCO2EmergencyShips = parseInt(this.value);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoRebuyCO2EmergencyMaxPrice').addEventListener('change', function() {
+    settings.autoRebuyCO2EmergencyMaxPrice = parseInt(this.value);
     saveSettings(settings);
   });
 }
@@ -585,6 +638,46 @@ export function registerAutoPilotFeatureListeners(settings) {
     document.getElementById('autoNegotiateOptions').classList.toggle('hidden', !this.checked);
     saveSettings(settings);
     updatePageTitle(settings);
+  });
+
+  // The Purser (Auto Stock Trading)
+  document.getElementById('autoPurserEnabled').addEventListener('change', function() {
+    settings.autoPurserEnabled = this.checked;
+    document.getElementById('autoPurserOptions').classList.toggle('hidden', !this.checked);
+    saveSettings(settings);
+    updatePageTitle(settings);
+  });
+
+  document.getElementById('autoPurserMinCash').addEventListener('change', function() {
+    const value = parseInt(this.value.replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(value) && value >= 0) {
+      settings.autoPurserMinCash = value;
+      saveSettings(settings);
+    }
+  });
+
+  document.getElementById('autoPurserMaxPrice').addEventListener('change', function() {
+    const value = parseInt(this.value.replace(/[^0-9]/g, ''), 10);
+    if (!isNaN(value) && value >= 0) {
+      settings.autoPurserMaxPrice = value;
+      saveSettings(settings);
+    }
+  });
+
+  document.getElementById('autoPurserAutoSellEnabled').addEventListener('change', function() {
+    settings.autoPurserAutoSellEnabled = this.checked;
+    document.getElementById('autoPurserAutoSellOptions').classList.toggle('hidden', !this.checked);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoPurserFallingDays').addEventListener('change', function() {
+    settings.autoPurserFallingDays = parseInt(this.value, 10);
+    saveSettings(settings);
+  });
+
+  document.getElementById('autoPurserDropPercent').addEventListener('change', function() {
+    settings.autoPurserDropPercent = parseInt(this.value, 10);
+    saveSettings(settings);
   });
 
   // Desktop notifications

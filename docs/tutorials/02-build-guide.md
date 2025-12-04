@@ -43,11 +43,6 @@ pip install pywin32 cryptography keyring pystray pillow requests urllib3
 pip install keyring cryptography pystray pillow requests urllib3
 ```
 
-**Optional (for demo/screenshots):**
-```bash
-pip install selenium opencv-python
-```
-
 ### Node.js Dependencies
 
 ```bash
@@ -279,19 +274,21 @@ git push origin main --tags
 
 ### What Happens Next
 
-When you push a tag matching `v*.*.*`:
+When you push a tag matching `v*`:
 
-1. **GitHub Actions Triggers** (`.github/workflows/release.yml`)
-2. **Installs Dependencies:**
-   - Node.js 20
-   - Python 3.11
-   - .NET 8.0 SDK
-   - PyInstaller, pkg
-3. **Runs Build:** `npm run build:all`
-4. **Creates GitHub Release** with the tag name
-5. **Uploads Release Assets:**
-   - `ShippingManagerCoPilot-Installer-v{version}.exe`
-   - `checksums.txt` (SHA256 hash)
+1. **GitHub Actions Triggers** (`.github/workflows/build-multiplatform.yml`)
+2. **Builds for all platforms in parallel:**
+   - Windows (full features with Steam integration)
+   - macOS Intel (x64)
+   - macOS Apple Silicon (arm64)
+   - Linux (x64)
+3. **Creates GitHub Release** with all platform builds
+4. **Uploads Release Assets:**
+   - `ShippingManagerCoPilot-Installer-*.exe` (Windows)
+   - `ShippingManagerCoPilot-macos-x64.dmg` (macOS Intel)
+   - `ShippingManagerCoPilot-macos-arm64.dmg` (macOS Apple Silicon)
+   - `ShippingManagerCoPilot-linux-x64.tar.gz` (Linux)
+   - Checksums for each platform
 
 ### Testing Before Release
 
@@ -310,10 +307,16 @@ type dist\checksums.txt
 
 ### Release Asset Distribution
 
-Users download **only the installer** from GitHub Releases:
-- No ZIP files (installer handles extraction)
-- SHA256 checksum included for verification
-- Installer is self-contained (includes .NET runtime)
+Downloads available per platform:
+
+| Platform | File | Notes |
+|----------|------|-------|
+| Windows | `.exe` installer | Full features (Steam + Browser login) |
+| macOS Intel | `.dmg` | Browser login only |
+| macOS Apple Silicon | `.dmg` | Browser login only (M1/M2/M3) |
+| Linux | `.tar.gz` | Browser login only |
+
+SHA256 checksums are provided for verification.
 
 ### Version Management
 
@@ -324,23 +327,18 @@ Version is defined in `package.json` (single source of truth):
 
 ### CI/CD Workflow
 
-The GitHub Actions workflow (`.github/workflows/release.yml`) runs on:
-- **Trigger:** Tag push matching `v*.*.*`
-- **Runner:** Windows (required for .NET builds)
-- **Build Time:** ~10-15 minutes
-- **Output:** Release with installer attached
+The GitHub Actions workflow (`.github/workflows/build-multiplatform.yml`) runs on:
+- **Trigger:** Tag push matching `v*` or manual dispatch
+- **Runners:** Windows, macOS (Intel + ARM64), Linux
+- **Build Time:** ~15-20 minutes (parallel builds)
+- **Output:** Multi-platform release with all builds attached
 
-**Workflow Steps:**
-```yaml
-- Checkout code
-- Setup Node.js 20
-- Setup Python 3.11
-- Setup .NET 8.0 SDK
-- Install dependencies (npm, pip)
-- Run build:all
-- Create GitHub Release
-- Upload installer + checksums
-```
+**Build Jobs:**
+- `build-windows` - Windows installer with .NET SDK
+- `build-macos` - macOS Intel DMG
+- `build-macos-arm64` - macOS Apple Silicon DMG
+- `build-linux` - Linux tarball
+- `create-release` - Combines all artifacts into GitHub Release
 
 ## Support
 

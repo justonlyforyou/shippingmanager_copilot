@@ -155,7 +155,7 @@
 .ceo-level-badge__svg {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4));
+  filter: drop-shadow(0 2px 3px rgb(0, 0, 0, 0.4));
   overflow: visible;
 }
 
@@ -171,16 +171,17 @@
   font-size: var(--font-size-14);
   font-weight: var(--font-weight-black);
   color: var(--color-white);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgb(0, 0, 0, 0.5);
 }
 
 /* Staff training points available - pulsing glow animation */
 @keyframes staff-points-glow {
   0%, 100% {
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 4px var(--color-warning));
+    filter: drop-shadow(0 2px 3px rgb(0, 0, 0, 0.4)) drop-shadow(0 0 4px var(--color-warning));
   }
+
   50% {
-    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.4)) drop-shadow(0 0 12px var(--color-warning)) drop-shadow(0 0 20px var(--color-warning-light));
+    filter: drop-shadow(0 2px 3px rgb(0, 0, 0, 0.4)) drop-shadow(0 0 12px var(--color-warning)) drop-shadow(0 0 20px var(--color-warning-light));
   }
 }
 
@@ -212,7 +213,12 @@
 }
 
 /* Type-specific colors */
-.header-info-points .header-info-icon,
+.header-info-points .header-info-icon {
+  color: var(--color-warning-light);
+  position: relative;
+  top: -1px;
+}
+
 .header-info-points .header-info-value {
   color: var(--color-warning-light);
 }
@@ -332,9 +338,9 @@
 
 /* Fuel Button Fill Levels (Background/Border based on tank level) */
 .fuel-btn-empty {
-  background: rgba(220, 38, 38, 0.15) !important;
-  border-color: rgba(220, 38, 38, 0.6) !important;
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), inset 0 0 20px rgba(220, 38, 38, 0.1) !important;
+  background: rgb(220, 38, 38, 0.15) !important;
+  border-color: rgb(220, 38, 38, 0.6) !important;
+  box-shadow: 0 0 20px rgb(220, 38, 38, 0.4), inset 0 0 20px rgb(220, 38, 38, 0.1) !important;
   animation: pulse-glow var(--anim-duration-medium) ease-in-out infinite !important;
 }
 
@@ -380,9 +386,9 @@
 
 /* CO2 Button Fill Levels (Background/Border based on tank level) */
 .co2-btn-empty {
-  background: rgba(153, 27, 27, 0.3) !important;
-  border-color: rgba(220, 38, 38, 0.6) !important;
-  box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), inset 0 0 20px rgba(220, 38, 38, 0.1) !important;
+  background: rgb(153, 27, 27, 0.3) !important;
+  border-color: rgb(220, 38, 38, 0.6) !important;
+  box-shadow: 0 0 20px rgb(220, 38, 38, 0.4), inset 0 0 20px rgb(220, 38, 38, 0.1) !important;
   animation: pulse-glow-red var(--anim-duration-medium) ease-in-out infinite !important;
 }
 
@@ -626,7 +632,7 @@
 .megaphone-btn:hover .sound-waves::after {
   content: '';
   position: absolute;
-  border: 1.5px solid currentColor;
+  border: 1.5px solid currentcolor;
   border-left: none;
   border-radius: 0 50% 50% 0;
   opacity: 0;

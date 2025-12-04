@@ -63,11 +63,27 @@ function saveToHistory(userId, caseId, entry, metadata = {}) {
 }
 
 /**
- * Process a single hijacking case with exactly 2 counter-offers then accept.
+ * Wait for specified milliseconds.
+ */
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Process a single hijacking case with strict verification after each step.
+ * Flow:
+ * 1. Get case, make 1st offer (25%)
+ * 2. WAIT 2 MINUTES
+ * 3. Verify response matches current case demand
+ * 4. Make 2nd offer (25%)
+ * 5. WAIT 2 MINUTES
+ * 6. Verify response matches current case demand
+ * 7. Check balance, pay if sufficient
+ * 8. Verify payment was deducted
  */
 async function processHijackingCase(userId, caseId, vesselName, userVesselId, broadcastToUser) {
   const OFFER_PERCENTAGE = 0.25;
-  const MAX_COUNTER_OFFERS = 2;
+  const WAIT_TIME_MS = 2 * 60 * 1000; // 2 minutes
 
   logger.info(`[Blackbeard] Processing case ${caseId} for ${vesselName}...`);
 
@@ -78,11 +94,11 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
     return { success: false, reason: 'failed_to_get_case' };
   }
 
-  let currentPrice = caseResponse.data.requested_amount;
-  const initialDemand = currentPrice;
+  let currentDemand = caseResponse.data.requested_amount;
+  const initialDemand = currentDemand;
   const status = caseResponse.data.status;
 
-  logger.info(`[Blackbeard] Case ${caseId}: Initial demand $${currentPrice}, status=${status}`);
+  logger.info(`[Blackbeard] Case ${caseId}: Initial demand $${currentDemand}, status=${status}`);
 
   // Check if already resolved
   if (status === 'solved' || status === 'paid') {
@@ -93,7 +109,7 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
   // Save initial pirate demand to history
   saveToHistory(userId, caseId, {
     type: 'pirate',
-    amount: currentPrice,
+    amount: currentDemand,
     timestamp: Date.now() / 1000
   });
 
@@ -101,82 +117,138 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
   if (broadcastToUser) {
     broadcastToUser(userId, 'notification', {
       type: 'info',
-      message: `<p><strong>Captain Blackbeard</strong></p><p>Negotiating for ${vesselName}...<br>Pirate demand: $${currentPrice.toLocaleString()}</p>`
+      message: `<p><strong>Captain Blackbeard</strong></p><p>Negotiating for ${vesselName}...<br>Pirate demand: $${currentDemand.toLocaleString()}</p>`
     });
   }
 
-  // Step 2: Make exactly 2 counter-offers
-  for (let offerNum = 1; offerNum <= MAX_COUNTER_OFFERS; offerNum++) {
-    const offerAmount = Math.floor(currentPrice * OFFER_PERCENTAGE);
+  // ========== FIRST OFFER ==========
+  const offer1Amount = Math.floor(currentDemand * OFFER_PERCENTAGE);
+  logger.info(`[Blackbeard] Case ${caseId}: Offer 1: $${offer1Amount} (25% of $${currentDemand})`);
 
-    logger.info(`[Blackbeard] Case ${caseId}: Counter-offer ${offerNum}/${MAX_COUNTER_OFFERS}: $${offerAmount} (25% of $${currentPrice})`);
+  const offer1Response = await apiCall('/hijacking/submit-offer', 'POST', {
+    case_id: caseId,
+    amount: offer1Amount
+  });
 
-    // Submit offer - API returns pirate counter IMMEDIATELY
-    const offerResponse = await apiCall('/hijacking/submit-offer', 'POST', {
-      case_id: caseId,
-      amount: offerAmount
-    });
-
-    if (!offerResponse) {
-      logger.error(`[Blackbeard] Case ${caseId}: Failed to submit offer ${offerNum}`);
-      return { success: false, reason: 'failed_to_submit_offer' };
-    }
-
-    // Save our offer to history
-    saveToHistory(userId, caseId, {
-      type: 'user',
-      amount: offerAmount,
-      timestamp: Date.now() / 1000
-    });
-
-    // Get pirate's counter-offer from response (IMMEDIATE - no waiting!)
-    const pirateCounter = offerResponse.data?.requested_amount;
-
-    if (!pirateCounter) {
-      logger.error(`[Blackbeard] Case ${caseId}: API did not return counter-offer`);
-      return { success: false, reason: 'no_counter_offer' };
-    }
-
-    logger.info(`[Blackbeard] Case ${caseId}: Pirate counter: $${pirateCounter}`);
-
-    // Save pirate counter to history
-    saveToHistory(userId, caseId, {
-      type: 'pirate',
-      amount: pirateCounter,
-      timestamp: Date.now() / 1000
-    });
-
-    // Update current price for next iteration
-    currentPrice = pirateCounter;
-
-    // Notify frontend of progress
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'hijacking_update', {
-        action: 'counter_offer_made',
-        data: {
-          case_id: caseId,
-          offer_number: offerNum,
-          our_offer: offerAmount,
-          pirate_counter: pirateCounter
-        }
-      });
-    }
+  if (!offer1Response) {
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to submit offer 1`);
+    return { success: false, reason: 'failed_to_submit_offer_1' };
   }
 
-  // Step 3: ACCEPT the final pirate price (pay ransom)
-  logger.info(`[Blackbeard] Case ${caseId}: Accepting final price $${currentPrice}`);
+  const offer1PirateCounter = offer1Response.data?.requested_amount;
+  if (!offer1PirateCounter) {
+    logger.error(`[Blackbeard] Case ${caseId}: No counter-offer in response 1`);
+    return { success: false, reason: 'no_counter_offer_1' };
+  }
 
-  // Get fresh case data with user cash BEFORE payment
+  // Save our offer and pirate counter to history
+  saveToHistory(userId, caseId, {
+    type: 'user',
+    amount: offer1Amount,
+    timestamp: Date.now() / 1000
+  });
+  saveToHistory(userId, caseId, {
+    type: 'pirate',
+    amount: offer1PirateCounter,
+    timestamp: Date.now() / 1000
+  });
+
+  logger.info(`[Blackbeard] Case ${caseId}: Pirate counter 1: $${offer1PirateCounter}`);
+  logger.info(`[Blackbeard] Case ${caseId}: Waiting 2 minutes before verification...`);
+
+  if (broadcastToUser) {
+    broadcastToUser(userId, 'hijacking_update', {
+      action: 'counter_offer_made',
+      data: { case_id: caseId, offer_number: 1, our_offer: offer1Amount, pirate_counter: offer1PirateCounter }
+    });
+  }
+
+  // WAIT 2 MINUTES
+  await wait(WAIT_TIME_MS);
+
+  // VERIFY: Re-fetch case and check demand matches
   caseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
   if (!caseResponse || !caseResponse.data) {
-    logger.error(`[Blackbeard] Case ${caseId}: Failed to get case data before payment`);
-    return { success: false, reason: 'failed_to_get_case_before_payment' };
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to verify case after offer 1`);
+    return { success: false, reason: 'failed_to_verify_after_offer_1' };
   }
 
-  const cashBefore = caseResponse.user?.cash;
-  const finalPrice = caseResponse.data.requested_amount;
+  const verifiedDemand1 = caseResponse.data.requested_amount;
+  if (verifiedDemand1 !== offer1PirateCounter) {
+    logger.error(`[Blackbeard] Case ${caseId}: VERIFICATION FAILED after offer 1! Response: $${offer1PirateCounter}, Case: $${verifiedDemand1}`);
+    return { success: false, reason: 'verification_mismatch_offer_1', expected: offer1PirateCounter, actual: verifiedDemand1 };
+  }
 
-  // Verify we have enough cash
+  logger.info(`[Blackbeard] Case ${caseId}: Verification 1 PASSED - demand matches: $${verifiedDemand1}`);
+  currentDemand = verifiedDemand1;
+
+  // ========== SECOND OFFER ==========
+  const offer2Amount = Math.floor(currentDemand * OFFER_PERCENTAGE);
+  logger.info(`[Blackbeard] Case ${caseId}: Offer 2: $${offer2Amount} (25% of $${currentDemand})`);
+
+  const offer2Response = await apiCall('/hijacking/submit-offer', 'POST', {
+    case_id: caseId,
+    amount: offer2Amount
+  });
+
+  if (!offer2Response) {
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to submit offer 2`);
+    return { success: false, reason: 'failed_to_submit_offer_2' };
+  }
+
+  const offer2PirateCounter = offer2Response.data?.requested_amount;
+  if (!offer2PirateCounter) {
+    logger.error(`[Blackbeard] Case ${caseId}: No counter-offer in response 2`);
+    return { success: false, reason: 'no_counter_offer_2' };
+  }
+
+  // Save our offer and pirate counter to history
+  saveToHistory(userId, caseId, {
+    type: 'user',
+    amount: offer2Amount,
+    timestamp: Date.now() / 1000
+  });
+  saveToHistory(userId, caseId, {
+    type: 'pirate',
+    amount: offer2PirateCounter,
+    timestamp: Date.now() / 1000
+  });
+
+  logger.info(`[Blackbeard] Case ${caseId}: Pirate counter 2 (FINAL): $${offer2PirateCounter}`);
+  logger.info(`[Blackbeard] Case ${caseId}: Waiting 2 minutes before verification...`);
+
+  if (broadcastToUser) {
+    broadcastToUser(userId, 'hijacking_update', {
+      action: 'counter_offer_made',
+      data: { case_id: caseId, offer_number: 2, our_offer: offer2Amount, pirate_counter: offer2PirateCounter }
+    });
+  }
+
+  // WAIT 2 MINUTES
+  await wait(WAIT_TIME_MS);
+
+  // VERIFY: Re-fetch case and check demand matches
+  caseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
+  if (!caseResponse || !caseResponse.data) {
+    logger.error(`[Blackbeard] Case ${caseId}: Failed to verify case after offer 2`);
+    return { success: false, reason: 'failed_to_verify_after_offer_2' };
+  }
+
+  const verifiedDemand2 = caseResponse.data.requested_amount;
+  if (verifiedDemand2 !== offer2PirateCounter) {
+    logger.error(`[Blackbeard] Case ${caseId}: VERIFICATION FAILED after offer 2! Response: $${offer2PirateCounter}, Case: $${verifiedDemand2}`);
+    return { success: false, reason: 'verification_mismatch_offer_2', expected: offer2PirateCounter, actual: verifiedDemand2 };
+  }
+
+  logger.info(`[Blackbeard] Case ${caseId}: Verification 2 PASSED - demand matches: $${verifiedDemand2}`);
+
+  // ========== PAYMENT ==========
+  const finalPrice = verifiedDemand2;
+  const cashBefore = caseResponse.user?.cash;
+
+  logger.info(`[Blackbeard] Case ${caseId}: Ready to pay $${finalPrice}. Cash before: $${cashBefore}`);
+
+  // Check if we have enough cash
   if (cashBefore < finalPrice) {
     logger.warn(`[Blackbeard] Case ${caseId}: Insufficient funds - need $${finalPrice}, have $${cashBefore}`);
 
@@ -198,37 +270,55 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
     return { success: false, reason: 'failed_to_pay' };
   }
 
-  // Get cash AFTER payment for verification
-  const cashAfter = payResponse.user?.cash;
-  const actualPaid = cashBefore - cashAfter;
-  const verified = (actualPaid === finalPrice);
+  // IMMEDIATELY check cash after payment for verification
+  const cashAfterFromResponse = payResponse.user?.cash;
+  const actualPaidFromResponse = cashBefore - cashAfterFromResponse;
 
-  logger.info(`[Blackbeard] Case ${caseId}: Payment verification - Expected: $${finalPrice}, Actual: $${actualPaid}, Verified: ${verified}`);
+  logger.info(`[Blackbeard] Case ${caseId}: Payment made. Cash after (response): $${cashAfterFromResponse}, Deducted: $${actualPaidFromResponse}`);
 
-  // Save resolution to history (same format as manual)
+  // WAIT 2 MINUTES before final verification
+  logger.info(`[Blackbeard] Case ${caseId}: Waiting 2 minutes before final payment verification...`);
+  await wait(WAIT_TIME_MS);
+
+  // FINAL VERIFICATION: Re-fetch case to confirm payment
+  const finalCaseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
+  const finalStatus = finalCaseResponse?.data?.status;
+  const cashAfterVerified = finalCaseResponse?.user?.cash;
+  const actualPaidVerified = cashBefore - cashAfterVerified;
+
+  const paymentVerified = (actualPaidVerified === finalPrice) && (finalStatus === 'solved' || finalStatus === 'paid');
+
+  logger.info(`[Blackbeard] Case ${caseId}: FINAL VERIFICATION - Status: ${finalStatus}, Expected: $${finalPrice}, Actual: $${actualPaidVerified}, Verified: ${paymentVerified}`);
+
+  // Save resolution to history
   saveToHistory(userId, caseId, null, {
     autopilot_resolved: true,
     resolved_at: Date.now() / 1000,
     vessel_name: vesselName,
     user_vessel_id: userVesselId,
     payment_verification: {
-      verified: verified,
+      verified: paymentVerified,
       expected_amount: finalPrice,
-      actual_paid: actualPaid,
+      actual_paid: actualPaidVerified,
       cash_before: cashBefore,
-      cash_after: cashAfter
+      cash_after: cashAfterVerified,
+      final_status: finalStatus
     }
   });
 
-  // Notify frontend
+  // Notify frontend with Blackbeard's signature
   if (broadcastToUser) {
-    const verificationMsg = verified
+    const verificationMsg = paymentVerified
       ? `<span style="color: #4ade80;">Payment verified</span>`
       : `<span style="color: #ef4444;">Payment verification FAILED</span>`;
 
+    const signature = paymentVerified
+      ? `<br><br><em style="color: #9ca3af;">~ Captain Blackbeard</em>`
+      : '';
+
     broadcastToUser(userId, 'notification', {
-      type: verified ? 'success' : 'warning',
-      message: `<p><strong>Captain Blackbeard</strong></p><p>${vesselName} released!<br>Initial demand: $${initialDemand.toLocaleString()}<br>Final payment: $${actualPaid.toLocaleString()}<br>${verificationMsg}</p>`
+      type: paymentVerified ? 'success' : 'warning',
+      message: `<p><strong>Captain Blackbeard</strong></p><p>${vesselName} released!<br>Initial demand: $${initialDemand.toLocaleString()}<br>Final payment: $${actualPaidVerified.toLocaleString()}<br>${verificationMsg}${signature}</p>`
     });
 
     broadcastToUser(userId, 'hijacking_update', {
@@ -237,8 +327,8 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
         case_id: caseId,
         vessel_name: vesselName,
         initial_demand: initialDemand,
-        final_payment: actualPaid,
-        verified: verified
+        final_payment: actualPaidVerified,
+        verified: paymentVerified
       }
     });
   }
@@ -248,26 +338,27 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
     userId,
     CATEGORIES.HIJACKING,
     'Captain Blackbeard',
-    `${vesselName} | Initial: ${formatCurrency(initialDemand)} | Paid: ${formatCurrency(actualPaid)}`,
+    `${vesselName} | Initial: ${formatCurrency(initialDemand)} | Paid: ${formatCurrency(actualPaidVerified)}${paymentVerified ? ' | VERIFIED' : ' | UNVERIFIED'}`,
     {
       caseId,
       vesselName,
       initialDemand,
-      finalPayment: actualPaid,
-      counterOffersMade: MAX_COUNTER_OFFERS,
-      verified,
+      finalPayment: actualPaidVerified,
+      counterOffersMade: 2,
+      verified: paymentVerified,
       cashBefore,
-      cashAfter
+      cashAfter: cashAfterVerified,
+      finalStatus
     },
-    verified ? 'SUCCESS' : 'WARNING',
+    paymentVerified ? 'SUCCESS' : 'WARNING',
     SOURCES.AUTOPILOT
   );
 
   return {
     success: true,
     initialDemand,
-    finalPayment: actualPaid,
-    verified
+    finalPayment: actualPaidVerified,
+    verified: paymentVerified
   };
 }
 

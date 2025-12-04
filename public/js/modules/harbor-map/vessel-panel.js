@@ -9,6 +9,7 @@
 import { fetchVesselHistory, exportVesselHistory } from './api-client.js';
 import { deselectAll, getMap, getVesselById } from './map-controller.js';
 import { isMobileDevice, escapeHtml, showSideNotification } from '../utils.js';
+import { isDepartInProgress } from '../vessel-management.js';
 
 /**
  * Converts country code to flag emoji
@@ -1061,11 +1062,19 @@ async function processDepartureQueue() {
       if (result.departedCount > 0) {
         console.log(`[Vessel Panel] Vessel ${vesselId} departed successfully`);
         resolve(result);
-      } else if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
-        // Vessel failed to depart - show detailed error like Depart Manager does
-        const failed = result.failedVessels[0];
-        const vesselName = failed.name ? failed.name.replace(/^(MV|MS|MT|SS)\s+/i, '') : `Vessel ${vesselId}`;
-        const reason = failed.reason || 'Unknown error';
+      } else {
+        // Vessel failed to depart - extract error info
+        let vesselName = `Vessel ${vesselId}`;
+        let reason = 'Unknown error';
+
+        if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
+          const failed = result.failedVessels[0];
+          vesselName = failed.name ? failed.name.replace(/^(MV|MS|MT|SS)\s+/i, '') : vesselName;
+          reason = failed.reason || reason;
+        } else {
+          // Fallback for unexpected response format
+          reason = result.message || result.reason || reason;
+        }
 
         console.error(`[Vessel Panel] Failed to depart vessel ${vesselId}:`, reason);
 
@@ -1080,12 +1089,6 @@ async function processDepartureQueue() {
         `, 'error', 10000);
 
         reject(new Error(reason));
-      } else {
-        // Fallback for unexpected response format
-        const errorMsg = result.message || result.reason || 'Unknown error';
-        console.error(`[Vessel Panel] Failed to depart vessel ${vesselId}:`, errorMsg);
-        showSideNotification(`Failed to depart vessel: ${errorMsg}`, 'error');
-        reject(new Error(errorMsg));
       }
     } catch (error) {
       console.error(`[Vessel Panel] Error departing vessel ${vesselId}:`, error);
@@ -1112,6 +1115,12 @@ async function processDepartureQueue() {
  * await departVessel(1234);
  */
 export async function departVessel(vesselId) {
+  // Check if departure is already in progress (server lock active)
+  if (isDepartInProgress()) {
+    showSideNotification('Departure in progress - please wait', 'warning');
+    return;
+  }
+
   // Immediately disable depart button in vessel panel
   const departBtn = document.querySelector(`.depart-vessel-btn[data-vessel-id="${vesselId}"]`);
   if (departBtn) {
@@ -1187,11 +1196,37 @@ export async function departVessel(vesselId) {
     }
 
     return result;
-  }).catch(error => {
+  }).catch(() => {
     // Error already handled and shown as side notification in processDepartureQueue
-    console.error('[Vessel Panel] Departure failed:', error);
+    // No additional logging needed here
   });
 }
+
+/**
+ * Update all vessel panel depart buttons based on server lock state
+ * Called from vessel-management.js when lock state changes
+ */
+export function updateVesselPanelDepartButtons() {
+  const isLocked = isDepartInProgress();
+  const departButtons = document.querySelectorAll('.depart-vessel-btn');
+
+  departButtons.forEach(btn => {
+    const vesselId = btn.dataset.vesselId;
+    if (isLocked) {
+      btn.classList.add('disabled');
+      btn.onclick = null;
+      btn.title = 'Depart in progress - please wait';
+    } else {
+      // Re-enable if vessel is at port - status will be checked on click
+      btn.classList.remove('disabled');
+      btn.title = 'Depart vessel from port';
+      btn.onclick = () => window.harborMap.departVessel(parseInt(vesselId));
+    }
+  });
+}
+
+// Expose to window for cross-module access
+window.updateVesselPanelDepartButtons = updateVesselPanelDepartButtons;
 
 
 /**
@@ -1359,6 +1394,11 @@ export async function sellVesselFromPanel(vesselId, vesselName) {
     // Update vessel count badge
     if (window.updateVesselCount) {
       await window.updateVesselCount();
+    }
+
+    // Refresh harbor map to remove sold vessel from rawVessels
+    if (window.harborMap && window.harborMap.forceRefresh) {
+      await window.harborMap.forceRefresh();
     }
 
     // NOTE: Success notification is shown via WebSocket (user_action_notification)

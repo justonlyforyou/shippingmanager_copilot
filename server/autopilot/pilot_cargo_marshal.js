@@ -374,16 +374,12 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         const vesselCapacity = getTotalCapacity(vessel);
 
         // OPTIMIZATION: Skip vessels that previously failed fuel check (unless fuel increased)
+        // Do NOT add to failedVessels - already reported on first failure
         const vesselCache = fuelFailedVesselsCache.get(userId) || new Map();
         const cachedFailure = vesselCache.get(vessel.id);
 
         if (cachedFailure) {
           logger.debug(`[Depart] ${vessel.name}: Skipping - already checked with insufficient fuel (need ${cachedFailure.requiredFuel.toFixed(1)}t, had ${cachedFailure.fuelLevel.toFixed(1)}t)`);
-          failedVessels.push({
-            name: vessel.name,
-            destination: destination,
-            reason: `Insufficient fuel: need ${cachedFailure.requiredFuel.toFixed(1)}t, have ${bunker.fuel.toFixed(1)}t (cached)`
-          });
           continue;
         }
 

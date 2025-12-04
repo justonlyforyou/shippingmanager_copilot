@@ -96,8 +96,35 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
 
     logger.debug(`[Auto-Rebuy Fuel] Threshold check: Price $${prices.fuel}/t vs Threshold $${threshold}/t (UseAlert=${settings.autoRebuyFuelUseAlert})`);
 
-    // Check if price is at or below threshold
-    if (prices.fuel > threshold) {
+    // Check for emergency buy override conditions
+    let isEmergencyBuy = false;
+    if (settings.autoRebuyFuelEmergency) {
+      const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
+      const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
+      const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
+
+      // Check if bunker is below emergency threshold
+      if (bunker.fuel < emergencyBelowThreshold) {
+        // Count vessels at port
+        const vessels = await gameapi.fetchVessels();
+        const shipsAtPort = vessels.filter(v => v.status === 'port').length;
+
+        logger.debug(`[Auto-Rebuy Fuel] Emergency check: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ShipsAtPort=${shipsAtPort} >= ${emergencyShipsRequired}?`);
+
+        if (shipsAtPort >= emergencyShipsRequired) {
+          // Check if price is within emergency max price limit
+          if (prices.fuel <= emergencyMaxPrice) {
+            isEmergencyBuy = true;
+            logger.info(`[Auto-Rebuy Fuel] EMERGENCY BUY TRIGGERED: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t AND ${shipsAtPort} ships at port >= ${emergencyShipsRequired} (Price $${prices.fuel} <= MaxPrice $${emergencyMaxPrice})`);
+          } else {
+            logger.warn(`[Auto-Rebuy Fuel] Emergency conditions met but price too high: $${prices.fuel}/t > MaxPrice $${emergencyMaxPrice}/t`);
+          }
+        }
+      }
+    }
+
+    // Check if price is at or below threshold (unless emergency buy)
+    if (!isEmergencyBuy && prices.fuel > threshold) {
       logger.debug(`[Auto-Rebuy Fuel] Price too high: $${prices.fuel}/t > $${threshold}/t threshold`);
       return;
     }
@@ -154,7 +181,8 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
         amount: amountToBuy,
         price: prices.fuel,
         newTotal: result.newTotal,
-        cost: result.cost
+        cost: result.cost,
+        isEmergency: isEmergencyBuy
       });
 
       // Broadcast updated bunker state (fuel AND cash changed)
@@ -170,17 +198,22 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
     logger.info(`[Auto-Rebuy Fuel] Purchased ${amountToBuy}t @ $${prices.fuel}/t (New total: ${result.newTotal.toFixed(1)}t)`);
 
     // Log to autopilot logbook
+    const logDescription = isEmergencyBuy
+      ? `EMERGENCY: ${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`
+      : `${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`;
+
     await auditLog(
       userId,
       CATEGORIES.BUNKER,
       'Auto-Fuel',
-      `${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`,
+      logDescription,
       {
         actionTimestamp,
         amount: amountToBuy,
         price: prices.fuel,
         totalCost: result.cost,
-        newTotal: result.newTotal
+        newTotal: result.newTotal,
+        isEmergency: isEmergencyBuy
       },
       'SUCCESS',
       SOURCES.AUTOPILOT

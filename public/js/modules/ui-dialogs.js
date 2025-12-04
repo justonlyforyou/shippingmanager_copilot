@@ -26,12 +26,13 @@ import { fetchCampaigns, activateCampaign, fetchContacts } from './api.js';
 import { showAnchorPurchaseDialog } from './anchor-purchase.js';
 
 /**
- * Shows a customizable confirmation dialog with optional details table.
- * Returns a promise that resolves to true/false based on user choice.
+ * Shows a customizable confirmation dialog with optional details table and checkboxes.
+ * Returns a promise that resolves to true/false or an object with checkbox states.
  *
  * Features:
  * - Custom title and message
  * - Optional details table with label/value pairs
+ * - Optional checkboxes with info tooltips and price adjustments
  * - Affordability check (highlights Total Cost vs Available Cash)
  * - Customizable button text
  * - Click-outside-to-close functionality
@@ -45,11 +46,13 @@ import { showAnchorPurchaseDialog } from './anchor-purchase.js';
  * @param {string} options.title - Dialog title
  * @param {string} [options.message] - Main message text
  * @param {Array<{label: string, value: string}>} [options.details] - Details table rows
+ * @param {Array<{id: string, label: string, cost: number, info: string}>} [options.checkboxes] - Interactive checkboxes
  * @param {string} [options.confirmText='Confirm'] - Confirm button text
  * @param {string} [options.cancelText='Cancel'] - Cancel button text (empty string to hide)
- * @returns {Promise<boolean>} True if confirmed, false if canceled or closed
+ * @returns {Promise<boolean|{confirmed: boolean, checkboxes: Object}>} True/false or object with checkbox states
  *
  * @example
+ * // Simple dialog (returns boolean)
  * const confirmed = await showConfirmDialog({
  *   title: 'Purchase Fuel',
  *   message: 'Buy fuel to fill tank?',
@@ -60,6 +63,20 @@ import { showAnchorPurchaseDialog } from './anchor-purchase.js';
  *     { label: 'Available Cash', value: '$5,000,000' }
  *   ]
  * });
+ *
+ * @example
+ * // Dialog with checkboxes (returns object)
+ * const result = await showConfirmDialog({
+ *   title: 'Build Vessel',
+ *   details: [...],
+ *   checkboxes: [{
+ *     id: 'fastDelivery',
+ *     label: 'Fast delivery via Bug-Using',
+ *     cost: 500000,
+ *     info: 'Triggering drydock immediately reduces delivery time to 1h'
+ *   }]
+ * });
+ * if (result.confirmed && result.checkboxes.fastDelivery) { ... }
  */
 export function showConfirmDialog(options) {
   return new Promise((resolve) => {
@@ -68,6 +85,48 @@ export function showConfirmDialog(options) {
 
     const dialog = document.createElement('div');
     dialog.className = options.narrow ? 'confirm-dialog confirm-dialog-narrow' : 'confirm-dialog';
+
+    // Track checkbox states and costs
+    const checkboxStates = {};
+    const hasCheckboxes = options.checkboxes && options.checkboxes.length > 0;
+    let baseTotalCost = 0;
+
+    // Extract base total cost from details if present
+    if (options.details) {
+      const totalCostRow = options.details.find(d => d.label === 'Total Price' || d.label === 'Total Cost');
+      if (totalCostRow) {
+        const match = totalCostRow.value.match(/[\d,]+/);
+        if (match) {
+          baseTotalCost = parseInt(match[0].replace(/,/g, ''));
+        }
+      }
+    }
+
+    // Generate checkboxes HTML
+    const checkboxesHtml = hasCheckboxes ? `
+      <div class="confirm-dialog-checkboxes">
+        ${options.checkboxes.map(cb => {
+          checkboxStates[cb.id] = false;
+          return `
+            <div class="confirm-dialog-checkbox-row">
+              <label class="confirm-dialog-checkbox-label">
+                <input type="checkbox" id="confirm-cb-${escapeHtml(cb.id)}" data-checkbox-id="${escapeHtml(cb.id)}" data-cost="${cb.cost || 0}">
+                <span>${escapeHtml(cb.label)}${cb.cost ? ` for $${formatNumber(cb.cost)}` : ''}</span>
+              </label>
+              ${cb.info ? `<span class="confirm-dialog-info-icon" data-info="${escapeHtml(cb.info)}" title="Click for info">&#x1F4A1;</span>` : ''}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    ` : '';
+
+    // Generate info popup HTML (standalone info icon without checkbox)
+    const infoPopupHtml = options.infoPopup ? `
+      <div class="confirm-dialog-info-row">
+        <span class="confirm-dialog-info-icon" data-info="${escapeHtml(options.infoPopup)}" title="Click for info">&#x1F4A1;</span>
+        <span class="confirm-dialog-info-hint">Click for details</span>
+      </div>
+    ` : '';
 
     const detailsHtml = options.details ? `
       <div class="confirm-dialog-details">
@@ -94,8 +153,11 @@ export function showConfirmDialog(options) {
           // Add custom className to value span (for price color coding)
           const valueClass = detail.className ? ` ${detail.className}` : '';
 
+          // Add data attribute for dynamic total price updates
+          const dataAttr = (detail.label === 'Total Price' || detail.label === 'Total Cost') ? ' data-total-price="true"' : '';
+
           return `
-            <div class="confirm-dialog-detail-row${rowClass}">
+            <div class="confirm-dialog-detail-row${rowClass}"${dataAttr}>
               <span class="label">${escapeHtml(detail.label)}</span>
               <span class="value${valueClass}">${escapeHtml(detail.value)}</span>
             </div>
@@ -114,6 +176,8 @@ export function showConfirmDialog(options) {
       </div>
       <div class="confirm-dialog-body">
         ${options.message ? options.message : ''}
+        ${infoPopupHtml}
+        ${checkboxesHtml}
         ${detailsHtml}
       </div>
       <div class="confirm-dialog-footer">
@@ -124,6 +188,52 @@ export function showConfirmDialog(options) {
 
     overlay.appendChild(dialog);
     document.body.appendChild(overlay);
+
+    // Handle checkbox changes - update total price
+    if (hasCheckboxes) {
+      dialog.querySelectorAll('input[type="checkbox"][data-checkbox-id]').forEach(cb => {
+        cb.addEventListener('change', () => {
+          const checkboxId = cb.dataset.checkboxId;
+          checkboxStates[checkboxId] = cb.checked;
+
+          // Calculate new total
+          let additionalCost = 0;
+          Object.keys(checkboxStates).forEach(id => {
+            if (checkboxStates[id]) {
+              const checkbox = dialog.querySelector(`input[data-checkbox-id="${id}"]`);
+              additionalCost += parseInt(checkbox?.dataset.cost) || 0;
+            }
+          });
+
+          // Update total price display
+          const totalPriceRow = dialog.querySelector('[data-total-price="true"] .value');
+          if (totalPriceRow && baseTotalCost > 0) {
+            const newTotal = baseTotalCost + additionalCost;
+            totalPriceRow.textContent = `$${formatNumber(newTotal)}`;
+          }
+        });
+      });
+
+      // Handle info icon clicks
+      dialog.querySelectorAll('.confirm-dialog-info-icon').forEach(icon => {
+        icon.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const info = icon.dataset.info;
+          // Toggle info popup
+          let popup = icon.querySelector('.confirm-dialog-info-popup');
+          if (popup) {
+            popup.remove();
+          } else {
+            popup = document.createElement('div');
+            popup.className = 'confirm-dialog-info-popup';
+            popup.textContent = info;
+            icon.appendChild(popup);
+            // Auto-close after 5s
+            setTimeout(() => popup.remove(), 5000);
+          }
+        });
+      });
+    }
 
     // Check if too expensive and disable confirm button
     const tooExpensiveRow = dialog.querySelector('.confirm-dialog-detail-row.too-expensive');
@@ -144,14 +254,26 @@ export function showConfirmDialog(options) {
 
       if (action === 'confirm' || action === 'cancel') {
         document.body.removeChild(overlay);
-        resolve(action === 'confirm');
+        // Return object with checkbox states if checkboxes were present
+        if (hasCheckboxes) {
+          resolve({
+            confirmed: action === 'confirm',
+            checkboxes: checkboxStates
+          });
+        } else {
+          resolve(action === 'confirm');
+        }
       }
     };
 
     overlay.addEventListener('click', (e) => {
       if (e.target === overlay) {
         document.body.removeChild(overlay);
-        resolve(false);
+        if (hasCheckboxes) {
+          resolve({ confirmed: false, checkboxes: checkboxStates });
+        } else {
+          resolve(false);
+        }
       }
     });
 
@@ -272,6 +394,8 @@ export function showSettings(settings) {
   document.getElementById('notifyHarbormasterDesktop').checked = settings.notifyHarbormasterDesktop !== undefined ? settings.notifyHarbormasterDesktop : true;
   document.getElementById('notifyCaptainBlackbeardInApp').checked = settings.notifyCaptainBlackbeardInApp !== undefined ? settings.notifyCaptainBlackbeardInApp : true;
   document.getElementById('notifyCaptainBlackbeardDesktop').checked = settings.notifyCaptainBlackbeardDesktop !== undefined ? settings.notifyCaptainBlackbeardDesktop : true;
+  document.getElementById('notifyThePurserInApp').checked = settings.notifyThePurserInApp !== undefined ? settings.notifyThePurserInApp : true;
+  document.getElementById('notifyThePurserDesktop').checked = settings.notifyThePurserDesktop !== undefined ? settings.notifyThePurserDesktop : true;
 
   // Intelligent Auto-Depart Settings
   const useRouteDefaults = settings.autoDepartUseRouteDefaults !== undefined ? settings.autoDepartUseRouteDefaults : true;

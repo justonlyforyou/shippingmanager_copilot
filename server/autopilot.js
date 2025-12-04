@@ -30,6 +30,7 @@ const { autoCoop } = require('./autopilot/pilot_fair_hand');
 const { autoAnchorPointPurchase, setBroadcastFunction: setHarbormasterBroadcast } = require('./autopilot/pilot_harbormaster');
 const vesselHistoryStore = require('./analytics/vessel-history-store');
 const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
+const { autoBuyStock, autoSellStock } = require('./autopilot/pilot_the_purser');
 
 // WebSocket broadcasting function (injected by websocket.js)
 let broadcastToUser = null;
@@ -884,6 +885,14 @@ async function mainEventLoop() {
 
     // Campaign status update and auto-renewal
     await updateCampaigns();
+
+    // The Purser - Auto stock trading (buy from fresh IPOs, sell falling investments)
+    if (settings.autoPurserEnabled) {
+      await autoBuyStock(autopilotPaused, broadcastToUser, tryUpdateAllData);
+      if (settings.autoPurserAutoSellEnabled) {
+        await autoSellStock(autopilotPaused, broadcastToUser, tryUpdateAllData);
+      }
+    }
 
     // Sync vessel history (incremental - only fetches new departures)
     // This keeps the analytics "Utilization Over Time" chart up-to-date

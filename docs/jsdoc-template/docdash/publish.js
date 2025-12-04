@@ -496,13 +496,23 @@ function buildNav(members) {
         });
     }
 
+    // External URLs for tutorials (defined in tutorials.json)
+    var externalTutorialUrls = {
+        '04-api-reference': 'https://shippingmanager-api-reference.pages.dev/'
+    };
+
     // Build ShippingManager nav
     function buildShippingManagerNav(tutorials) {
         if (!tutorials || !tutorials.length) return '';
         var ret = '<h3>ShippingManager</h3><ul>';
         tutorials.forEach(function(tutorial) {
-            var tutorialUrl = helper.tutorialToUrl(tutorial.name);
-            ret += '<li><a href="' + tutorialUrl + '">' + tutorial.title + '</a></li>';
+            // Check if this tutorial has an external URL
+            if (externalTutorialUrls[tutorial.name]) {
+                ret += '<li><a href="' + externalTutorialUrls[tutorial.name] + '" target="_blank" rel="noopener noreferrer">' + tutorial.title + ' &#8599;</a></li>';
+            } else {
+                var tutorialUrl = helper.tutorialToUrl(tutorial.name);
+                ret += '<li><a href="' + tutorialUrl + '">' + tutorial.title + '</a></li>';
+            }
         });
         ret += '</ul>';
         return ret;

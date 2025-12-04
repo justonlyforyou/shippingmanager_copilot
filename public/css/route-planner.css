@@ -20,7 +20,7 @@
   width: 350px;
   min-width: 310px;
   max-width: 430px;
-  background: rgba(31, 41, 55, 0.92);
+  background: rgb(31, 41, 55, 0.92);
   border-radius: var(--radius-10);
   box-shadow: var(--shadow-modal-dark);
   border: 1px solid var(--color-border);
@@ -39,7 +39,7 @@
    ============================================ */
 
 .route-planner-header {
-  background: rgba(55, 65, 81, 0.9);
+  background: rgb(55, 65, 81, 0.9);
   padding: 0 var(--spacing-15);
   border-radius: var(--radius-10) var(--radius-10) 0 0;
   border-bottom: var(--border-default);
@@ -77,12 +77,12 @@
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-4);
   padding: var(--spacing-4) var(--spacing-6);
-  background: rgba(55, 65, 81, 0.3);
+  background: rgb(55, 65, 81, 0.3);
   border-bottom: var(--border-default);
 }
 
 .route-planner-tab-btn {
-  padding: 2px 2px;
+  padding: 2px;
   font-size: var(--font-size-12);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
@@ -140,7 +140,7 @@
 }
 
 .route-planner-filter-btn {
-  padding: 2px 2px;
+  padding: 2px;
   font-size: var(--font-size-12);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
@@ -178,7 +178,7 @@
 
 .route-planner-selected-info {
   position: relative;
-  background: rgba(55, 65, 81, 0.5);
+  background: rgb(55, 65, 81, 0.5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-6);
   padding: var(--spacing-12);
@@ -285,12 +285,10 @@
   border-radius: var(--radius-3);
   background: var(--color-border);
   outline: none;
-  -webkit-appearance: none;
   appearance: none;
 }
 
 .route-planner-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
   appearance: none;
   width: 16px;
   height: 16px;
@@ -314,12 +312,27 @@
   border: none;
 }
 
+.route-planner-slider:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.route-planner-slider:disabled::-webkit-slider-thumb {
+  background: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
+.route-planner-slider:disabled::-moz-range-thumb {
+  background: var(--color-text-tertiary);
+  cursor: not-allowed;
+}
+
 /* ============================================
    ROUTE TAB - COST DISPLAY
    ============================================ */
 
 .route-planner-cost-info {
-  background: rgba(55, 65, 81, 0.5);
+  background: rgb(55, 65, 81, 0.5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-6);
   padding: var(--spacing-12);
@@ -374,7 +387,7 @@
   font-size: var(--font-size-13);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-  background: rgba(55, 65, 81, 0.6);
+  background: rgb(55, 65, 81, 0.6);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-6);
   cursor: pointer;
@@ -382,7 +395,7 @@
 }
 
 .route-planner-cancel-btn:hover {
-  background: rgba(55, 65, 81, 0.8);
+  background: rgb(55, 65, 81, 0.8);
   color: var(--color-text-primary);
 }
 
@@ -563,12 +576,10 @@
   border-radius: var(--radius-2);
   background: var(--color-border);
   outline: none;
-  -webkit-appearance: none;
   appearance: none;
 }
 
 .route-planner-mini-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
   appearance: none;
   width: 12px;
   height: 12px;
@@ -635,7 +646,7 @@
    ============================================ */
 
 .route-planner-current-route-info {
-  background: rgba(55, 65, 81, 0.5);
+  background: rgb(55, 65, 81, 0.5);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-6);
   padding: var(--spacing-12);
@@ -658,7 +669,7 @@
   gap: var(--spacing-8);
   margin-bottom: var(--spacing-12);
   padding: var(--spacing-8);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgb(0, 0, 0, 0.2);
   border-radius: var(--radius-4);
 }
 

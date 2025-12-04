@@ -65,8 +65,8 @@ brew install libsecret
 ### Step 1: Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/shipping-manager-messenger.git
-cd shipping-manager-messenger
+git clone https://github.com/justonlyforyou/shippingmanager_copilot.git
+cd shippingmanager_copilot
 ```
 
 ### Step 2: Install Node.js Dependencies
@@ -97,14 +97,7 @@ This installs all required Python packages including:
 - `pystray` - System tray icon
 - `pillow` - Image processing
 - `requests` - HTTP client
-- `qrcode[pil]` - QR code generation
 - `psutil` - Process management
-
-**Optional (all platforms):**
-```bash
-# For demo recording and screenshot generation
-pip install selenium opencv-python
-```
 
 ### Step 4: Verify Installation
 
@@ -229,7 +222,7 @@ The server will start at `https://localhost:12345`.
 
 ### Network Access
 
-The server binds to `0.0.0.0` (all network interfaces) by default, allowing access from other devices on your network.
+The server binds to `127.0.0.1` (localhost) by default for security. To allow access from other devices on your network, change `host` to `0.0.0.0` in `userdata/settings/settings.json`.
 
 **Find your network IP:**
 ```bash
@@ -249,31 +242,22 @@ Access from other devices: `https://YOUR_IP:12345` (e.g., `https://192.168.1.100
 
 ## Configuration
 
-Configuration is stored in `server/config.js`:
+Configuration is managed through `userdata/settings/settings.json` which is created on first run:
 
 ```javascript
-module.exports = {
-  PORT: 12345,
-  HOST: '0.0.0.0',  // Listens on all network interfaces
-  SHIPPING_MANAGER_API: 'https://shippingmanager.cc/api',
-
-  // Session cookie loaded from encrypted storage via session-manager
-  get SESSION_COOKIE() {
-    return getSessionCookie() || 'COOKIE_NOT_INITIALIZED';
-  },
-
-  // Rate limiting
-  RATE_LIMIT: {
-    windowMs: 15 * 60 * 1000,  // 15 minutes
-    max: 1000                   // Max requests per window
-  },
-
-  // Chat auto-refresh interval
-  CHAT_REFRESH_INTERVAL: 25000  // 25 seconds
-};
+{
+  "port": 12345,           // HTTPS server port
+  "host": "127.0.0.1"      // Bind address (localhost-only by default)
+}
 ```
 
-**Note:** These values are hardcoded in the .exe distribution. See the [User-Configurable Settings](../../development/for-claude/Planned_Features/user-configurable-settings.md) feature plan for future improvements.
+**Key settings:**
+- `port` - Server port (default: 12345)
+- `host` - Bind address (default: `127.0.0.1` for localhost-only access)
+
+To allow LAN access from other devices, change `host` to `0.0.0.0` in the settings file.
+
+**Note:** The system tray application (`start.py`) provides a GUI to configure these settings.
 
 ## Development Workflow
 
@@ -472,20 +456,17 @@ lsof -i :12345
    - The developers assume no liability
 
 3. **Network Access**
-   - Server binds to `0.0.0.0` (all interfaces) by default
-   - Other devices on your network can access the app
+   - Server binds to `127.0.0.1` (localhost) by default for security
+   - Change `host` to `0.0.0.0` in settings to allow LAN access
    - HTTPS provides encryption, but certificate is self-signed
-   - Consider changing HOST to `127.0.0.1` in `server/config.js` for localhost-only access
 
 4. **Input Validation**
-   - Current implementation has limited input validation
-   - See [Input Validation Security](../../development/for-claude/Planned_Features/input-validation-security.md) for planned improvements
    - Be cautious with user-generated content in chat
 
 ## Support
 
 If you encounter issues not covered in this guide:
 1. Check the [README.md](../../README.md) for general information
-2. Review the [API Reference](../../development/for-claude/API-REFERENCE.md)
+2. Review the API Reference at `https://localhost:12345/docs/` when the app is running
 3. Check GitHub Issues for similar problems
 4. Create a new issue with detailed error messages and system information

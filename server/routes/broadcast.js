@@ -134,7 +134,7 @@ router.post('/templates', express.json(), async (req, res) => {
     templates[key.trim().toLowerCase()] = {
       subject: subject.trim(),
       message: message.trim(),
-      enabled: true,
+      enabled: false,
       updatedAt: Date.now()
     };
 

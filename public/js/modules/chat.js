@@ -839,6 +839,10 @@ export function initWebSocket() {
       } else if (type === 'ipo_alert_update') {
         // IPO alert update from backend polling
         handleIpoAlertUpdate(data);
+      } else if (type === 'purser_purchase') {
+        handlePurserPurchase(data);
+      } else if (type === 'purser_sell') {
+        handlePurserSell(data);
       } else if (type === 'server_startup') {
         // Server restarted - reload page
         console.log('[WebSocket] Server startup detected - reloading...');
@@ -1224,6 +1228,121 @@ ${formatNumber(amount)}t @ $${price}/t
   }
 
   // Note: Bunker update comes automatically via bunker_update event from backend
+}
+
+/**
+ * Handles The Purser stock purchase event from backend autopilot.
+ * Shows invoice-style notification for stock buy.
+ */
+async function handlePurserPurchase(data) {
+  const { companyName, shares, pricePerShare, totalCost, ageDays } = data;
+
+  console.log(`[Autopilot] The Purser purchased: ${shares.toLocaleString()} shares of ${companyName} @ $${pricePerShare}/share = $${totalCost.toLocaleString()}`);
+
+  const settings = window.getSettings ? window.getSettings() : {};
+
+  // In-app alert
+  if (settings.autoPilotNotifications && settings.notifyThePurserInApp) {
+    showSideNotification(`
+      <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+        <strong style="font-size: 1.1em;">&#128176; The Purser - Buy</strong>
+      </div>
+      <div style="font-family: monospace; font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Company:</span>
+          <span><strong>${companyName}</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Account Age:</span>
+          <span>${ageDays} days</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Shares:</span>
+          <span><strong>${shares.toLocaleString()}</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Price per share:</span>
+          <span>$${pricePerShare.toLocaleString()}</span>
+        </div>
+        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 15px;">
+          <span><strong>Total Cost:</strong></span>
+          <span style="color: #ef4444;"><strong>$${totalCost.toLocaleString()}</strong></span>
+        </div>
+      </div>
+    `, 'success');
+  }
+
+  // Desktop notification
+  if (settings.autoPilotNotifications && settings.notifyThePurserDesktop && Notification.permission === 'granted') {
+    await showNotification('&#128176; The Purser - Buy', {
+      body: `${companyName} (${ageDays}d old)
+${shares.toLocaleString()} shares @ $${pricePerShare}
+
+Total: $${totalCost.toLocaleString()}`,
+      icon: '/favicon.ico',
+      tag: 'the-purser-buy',
+      silent: false
+    });
+  }
+}
+
+/**
+ * Handles The Purser stock sell event from backend autopilot.
+ * Shows invoice-style notification for stock sale.
+ */
+async function handlePurserSell(data) {
+  const { companyName, shares, pricePerShare, totalRevenue, reason } = data;
+
+  console.log(`[Autopilot] The Purser sold: ${shares.toLocaleString()} shares of ${companyName} @ $${pricePerShare}/share = $${totalRevenue.toLocaleString()} (${reason})`);
+
+  const settings = window.getSettings ? window.getSettings() : {};
+
+  // In-app alert
+  if (settings.autoPilotNotifications && settings.notifyThePurserInApp) {
+    showSideNotification(`
+      <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
+        <strong style="font-size: 1.1em;">&#128176; The Purser - Sell</strong>
+      </div>
+      <div style="font-family: monospace; font-size: 13px;">
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Company:</span>
+          <span><strong>${companyName}</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Reason:</span>
+          <span style="color: #fbbf24;">${reason}</span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Shares:</span>
+          <span><strong>${shares.toLocaleString()}</strong></span>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+          <span>Price per share:</span>
+          <span>$${pricePerShare.toLocaleString()}</span>
+        </div>
+        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
+        <div style="display: flex; justify-content: space-between; font-size: 15px;">
+          <span><strong>Total Revenue:</strong></span>
+          <span style="color: #22c55e;"><strong>+$${totalRevenue.toLocaleString()}</strong></span>
+        </div>
+      </div>
+    `, 'warning');
+  }
+
+  // Desktop notification
+  if (settings.autoPilotNotifications && settings.notifyThePurserDesktop && Notification.permission === 'granted') {
+    await showNotification('&#128176; The Purser - Sell', {
+      body: `${companyName}
+${shares.toLocaleString()} shares @ $${pricePerShare}
+Reason: ${reason}
+
+Revenue: +$${totalRevenue.toLocaleString()}`,
+      icon: '/favicon.ico',
+      tag: 'the-purser-sell',
+      silent: false
+    });
+  }
 }
 
 /**
@@ -2217,11 +2336,22 @@ function handleVesselCountUpdate(data) {
     if (AUTOPILOT_LOG_LEVEL === 'detailed') {
       console.log(`[Auto-Depart] Event-driven trigger: ${readyToDepart} vessel(s) ready`);
     }
-    // Notify backend to execute auto-depart
-    fetch('/api/autopilot/trigger-depart', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' }
-    }).catch(err => console.error('[Auto-Depart] Failed to trigger:', err));
+    // Notify backend to execute auto-depart with retry on network errors
+    const triggerDepart = async (attempt = 1) => {
+      try {
+        await fetch('/api/autopilot/trigger-depart', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        if (attempt < 3 && err.message?.includes('Failed to fetch')) {
+          await new Promise(r => setTimeout(r, 1000));
+          return triggerDepart(attempt + 1);
+        }
+        console.error('[Auto-Depart] Failed to trigger:', err);
+      }
+    };
+    triggerDepart();
   }
 }
 

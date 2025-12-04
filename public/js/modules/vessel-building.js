@@ -1150,6 +1150,86 @@ async function submitBuild() {
       await window.updateVesselCount();
     }
 
+    // Refresh harbor map to include new vessel in rawVessels
+    if (window.harborMap && window.harborMap.forceRefresh) {
+      await window.harborMap.forceRefresh();
+    }
+
+    // Offer fast delivery via Bug-Using if we have the vessel ID
+    console.log('[Build] Response data:', data);
+    console.log('[Build] Vessel ID from response:', data.vessel_id);
+
+    if (!data.vessel_id) {
+      console.warn('[Build] No vessel_id returned - fast delivery check skipped');
+    } else {
+      try {
+        // Show loading notification - backend already waited for vessel registration
+        showSideNotification('Checking fast delivery options...', 'info');
+
+        // Fetch real drydock price from API
+        const drydockStatusResponse = await fetch('/api/maintenance/get-drydock-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vessel_ids: JSON.stringify([data.vessel_id]),
+            speed: 'maximum',
+            maintenance_type: 'major'
+          })
+        });
+
+        console.log('[Build] Drydock status response:', drydockStatusResponse.status);
+
+        if (drydockStatusResponse.ok) {
+          const drydockStatus = await drydockStatusResponse.json();
+          console.log('[Build] Drydock status:', drydockStatus);
+          const vesselDrydock = drydockStatus.vessels?.[0];
+          const drydockCost = vesselDrydock?.cost;
+          console.log('[Build] Drydock cost:', drydockCost, 'Vessel data:', vesselDrydock);
+
+          if (drydockCost > 0) {
+            // Ask user if they want fast delivery
+            const useFastDelivery = await showConfirmDialog({
+              title: 'Fast Delivery Available',
+              message: 'Use Bug-Using for fast delivery?',
+              infoPopup: 'By triggering drydock immediately after build, delivery time is reduced to ~1 hour (the drydock duration). This is a known game exploit.',
+              details: [
+                { label: 'Drydock Cost', value: `$${formatNumber(drydockCost)}` },
+                { label: 'Delivery Time', value: '~1 hour instead of normal build time' }
+              ],
+              confirmText: 'Yes, use Fast Delivery',
+              cancelText: 'No, normal delivery'
+            });
+
+            // useFastDelivery is boolean (no checkboxes used)
+            const confirmed = useFastDelivery;
+
+            if (confirmed) {
+              const drydockResponse = await fetch('/api/maintenance/bulk-drydock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  vessel_ids: JSON.stringify([data.vessel_id]),
+                  speed: 'maximum',
+                  maintenance_type: 'major'
+                })
+              });
+
+              if (drydockResponse.ok) {
+                showSideNotification('Fast delivery activated - vessel will arrive in ~1 hour', 'success');
+              } else {
+                const drydockError = await drydockResponse.json();
+                console.error('[Build] Drydock trigger failed:', drydockError);
+                showSideNotification('Fast delivery failed - vessel will arrive normally', 'warning');
+              }
+            }
+          }
+        }
+      } catch (fastDeliveryErr) {
+        console.error('[Build] Fast delivery check error:', fastDeliveryErr);
+        // Silent fail - vessel was built successfully, just fast delivery option failed
+      }
+    }
+
   } catch (error) {
     console.error('[Build] Error:', error);
     showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');

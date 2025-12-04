@@ -150,17 +150,22 @@ export async function initializeApp(apiPrefix) {
   // Show/hide IPO-related UI elements based on IPO status
   const ipoAlertsSection = document.getElementById('ipoAlertsSection');
   const stockManagerMapIcon = document.querySelector('.map-icon-item[data-action="stockManager"]');
+  const autoPurserSection = document.getElementById('autoPurserSection');
 
   if (userHasIPO) {
     // Show IPO Alerts section in settings
     if (ipoAlertsSection) ipoAlertsSection.classList.remove('hidden');
     // Show Stock Manager icon in map bar
     if (stockManagerMapIcon) stockManagerMapIcon.classList.remove('hidden');
+    // Show The Purser autopilot section
+    if (autoPurserSection) autoPurserSection.classList.remove('hidden');
   } else {
     // Hide IPO Alerts section in settings
     if (ipoAlertsSection) ipoAlertsSection.classList.add('hidden');
     // Hide Stock Manager icon in map bar
     if (stockManagerMapIcon) stockManagerMapIcon.classList.add('hidden');
+    // Hide The Purser autopilot section
+    if (autoPurserSection) autoPurserSection.classList.add('hidden');
   }
 
   // Initialize harbor map (async, don't block)
@@ -243,12 +248,20 @@ function initializeSettingsUI(settings) {
   setCheckboxValue('autoRebuyFuelUseAlert', settings.autoRebuyFuelUseAlert);
   setFormattedInputValue('autoRebuyFuelThreshold', settings.autoRebuyFuelThreshold);
   setFormattedInputValue('autoRebuyFuelMinCash', settings.autoRebuyFuelMinCash);
+  setCheckboxState('autoRebuyFuelEmergency', settings.autoRebuyFuelEmergency, 'autoRebuyFuelEmergencyOptions');
+  setInputValue('autoRebuyFuelEmergencyBelow', settings.autoRebuyFuelEmergencyBelow);
+  setInputValue('autoRebuyFuelEmergencyShips', settings.autoRebuyFuelEmergencyShips);
+  setInputValue('autoRebuyFuelEmergencyMaxPrice', settings.autoRebuyFuelEmergencyMaxPrice);
 
   // Auto-Rebuy CO2
   setCheckboxState('autoRebuyCO2', settings.autoRebuyCO2, 'autoRebuyCO2Options', 'autoRebuyCO2MinCashSection');
   setCheckboxValue('autoRebuyCO2UseAlert', settings.autoRebuyCO2UseAlert);
   setFormattedInputValue('autoRebuyCO2Threshold', settings.autoRebuyCO2Threshold);
   setFormattedInputValue('autoRebuyCO2MinCash', settings.autoRebuyCO2MinCash);
+  setCheckboxState('autoRebuyCO2Emergency', settings.autoRebuyCO2Emergency, 'autoRebuyCO2EmergencyOptions');
+  setInputValue('autoRebuyCO2EmergencyBelow', settings.autoRebuyCO2EmergencyBelow);
+  setInputValue('autoRebuyCO2EmergencyShips', settings.autoRebuyCO2EmergencyShips);
+  setInputValue('autoRebuyCO2EmergencyMaxPrice', settings.autoRebuyCO2EmergencyMaxPrice);
 
   // Auto-Depart
   setCheckboxState('autoDepartAll', settings.autoDepartAll, 'autoDepartOptions');
@@ -288,6 +301,14 @@ function initializeSettingsUI(settings) {
 
   // Auto-Negotiate Hijacking
   setCheckboxState('autoNegotiateHijacking', settings.autoNegotiateHijacking, 'autoNegotiateOptions');
+
+  // The Purser (Auto Stock Trading)
+  setCheckboxState('autoPurserEnabled', settings.autoPurserEnabled, 'autoPurserOptions');
+  setInputValue('autoPurserMinCash', settings.autoPurserMinCash);
+  setInputValue('autoPurserMaxPrice', settings.autoPurserMaxPrice);
+  setCheckboxState('autoPurserAutoSellEnabled', settings.autoPurserAutoSellEnabled, 'autoPurserAutoSellOptions');
+  setSelectValue('autoPurserFallingDays', settings.autoPurserFallingDays);
+  setSelectValue('autoPurserDropPercent', settings.autoPurserDropPercent);
 
   // Notifications
   setCheckboxValue('enableDesktopNotifications', settings.enableDesktopNotifications);
@@ -336,6 +357,14 @@ function setFormattedInputValue(id, value) {
  * Helper to set input value.
  */
 function setInputValue(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+
+/**
+ * Helper to set select element value.
+ */
+function setSelectValue(id, value) {
   const el = document.getElementById(id);
   if (el) el.value = value;
 }

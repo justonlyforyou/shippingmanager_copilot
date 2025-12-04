@@ -170,6 +170,31 @@ function updateAutoRebuyFuelUI(newSettings) {
       autoRebuyFuelMinCashInput.value = formatNumberWithSeparator(value);
     }
   }
+
+  // Emergency Buy Override settings
+  const autoRebuyFuelEmergencyCheckbox = document.getElementById('autoRebuyFuelEmergency');
+  if (autoRebuyFuelEmergencyCheckbox && newSettings.autoRebuyFuelEmergency !== undefined) {
+    autoRebuyFuelEmergencyCheckbox.checked = newSettings.autoRebuyFuelEmergency;
+    const emergencyOptions = document.getElementById('autoRebuyFuelEmergencyOptions');
+    if (emergencyOptions) {
+      emergencyOptions.classList.toggle('hidden', !newSettings.autoRebuyFuelEmergency);
+    }
+  }
+
+  const autoRebuyFuelEmergencyBelowInput = document.getElementById('autoRebuyFuelEmergencyBelow');
+  if (autoRebuyFuelEmergencyBelowInput && newSettings.autoRebuyFuelEmergencyBelow !== undefined) {
+    autoRebuyFuelEmergencyBelowInput.value = newSettings.autoRebuyFuelEmergencyBelow;
+  }
+
+  const autoRebuyFuelEmergencyShipsInput = document.getElementById('autoRebuyFuelEmergencyShips');
+  if (autoRebuyFuelEmergencyShipsInput && newSettings.autoRebuyFuelEmergencyShips !== undefined) {
+    autoRebuyFuelEmergencyShipsInput.value = newSettings.autoRebuyFuelEmergencyShips;
+  }
+
+  const autoRebuyFuelEmergencyMaxPriceInput = document.getElementById('autoRebuyFuelEmergencyMaxPrice');
+  if (autoRebuyFuelEmergencyMaxPriceInput && newSettings.autoRebuyFuelEmergencyMaxPrice !== undefined) {
+    autoRebuyFuelEmergencyMaxPriceInput.value = newSettings.autoRebuyFuelEmergencyMaxPrice;
+  }
 }
 
 /**
@@ -214,6 +239,31 @@ function updateAutoRebuyCO2UI(newSettings) {
       const value = String(newSettings.autoRebuyCO2MinCash);
       autoRebuyCO2MinCashInput.value = formatNumberWithSeparator(value);
     }
+  }
+
+  // Emergency Buy Override settings
+  const autoRebuyCO2EmergencyCheckbox = document.getElementById('autoRebuyCO2Emergency');
+  if (autoRebuyCO2EmergencyCheckbox && newSettings.autoRebuyCO2Emergency !== undefined) {
+    autoRebuyCO2EmergencyCheckbox.checked = newSettings.autoRebuyCO2Emergency;
+    const emergencyOptions = document.getElementById('autoRebuyCO2EmergencyOptions');
+    if (emergencyOptions) {
+      emergencyOptions.classList.toggle('hidden', !newSettings.autoRebuyCO2Emergency);
+    }
+  }
+
+  const autoRebuyCO2EmergencyBelowInput = document.getElementById('autoRebuyCO2EmergencyBelow');
+  if (autoRebuyCO2EmergencyBelowInput && newSettings.autoRebuyCO2EmergencyBelow !== undefined) {
+    autoRebuyCO2EmergencyBelowInput.value = newSettings.autoRebuyCO2EmergencyBelow;
+  }
+
+  const autoRebuyCO2EmergencyShipsInput = document.getElementById('autoRebuyCO2EmergencyShips');
+  if (autoRebuyCO2EmergencyShipsInput && newSettings.autoRebuyCO2EmergencyShips !== undefined) {
+    autoRebuyCO2EmergencyShipsInput.value = newSettings.autoRebuyCO2EmergencyShips;
+  }
+
+  const autoRebuyCO2EmergencyMaxPriceInput = document.getElementById('autoRebuyCO2EmergencyMaxPrice');
+  if (autoRebuyCO2EmergencyMaxPriceInput && newSettings.autoRebuyCO2EmergencyMaxPrice !== undefined) {
+    autoRebuyCO2EmergencyMaxPriceInput.value = newSettings.autoRebuyCO2EmergencyMaxPrice;
   }
 }
 
@@ -266,6 +316,34 @@ function updateAutoPilotToggles(newSettings) {
   if (autoNegotiateHijackingCheckbox) {
     autoNegotiateHijackingCheckbox.checked = newSettings.autoNegotiateHijacking;
   }
+
+  // The Purser settings sync
+  const autoPurserEnabledCheckbox = document.getElementById('autoPurserEnabled');
+  if (autoPurserEnabledCheckbox && newSettings.autoPurserEnabled !== undefined) {
+    autoPurserEnabledCheckbox.checked = newSettings.autoPurserEnabled;
+    document.getElementById('autoPurserOptions')?.classList.toggle('hidden', !newSettings.autoPurserEnabled);
+  }
+  const autoPurserMinCashInput = document.getElementById('autoPurserMinCash');
+  if (autoPurserMinCashInput && newSettings.autoPurserMinCash !== undefined) {
+    autoPurserMinCashInput.value = formatNumberWithSeparator(String(newSettings.autoPurserMinCash));
+  }
+  const autoPurserMaxPriceInput = document.getElementById('autoPurserMaxPrice');
+  if (autoPurserMaxPriceInput && newSettings.autoPurserMaxPrice !== undefined) {
+    autoPurserMaxPriceInput.value = newSettings.autoPurserMaxPrice;
+  }
+  const autoPurserAutoSellCheckbox = document.getElementById('autoPurserAutoSellEnabled');
+  if (autoPurserAutoSellCheckbox && newSettings.autoPurserAutoSellEnabled !== undefined) {
+    autoPurserAutoSellCheckbox.checked = newSettings.autoPurserAutoSellEnabled;
+    document.getElementById('autoPurserAutoSellOptions')?.classList.toggle('hidden', !newSettings.autoPurserAutoSellEnabled);
+  }
+  const autoPurserFallingDaysSelect = document.getElementById('autoPurserFallingDays');
+  if (autoPurserFallingDaysSelect && newSettings.autoPurserFallingDays !== undefined) {
+    autoPurserFallingDaysSelect.value = newSettings.autoPurserFallingDays;
+  }
+  const autoPurserDropPercentSelect = document.getElementById('autoPurserDropPercent');
+  if (autoPurserDropPercentSelect && newSettings.autoPurserDropPercent !== undefined) {
+    autoPurserDropPercentSelect.value = newSettings.autoPurserDropPercent;
+  }
 }
 
 /**
@@ -302,7 +380,8 @@ function updateNotificationSettings(newSettings) {
     'notifyReputationChiefInApp', 'notifyReputationChiefDesktop',
     'notifyFairHandInApp', 'notifyFairHandDesktop',
     'notifyHarbormasterInApp', 'notifyHarbormasterDesktop',
-    'notifyCaptainBlackbeardInApp', 'notifyCaptainBlackbeardDesktop'
+    'notifyCaptainBlackbeardInApp', 'notifyCaptainBlackbeardDesktop',
+    'notifyThePurserInApp', 'notifyThePurserDesktop'
   ];
 
   agentNotifIds.forEach(id => {
@@ -392,7 +471,7 @@ function updateChatBotSettings(newSettings) {
   if (cmdHelpDMCheckbox) cmdHelpDMCheckbox.checked = newSettings.chatbotHelpDMEnabled === true;
 
   const cmdWelcomeCheckbox = document.getElementById('cmdWelcome');
-  if (cmdWelcomeCheckbox) cmdWelcomeCheckbox.checked = newSettings.chatbotWelcomeCommandEnabled !== false;
+  if (cmdWelcomeCheckbox) cmdWelcomeCheckbox.checked = newSettings.chatbotWelcomeCommandEnabled === true;
 
   const enableDMCommandsCheckbox = document.getElementById('enableDMCommands');
   if (enableDMCommandsCheckbox) {

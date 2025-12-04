@@ -62,9 +62,9 @@
                             <span id="ceoLevelBadge" class="ceo-level-badge">
                                 <svg viewBox="0 0 24 24" preserveAspectRatio="xMidYMid meet" class="ceo-level-badge__svg">
                                     <defs>
-                                        <clipPath id="starClip">
+                                        <clippath id="starClip">
                                             <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-                                        </clipPath>
+                                        </clippath>
                                     </defs>
                                     <!-- Background star (empty/outline) -->
                                     <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="rgba(251, 191, 36, 0.2)" stroke="#f59e0b" stroke-width="0.5"/>
@@ -1239,7 +1239,7 @@
                                     <option value="75">75h</option>
                                     <option value="100">100h</option>
                                     <option value="150">150h</option>
-                                    <option value="999">>150h</option>
+                                    <option value="999">&gt;150h</option>
                                 </select>
                             </div>
                             <div style="display: flex; flex-direction: column; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
@@ -1279,7 +1279,7 @@
                                         <option value="70">70%</option>
                                         <option value="80">80%</option>
                                         <option value="90">90%</option>
-                                        <option value="99">>99%</option>
+                                        <option value="99">&gt;99%</option>
                                     </select>
                                 </div>
                                 <div style="margin: 4px 0 0 28px; color: #9ca3af; font-size: 11px; line-height: 1.4;">
@@ -1368,6 +1368,29 @@
                                             <span style="color: #d1d5db; font-size: 13px;">🔔 Enable desktop notifications</span>
                                         </label>
                                     </div>
+
+                                    <!-- Emergency Buy Override -->
+                                    <div class="emergency-override-section">
+                                        <label class="emergency-override-label emergency-override-label-fuel">
+                                            <input type="checkbox" id="autoRebuyFuelEmergency">
+                                            <span>🚨 Emergency Buy Override</span>
+                                        </label>
+                                        <p class="emergency-override-hint">Buy fuel regardless of price when bunker is low and ships are waiting</p>
+                                        <div id="autoRebuyFuelEmergencyOptions" class="hidden">
+                                            <div class="emergency-override-table">
+                                                <div class="emergency-table-header">
+                                                    <span>Bunker below (t)</span>
+                                                    <span>Min ships at port</span>
+                                                    <span>Max price ($)</span>
+                                                </div>
+                                                <div class="emergency-table-row">
+                                                    <input type="number" id="autoRebuyFuelEmergencyBelow" min="1" value="500">
+                                                    <input type="number" id="autoRebuyFuelEmergencyShips" min="1" value="5">
+                                                    <input type="number" id="autoRebuyFuelEmergencyMaxPrice" min="1" value="600">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1412,6 +1435,29 @@
                                             <input type="checkbox" id="notifyAtmosphereBrokerDesktop" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
                                             <span style="color: #d1d5db; font-size: 13px;">🔔 Enable desktop notifications</span>
                                         </label>
+                                    </div>
+
+                                    <!-- Emergency Buy Override -->
+                                    <div class="emergency-override-section">
+                                        <label class="emergency-override-label emergency-override-label-co2">
+                                            <input type="checkbox" id="autoRebuyCO2Emergency">
+                                            <span>🚨 Emergency Buy Override</span>
+                                        </label>
+                                        <p class="emergency-override-hint">Buy CO2 regardless of price when bunker is low and ships are waiting</p>
+                                        <div id="autoRebuyCO2EmergencyOptions" class="hidden">
+                                            <div class="emergency-override-table">
+                                                <div class="emergency-table-header">
+                                                    <span>Bunker below (t)</span>
+                                                    <span>Min ships at port</span>
+                                                    <span>Max price ($)</span>
+                                                </div>
+                                                <div class="emergency-table-row">
+                                                    <input type="number" id="autoRebuyCO2EmergencyBelow" min="1" value="500">
+                                                    <input type="number" id="autoRebuyCO2EmergencyShips" min="1" value="5">
+                                                    <input type="number" id="autoRebuyCO2EmergencyMaxPrice" min="1" value="12">
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1681,6 +1727,85 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- The Purser (Auto Stock Trading) - only visible if user has IPO -->
+                            <div id="autoPurserSection" class="hidden" style="padding: 16px; background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.3); border-radius: 8px;">
+                                <label style="display: flex; align-items: center; cursor: pointer;">
+                                    <input type="checkbox" id="autoPurserEnabled" style="width: 18px; height: 18px; margin-right: 10px; cursor: pointer;">
+                                    <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">💰 Autopilot - The Purser</span>
+                                </label>
+                                <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
+                                    Automatically buy stocks from fresh IPOs matching your alert threshold.
+                                </p>
+                                <p style="margin: 4px 0 0 28px; color: #22c55e; font-size: 11px;">
+                                    💡 Uses your "Enable IPO Alerts" threshold setting from Stock tab
+                                </p>
+
+                                <div id="autoPurserOptions" class="autopilot-options autopilot-options-green hidden">
+                                    <!-- Min Cash Reserve -->
+                                    <div style="margin-bottom: 8px;">
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">💵 Min Cash Reserve ($):</label>
+                                        <input type="text" id="autoPurserMinCash" class="autopilot-mincash-input" style="width: 120px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 13px;">
+                                    </div>
+
+                                    <!-- Max Stock Price -->
+                                    <div style="margin-bottom: 12px;">
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">📈 Max Stock Price ($/share):</label>
+                                        <input type="text" id="autoPurserMaxPrice" class="autopilot-mincash-input" style="width: 120px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 13px;">
+                                    </div>
+
+                                    <!-- Auto-Sell Section -->
+                                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, 0.1);">
+                                        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 8px;">
+                                            <input type="checkbox" id="autoPurserAutoSellEnabled" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;">
+                                            <span style="color: #d1d5db; font-size: 13px;">📉 Enable Auto-Sell (sell purchased stocks when falling)</span>
+                                        </label>
+
+                                        <div id="autoPurserAutoSellOptions" class="hidden" style="margin-left: 24px;">
+                                            <!-- Falling Days -->
+                                            <div style="margin-bottom: 8px;">
+                                                <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Sell after falling for:</label>
+                                                <select id="autoPurserFallingDays" style="width: 120px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 13px;">
+                                                    <option value="1">1 day</option>
+                                                    <option value="3">3 days</option>
+                                                    <option value="7">7 days</option>
+                                                    <option value="14">14 days</option>
+                                                    <option value="30">1 month</option>
+                                                </select>
+                                            </div>
+
+                                            <!-- Drop Percent -->
+                                            <div style="margin-bottom: 8px;">
+                                                <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Or if price drops by:</label>
+                                                <select id="autoPurserDropPercent" style="width: 120px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 13px;">
+                                                    <option value="10">10%</option>
+                                                    <option value="20">20%</option>
+                                                    <option value="30">30%</option>
+                                                    <option value="40">40%</option>
+                                                    <option value="50">50%</option>
+                                                    <option value="60">60%</option>
+                                                    <option value="70">70%</option>
+                                                    <option value="80">80%</option>
+                                                    <option value="90">90%</option>
+                                                    <option value="100">100%</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Notifications -->
+                                    <div style="padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05); margin-top: 12px;">
+                                        <label style="display: flex; align-items: center; cursor: pointer; margin-bottom: 6px;">
+                                            <input type="checkbox" id="notifyThePurserInApp" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
+                                            <span style="color: #d1d5db; font-size: 13px;">📱 Enable in-app alerts</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; cursor: pointer;">
+                                            <input type="checkbox" id="notifyThePurserDesktop" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
+                                            <span style="color: #d1d5db; font-size: 13px;">🔔 Enable desktop notifications</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         </div>
                     </div>
@@ -1823,6 +1948,7 @@
                                             Configure the message in Alliance &gt; Management tab.
                                         </p>
                                     </div>
+
                                 </div>
                             </div>
 
@@ -1919,7 +2045,7 @@
                                     <span>📦 Container</span>
                                 </label>
                                 <label class="filter-option">
-                                    <input type="checkbox" name="vesselType" value="tanker" checked>
+                                    <input type="checkbox" name="vesselType" value="tanker">
                                     <span>🛢️ Tanker</span>
                                 </label>
                             </div>

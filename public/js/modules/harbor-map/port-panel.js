@@ -540,7 +540,7 @@ export async function fetchAndUpdatePortDemand(portCode) {
  * @example
  * loadPortAllianceData('murmansk');
  */
-async function loadPortAllianceData(portCode) {
+async function loadPortAllianceData(portCode, attempt = 1) {
   try {
     const response = await fetch('/api/alliance/get-alliance-data', {
       method: 'POST',
@@ -594,6 +594,11 @@ async function loadPortAllianceData(portCode) {
 
     content.innerHTML = html;
   } catch (error) {
+    // Retry on network errors
+    if (attempt < 3 && error.message?.includes('Failed to fetch')) {
+      await new Promise(r => setTimeout(r, 1000));
+      return loadPortAllianceData(portCode, attempt + 1);
+    }
     console.error(`[Port Panel] Error fetching alliance data for ${portCode}:`, error);
     const section = document.getElementById('top-alliances-section');
     if (section) {

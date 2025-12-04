@@ -539,11 +539,27 @@ async function renderMassMoorTab(contentArea, allVessels) {
 function renderMassMoorVesselItem(vessel) {
   const routeName = vessel.route_name || 'No route';
   const currentPort = vessel.current_port_code?.replace(/_/g, ' ') || 'Unknown';
+  const destination = vessel.route_destination?.replace(/_/g, ' ') || 'Unknown';
 
   // Status indicator: chain for moored, green dot for active
   const statusIcon = vessel.is_parked ? '⛓️' : '🟢';
   const statusClass = vessel.is_parked ? 'moored' : 'active';
   const statusText = vessel.is_parked ? 'Moored' : getVesselStatusText(vessel.status);
+
+  // Show ETA for vessels not at port (enroute)
+  let etaLine = '';
+  if (vessel.status !== 'port' && vessel.route_end_time) {
+    const etaText = formatETA(vessel);
+    etaLine = `<div>ETA: <span class="depart-eta">${etaText}</span></div>`;
+  }
+
+  // For vessels at port show Location, for enroute show Destination
+  let locationLine;
+  if (vessel.status === 'port') {
+    locationLine = `<div>Location: <span class="depart-port-name">${currentPort}</span></div>`;
+  } else {
+    locationLine = `<div>Destination: <span class="depart-port-name">${destination}</span></div>`;
+  }
 
   return `
     <div class="depart-vessel-item mass-moor-item ${statusClass}" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked}">
@@ -558,7 +574,8 @@ function renderMassMoorVesselItem(vessel) {
         </div>
         <div class="depart-vessel-details">
           <div>Status: <span class="moor-status-text ${statusClass}">${statusText}</span></div>
-          <div>Location: <span class="depart-port-name">${currentPort}</span></div>
+          ${locationLine}
+          ${etaLine}
         </div>
       </div>
       <div class="depart-vessel-actions">
@@ -901,9 +918,30 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
       <div>ETA: <span class="depart-eta">${etaText}</span></div>
     `;
   } else if (status === 'pending') {
-    // Pending delivery
+    // Pending delivery - time_arrival is SECONDS REMAINING (not timestamp!)
+    const remaining = vessel.time_arrival || 0;
+    let timeDisplay = '';
+
+    if (remaining > 0) {
+      const days = Math.floor(remaining / 86400);
+      const hours = Math.floor((remaining % 86400) / 3600);
+      const minutes = Math.floor((remaining % 3600) / 60);
+      if (days > 0) {
+        timeDisplay = `${days}d ${hours}h`;
+      } else if (hours > 0) {
+        timeDisplay = `${hours}h ${minutes}m`;
+      } else {
+        timeDisplay = `${minutes}m`;
+      }
+    } else {
+      timeDisplay = 'Ready';
+    }
+
+    const deliveryPort = vessel.current_port_code?.replace(/_/g, ' ') || 'Unknown';
     detailsHtml = `
-      <div>Status: <span class="depart-status-pending">Pending Delivery</span></div>
+      <div>Status: <span class="depart-status-pending">Pending</span></div>
+      <div>Delivery to: <span class="depart-port-name">${deliveryPort}</span></div>
+      <div>Delivery in: <span class="depart-eta">${timeDisplay}</span></div>
     `;
   } else if (status === 'maintenance') {
     // In drydock - calculate time remaining
@@ -940,6 +978,9 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
   // Check if custom-built vessel (type_name is "N/A")
   const isCustomBuild = vessel.type_name === 'N/A';
 
+  // Vessel type emoji (container or tanker)
+  const typeEmoji = vessel.capacity_type === 'tanker' ? '🛢️' : '📦';
+
   // Show checkbox only on tabs where moor/resume is possible (not maintenance/pending)
   const showCheckbox = status !== 'maintenance' && status !== 'pending';
   const checkboxHtml = showCheckbox
@@ -949,6 +990,7 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
   return `
     <div class="depart-vessel-item" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked || false}">
       <span class="depart-route-link depart-route-corner" data-route-name="${routeName}" title="Click to filter map by this route">(${routeName})</span>
+      <span class="depart-type-corner" title="${vessel.capacity_type === 'tanker' ? 'Tanker' : 'Container'}">${typeEmoji}</span>
       <div class="depart-vessel-info">
         <div class="depart-vessel-name">
           ${escapeHtml(vessel.name)}${isCustomBuild ? '<span class="custom-build-badge" title="Custom Build">CB</span>' : ''}${statusBadge}
@@ -1067,7 +1109,7 @@ function updateDepartButtonCount() {
       const count = checkboxes.length;
       const isLocked = isDepartInProgress() || isLocalDepartInProgress();
       if (isLocked) {
-        departAllBtn.textContent = '🚢 Departure in progress...';
+        departAllBtn.textContent = '🚢 Departing...';
         departAllBtn.disabled = true;
       } else {
         departAllBtn.textContent = `🚢 Depart (${count})`;

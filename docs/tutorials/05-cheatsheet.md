@@ -2,10 +2,10 @@
 
 ## ⚡ Faster Delivery Glitch
 
-1. **Build or Buy** a new vessel.
+1. **Build** a new vessel. (Does not work with vessels you bought)
 2. Go straight to **Maintenance > Dry Dock** and select your fresh ship.
 3. Send it to the dry dock immediately.
-4. Just ignore any weird behavior or visual bugs around the ship for a moment.
+4. Just ignore any weird behavior or visual bugs around the ship for a moment you mabe have ingame.
 5. Check the **Pending Tab** (left side menu) and wait for the maintenance timer to hit zero.
 6. **Done:** Once maintenance finishes, your ship "arrives" instantly (skipping the delivery travel time).
 7. **Bonus:** You just doubled the time until the next required dry dock!

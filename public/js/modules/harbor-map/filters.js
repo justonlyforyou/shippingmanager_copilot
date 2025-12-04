@@ -62,6 +62,13 @@ export function filterVessels(vessels, filterType) {
       return anchoredVessels;
     }
 
+    case 'moored_vessels': {
+      // Vessels that are moored/parked at port (status: 'port' && is_parked)
+      const mooredVessels = vessels.filter(v => v.status === 'port' && v.is_parked === true);
+      console.log('[Filter] Found ' + mooredVessels.length + ' moored vessels');
+      return mooredVessels;
+    }
+
     case 'vessels_in_drydock': {
       // Vessels in drydock/maintenance (status: 'maintenance')
       const drydockVessels = vessels.filter(v => v.status === 'maintenance');
@@ -262,6 +269,7 @@ export function getVesselFilterOptions() {
     { value: 'vessels_arrive_soon', label: 'Arriving in <10 min' },
     { value: 'arrived_vessels', label: 'Arrived Vessels' },
     { value: 'anchored_vessels', label: 'Anchored Vessels' },
+    { value: 'moored_vessels', label: 'Moored Vessels' },
     { value: 'vessels_in_drydock', label: 'Vessels in Drydock' },
     { value: 'vessels_in_delivery', label: 'Vessels in Delivery' },
     { value: 'tanker_only', label: 'Tanker Only' },

@@ -1243,6 +1243,11 @@ export async function bulkSellVessels() {
     // Reload the vessel list to remove sold vessels
     await loadUserVesselsForSale();
 
+    // Refresh harbor map to remove sold vessels from rawVessels
+    if (window.harborMap && window.harborMap.forceRefresh) {
+      await window.harborMap.forceRefresh();
+    }
+
     // NOTE: Success notification is shown via WebSocket (user_action_notification)
     // from server/routes/game/vessel.js - no duplicate notification here
 

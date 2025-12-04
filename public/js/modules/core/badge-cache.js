@@ -492,7 +492,7 @@ function loadBunkerStatus(data) {
   // Cash display
   const cashDisplay = document.getElementById('cashDisplay');
   if (cashDisplay && cash !== undefined) {
-    cashDisplay.textContent = `$ ${Math.floor(cash).toLocaleString('en-US')}`;
+    cashDisplay.textContent = `$${Math.floor(cash).toLocaleString('en-US')}`;
   }
 
   // Points display

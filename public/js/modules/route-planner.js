@@ -240,9 +240,11 @@ export async function openRoutePlanner(vesselId, vesselName) {
   // Get vessel data to find origin port and store vessel info for calculations
   let originPort = null;
   currentVesselData = null;
+  let vesselData = null; // Store for reuse (avoid double fetch)
 
   if (window.harborMap && window.harborMap.getVesselById) {
-    const vessel = await window.harborMap.getVesselById(vesselId);
+    vesselData = await window.harborMap.getVesselById(vesselId);
+    const vessel = vesselData;
     if (vessel) {
       originPort = vessel.current_port_code || vessel.origin_port || null;
 
@@ -303,6 +305,10 @@ export async function openRoutePlanner(vesselId, vesselName) {
   panel.style.left = '50%';
   panel.style.transform = 'translate(-50%, -50%)';
 
+  // Switch to Ports tab IMMEDIATELY (before async operations)
+  // This prevents the tab from switching back after user manually changes it
+  switchTab('ports');
+
   // Hide selected info initially
   const selectedInfo = panel.querySelector('.route-planner-selected-info');
   if (selectedInfo) {
@@ -319,20 +325,15 @@ export async function openRoutePlanner(vesselId, vesselName) {
   await loadVesselPorts();
 
   // Check if vessel has an active route and update Route tab
+  // Reuse vesselData from earlier fetch to avoid duplicate API call
   let hasActiveRoute = false;
-  if (window.harborMap && window.harborMap.getVesselById) {
-    const vessel = await window.harborMap.getVesselById(vesselId, true);
-    if (vessel && vessel.route_destination && vessel.status !== 'anchor') {
-      hasActiveRoute = true;
-      updateRouteTabWithCurrentRoute(vessel);
-    }
+  if (vesselData && vesselData.route_destination) {
+    hasActiveRoute = true;
+    updateRouteTabWithCurrentRoute(vesselData);
   }
 
-  // Update Route tab visibility based on active route (populates in background)
+  // Update Route tab visibility based on active route
   updateRouteTabVisibility(hasActiveRoute);
-
-  // Always start on Ports tab - user can manually switch to Route tab if needed
-  switchTab('ports');
 
   console.log(`[Route Planner] Opened for vessel ${vesselId} (${vesselName}), origin: ${originPort}, hasActiveRoute: ${hasActiveRoute}`);
 }
@@ -653,7 +654,22 @@ function updateRouteTabWithCurrentRoute(vessel) {
     }
   }
 
-  console.log(`[Route Planner] Updated Route tab with current route: ${originName} -> ${destName}`);
+  // Disable sliders and save button if vessel is not at port or anchor
+  const canModify = vessel.status === 'port' || vessel.status === 'anchor';
+  const saveBtn = document.getElementById('routePlannerSaveBtn');
+
+  if (speedSlider) {
+    speedSlider.disabled = !canModify;
+  }
+  if (guardsSlider) {
+    guardsSlider.disabled = !canModify;
+  }
+  if (saveBtn) {
+    saveBtn.disabled = !canModify;
+    saveBtn.title = canModify ? '' : 'Cannot modify route while vessel is enroute';
+  }
+
+  console.log(`[Route Planner] Updated Route tab with current route: ${originName} -> ${destName}, canModify: ${canModify}`);
 }
 
 /**
@@ -1566,11 +1582,68 @@ function updatePortsGuardsDisplay() {
 
 /**
  * Save route changes (speed/guards)
+ * Uses POST /api/route/update-route-data to update existing route settings
  */
 async function saveRouteChanges() {
-  // TODO: Implement route update API call
-  console.log('[Route Planner] Save route changes - not yet implemented');
-  closeRoutePlanner();
+  if (!currentVesselId) {
+    console.warn('[Route Planner] Cannot save: no vessel selected');
+    return;
+  }
+
+  const saveBtn = document.getElementById('routePlannerSaveBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+  }
+
+  // Get values from sliders
+  const speedSlider = document.getElementById('routePlannerSpeedSlider');
+  const guardsSlider = document.getElementById('routePlannerGuardsSlider');
+
+  const speed = speedSlider ? parseInt(speedSlider.value, 10) : 6;
+  const guards = guardsSlider ? parseInt(guardsSlider.value, 10) : 0;
+
+  try {
+    const response = await fetch('/api/route/update-route-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_vessel_id: currentVesselId,
+        speed: speed,
+        guards: guards,
+        prices: {
+          dry: 655,
+          refrigerated: 655
+        }
+      })
+    });
+
+    const data = await response.json();
+    console.log('[Route Planner] Update route response:', data);
+
+    if (data.error) {
+      throw new Error(data.error);
+    }
+
+    showSideNotification(`Route updated: Speed ${speed} kn, Guards ${guards}`, 'success');
+
+    // Close panel
+    closeRoutePlanner();
+
+    // Refresh map data
+    if (window.harborMap && window.harborMap.forceRefresh) {
+      await window.harborMap.forceRefresh();
+    }
+
+  } catch (error) {
+    console.error('[Route Planner] Failed to update route:', error);
+    showSideNotification(`Update failed: ${error.message}`, 'error');
+
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
+  }
 }
 
 /**

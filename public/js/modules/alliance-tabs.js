@@ -1313,7 +1313,7 @@ async function renderAllianzTab() {
       const lastLoginDate = m.time_last_login ? new Date(m.time_last_login * 1000).toLocaleDateString() : '-';
 
       let badges = '';
-      if (m.tanker_ops) badges += '<span title="Tanker Operations">⛽</span> ';
+      if (m.tanker_ops) badges += '<span title="Tanker Operations">🛢️</span> ';
       if (m.is_rookie) badges += '<span title="Rookie">🤏</span> ';
       if (m.difficulty === 'realism') badges += '<span title="Realism Mode">🤘</span>';
       else if (m.difficulty === 'easy') badges += '<span title="Easy Mode">✌️</span>';
@@ -2144,7 +2144,7 @@ async function showAllianceDetailsModal(allianceId) {
         };
 
         let badges = '';
-        if (m.tanker_ops) badges += '⛽ ';
+        if (m.tanker_ops) badges += '🛢️ ';
         if (m.is_rookie) badges += '🤏 ';
         if (m.difficulty === 'realism') badges += '🤘';
         else if (m.difficulty === 'easy') badges += '✌️';
@@ -2377,7 +2377,7 @@ async function renderManagementTab() {
     const renderMemberCard = (member, group) => {
       // Additional emojis
       let additionalEmojis = '';
-      if (member.tanker_ops) additionalEmojis += ' ⛽';
+      if (member.tanker_ops) additionalEmojis += ' 🛢️';
       if (member.is_rookie) additionalEmojis += ' 🤏';
       if (member.difficulty === 'realism') additionalEmojis += ' 🤘';
       else if (member.difficulty === 'easy') additionalEmojis += ' ✌️';

@@ -9,7 +9,8 @@
     "title": "Discovered Formulas"
   },
   "04-api-reference": {
-    "title": "API Reference"
+    "title": "API Reference",
+    "externalUrl": "https://shippingmanager-api-reference.pages.dev/"
   },
   "05-cheatsheet": {
     "title": "Cheat-Sheet"

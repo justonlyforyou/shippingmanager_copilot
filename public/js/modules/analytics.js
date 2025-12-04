@@ -570,7 +570,7 @@ function initSortableHeaders() {
   const routeTable = document.querySelector('#analytics-routes .analytics-table thead');
   if (routeTable) {
     const routeHeaders = routeTable.querySelectorAll('th');
-    const routeColumns = ['route', 'vesselCount', 'trips', 'totalRevenue', 'avgRevenuePerTrip', 'avgRevenuePerHour', 'avgIncomePerNm', 'hijackRisk', 'harborFeePercent'];
+    const routeColumns = ['route', 'vesselCount', 'trips', 'totalRevenue', 'avgRevenuePerTrip', 'avgRevenuePerHour', 'avgIncomePerNm', 'hijackingRisk', 'harborFeePercent'];
     routeHeaders.forEach((th, index) => {
       if (index < routeColumns.length) {
         th.dataset.column = routeColumns[index];
@@ -2897,7 +2897,7 @@ function renderGameLogChart(chartEntries) {
     .sort((a, b) => b[1] - a[1])
     .map(e => e[0]);
 
-  // Map context names to readable labels
+  // Map context names to readable labels (explicit overrides)
   const contextLabels = {
     vessels_departed: 'Departure',
     harbor_fee_on_depart: 'Harbor Fee',
@@ -2915,6 +2915,14 @@ function renderGameLogChart(chartEntries) {
     ad_video: 'Ad Bonus',
     hijacking: 'Ransom',
     guard_payment_on_depart: 'Guard Fee'
+  };
+
+  // Auto-format category names: "purchase_stock" -> "Purchase Stock"
+  const formatCategoryLabel = (key) => {
+    if (contextLabels[key]) return contextLabels[key];
+    return key
+      .replace(/_/g, ' ')
+      .replace(/\b\w/g, c => c.toUpperCase());
   };
 
   // Colors for series (enough for all types)
@@ -3061,7 +3069,7 @@ function renderGameLogChart(chartEntries) {
   togglesDiv.innerHTML = categoriesWithData.map((cat, i) => `
     <button class="analytics-chart-toggle active" data-series="${cat}" style="border-color: ${seriesColors[i % seriesColors.length]}40;">
       <span class="analytics-chart-legend-dot" style="background: ${seriesColors[i % seriesColors.length]};"></span>
-      ${contextLabels[cat] || cat}
+      ${formatCategoryLabel(cat)}
     </button>
   `).join('');
   container.appendChild(togglesDiv);

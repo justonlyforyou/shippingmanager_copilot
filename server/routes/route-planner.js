@@ -3,7 +3,7 @@
  *
  * Provides endpoints for route planning functionality:
  * - Get available ports for a vessel
- * - Get suggested route from AI
+ * - Get suggested route for a vessel
  * - Get route data between two ports
  * - Create/assign route to vessel
  *
@@ -63,7 +63,7 @@ router.post('/get-vessel-ports', async (req, res) => {
 
 /**
  * POST /api/route/get-suggested-route
- * Gets AI-suggested optimal route for a vessel
+ * Gets a random suggested route for a vessel
  *
  * @route POST /api/route/get-suggested-route
  * @param {number} user_vessel_id - Vessel ID
@@ -284,6 +284,64 @@ router.post('/get-port-demand', async (req, res) => {
   } catch (error) {
     logger.error(`[Route Planner] Failed to get port demand: ${error.message}`);
     res.status(500).json({ error: 'Failed to get port demand' });
+  }
+});
+
+/**
+ * POST /api/route/update-route-data
+ * Updates speed, guards, and prices for an existing route
+ *
+ * @route POST /api/route/update-route-data
+ * @param {number} user_vessel_id - Vessel ID
+ * @param {number} speed - Travel speed (1 to max_speed)
+ * @param {number} guards - Number of guards (0-5)
+ * @param {object} prices - { dry: number, refrigerated: number }
+ * @returns {object} Updated vessel data
+ */
+router.post('/update-route-data', async (req, res) => {
+  try {
+    const { user_vessel_id, speed, guards, prices } = req.body;
+
+    if (!user_vessel_id) {
+      return res.status(400).json({ error: 'Missing user_vessel_id' });
+    }
+
+    logger.info(`[Route Planner] Updating route for vessel ${user_vessel_id}: speed=${speed}, guards=${guards}`);
+
+    const data = await apiCall('/route/update-route-data', 'POST', {
+      user_vessel_id: user_vessel_id,
+      speed: speed,
+      guards: guards,
+      prices: prices
+    });
+
+    // Log the route update to the logbook
+    try {
+      const userId = getUserId();
+      if (userId && data.data?.user_vessel) {
+        const vessel = data.data.user_vessel;
+        const summary = `${vessel.name} | Speed: ${speed} kn, Guards: ${guards}`;
+        await logbook.logAutopilotAction(userId, 'Manual Route Update', 'SUCCESS', summary, {
+          vessel_id: vessel.id,
+          vessel_name: vessel.name,
+          route_speed: speed,
+          route_guards: guards,
+          prices: prices
+        });
+        logger.debug(`[Route Planner] Logged route update to logbook for vessel ${vessel.name}`);
+      }
+    } catch (logError) {
+      logger.error(`[Route Planner] Failed to log route update: ${logError.message}`);
+    }
+
+    res.json({
+      success: true,
+      data: data.data || {}
+    });
+
+  } catch (error) {
+    logger.error(`[Route Planner] Failed to update route: ${error.message}`);
+    res.status(500).json({ error: 'Failed to update route' });
   }
 });
 

@@ -64,12 +64,20 @@ const SETTINGS_SCHEMA = {
   autoRebuyFuelUseAlert: true,
   autoRebuyFuelThreshold: 450,
   autoRebuyFuelMinCash: 1000000,
+  autoRebuyFuelEmergency: false,
+  autoRebuyFuelEmergencyBelow: 500,
+  autoRebuyFuelEmergencyShips: 5,
+  autoRebuyFuelEmergencyMaxPrice: 600,
 
   // Auto-Rebuy CO2
   autoRebuyCO2: false,
   autoRebuyCO2UseAlert: true,
   autoRebuyCO2Threshold: 7,
   autoRebuyCO2MinCash: 1000000,
+  autoRebuyCO2Emergency: false,
+  autoRebuyCO2EmergencyBelow: 500,
+  autoRebuyCO2EmergencyShips: 5,
+  autoRebuyCO2EmergencyMaxPrice: 12,
 
   // Auto-Depart
   autoDepartAll: false,
@@ -154,6 +162,18 @@ const SETTINGS_SCHEMA = {
   // Captain Blackbeard (Auto-Negotiate Hijacking) Notifications
   notifyCaptainBlackbeardInApp: true,
   notifyCaptainBlackbeardDesktop: true,
+
+  // The Purser (Auto Stock Trading)
+  autoPurserEnabled: false,
+  autoPurserMinCash: 1000000,        // Minimum cash balance before purchasing stocks
+  autoPurserMaxPrice: 100,           // Maximum stock price to auto-buy ($/share)
+  autoPurserAutoSellEnabled: false,  // Enable auto-sell when stock falls
+  autoPurserFallingDays: 3,          // Sell after stock falls for X days (1, 3, 7, 14, 30)
+  autoPurserDropPercent: 20,         // Sell if stock drops by X% from purchase price (10-100)
+
+  // The Purser Notifications
+  notifyThePurserInApp: true,
+  notifyThePurserDesktop: true,
 
   // Header Update Interval (in seconds)
   headerDataInterval: 60,
