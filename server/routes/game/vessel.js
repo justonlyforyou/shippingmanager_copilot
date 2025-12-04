@@ -1356,6 +1356,19 @@ router.post('/build-vessel', express.json(), async (req, res) => {
   try {
     const userId = getUserId();
 
+    // BEFORE BUILD: Get existing vessel IDs so we can find the new one after build
+    // (Game API doesn't return vessel_id in build response)
+    let existingVesselIds = new Set();
+    try {
+      const existingVessels = await apiCall('/vessel/get-all-user-vessels', 'GET');
+      if (existingVessels?.data) {
+        existingVesselIds = new Set(existingVessels.data.map(v => v.id));
+        logger.debug(`[Build Vessel] Captured ${existingVesselIds.size} existing vessel IDs before build`);
+      }
+    } catch (preCheckErr) {
+      logger.warn('[Build Vessel] Could not fetch existing vessels:', preCheckErr.message);
+    }
+
     // Forward build request to game API
     const data = await apiCall('/vessel/build-vessel', 'POST', {
       name,
@@ -1386,13 +1399,37 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       return res.status(500).json({ error: 'Build failed - API did not confirm' });
     }
 
-    // Get vessel_id directly from API response
-    const newVesselId = data.vessel_id || data.data?.vessel_id;
+    // AFTER BUILD: Find the new vessel by comparing vessel lists
+    // Game API doesn't return vessel_id in build response, so we have to find it
+    let newVesselId = data.vessel_id || data.data?.vessel_id;
+
+    if (!newVesselId && existingVesselIds.size > 0) {
+      try {
+        const currentVessels = await apiCall('/vessel/get-all-user-vessels', 'GET');
+        if (currentVessels?.data) {
+          // Find vessel that wasn't in the original list
+          const newVessel = currentVessels.data.find(v => !existingVesselIds.has(v.id));
+          if (newVessel) {
+            newVesselId = newVessel.id;
+            logger.info(`[Build Vessel] Found new vessel via list comparison: ID ${newVesselId}`);
+          } else {
+            // Fallback: find by name (if somehow ID matching fails)
+            const namedVessel = currentVessels.data.find(v => v.name === name && !existingVesselIds.has(v.id));
+            if (namedVessel) {
+              newVesselId = namedVessel.id;
+              logger.info(`[Build Vessel] Found new vessel by name: ID ${newVesselId}`);
+            }
+          }
+        }
+      } catch (postCheckErr) {
+        logger.warn('[Build Vessel] Could not fetch vessels after build:', postCheckErr.message);
+      }
+    }
 
     logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW) - ID: ${newVesselId}`);
 
     if (!newVesselId) {
-      logger.error('[Build Vessel] API did not return vessel_id');
+      logger.warn('[Build Vessel] Could not determine vessel_id - fast delivery will not be available');
     }
 
     // Store vessel appearance data if we found the vessel ID

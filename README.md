@@ -108,6 +108,13 @@ All AutoPilots support **Emergency Buy Override**: Configure minimum bunker leve
 
 Automated alliance assistant with role-based commands, scheduled announcements (forecast, welcome), custom commands, anti-spam cooldowns, and configurable prefixes.
 
+**Broadcast Templates**: Management roles (CEO, COO, Management) can send templated DMs to alliance members:
+- `!msg <template> [userID]` - Send template to single user
+- `!msg <template> [id1] [id2] [id3]` - Send template to multiple users
+- Built-in templates: `coop`, `inactive`, `reminder` (customizable)
+
+**DM Queue**: All private messages are queued and sent with 45-second intervals to respect Game API rate limits. Success/failure notifications appear in alliance chat.
+
 ### Additional Features
 
 - **Price Alerts**: Custom fuel/CO2 price notifications with desktop alerts
@@ -181,12 +188,6 @@ The application automatically uses the most secure storage available for your pl
 - **Security**: Encrypted with Secret Service API
 - **Access**: Only you on this specific machine can decrypt
 - **Requirements**: `libsecret-1-dev` package must be installed
-
-#### **Fallback Encryption**
-If OS keyring is unavailable:
-- Uses AES-256-GCM encryption with machine-specific key
-- Key derived from: hostname + username + platform
-- Still significantly more secure than plaintext
 
 ### Benefits
 

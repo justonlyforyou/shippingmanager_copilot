@@ -288,6 +288,12 @@ export async function displayMessages(messagesToDisplay, chatFeed) {
     loadAllianceMembers();
   }
 
+  // Save scroll position BEFORE re-render
+  // Check if user is at bottom (within 50px threshold)
+  const wasAtBottom = chatFeed.scrollHeight - chatFeed.scrollTop - chatFeed.clientHeight < 50;
+  const previousScrollTop = chatFeed.scrollTop;
+  const previousScrollHeight = chatFeed.scrollHeight;
+
   const messageHtmlPromises = messagesToDisplay.map(async msg => {
     if (msg.type === 'chat') {
       const userId = parseInt(msg.user_id);
@@ -317,6 +323,17 @@ export async function displayMessages(messagesToDisplay, chatFeed) {
 
   const messageHtmls = await Promise.all(messageHtmlPromises);
   chatFeed.innerHTML = messageHtmls.join('');
+
+  // Restore scroll position AFTER re-render
+  if (wasAtBottom) {
+    // User was at bottom - keep them at bottom (show new messages)
+    chatFeed.scrollTop = chatFeed.scrollHeight;
+  } else {
+    // User was scrolled up reading history - maintain their position
+    // Adjust for any height change (new messages added at bottom)
+    const heightDiff = chatFeed.scrollHeight - previousScrollHeight;
+    chatFeed.scrollTop = previousScrollTop + heightDiff;
+  }
 
   registerUsernameClickEvents();
 }

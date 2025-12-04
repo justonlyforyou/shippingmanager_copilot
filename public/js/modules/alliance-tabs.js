@@ -1202,6 +1202,8 @@ async function renderAllianzTab() {
     lastSeasonTopContributors.forEach((contributor, index) => {
       const member = membersData.find(m => m.user_id === contributor.user_id);
       const memberName = member ? escapeHtml(member.company_name) : 'Unknown';
+      const memberRole = member?.role || 'member';
+      const roleInfo = roleGroups[memberRole] || roleGroups.member;
       const rank = index + 1;
       const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : '\u{1F949}';
       const reward = contributor.point_reward;
@@ -1209,7 +1211,7 @@ async function renderAllianzTab() {
       html += `
         <tr>
           <td class="rank-cell">${medal}</td>
-          <td class="member-cell"><span class="clickable alliance-member-name" data-user-id="${contributor.user_id}">${memberName}</span></td>
+          <td class="member-cell"><span class="clickable alliance-member-name" data-user-id="${contributor.user_id}">${memberName}</span> <span title="${roleInfo.title}">${roleInfo.emoji}</span></td>
           <td class="contribution-cell">${formatNumber(contributor.contribution_score_sum)}</td>
           <td class="reward-cell">${reward} \u{1F48E}</td>
         </tr>
@@ -1231,10 +1233,14 @@ async function renderAllianzTab() {
         <option value="contribution-24h-asc">24h Contribution ↑</option>
         <option value="departures-24h-desc">24h Departures ↓</option>
         <option value="departures-24h-asc">24h Departures ↑</option>
-        <option value="contribution-season-desc">Season Contribution ↓</option>
-        <option value="contribution-season-asc">Season Contribution ↑</option>
-        <option value="departures-season-desc">Season Departures ↓</option>
-        <option value="departures-season-asc">Season Departures ↑</option>
+        <option value="contribution-this-season-desc">This Season Contribution ↓</option>
+        <option value="contribution-this-season-asc">This Season Contribution ↑</option>
+        <option value="departures-this-season-desc">This Season Departures ↓</option>
+        <option value="departures-this-season-asc">This Season Departures ↑</option>
+        <option value="contribution-last-season-desc">Last Season Contribution ↓</option>
+        <option value="contribution-last-season-asc">Last Season Contribution ↑</option>
+        <option value="departures-last-season-desc">Last Season Departures ↓</option>
+        <option value="departures-last-season-asc">Last Season Departures ↑</option>
         <option value="contribution-lifetime-desc">Lifetime Contribution ↓</option>
         <option value="contribution-lifetime-asc">Lifetime Contribution ↑</option>
         <option value="departures-lifetime-desc">Lifetime Departures ↓</option>
@@ -1280,10 +1286,16 @@ async function renderAllianzTab() {
       } else if (sortBy === 'departures-24h') {
         aVal = aStats.last_24h.departures;
         bVal = bStats.last_24h.departures;
-      } else if (sortBy === 'contribution-season') {
+      } else if (sortBy === 'contribution-this-season') {
+        aVal = aStats.this_season.contribution;
+        bVal = bStats.this_season.contribution;
+      } else if (sortBy === 'departures-this-season') {
+        aVal = aStats.this_season.departures;
+        bVal = bStats.this_season.departures;
+      } else if (sortBy === 'contribution-last-season') {
         aVal = aStats.last_season.contribution;
         bVal = bStats.last_season.contribution;
-      } else if (sortBy === 'departures-season') {
+      } else if (sortBy === 'departures-last-season') {
         aVal = aStats.last_season.departures;
         bVal = bStats.last_season.departures;
       } else if (sortBy === 'contribution-lifetime') {
@@ -1333,7 +1345,7 @@ async function renderAllianzTab() {
       membersHtml += `
         <div class="alliance-stat-card member-card">
           <h4>
-            <span title="${m.roleGroup.title}">${m.roleGroup.emoji}</span> <span class="clickable alliance-member-name" data-user-id="${m.user_id}">${escapeHtml(m.company_name)}</span>
+            <span class="clickable alliance-member-name" data-user-id="${m.user_id}">${escapeHtml(m.company_name)}</span> <span title="${m.roleGroup.title}">${m.roleGroup.emoji}</span>
             <span class="member-badges">${badges}</span>
           </h4>
           ${shareValueHtml}
@@ -1346,11 +1358,19 @@ async function renderAllianzTab() {
             <span class="stat-value">${formatNumber(stats.last_24h.departures)}</span>
           </div>
           <div class="stat-row">
-            <span>Season Contribution:</span>
+            <span>This Season Contribution:</span>
+            <span class="stat-value">${formatNumber(stats.this_season.contribution)}</span>
+          </div>
+          <div class="stat-row">
+            <span>This Season Departures:</span>
+            <span class="stat-value">${formatNumber(stats.this_season.departures)}</span>
+          </div>
+          <div class="stat-row">
+            <span>Last Season Contribution:</span>
             <span class="stat-value">${formatNumber(stats.last_season.contribution)}</span>
           </div>
           <div class="stat-row">
-            <span>Season Departures:</span>
+            <span>Last Season Departures:</span>
             <span class="stat-value">${formatNumber(stats.last_season.departures)}</span>
           </div>
           <div class="stat-row">
@@ -2029,6 +2049,8 @@ async function showAllianceDetailsModal(allianceId) {
       lastSeasonTopContributors.forEach((contributor, index) => {
         const member = members.find(m => m.user_id === contributor.user_id);
         const memberName = member ? escapeHtml(member.company_name) : 'Unknown';
+        const memberRole = member?.role || 'member';
+        const roleInfo = roleGroups[memberRole] || roleGroups.member;
         const rank = index + 1;
         const medal = rank === 1 ? '\u{1F947}' : rank === 2 ? '\u{1F948}' : '\u{1F949}';
         const reward = contributor.point_reward;
@@ -2036,7 +2058,7 @@ async function showAllianceDetailsModal(allianceId) {
         topContributorsHtml += `
           <tr>
             <td class="rank-cell">${medal}</td>
-            <td class="member-cell"><span class="clickable alliance-member-name" data-user-id="${contributor.user_id}">${memberName}</span></td>
+            <td class="member-cell"><span class="clickable alliance-member-name" data-user-id="${contributor.user_id}">${memberName}</span> <span title="${roleInfo.title}">${roleInfo.emoji}</span></td>
             <td class="contribution-cell">${formatNumber(contributor.contribution_score_sum)}</td>
             <td class="reward-cell">${reward} \u{1F48E}</td>
           </tr>
@@ -2139,6 +2161,7 @@ async function showAllianceDetailsModal(allianceId) {
 
         const stats = m.stats || {
           last_24h: { contribution: 0, departures: 0 },
+          this_season: { contribution: 0, departures: 0 },
           last_season: { contribution: 0, departures: 0 },
           lifetime: { contribution: 0, departures: 0 }
         };
@@ -2151,11 +2174,10 @@ async function showAllianceDetailsModal(allianceId) {
 
         membersHtml += `
           <div class="alliance-stat-card member-card">
-            <h4 class="clickable alliance-member-name" data-user-id="${m.user_id}">${m.roleGroup.emoji} ${escapeHtml(m.company_name)}</h4>
-            <div class="stat-row">
-              <span>Role:</span>
-              <span class="stat-value">${m.roleGroup.title} ${badges}</span>
-            </div>
+            <h4>
+              <span class="clickable alliance-member-name" data-user-id="${m.user_id}">${escapeHtml(m.company_name)}</span> <span title="${m.roleGroup.title}">${m.roleGroup.emoji}</span>
+              <span class="member-badges">${badges}</span>
+            </h4>
             <div class="stat-row">
               <span>Share Value:</span>
               <span class="stat-value">${shareValue}</span>
@@ -2169,11 +2191,19 @@ async function showAllianceDetailsModal(allianceId) {
               <span class="stat-value">${formatNumber(stats.last_24h.departures)}</span>
             </div>
             <div class="stat-row">
-              <span>Season Contribution:</span>
+              <span>This Season Contribution:</span>
+              <span class="stat-value">${formatNumber(stats.this_season.contribution)}</span>
+            </div>
+            <div class="stat-row">
+              <span>This Season Departures:</span>
+              <span class="stat-value">${formatNumber(stats.this_season.departures)}</span>
+            </div>
+            <div class="stat-row">
+              <span>Last Season Contribution:</span>
               <span class="stat-value">${formatNumber(stats.last_season.contribution)}</span>
             </div>
             <div class="stat-row">
-              <span>Season Departures:</span>
+              <span>Last Season Departures:</span>
               <span class="stat-value">${formatNumber(stats.last_season.departures)}</span>
             </div>
             <div class="stat-row">

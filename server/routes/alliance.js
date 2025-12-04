@@ -350,6 +350,7 @@ router.get('/alliance-members', async (req, res) => {
     const allianceId = getAllianceId();
 
     // Fetch all 4 stat variations in parallel
+    // Base data (no stats filter) returns THIS SEASON contribution/departures
     const [baseData, lastSeasonData, last24hData, lifetimeData] = await Promise.all([
       apiCall('/alliance/get-alliance-members', 'POST', {
         alliance_id: allianceId,
@@ -381,10 +382,11 @@ router.get('/alliance-members', async (req, res) => {
       })
     ]);
 
-    // Merge data: keep separate stats for each filter (24h, season, lifetime)
+    // Merge data: keep separate stats for each filter (24h, this_season, last_season, lifetime)
     const memberMap = new Map();
 
     // Process base data (initialize members)
+    // Base data contribution/departures = THIS SEASON stats
     baseData.data.members.forEach(member => {
       memberMap.set(member.user_id, {
         user_id: member.user_id,
@@ -398,6 +400,7 @@ router.get('/alliance-members', async (req, res) => {
         time_last_login: member.time_last_login,
         stats: {
           last_24h: { contribution: null, departures: null },
+          this_season: { contribution: member.contribution, departures: member.departures },
           last_season: { contribution: null, departures: null },
           lifetime: { contribution: null, departures: null }
         }
@@ -647,10 +650,11 @@ router.get('/alliance-members/:id', async (req, res) => {
       return res.status(400).json({ error: baseData.error });
     }
 
-    // Merge data: keep separate stats for each filter (24h, season, lifetime)
+    // Merge data: keep separate stats for each filter (24h, this_season, last_season, lifetime)
     const memberMap = new Map();
 
     // Process base data (initialize members)
+    // Base data contribution/departures = THIS SEASON stats
     baseData.data.members.forEach(member => {
       memberMap.set(member.user_id, {
         user_id: member.user_id,
@@ -664,6 +668,7 @@ router.get('/alliance-members/:id', async (req, res) => {
         time_last_login: member.time_last_login,
         stats: {
           last_24h: { contribution: null, departures: null },
+          this_season: { contribution: member.contribution, departures: member.departures },
           last_season: { contribution: null, departures: null },
           lifetime: { contribution: null, departures: null }
         }

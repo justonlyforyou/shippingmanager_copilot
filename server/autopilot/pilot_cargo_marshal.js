@@ -534,13 +534,13 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
           // Check if departure failed
           if (result.success === false) {
-            // SPECIAL CASE: Vessel already departed (race condition)
+            // SPECIAL CASE: Vessel already departed or no longer at port
             if (result.error === 'Vessel not found or status invalid') {
-              logger.warn(`[Depart] Vessel ${vessel.name} was already departed by another process (race condition)`);
+              logger.warn(`[Depart] Vessel ${vessel.name} already departed or status changed`);
               failedVessels.push({
                 name: vessel.name,
                 destination: destination,
-                reason: 'Already departed (race condition with autopilot or game)'
+                reason: 'Already departed'
               });
               continue;
             }
@@ -580,6 +580,9 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
               detailedReason = `No demand at ${destination} (${remainingDemand.toFixed(1)}t remaining demand, vessel capacity ${vesselCapacity.toFixed(1)}t)`;
             } else if (lowerReason === 'failed to depart vessel') {
               detailedReason = result.errorMessage || 'Failed to depart vessel';
+            } else if (lowerReason.includes('departure_is_already_in_progress') || lowerReason.includes('already in progress')) {
+              // Game API returns this when vessel is currently departing
+              detailedReason = 'Departure in progress';
             }
 
             failedVessels.push({

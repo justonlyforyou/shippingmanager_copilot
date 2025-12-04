@@ -11,6 +11,47 @@ const { getUserId, apiCall } = require('../utils/api');
 const { getSettingsFilePath } = require('../settings-schema');
 const logger = require('../utils/logger');
 
+// Command queue for rate-limited execution
+const commandQueue = [];
+let isProcessingQueue = false;
+const COMMAND_DELAY_MS = 5000; // 5 seconds between commands (Game API rate limit)
+
+/**
+ * Add command to queue and start processing if not already running
+ * @param {Function} executeFn - Async function to execute the command
+ * @param {string} commandInfo - Description for logging
+ */
+function queueCommand(executeFn, commandInfo) {
+    commandQueue.push({ executeFn, commandInfo });
+    logger.debug(`[ChatBot] Command queued: ${commandInfo} (queue size: ${commandQueue.length})`);
+    processQueue();
+}
+
+/**
+ * Process command queue with delays between commands
+ */
+async function processQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+
+    while (commandQueue.length > 0) {
+        const { executeFn, commandInfo } = commandQueue.shift();
+        try {
+            logger.debug(`[ChatBot] Executing queued command: ${commandInfo}`);
+            await executeFn();
+        } catch (error) {
+            logger.error(`[ChatBot] Error executing queued command ${commandInfo}:`, error);
+        }
+
+        // Wait before next command if queue not empty
+        if (commandQueue.length > 0) {
+            await new Promise(resolve => setTimeout(resolve, COMMAND_DELAY_MS));
+        }
+    }
+
+    isProcessingQueue = false;
+}
+
 /**
  * Check if user has management role in alliance (CEO, COO, Management, Interim CEO)
  * @param {number} userId - User ID to check
@@ -67,37 +108,6 @@ function findCustomCommand(trigger, settings) {
     );
 }
 
-/**
- * Check if command is on cooldown
- * @param {string} userId - User ID
- * @param {string} command - Command name
- * @param {Map} lastCommandTime - Map of user cooldowns (userId -> { command -> timestamp })
- * @param {object} settings - ChatBot settings
- * @returns {boolean} True if on cooldown
- */
-function isOnCooldown(userId, command, lastCommandTime, settings) {
-    const userCooldowns = lastCommandTime.get(userId);
-    if (!userCooldowns) return false;
-
-    const lastTime = userCooldowns[command];
-    if (!lastTime) return false;
-
-    const cooldownMs = (settings.allianceCommands?.cooldownSeconds || 30) * 1000;
-    return Date.now() - lastTime < cooldownMs;
-}
-
-/**
- * Update cooldown for command
- * @param {string} userId - User ID
- * @param {string} command - Command name
- * @param {Map} lastCommandTime - Map of user cooldowns
- */
-function updateCooldown(userId, command, lastCommandTime) {
-    if (!lastCommandTime.has(userId)) {
-        lastCommandTime.set(userId, {});
-    }
-    lastCommandTime.get(userId)[command] = Date.now();
-}
 
 /**
  * Validate command arguments
@@ -237,7 +247,7 @@ function isCommandAllowedInChannel(command, channel) {
  * @param {object} chatbotInstance - ChatBot instance (for settings, lastCommandTime, executeCommand)
  */
 async function processAllianceMessage(message, userId, userName, chatbotInstance) {
-    const { settings, lastCommandTime, executeCommandFn } = chatbotInstance;
+    const { settings, executeCommandFn } = chatbotInstance;
 
     if (!settings?.enabled) {
         return;
@@ -263,10 +273,13 @@ async function processAllianceMessage(message, userId, userName, chatbotInstance
 
     // Resolve command name (including aliases)
     const command = resolveCommandName(commandInput, settings);
+    logger.debug(`[ChatBot] resolveCommandName("${commandInput}") returned: ${command}, available commands: [${Object.keys(settings?.commands || {}).join(',')}]`);
     if (!command) {
+        logger.debug(`[ChatBot] Command "${commandInput}" not in settings.commands, checking custom commands...`);
         // Check custom commands as fallback
         const customCmd = findCustomCommand(commandInput, settings);
         if (!customCmd || !customCmd.enabled) {
+            logger.debug(`[ChatBot] Command "${commandInput}" not found in settings or custom commands, ignoring`);
             return; // Ignore unknown or disabled commands
         }
         // Custom command handling would go here
@@ -301,20 +314,11 @@ async function processAllianceMessage(message, userId, userName, chatbotInstance
         }
     }
 
-    // Check cooldown
-    if (isOnCooldown(userId, command, lastCommandTime, settings)) {
-        logger.debug(`[ChatBot] Command ${command} on cooldown for user ${userId}`);
-        return;
-    }
-
-    // Execute command
-    try {
+    // Queue command for rate-limited execution (no cooldown blocking)
+    const commandInfo = `!${command} ${args.join(' ')} (from ${userName})`;
+    queueCommand(async () => {
         await executeCommandFn(command, args, userId, userName, cmdConfig, false);
-        updateCooldown(userId, command, lastCommandTime);
-    } catch (error) {
-        logger.error(`[ChatBot] Error executing command ${command}:`, error);
-        // Errors ONLY go to console - no messages to users!
-    }
+    }, commandInfo);
 }
 
 /**
@@ -420,10 +424,9 @@ module.exports = {
     processPrivateMessage,
     resolveCommandName,
     findCustomCommand,
-    isOnCooldown,
-    updateCooldown,
     validateCommandArguments,
     validateForecastArguments,
     validateWelcomeArguments,
-    isCommandAllowedInChannel
+    isCommandAllowedInChannel,
+    queueCommand
 };

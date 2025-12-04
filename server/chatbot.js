@@ -29,7 +29,6 @@ const logger = require('./utils/logger');
 class ChatBot {
     constructor() {
         this.settings = null;
-        this.lastCommandTime = new Map(); // userId -> { command -> timestamp }
         this.processedMessages = new Set(); // Track processed DMs to avoid duplicates
         this.scheduledTasks = new Map(); // taskId -> timeout
         this.initialized = false;
@@ -102,7 +101,6 @@ class ChatBot {
         // Build chatbot instance data for parser
         const chatbotInstance = {
             settings: this.settings,
-            lastCommandTime: this.lastCommandTime,
             executeCommandFn: this.executeCommand.bind(this)
         };
 

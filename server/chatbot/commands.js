@@ -130,6 +130,25 @@ async function generateForecastText(day, timezone) {
 }
 
 /**
+ * Check if user has management role in alliance (CEO, COO, Management, Interim CEO)
+ * @param {number|string} checkUserId - User ID to check
+ * @returns {Promise<boolean>} True if user has management role
+ */
+async function hasManagementRole(checkUserId) {
+    try {
+        const response = await apiCall('/alliance/get-alliance-members', 'POST', {});
+        const members = response?.data?.members || response?.members || [];
+        const member = members.find(m => m.user_id === parseInt(checkUserId));
+        const role = member?.role || 'member';
+        const allowedRoles = ['ceo', 'coo', 'management', 'interimceo'];
+        return allowedRoles.includes(role);
+    } catch (error) {
+        logger.error('[ChatBot] Error checking management role:', error);
+        return false;
+    }
+}
+
+/**
  * Handle help command
  * @param {string} userId - User ID
  * @param {string} userName - User name
@@ -141,6 +160,12 @@ async function generateForecastText(day, timezone) {
 async function handleHelpCommand(userId, userName, config, isDM, settings, sendResponseFn) {
     const prefix = settings.commandPrefix || '!';
     const MAX_MESSAGE_LENGTH = 900;
+
+    // Check if user should see management commands
+    // Only show in alliance chat AND only to bot owner or management roles
+    const botOwnerId = getUserId();
+    const isBotOwner = String(userId) === String(botOwnerId);
+    const isManagement = !isDM && (isBotOwner || await hasManagementRole(userId));
 
     // Build help sections as array for easier splitting
     const sections = [];
@@ -164,8 +189,25 @@ async function handleHelpCommand(userId, userName, config, isDM, settings, sendR
         sections.push(forecastSection);
     }
 
-    // NOTE: !welcome and !msg commands are internal management commands
-    // They are intentionally NOT shown in help - they only work in alliance chat
+    // Management commands - only in alliance chat for bot owner or management roles
+    if (isManagement) {
+        // !msg command
+        if (settings.commands.msg?.enabled) {
+            let msgSection = `Send broadcast template\n\n`;
+            msgSection += `${prefix}msg <template> - to all members\n`;
+            msgSection += `${prefix}msg <template> [id1] [id2] - to specific users\n`;
+            msgSection += `(management only)`;
+            sections.push(msgSection);
+        }
+
+        // !welcome command
+        if (settings.commands.welcome?.enabled) {
+            let welcomeSection = `Send welcome message\n\n`;
+            welcomeSection += `${prefix}welcome [userID]\n`;
+            welcomeSection += `(management only)`;
+            sections.push(welcomeSection);
+        }
+    }
 
     // Custom commands
     for (const cmd of settings.customCommands || []) {
@@ -314,16 +356,19 @@ async function loadBroadcastTemplates(userId) {
 
 /**
  * Handle msg command - send broadcast template to alliance members
- * Format: !msg <templateKey> or !msg <templateKey> [userID]
- * UserID MUST be in square brackets to send to single user
+ * Format: !msg <templateKey> - broadcast to all members
+ * Format: !msg <templateKey> [userID1] [userID2] ... - send to specific users
+ * UserIDs MUST be in square brackets
  *
- * @param {Array<string>} args - Command arguments [templateKey, [userID]]
+ * @param {Array<string>} args - Command arguments [templateKey, [userID1], [userID2], ...]
  * @param {string} userId - User ID of command caller
  * @param {string} userName - User name
  * @param {object} config - Command configuration
  * @param {boolean} isDM - Whether command came from DM
  */
 async function handleMsgCommand(args, userId, userName, config, isDM) {
+    logger.info(`[ChatBot] handleMsgCommand ENTRY: args=${JSON.stringify(args)}, userId=${userId}, isDM=${isDM}`);
+
     // CRITICAL: msg command is ONLY allowed in alliance chat, NEVER in DMs
     if (isDM) {
         logger.debug('[ChatBot] msg command blocked: not allowed in DMs');
@@ -337,18 +382,17 @@ async function handleMsgCommand(args, userId, userName, config, isDM) {
 
     const templateKey = args[0].toLowerCase();
 
-    // Check for optional [userID] in square brackets
-    let targetUserId = null;
-    if (args.length >= 2) {
-        const userIdArg = args[1];
+    // Parse all [userID] arguments (supports multiple)
+    const targetUserIds = [];
+    for (let i = 1; i < args.length; i++) {
+        const userIdArg = args[i];
         // MUST be in square brackets: [12345]
         const bracketMatch = userIdArg.match(/^\[(\d+)\]$/);
         if (bracketMatch) {
-            targetUserId = parseInt(bracketMatch[1]);
+            targetUserIds.push(parseInt(bracketMatch[1]));
         } else {
-            // If second argument exists but is not in brackets, ignore the command
-            logger.debug(`[ChatBot] msg command: userID must be in brackets [userID], got: ${userIdArg}`);
-            return;
+            // If argument exists but is not in brackets, ignore it and log
+            logger.debug(`[ChatBot] msg command: skipping invalid userID format: ${userIdArg}`);
         }
     }
 
@@ -367,20 +411,25 @@ async function handleMsgCommand(args, userId, userName, config, isDM) {
         return;
     }
 
-    // Get recipients
-    let recipients = [];
+    // Get alliance members for name lookup
     const membersResponse = await apiCall('/alliance/get-alliance-members', 'POST', {});
     const members = membersResponse?.data?.members || membersResponse?.members || [];
 
-    if (targetUserId) {
-        // Single user mode
-        const targetMember = members.find(m => m.user_id === targetUserId);
-        if (targetMember) {
-            recipients = [targetMember];
-        } else {
-            recipients = [{ user_id: targetUserId, company_name: `User ${targetUserId}` }];
+    // Build recipients list
+    let recipients = [];
+
+    if (targetUserIds.length > 0) {
+        // Specific users mode - find each user
+        for (const targetId of targetUserIds) {
+            const targetMember = members.find(m => m.user_id === targetId);
+            if (targetMember) {
+                recipients.push(targetMember);
+            } else {
+                // User not in alliance, still try to send
+                recipients.push({ user_id: targetId, company_name: `User ${targetId}` });
+            }
         }
-        logger.info(`[ChatBot] Sending msg "${templateKey}" to user ${targetUserId} (triggered by ${userName})`);
+        logger.info(`[ChatBot] Sending msg "${templateKey}" to ${recipients.length} user(s) (triggered by ${userName})`);
     } else {
         // Broadcast to all alliance members (exclude self = bot owner)
         recipients = members.filter(m => m.user_id !== parseInt(botOwnerId));
@@ -392,28 +441,39 @@ async function handleMsgCommand(args, userId, userName, config, isDM) {
         return;
     }
 
-    // Send to each recipient
-    const { sendPrivateMessage } = require('./sender');
-    let sent = 0;
-    let failed = 0;
+    // Import sender functions
+    const { queuePrivateMessage, sendAllianceMessage, broadcastDmQueuedNotification } = require('./sender');
 
-    for (const recipient of recipients) {
-        try {
-            await sendPrivateMessage(recipient.user_id, template.subject, template.message);
-            sent++;
-
-            // Delay between messages to avoid rate limiting
-            // Game API may silently drop messages if sent too fast
-            if (recipients.length > 1) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        } catch (err) {
-            failed++;
-            logger.warn(`[ChatBot] Failed to send msg to ${recipient.company_name}: ${err.message}`);
-        }
+    // Build confirmation message for alliance chat
+    const recipientNames = recipients.map(r => r.company_name);
+    const confirmationLines = [
+        `${template.subject} queued for:`
+    ];
+    for (const name of recipientNames) {
+        confirmationLines.push(`- ${name}`);
     }
 
-    logger.info(`[ChatBot] msg "${templateKey}" complete: ${sent} sent, ${failed} failed`);
+    // Send confirmation to alliance chat
+    const confirmationMsg = confirmationLines.join('\n');
+    await sendAllianceMessage(confirmationMsg);
+
+    // Broadcast notification to frontend
+    broadcastDmQueuedNotification(templateKey, recipientNames);
+
+    // Queue all DMs (the queue handles rate limiting with 45s intervals)
+    // notifyChat = true to send success/failure messages to alliance chat
+    for (const recipient of recipients) {
+        // Queue message - don't await, let the queue handle it
+        queuePrivateMessage(recipient.user_id, template.subject, template.message, recipient.company_name, true)
+            .then(() => {
+                logger.debug(`[ChatBot] msg "${templateKey}" sent to ${recipient.company_name}`);
+            })
+            .catch(err => {
+                logger.warn(`[ChatBot] msg "${templateKey}" failed for ${recipient.company_name}: ${err.message}`);
+            });
+    }
+
+    logger.info(`[ChatBot] msg "${templateKey}" queued ${recipients.length} DMs`);
 }
 
 /**
