@@ -12,7 +12,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { getUserId, getAllianceName, apiCall } = require('../utils/api');
 const { getSettingsFilePath } = require('../settings-schema');
-const { getInternalBaseUrl, getAppDataDir } = require('../config');
+const { getInternalBaseUrl, getAppBaseDir } = require('../config');
 const { getServerLocalTimezone } = require('../routes/forecast');
 
 /**
@@ -335,7 +335,7 @@ async function handleWelcomeCommand(args, userName, isDM) {
 function getBroadcastDir() {
     const isPkg = !!process.pkg;
     return isPkg
-        ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'broadcast-templates')
+        ? path.join(getAppBaseDir(), 'userdata', 'broadcast-templates')
         : path.join(__dirname, '../../userdata/broadcast-templates');
 }
 

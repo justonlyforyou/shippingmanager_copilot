@@ -52,16 +52,15 @@ const logger = require('./utils/logger');
  * Production (pkg): uses AppData/Local/ShippingManagerCoPilot
  * @constant {string}
  */
-const { getAppDataDir } = require('./config');
+const { getAppBaseDir } = require('./config');
 
 // Determine if running as packaged executable
 const isPkg = typeof process.pkg !== 'undefined';
 
 let CERTS_DIR;
 if (isPkg) {
-  // Production: use AppData
-  const APPDATA_DIR = path.join(getAppDataDir(), 'ShippingManagerCoPilot');
-  CERTS_DIR = path.join(APPDATA_DIR, 'userdata', 'certs');
+  // Production: use platform-specific app directory
+  CERTS_DIR = path.join(getAppBaseDir(), 'userdata', 'certs');
 } else {
   // Development: use local project directory
   const PROJECT_ROOT = path.join(__dirname, '..');

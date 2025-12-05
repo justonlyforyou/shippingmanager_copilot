@@ -1,472 +1,231 @@
 # Installation Guide
-Complete guide for setting up ShippingManager CoPilot from source code on Windows, Linux, and macOS.
 
-## Windows End-Users
+Complete guide for installing and running ShippingManager CoPilot.
 
-**If you're a Windows user**, you don't need this guide! Use the portable .exe instead:
-1. Download `ShippingManagerCoPilot-vX.Y.Z.exe` [Get latest version here](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest)
-2. Run installer :)
+## Quick Start (Pre-built Downloads)
 
-This guide is for **developers** and **Linux/Mac users** who need to run from source.
+Download the latest release for your platform from [GitHub Releases](https://github.com/justonlyforyou/shippingmanager_copilot/releases/latest):
 
-## Prerequisites
+| Platform | Download | Login Method |
+|----------|----------|--------------|
+| Windows | `ShippingManagerCoPilot-Installer-*.exe` | Steam + Browser |
+| macOS (Intel) | `ShippingManagerCoPilot-macos-x64.dmg` | Browser only |
+| macOS (Apple Silicon) | `ShippingManagerCoPilot-macos-arm64.dmg` | Browser only |
+| Linux | `ShippingManagerCoPilot-linux-x64.tar.gz` | Browser only |
 
-### All Platforms
+### Windows Installation
 
-**Node.js 22.0+** (https://nodejs.org/)
+1. Download `ShippingManagerCoPilot-Installer-*.exe`
+2. Run the installer
+3. Launch from Start Menu or Desktop shortcut
+4. The application starts as a system tray icon
+5. Open browser to `https://localhost:12345`
+
+### macOS Installation
+
+1. Download the appropriate DMG for your Mac:
+   - Intel Macs: `ShippingManagerCoPilot-macos-x64.dmg`
+   - Apple Silicon (M1/M2/M3): `ShippingManagerCoPilot-macos-arm64.dmg`
+2. Open the DMG file
+3. Drag `ShippingManagerCoPilot.app` to Applications folder
+4. First launch: Right-click > Open (to bypass Gatekeeper)
+5. Open browser to `https://localhost:12345`
+
+### Linux Installation
+
+1. Download `ShippingManagerCoPilot-linux-x64.tar.gz`
+2. Extract: `tar -xzf ShippingManagerCoPilot-linux-x64.tar.gz`
+3. Run: `./ShippingManagerCoPilot`
+4. Open browser to `https://localhost:12345`
+
+**Linux Dependencies:**
 ```bash
-node --version  # Should be >= 22.0.0
-npm --version   # Should be >= 9.0.0
+# Debian/Ubuntu
+sudo apt install libsecret-1-dev
+
+# Fedora/RHEL
+sudo dnf install libsecret-devel
 ```
 
-**Python 3.10+** (https://www.python.org/)
+---
+
+## Running from Source (Developers)
+
+### Prerequisites
+
+**Node.js 22.0+** (required)
 ```bash
-python --version   # Should be >= 3.10
-pip --version      # Should be installed
+node --version  # Must be >= 22.0.0
+npm --version   # Must be >= 9.0.0
 ```
 
-**Git** (https://git-scm.com/)
+**Python 3.10+** (required for system tray and session management)
+```bash
+python --version  # Must be >= 3.10
+pip --version
+```
+
+**Git**
 ```bash
 git --version
 ```
 
-**Steam Client** with Shipping Manager
-- Must be logged in at least once
-- Must have launched Shipping Manager at least once (to generate session cookie)
-
-### Platform-Specific Requirements
+### Platform-Specific Dependencies
 
 **Windows:**
-- No additional system requirements
-- Python packages: `pywin32`, `cryptography`
+```bash
+pip install pywin32
+```
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt update
-sudo apt install -y libsecret-1-dev build-essential
+sudo apt install libsecret-1-dev build-essential python3-tk
+pip install SecretStorage
 ```
 
 **Linux (Fedora/RHEL):**
 ```bash
-sudo dnf install -y libsecret-devel gcc-c++ make
+sudo dnf install libsecret-devel gcc-c++ make python3-tkinter
+pip install SecretStorage
 ```
 
 **macOS:**
 ```bash
-# Install Homebrew if not already installed
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-
-# Install libsecret via Homebrew
 brew install libsecret
 ```
 
-## Installation Steps
+### Installation Steps
 
-### Step 1: Clone the Repository
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/justonlyforyou/shippingmanager_copilot.git
+   cd shippingmanager_copilot
+   ```
 
-```bash
-git clone https://github.com/justonlyforyou/shippingmanager_copilot.git
-cd shippingmanager_copilot
-```
+2. **Install Node.js dependencies**
+   ```bash
+   npm install
+   ```
 
-### Step 2: Install Node.js Dependencies
+3. **Install Python dependencies**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```bash
-npm install
-```
+4. **Start the application**
+   ```bash
+   python start.py
+   ```
 
-This installs all required Node.js packages including:
-- `express` - Web server framework
-- `ws` - WebSocket server
-- `axios` - HTTP client
-- `helmet` - Security middleware
-- `express-rate-limit` - Rate limiting
-- `validator` - Input sanitization
+The application starts as a system tray icon and automatically opens your browser to `https://localhost:12345`.
 
-### Step 3: Install Python Dependencies
+---
 
-**All platforms:**
-```bash
-pip install -r requirements.txt
-```
+## Session Authentication
 
-This installs all required Python packages including:
-- `pywin32` (Windows only) - Windows API access
-- `cryptography` - Session encryption
-- `keyring` - OS credential storage
-- `pystray` - System tray icon
-- `pillow` - Image processing
-- `requests` - HTTP client
-- `psutil` - Process management
+The application needs your Shipping Manager session cookie to authenticate with the game API.
 
-### Step 4: Verify Installation
+### Windows (Steam + Browser)
 
-```bash
-# Check Node.js dependencies
-npm list --depth=0
+- **Steam extraction**: Automatic - the app extracts session cookies from your local Steam client
+- **Browser login**: Manual login via built-in browser window
 
-# Check Python dependencies
-pip list | grep -E "(pywin32|cryptography|keyring)"
-```
+### macOS / Linux (Browser only)
 
-## Session Cookie Extraction
+- **Browser login**: Click "Browser Login" in the app to authenticate through the game website
 
-The application needs your Steam session cookie to authenticate with the Shipping Manager API.
+### Session Storage
 
-### Automated Extraction (All Platforms)
+All sessions are encrypted using your OS credential manager:
+- **Windows**: Windows DPAPI + Credential Manager
+- **macOS**: Keychain
+- **Linux**: libsecret (GNOME Keyring / KWallet)
 
-The `start.py` script automatically handles session management:
-
-```bash
-python start.py
-```
-
-**What it does:**
-1. Checks for existing encrypted sessions
-2. If no session: Extracts session cookie from Steam (Windows DPAPI) or browser login
-3. Encrypts and stores session using OS keyring (DPAPI/Keychain/libsecret)
-4. Shows session selection dialog if multiple accounts available
-5. Starts the Express server with selected session
-6. Runs as system tray icon with controls
-
-### Manual Extraction (Linux/Mac/Debugging)
-
-If automatic extraction fails, you can manually extract the cookie:
-
-#### Method 1: Browser DevTools (All Platforms)
-
-1. Open Steam client and launch Shipping Manager
-2. Open browser DevTools (F12)
-3. Go to **Application** > **Cookies** > `https://shippingmanager.cc`
-4. Find `shipping_manager_session` cookie
-5. Copy the value
-
-#### Method 2: Steam Database (Advanced)
-
-**Linux:**
-```bash
-# Steam database location
-~/.local/share/Steam/config/cookies.sqlite
-
-# Extract cookie using sqlite3
-sqlite3 ~/.local/share/Steam/config/cookies.sqlite \
-  "SELECT value FROM cookies WHERE name='shipping_manager_session';"
-```
-
-**macOS:**
-```bash
-# Steam database location
-~/Library/Application Support/Steam/config/cookies.sqlite
-
-# Extract cookie using sqlite3
-sqlite3 ~/Library/Application\ Support/Steam/config/cookies.sqlite \
-  "SELECT value FROM cookies WHERE name='shipping_manager_session';"
-```
-
-**Windows (Manual):**
-```bash
-# Database location
-%LOCALAPPDATA%\Steam\htmlcache\Cookies
-
-# Use DB Browser for SQLite to open and extract cookie
-# Download: https://sqlitebrowser.org/
-```
-
-#### Using the Manual Cookie
-
-Once you have the cookie value, you need to manually store it in the encrypted session storage using Node.js:
-
-```bash
-# Use the session-manager module to store the cookie securely
-node -e "
-const sm = require('./server/utils/session-manager');
-(async () => {
-  await sm.saveSession('YOUR_USER_ID', 'YOUR_COOKIE_VALUE_HERE', 'YourCompanyName', 'manual');
-  console.log('Session saved successfully');
-})();
-"
-```
-
-Then start the app normally with `python start.py`
-
-⚠️ **Warning:** Never store cookies in plain text files or commit them to git!
-
-## Starting the Application
-
-### Recommended Method (All Platforms)
-
-```bash
-python start.py
-```
-
-This handles everything automatically (session management, server start, system tray icon).
-
-### Alternative: Direct Server Start (No Tray Icon)
-
-For development or if you don't want the tray icon:
-
-```bash
-# Make sure you have a valid session stored first
-node app.js
-```
-
-The server will start at `https://localhost:12345`.
-
-**Note:** This method still requires an encrypted session to be available. Run `python start.py` at least once to set up your session.
-
-### Accessing the Application
-
-1. Open your browser to `https://localhost:12345`
-2. Accept the self-signed certificate warning
-3. You should see the ShippingManager CoPilot interface
-
-### Network Access
-
-The server binds to `127.0.0.1` (localhost) by default for security. To allow access from other devices on your network, change `host` to `0.0.0.0` in `userdata/settings/settings.json`.
-
-**Find your network IP:**
-```bash
-# Linux
-ip addr show | grep "inet "
-
-# Mac
-ifconfig | grep "inet "
-
-# Windows
-ipconfig | findstr "IPv4"
-```
-
-Access from other devices: `https://YOUR_IP:12345` (e.g., `https://192.168.1.100:12345`)
-
-⚠️ **Security:** Accept the certificate warning on each device.
+---
 
 ## Configuration
 
-Configuration is managed through `userdata/settings/settings.json` which is created on first run:
+Settings are stored in:
+- **Windows (exe)**: `%LOCALAPPDATA%\ShippingManagerCoPilot\userdata\settings\settings.json`
+- **Windows/Linux/Mac (source)**: `userdata/settings/settings.json`
 
-```javascript
+**Key settings:**
+```json
 {
-  "port": 12345,           // HTTPS server port
-  "host": "127.0.0.1"      // Bind address (localhost-only by default)
+  "port": 12345,
+  "host": "127.0.0.1"
 }
 ```
 
-**Key settings:**
-- `port` - Server port (default: 12345)
-- `host` - Bind address (default: `127.0.0.1` for localhost-only access)
+- `port`: Server port (default: 12345)
+- `host`: Bind address
+  - `127.0.0.1` = localhost only (secure, default)
+  - `0.0.0.0` = allow LAN access from other devices
 
-To allow LAN access from other devices, change `host` to `0.0.0.0` in the settings file.
+### LAN Access
 
-**Note:** The system tray application (`start.py`) provides a GUI to configure these settings.
+To access from mobile devices on your network:
+1. Change `host` to `0.0.0.0` in settings
+2. Find your IP: `ipconfig` (Windows) or `ip addr` (Linux) or `ifconfig` (Mac)
+3. Access via `https://YOUR_IP:12345`
+4. Accept the self-signed certificate warning on each device
 
-## Development Workflow
-
-### Running in Development Mode
-
-```bash
-# First-time setup: Create encrypted session
-python start.py  # Follow prompts to set up session
-
-# After session is set up, run server directly without tray icon
-node app.js
-
-# Or with auto-restart on file changes (requires nodemon)
-npm install -g nodemon
-nodemon app.js
-```
-
-**Note:** You must run `python start.py` at least once to create an encrypted session before using `node app.js` directly.
-
-### Viewing Logs
-
-All server activity is logged to the console. Look for:
-- Server startup messages with network URLs
-- API request logs (alliance chat, messages, game actions)
-- WebSocket connection events
-- Error messages and stack traces
-
-### Debugging
-
-**Enable verbose logging:**
-```bash
-# Set DEBUG environment variable
-export DEBUG=express:*,ws:*
-node app.js
-```
-
-**Check session status:**
-```bash
-# View encrypted sessions (requires session-manager access)
-node -e "const sm = require('./server/utils/session-manager'); sm.getAvailableSessions().then(console.log);"
-```
-
-**Test API endpoints manually:**
-```bash
-# Get alliance chat (use -k to skip certificate verification)
-curl -k https://localhost:12345/api/chat
-
-# Get vessels in harbor
-curl -k https://localhost:12345/api/vessel/get-vessels
-```
-
-### Hot Reload (Frontend Only)
-
-The frontend auto-refreshes when you edit files in `public/`:
-1. Open DevTools > Console
-2. Edit `public/js/script.js` or `public/css/style.css`
-3. Refresh the browser to see changes
-
-For backend changes (`server/`, `app.js`), restart the server:
-```bash
-Ctrl+C
-python start.py
-```
+---
 
 ## Troubleshooting
 
-### "Session cookie not found"
+### Certificate Error on First Access
 
-**Cause:** No session available yet or Steam database doesn't contain the cookie.
+The app uses a self-signed HTTPS certificate. On first access:
+1. Click "Advanced" or "Show Details"
+2. Click "Proceed to localhost (unsafe)" or "Accept Risk"
 
-**Solution:**
-1. Launch Steam client
-2. Open Shipping Manager in-game browser at least once
-3. Log in to your account
-4. Run `python start.py` - it will extract and encrypt the session automatically
+### Port Already in Use
 
-### "Cannot find module 'pywin32'" (Windows)
-
-**Cause:** Python package not installed or wrong Python version.
-
-**Solution:**
 ```bash
-# Verify Python version
-python --version  # Must be 3.10+
-
-# Reinstall pywin32
-pip uninstall pywin32
-pip install pywin32
-
-# If using multiple Python versions, specify:
-py -3.10 -m pip install pywin32
-```
-
-### "Error: EADDRINUSE: address already in use"
-
-**Cause:** Port 12345 is already in use by another application.
-
-**Solution:**
-```bash
-# Find process using port 12345
-# Windows:
+# Windows
 netstat -ano | findstr :12345
 
-# Linux/Mac:
+# Linux/Mac
 lsof -i :12345
-
-# Kill the process or change PORT in server/config.js
 ```
 
-### "Steam won't restart" (Windows)
+Change the port in settings or stop the conflicting process.
 
-**Cause:** Steam.exe path not found or process not terminating cleanly.
+### Session Expired
 
-**Solution:**
-1. Manually close Steam
-2. Start `node app.js` (direct server start without tray icon)
-3. Manually restart Steam after server starts
+If you see 401 errors:
+1. Exit the application (right-click tray icon > Exit)
+2. Launch Shipping Manager in Steam and log in
+3. Restart the application
 
-### "Certificate error" on mobile/other devices
+### WebSocket Connection Failed
 
-**Cause:** Self-signed certificate not trusted by device.
+1. Ensure you're using `https://` not `http://`
+2. Accept the certificate warning first
+3. Check browser console for errors
 
-**Solution:**
-1. Navigate to `https://YOUR_IP:12345`
-2. Click "Advanced" or "Show Details"
-3. Click "Proceed to localhost (unsafe)" or "Accept Risk and Continue"
-4. Each device must accept the certificate individually
+### Linux: libsecret Error
 
-### "WebSocket connection failed"
+```bash
+# Install the required library
+sudo apt install libsecret-1-dev  # Debian/Ubuntu
+sudo dnf install libsecret-devel  # Fedora
+```
 
-**Cause:** Browser blocking WSS connection due to certificate or CORS.
+---
 
-**Solution:**
-1. Ensure you're using `https://` (not `http://`)
-2. Accept the certificate warning in the main page first
-3. Check browser console for specific error messages
-4. Verify WebSocket connection in DevTools > Network > WS tab
+## Building from Source
 
-### Session Cookie Expired
+See [Build Guide](./02-build-guide.md) for creating standalone executables.
 
-**Symptoms:**
-- 401 Unauthorized errors
-- "Session invalid" messages
-- Forced logout
+## Security Notice
 
-**Solution:**
-1. Exit the application (right-click tray icon → Exit)
-2. Open Shipping Manager in Steam and log in again
-3. Run `python start.py` - it will detect expired session and prompt for re-login
+- The session cookie provides full access to your Shipping Manager account
+- Never share your cookie or commit it to version control
+- This tool likely violates Shipping Manager Terms of Service
+- Use at your own risk
 
-**Session Lifetime:**
-- Typically lasts several weeks to months
-- Refreshed automatically when you play the game
-- Encrypted sessions are automatically validated and refreshed by start.py
+---
 
-## Platform-Specific Notes
-
-### Windows
-
-- Automatic session extraction works out of the box
-- Steam process management is handled automatically
-- HTTPS certificates include all network IPs (LAN access)
-
-### Linux
-
-- Manual session extraction required (no DPAPI equivalent)
-- Steam process management must be done manually
-- Use `keyring` package for secure credential storage
-- May need to run with `sudo` for Steam process access
-
-### macOS
-
-- Manual session extraction required
-- Steam database location differs from Linux
-- May need to grant Terminal.app "Full Disk Access" in System Preferences
-- Use Homebrew for dependency management
-
-## Next Steps
-
-- **Build the Application:** See [Build Guide](./build-guide.md) for creating standalone executables
-- **View Documentation:** Start the app and visit `https://localhost:12345/docs/`
-- **Report Issues:** Check GitHub Issues for known problems or create a new one
-
-## Security Considerations
-
-⚠️ **Important Security Notes:**
-
-1. **Session Cookie = Full Account Access**
-   - The session cookie provides complete access to your Shipping Manager account
-   - Never share your cookie with others
-   - Never commit cookies to version control
-
-2. **Terms of Service**
-   - This tool likely violates Shipping Manager's Terms of Service
-   - Use at your own risk
-   - The developers assume no liability
-
-3. **Network Access**
-   - Server binds to `127.0.0.1` (localhost) by default for security
-   - Change `host` to `0.0.0.0` in settings to allow LAN access
-   - HTTPS provides encryption, but certificate is self-signed
-
-4. **Input Validation**
-   - Be cautious with user-generated content in chat
-
-## Support
-
-If you encounter issues not covered in this guide:
-1. Check the [README.md](../../README.md) for general information
-2. Review the API Reference at `https://localhost:12345/docs/` when the app is running
-3. Check GitHub Issues for similar problems
-4. Create a new issue with detailed error messages and system information
+*Last updated: 2025-12-05*

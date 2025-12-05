@@ -413,16 +413,15 @@
   border-radius: var(--radius-2);
 }
 
-/* Actions - full width buttons stacked */
+/* Actions - buttons side by side */
 .appearance-actions {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   gap: var(--spacing-8);
 }
 
-.appearance-actions .btn-primary,
-.appearance-actions .btn-secondary {
-  width: 100%;
+.appearance-actions button {
+  flex: 1;
   padding: var(--spacing-10);
   border-radius: var(--radius-6);
   font-size: var(--font-size-13);
@@ -432,21 +431,21 @@
   border: none;
 }
 
-.appearance-actions .btn-primary {
+.appearance-actions #saveAppearanceBtn {
   background: var(--color-info);
   color: var(--color-white);
 }
 
-.appearance-actions .btn-primary:hover {
+.appearance-actions #saveAppearanceBtn:hover {
   background: var(--color-info-dark);
 }
 
-.appearance-actions .btn-secondary {
+.appearance-actions #cancelAppearanceBtn {
   background: var(--color-gray-600);
   color: var(--color-text-primary);
 }
 
-.appearance-actions .btn-secondary:hover {
+.appearance-actions #cancelAppearanceBtn:hover {
   background: var(--color-text-tertiary);
 }
 

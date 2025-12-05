@@ -706,7 +706,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             dryRate: vessel.prices?.dry,
             refRate: vessel.prices?.refrigerated,
             fuelRate: vessel.prices?.fuel,
-            crudeRate: vessel.prices?.crude_oil
+            crudeRate: vessel.prices?.crude_oil,
+            isDrydockOperation: vessel.route_dry_operation === 1
           });
 
         } catch (error) {

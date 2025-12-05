@@ -92,7 +92,7 @@ if (process.ppid) {
 // Setup file logging - create new log file on each startup
 // Use APPDATA for logs when running as .exe (pkg sets process.pkg)
 const LOG_DIR = process.pkg
-  ? path.join(config.getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'logs')
+  ? path.join(config.getAppBaseDir(), 'userdata', 'logs')
   : path.join(__dirname, 'userdata', 'logs');
 
 // Ensure log directory exists
@@ -146,8 +146,8 @@ setupMiddleware(app);
  * @returns {void} Downloads the CA certificate file or sends 404 error
  */
 app.get('/ca-cert.pem', (req, res) => {
-  const { getAppDataDir } = require('./server/config');
-  const CERTS_DIR = path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'certs');
+  const { getAppBaseDir } = require('./server/config');
+  const CERTS_DIR = path.join(getAppBaseDir(), 'userdata', 'certs');
   const caCertPath = path.join(CERTS_DIR, 'ca-cert.pem');
 
   res.download(caCertPath, 'ShippingManager-CA.pem', (err) => {

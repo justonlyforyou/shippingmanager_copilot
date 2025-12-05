@@ -414,3 +414,7 @@ Generated files are located in `public/docs/` and are included in git commits.
   - npm audit (HIGH/CRITICAL vulnerabilities)
   - ESLint errors (security issues)
   - Bandit critical issues (Python security)
+
+---
+
+*Last updated: 2025-12-05*

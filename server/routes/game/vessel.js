@@ -43,15 +43,15 @@ const logger = require('../../utils/logger');
 const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
 const { getFuelConsumptionDisplay } = require('../../utils/fuel-calculator');
-const { getAppDataDir } = require('../../config');
+const { getAppBaseDir } = require('../../config');
 
 // Determine vessel data directories based on environment
 const isPkg = !!process.pkg;
 const VESSEL_APPEARANCES_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-appearances')
+  ? path.join(getAppBaseDir(), 'userdata', 'vessel-appearances')
   : path.join(__dirname, '../../../userdata/vessel-appearances');
 const VESSEL_IMAGES_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-images')
+  ? path.join(getAppBaseDir(), 'userdata', 'vessel-images')
   : path.join(__dirname, '../../../userdata/vessel-images');
 
 const router = express.Router();

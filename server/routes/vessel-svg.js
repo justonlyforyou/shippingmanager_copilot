@@ -18,15 +18,15 @@ const fs = require('fs').promises;
 const path = require('path');
 const { generateVesselSvg } = require('../utils/vessel-svg-generator');
 const { getUserId } = require('../utils/api');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 const logger = require('../utils/logger');
 
 const isPkg = !!process.pkg;
 const VESSEL_IMAGES_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-images')
+  ? path.join(getAppBaseDir(), 'userdata', 'vessel-images')
   : path.join(__dirname, '../../userdata/vessel-images');
 const VESSEL_APPEARANCES_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-appearances')
+  ? path.join(getAppBaseDir(), 'userdata', 'vessel-appearances')
   : path.join(__dirname, '../../userdata/vessel-appearances');
 
 async function ensureDirectories() {

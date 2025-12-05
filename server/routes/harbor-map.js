@@ -523,7 +523,8 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
         dry_rate: trip.dry_rate,
         ref_rate: trip.ref_rate,
         fuel_rate: trip.fuel_rate,
-        crude_rate: trip.crude_rate
+        crude_rate: trip.crude_rate,
+        is_drydock_operation: trip.is_drydock_operation
       }))
     });
   } catch (error) {

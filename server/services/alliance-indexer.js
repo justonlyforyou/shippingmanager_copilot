@@ -17,12 +17,12 @@ const { apiCall } = require('../utils/api');
 const logger = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 // Use AppData when packaged as exe
 const isPkg = !!process.pkg;
 const CACHE_FILE_PATH = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'cache', 'alliance_pool.json')
+  ? path.join(getAppBaseDir(), 'userdata', 'cache', 'alliance_pool.json')
   : path.join(__dirname, '..', '..', 'userdata', 'cache', 'alliance_pool.json');
 
 class AllianceIndexer {

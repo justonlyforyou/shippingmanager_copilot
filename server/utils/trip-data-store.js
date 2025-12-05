@@ -16,12 +16,12 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 // Use AppData when packaged as exe
 const isPkg = !!process.pkg;
 const TRIP_DATA_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'trip-data')
+  ? path.join(getAppBaseDir(), 'userdata', 'trip-data')
   : path.join(__dirname, '../../userdata/trip-data');
 
 // Fuzzy timestamp matching tolerance (60 seconds)
@@ -98,6 +98,7 @@ async function saveTripDataToDisk(userId, data) {
  * @param {number} [tripData.refRate] - Price per TEU for refrigerated containers
  * @param {number} [tripData.fuelRate] - Price per bbl for fuel cargo
  * @param {number} [tripData.crudeRate] - Price per bbl for crude oil
+ * @param {boolean} [tripData.isDrydockOperation] - Whether this was a drydock operation (no income)
  * @returns {Promise<void>}
  */
 async function saveTripData(userId, vesselId, timestamp, tripData) {
@@ -238,7 +239,8 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
         dry_rate: tripData.dryRate,
         ref_rate: tripData.refRate,
         fuel_rate: tripData.fuelRate,
-        crude_rate: tripData.crudeRate
+        crude_rate: tripData.crudeRate,
+        is_drydock_operation: tripData.isDrydockOperation
       };
     }
 
@@ -260,7 +262,8 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
         dry_rate: lookupData.dryRate,
         ref_rate: lookupData.refRate,
         fuel_rate: lookupData.fuelRate,
-        crude_rate: lookupData.crudeRate
+        crude_rate: lookupData.crudeRate,
+        is_drydock_operation: lookupData.isDrydockOperation
       };
     }
 
@@ -278,7 +281,8 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
       dry_rate: null,
       ref_rate: null,
       fuel_rate: null,
-      crude_rate: null
+      crude_rate: null,
+      is_drydock_operation: null
     };
   });
 }
@@ -298,21 +302,21 @@ async function migrateFromOldStores(userId) {
   const oldStores = [
     {
       dir: isPkg
-        ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'harbor-fees')
+        ? path.join(getAppBaseDir(), 'userdata', 'harbor-fees')
         : path.join(__dirname, '../../userdata/harbor-fees'),
       file: `harbor-fees-${userId}.json`,
       field: 'harborFee'
     },
     {
       dir: isPkg
-        ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'contributions')
+        ? path.join(getAppBaseDir(), 'userdata', 'contributions')
         : path.join(__dirname, '../../userdata/contributions'),
       file: `contributions-${userId}.json`,
       field: 'contributionGained'
     },
     {
       dir: isPkg
-        ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'departure-data')
+        ? path.join(getAppBaseDir(), 'userdata', 'departure-data')
         : path.join(__dirname, '../../userdata/departure-data'),
       file: `departure-data-${userId}.json`,
       isObject: true // This store has object values, not single values

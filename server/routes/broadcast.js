@@ -17,13 +17,13 @@ const router = express.Router();
 const fs = require('fs').promises;
 const path = require('path');
 const { getUserId, apiCall } = require('../utils/api');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 const logger = require('../utils/logger');
 
 // Determine data directory based on environment
 const isPkg = !!process.pkg;
 const BROADCAST_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'broadcast-templates')
+  ? path.join(getAppBaseDir(), 'userdata', 'broadcast-templates')
   : path.join(__dirname, '../../userdata/broadcast-templates');
 
 /**

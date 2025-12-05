@@ -212,12 +212,6 @@ This tool implements automated procedures to extract session cookies from the lo
 
 ***
 
-## Security Notice
-
-**Your Session Cookie is extracted automatically and dynamically as described below!**
-
-***
-
 ## Privacy & Data Collection
 
 **This application collects ZERO data from users.**

@@ -12,11 +12,11 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
 const { apiCallWithRetry } = require('../utils/api');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 const isPkg = !!process.pkg;
 const DATA_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'transactions')
+  ? path.join(getAppBaseDir(), 'userdata', 'transactions')
   : path.join(__dirname, '../../userdata/transactions');
 
 // Short-term cache for loadStore to avoid duplicate file reads

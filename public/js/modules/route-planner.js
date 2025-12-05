@@ -1419,7 +1419,7 @@ async function createRoute() {
     const vessel = data.data?.user_vessel;
     const origin = vessel?.route_origin;
     const destination = vessel?.route_destination;
-    const distance = vessel?.route_distance;
+    const routeDistance = vessel?.route_distance;
 
     // Build notification message from actual API response
     const vesselName = vessel?.name || currentVesselName;
@@ -1427,7 +1427,7 @@ async function createRoute() {
     if (origin && destination) {
       const originName = formatPortName(origin);
       const destName = formatPortName(destination);
-      message = `${vesselName}: ${originName} -> ${destName} (${distance} nm)`;
+      message = `${vesselName}: ${originName} -> ${destName} (${routeDistance} nm)`;
     } else {
       message = `Route assigned to ${vesselName}`;
     }
@@ -1437,33 +1437,31 @@ async function createRoute() {
     // Store vessel ID before closing (we need it for selection)
     const vesselIdToSelect = currentVesselId;
 
-    // Close panel (keep route visible briefly for visual feedback)
+    // Close planner immediately for responsive UI
     closeRoutePlanner(true);
 
-    // Small delay to let API process the route
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Force refresh map data (bypasses cooldown) - this updates rawVessels
-    if (window.harborMap && window.harborMap.forceRefresh) {
-      await window.harborMap.forceRefresh();
+    // Close port panel if open (user clicked on port to select destination)
+    const portPanel = document.getElementById('port-detail-panel');
+    if (portPanel && portPanel.classList.contains('active')) {
+      portPanel.classList.remove('active');
     }
 
-    // Get fresh vessel data with skipCache=true to ensure we have the new route
-    if (vesselIdToSelect && window.harborMap && window.harborMap.getVesselById) {
-      await window.harborMap.getVesselById(vesselIdToSelect, true);
-    }
+    // Update badges in background (don't block UI)
+    Promise.all([
+      window.updateVesselCount ? window.updateVesselCount() : Promise.resolve(),
+      window.badgeCache?.refreshAll ? window.badgeCache.refreshAll() : Promise.resolve()
+    ]).catch(err => console.warn('[Route Planner] Badge update error:', err));
 
-    // Select the vessel to show it with new route and zoom
-    if (vesselIdToSelect && window.harborMap && window.harborMap.selectVesselFromMap) {
-      await window.harborMap.selectVesselFromMap(vesselIdToSelect);
-    }
-
-    // Update all badges (anchor count changed) - must await to ensure UI updates
-    if (window.updateVesselCount) {
-      await window.updateVesselCount();
-    }
-    if (window.badgeCache && window.badgeCache.refreshAll) {
-      await window.badgeCache.refreshAll();
+    // Refresh map data in background and select vessel when ready
+    if (window.harborMap) {
+      // Force refresh to get updated vessel data
+      if (window.harborMap.forceRefresh) {
+        await window.harborMap.forceRefresh();
+      }
+      // Select vessel to show new route
+      if (vesselIdToSelect && window.harborMap.selectVesselFromMap) {
+        await window.harborMap.selectVesselFromMap(vesselIdToSelect);
+      }
     }
 
   } catch (error) {

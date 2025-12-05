@@ -18,7 +18,7 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
-const { getLogDir, getAppDataDir } = require('../config');
+const { getLogDir, getAppBaseDir } = require('../config');
 const transactionStore = require('./transaction-store');
 const vesselHistoryStore = require('./vessel-history-store');
 const lookupStore = require('./lookup-store');
@@ -159,7 +159,7 @@ const isPkg = !!process.pkg;
 
 // Initialize hijack history directory (for fallback vessel_name lookup)
 HIJACK_HISTORY_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'hijack_history')
+  ? path.join(getAppBaseDir(), 'userdata', 'hijack_history')
   : path.join(__dirname, '../../userdata/hijack_history');
 
 /**
@@ -179,7 +179,7 @@ function getAuditLogPath(userId) {
  */
 function getTripDataPath(userId) {
   const tripDataDir = isPkg
-    ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'trip-data')
+    ? path.join(getAppBaseDir(), 'userdata', 'trip-data')
     : path.join(__dirname, '../../userdata/trip-data');
   return path.join(tripDataDir, `trip-data-${userId}.json`);
 }

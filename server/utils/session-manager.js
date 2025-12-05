@@ -23,13 +23,13 @@ const logger = require('./logger');
  * @returns {string} Path to sessions.json
  */
 function getSessionsPath() {
-    const { getAppDataDir } = require('../config');
+    const { getAppBaseDir } = require('../config');
     const isPkg = !!process.pkg;
     console.log(`[DEBUG] getSessionsPath - process.pkg = ${isPkg}`);
 
     if (isPkg) {
         // Running as packaged .exe - use AppData
-        const appDataPath = path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'settings', 'sessions.json');
+        const appDataPath = path.join(getAppBaseDir(), 'userdata', 'settings', 'sessions.json');
         console.log(`[DEBUG] Using APPDATA sessions: ${appDataPath}`);
         return appDataPath;
     }

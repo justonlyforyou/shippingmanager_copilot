@@ -14,11 +14,11 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 const isPkg = !!process.pkg;
 const DATA_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'api-stats')
+  ? path.join(getAppBaseDir(), 'userdata', 'api-stats')
   : path.join(__dirname, '../../userdata/api-stats');
 
 // In-memory buffer for current minute's stats

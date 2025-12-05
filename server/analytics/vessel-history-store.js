@@ -18,11 +18,11 @@ const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
 const { apiCallWithRetry } = require('../utils/api');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 const isPkg = !!process.pkg;
 const DATA_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-history')
+  ? path.join(getAppBaseDir(), 'userdata', 'vessel-history')
   : path.join(__dirname, '../../userdata/vessel-history');
 
 // In-memory sync state

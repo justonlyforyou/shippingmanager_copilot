@@ -10,12 +10,12 @@ const { calculateVesselPosition, calculateETA, calculateCargoUtilization, format
 const { getFuelConsumptionDisplay, getVesselFuelData } = require('../utils/fuel-calculator');
 const fs = require('fs');
 const path = require('path');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 // Determine vessel appearances directory
 const isPkg = !!process.pkg;
 const VESSEL_APPEARANCES_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'vessel-appearances')
+  ? path.join(getAppBaseDir(), 'userdata', 'vessel-appearances')
   : path.join(__dirname, '../../userdata/vessel-appearances');
 
 /**

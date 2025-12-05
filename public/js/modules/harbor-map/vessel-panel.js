@@ -42,6 +42,59 @@ function getPortCountryCode(portCode) {
 }
 
 /**
+ * Formats time from seconds to human-readable string
+ * @param {number} seconds - Time in seconds
+ * @returns {string} Formatted time like "2h 15m" or "45m"
+ */
+function formatTimeRemaining(seconds) {
+  if (!seconds || seconds <= 0) return '';
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
+}
+
+/**
+ * Gets loading/unloading status for a vessel
+ * @param {Object} vessel - Vessel object
+ * @returns {Object|null} { status: 'loading'|'unloading', timeLeft: seconds } or null
+ */
+function getLoadingStatus(vessel) {
+  const ar = vessel.active_route;
+  if (!ar) return null;
+
+  const loadingLeft = ar.loading_time_left || 0;
+  const arrivalLeft = ar.arrival_time_left || 0;
+  const unloadingLeft = ar.unloading_time_left || 0;
+
+  // Loading: loading_time_left > 0
+  if (loadingLeft > 0) {
+    return { status: 'loading', timeLeft: loadingLeft };
+  }
+
+  // Unloading: arrived (arrival_time_left == 0) but still unloading (unloading_time_left > 0)
+  if (arrivalLeft === 0 && unloadingLeft > 0) {
+    return { status: 'unloading', timeLeft: unloadingLeft };
+  }
+
+  return null;
+}
+
+/**
+ * Formats loading/unloading status with timer
+ * @param {Object} loadingStatus - From getLoadingStatus()
+ * @returns {string} Formatted string like "Loading - 2h 15m" or "Unloading - 45m"
+ */
+function formatLoadingStatusText(loadingStatus) {
+  if (!loadingStatus) return '';
+  const timeStr = formatTimeRemaining(loadingStatus.timeLeft);
+  const label = loadingStatus.status === 'loading' ? 'Loading' : 'Unloading';
+  return `${label} - ${timeStr}`;
+}
+
+/**
  * Formats vessel status for display, including Bug-Using detection
  * @param {Object} vessel - Vessel object
  * @returns {string} Formatted status HTML
@@ -95,6 +148,18 @@ function formatVesselStatus(vessel) {
       timeDisplay = `${minutes}m`;
     }
     return `${vessel.status} (Delivery in: ${timeDisplay})`;
+  }
+
+  // Check for drydock trip (enroute to/from drydock)
+  if (vessel.status === 'enroute' && vessel.route_dry_operation === 1) {
+    return `<span style="color: var(--color-purple); font-weight: 600;">Drydock Trip</span>`;
+  }
+
+  // Check for loading/unloading status
+  const loadingStatus = getLoadingStatus(vessel);
+  if (loadingStatus) {
+    const loadingText = formatLoadingStatusText(loadingStatus);
+    return `${vessel.status} <span style="color: var(--color-warning); font-weight: 600;">(${loadingText})</span>`;
   }
 
   return vessel.status;
@@ -194,10 +259,16 @@ export async function showVesselPanel(vessel) {
     capacityDisplay = `${formatNumber(total)} bbl (${formatNumber(fuel)} fuel / ${formatNumber(crude)} crude)`;
   }
 
+  // Check if vessel is on drydock trip (cargo data is stale/irrelevant)
+  const isDrydockTrip = vessel.status === 'enroute' && vessel.route_dry_operation === 1;
+
   // Current cargo loaded (detailed breakdown)
   // API uses 'capacity' for current loaded cargo, 'capacity_max' for maximum capacity
-  let loadedCargoDisplay = '<p><strong>Loaded Cargo:</strong> N/A</p>';
-  if (vessel.capacity) {
+  // Don't show cargo for drydock trips - data is from previous trip
+  let loadedCargoDisplay = '';
+  if (isDrydockTrip) {
+    loadedCargoDisplay = '<p style="color: var(--color-text-tertiary); font-style: italic;">No cargo on drydock trip</p>';
+  } else if (vessel.capacity) {
     if (vessel.capacity_type === 'container') {
       const dryLoaded = vessel.capacity.dry;
       const refLoaded = vessel.capacity.refrigerated;
@@ -228,6 +299,8 @@ export async function showVesselPanel(vessel) {
         <p style="margin-left: 10px;">Crude Oil: ${formatNumber(crudeLoaded)}/${formatNumber(crudeMax)} bbl</p>
       `;
     }
+  } else {
+    loadedCargoDisplay = '<p><strong>Loaded Cargo:</strong> N/A</p>';
   }
 
   // Vessel image URL logic:
@@ -299,7 +372,8 @@ export async function showVesselPanel(vessel) {
         <span
           class="action-emoji depart-vessel-btn${vessel.status !== 'port' ? ' disabled' : ''}"
           data-vessel-id="${vessel.id}"
-          onclick="${vessel.status === 'port' ? `window.harborMap.departVessel(${vessel.id})` : 'return false'}"
+          data-vessel-name="${escapeHtml(vessel.name)}"
+          onclick="${vessel.status === 'port' ? `window.harborMap.departVessel(${vessel.id}, '${vessel.name.replace(/'/g, "\\'")}')` : 'return false'}"
           title="${vessel.status === 'port' ? 'Depart vessel from port' : 'Vessel must be in port to depart'}"
         >&#x1F3C1;</span>
         <span
@@ -332,16 +406,18 @@ export async function showVesselPanel(vessel) {
             return `<p><strong>Last Arrival:</strong> ${arrivalDate.toLocaleString()}</p>`;
           })()}
           ${loadedCargoDisplay}
-          ${vessel.prices && (vessel.prices.dry || vessel.prices.refrigerated) ? `
+          ${!isDrydockTrip && vessel.prices && (vessel.prices.dry || vessel.prices.refrigerated) ? `
             <p><strong>Dry Container Rate:</strong> $${vessel.prices.dry}/TEU</p>
             <p><strong>Refrigerated Rate:</strong> $${vessel.prices.refrigerated}/TEU</p>
           ` : ''}
-          ${vessel.prices && (vessel.prices.fuel || vessel.prices.crude_oil) ? `
+          ${!isDrydockTrip && vessel.prices && (vessel.prices.fuel || vessel.prices.crude_oil) ? `
             <p><strong>Fuel Rate:</strong> $${vessel.prices.fuel}/bbl</p>
             <p><strong>Crude Oil Rate:</strong> $${vessel.prices.crude_oil}/bbl</p>
           ` : ''}
           <p class="vessel-sell-price">${sellPrice !== null ? `<strong>Sell Price:</strong> $${formatNumber(sellPrice)}` : '<strong>Sell Price:</strong> <span style="color: var(--color-text-secondary)">Loading...</span>'}</p>
           ${(() => {
+            // Don't show revenue for drydock trips
+            if (isDrydockTrip) return '';
             if (vessel.status !== 'enroute' || !vessel.route_distance || !vessel.capacity) return '';
 
             let hasLoadedCargo = false;
@@ -851,8 +927,11 @@ function renderHistoryPage() {
       }
     }
 
-    // Check if it's a service trip (no cargo loaded)
-    const isServiceTrip = !trip.profit && trip.cargo &&
+    // Check if it's a drydock operation
+    const isDrydockOperation = trip.is_drydock_operation === true;
+
+    // Check if it's a service trip (no cargo loaded and not drydock)
+    const isServiceTrip = !isDrydockOperation && !trip.profit && trip.cargo &&
       (trip.cargo.dry === 0 && trip.cargo.refrigerated === 0 &&
        trip.cargo.fuel === 0 && trip.cargo.crude_oil === 0);
 
@@ -873,6 +952,10 @@ function renderHistoryPage() {
         <div class="history-row">
           <span>Date: ${trip.date ? new Date(trip.date + ' UTC').toLocaleString() : 'N/A'}</span>
         </div>
+        ${isDrydockOperation ? `
+        <div class="history-row drydock-trip">
+          <span>Drydock Operation</span>
+        </div>` : `
         <div class="history-row">
           <span class="cargo-label">Cargo: ${cargoData.total}</span>
         </div>
@@ -902,7 +985,7 @@ function renderHistoryPage() {
         <div class="history-row">
           <span>Guards: ${trip.guards}</span>
         </div>
-        ` : ''}
+        ` : ''}`}
         <div class="history-row">
           <span>Fuel used: ${(trip.fuel_used !== null && trip.fuel_used !== undefined) ? (trip.fuel_used / 1000).toLocaleString(undefined, {maximumFractionDigits: 0}) + ' t' : '0 t'}</span>
         </div>
@@ -1010,7 +1093,7 @@ export async function closeVesselPanel() {
 }
 
 // Queue for individual vessel departures
-const departureQueue = [];
+const departureQueue = []; // Items: { vesselId, vesselName, resolve, reject }
 let isProcessingQueue = false;
 let autopilotWaitNotificationShown = false;
 
@@ -1034,17 +1117,17 @@ async function processDepartureQueue() {
   const { showSideNotification } = await import('../utils.js');
 
   while (departureQueue.length > 0) {
-    const { vesselId, resolve, reject } = departureQueue.shift();
+    const { vesselId, vesselName, resolve, reject } = departureQueue.shift();
 
     try {
       const { departVessels } = await import('../api.js');
-      console.log(`[Vessel Panel] Processing departure for vessel ${vesselId} (${departureQueue.length} more in queue)`);
+      console.log(`[Vessel Panel] Processing departure for ${vesselName} (${departureQueue.length} more in queue)`);
 
       const result = await departVessels([vesselId]);
 
       // Handle special case: autopilot is currently departing vessels
       if (result.reason === 'depart_in_progress') {
-        console.log(`[Vessel Panel] Vessel ${vesselId} queued - autopilot departure in progress`);
+        console.log(`[Vessel Panel] ${vesselName} queued - autopilot departure in progress`);
 
         // Only show notification once per queue processing session
         if (!autopilotWaitNotificationShown) {
@@ -1054,37 +1137,41 @@ async function processDepartureQueue() {
 
         // Wait 5 seconds before retry (don't spam the server)
         await new Promise(r => setTimeout(r, 5000));
-        departureQueue.unshift({ vesselId, resolve, reject }); // Add back to front of queue
+        departureQueue.unshift({ vesselId, vesselName, resolve, reject }); // Add back to front of queue
+        continue;
+      }
+
+      // Handle global insufficient fuel - notification already sent by Cargo Marshal via WebSocket
+      if (result.reason === 'insufficient_fuel') {
+        console.log(`[Vessel Panel] ${vesselName} blocked - insufficient fuel (notification sent by backend)`);
+        reject(new Error('Insufficient fuel'));
         continue;
       }
 
       // Check if vessel was successfully departed (API returns departedCount/failedCount)
       if (result.departedCount > 0) {
-        console.log(`[Vessel Panel] Vessel ${vesselId} departed successfully`);
+        console.log(`[Vessel Panel] ${vesselName} departed successfully`);
         resolve(result);
       } else {
-        // Vessel failed to depart - extract error info
-        let vesselName = `Vessel ${vesselId}`;
+        // Vessel failed to depart - extract error info from response or use passed name
+        const cleanName = vesselName.replace(/^(MV|MS|MT|SS)\s+/i, '');
         let reason = 'Unknown error';
 
         if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
-          const failed = result.failedVessels[0];
-          vesselName = failed.name ? failed.name.replace(/^(MV|MS|MT|SS)\s+/i, '') : vesselName;
-          reason = failed.reason || reason;
+          reason = result.failedVessels[0].reason || reason;
         } else {
-          // Fallback for unexpected response format
           reason = result.message || result.reason || reason;
         }
 
-        console.error(`[Vessel Panel] Failed to depart vessel ${vesselId}:`, reason);
+        console.error(`[Vessel Panel] Failed to depart ${vesselName}:`, reason);
 
-        // Show notification with vessel name and reason - matching Depart Manager pattern
+        // Show notification with vessel name and reason
         showSideNotification(`
           <div style="margin-bottom: 8px;">
             <strong>Failed to depart</strong>
           </div>
           <div style="font-size: 0.9em;">
-            <span style="color: #ef4444;">${escapeHtml(vesselName)}:</span> <span style="color: #9ca3af;">${escapeHtml(reason)}</span>
+            <span style="color: #ef4444;">${escapeHtml(cleanName)}:</span> <span style="color: #9ca3af;">${escapeHtml(reason)}</span>
           </div>
         `, 'error', 10000);
 
@@ -1112,9 +1199,9 @@ async function processDepartureQueue() {
  * @param {number} vesselId - Vessel ID to depart
  * @returns {Promise<void>}
  * @example
- * await departVessel(1234);
+ * await departVessel(1234, 'MV Atlantic Star');
  */
-export async function departVessel(vesselId) {
+export async function departVessel(vesselId, vesselName) {
   // Check if departure is already in progress (server lock active)
   if (isDepartInProgress()) {
     showSideNotification('Departure in progress - please wait', 'warning');
@@ -1135,9 +1222,9 @@ export async function departVessel(vesselId) {
   }
 
   return new Promise((resolve, reject) => {
-    // Add to queue
-    departureQueue.push({ vesselId, resolve, reject });
-    console.log(`[Vessel Panel] Added vessel ${vesselId} to departure queue (position: ${departureQueue.length})`);
+    // Add to queue with name
+    departureQueue.push({ vesselId, vesselName, resolve, reject });
+    console.log(`[Vessel Panel] Added ${vesselName} to departure queue (position: ${departureQueue.length})`);
 
     // Process queue
     processDepartureQueue();
@@ -1212,6 +1299,7 @@ export function updateVesselPanelDepartButtons() {
 
   departButtons.forEach(btn => {
     const vesselId = btn.dataset.vesselId;
+    const vesselName = btn.dataset.vesselName;
     if (isLocked) {
       btn.classList.add('disabled');
       btn.onclick = null;
@@ -1220,7 +1308,7 @@ export function updateVesselPanelDepartButtons() {
       // Re-enable if vessel is at port - status will be checked on click
       btn.classList.remove('disabled');
       btn.title = 'Depart vessel from port';
-      btn.onclick = () => window.harborMap.departVessel(parseInt(vesselId));
+      btn.onclick = () => window.harborMap.departVessel(parseInt(vesselId), vesselName);
     }
   });
 }

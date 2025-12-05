@@ -70,9 +70,12 @@ export function filterVessels(vessels, filterType) {
     }
 
     case 'vessels_in_drydock': {
-      // Vessels in drydock/maintenance (status: 'maintenance')
-      const drydockVessels = vessels.filter(v => v.status === 'maintenance');
-      console.log('[Filter] Found ' + drydockVessels.length + ' vessels in drydock');
+      // Vessels in drydock/maintenance (status: 'maintenance') OR enroute to/from drydock (route_dry_operation === 1)
+      const drydockVessels = vessels.filter(v =>
+        v.status === 'maintenance' ||
+        (v.status === 'enroute' && v.route_dry_operation === 1)
+      );
+      console.log('[Filter] Found ' + drydockVessels.length + ' vessels in drydock (maintenance + enroute drydock trips)');
       return drydockVessels;
     }
 

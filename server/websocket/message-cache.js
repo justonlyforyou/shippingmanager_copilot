@@ -9,7 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 const logger = require('../utils/logger');
 
 /**
@@ -25,7 +25,7 @@ const processedMessageIds = new Map();
  */
 function getProcessedMessagesCachePath(userId) {
   return process.pkg
-    ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'chatbot', `processed_dm_messages-${userId}.json`)
+    ? path.join(getAppBaseDir(), 'userdata', 'chatbot', `processed_dm_messages-${userId}.json`)
     : path.join(__dirname, '..', '..', 'userdata', 'chatbot', `processed_dm_messages-${userId}.json`);
 }
 

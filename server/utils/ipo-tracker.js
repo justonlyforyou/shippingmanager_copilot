@@ -25,7 +25,7 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 /**
  * Path to the IPO tracking JSON file - use AppData when packaged as exe
@@ -33,7 +33,7 @@ const { getAppDataDir } = require('../config');
  */
 const isPkg = !!process.pkg;
 const IPO_TRACKING_FILE = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'settings', 'ipo-tracking.json')
+  ? path.join(getAppBaseDir(), 'userdata', 'settings', 'ipo-tracking.json')
   : path.join(__dirname, '..', '..', 'userdata', 'settings', 'ipo-tracking.json');
 
 /**

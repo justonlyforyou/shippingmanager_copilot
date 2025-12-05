@@ -18,11 +18,11 @@ const fs = require('fs').promises;
 const path = require('path');
 const crypto = require('crypto');
 const logger = require('../utils/logger');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 
 const isPkg = !!process.pkg;
 const DATA_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'analytics')
+  ? path.join(getAppBaseDir(), 'userdata', 'analytics')
   : path.join(__dirname, '../../userdata/analytics');
 
 // Store version - increment when matching logic changes to force rebuild

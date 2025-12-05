@@ -545,7 +545,8 @@ function registerAllEventListeners(settings, debouncedFunctions) {
     'autoRebuyFuelThreshold', 'autoRebuyFuelMinCash',
     'autoRebuyCO2Threshold', 'autoRebuyCO2MinCash',
     'autoBulkRepairMinCash', 'autoDrydockMinCash',
-    'autoCampaignRenewalMinCash', 'autoAnchorPointMinCash'
+    'autoCampaignRenewalMinCash', 'autoAnchorPointMinCash',
+    'autoPurserMinCash'
   ]);
 }
 

@@ -19,11 +19,11 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./utils/logger');
-const { getAppDataDir } = require('./config');
+const { getAppBaseDir } = require('./config');
 
 // Get settings directory - use APPDATA when running as .exe
 const SETTINGS_DIR = process.pkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'settings')
+  ? path.join(getAppBaseDir(), 'userdata', 'settings')
   : path.join(__dirname, '..', 'userdata', 'settings');
 
 /**

@@ -278,9 +278,9 @@ async function updateVesselMarkerWrapper(vesselId) {
 /**
  * Departs vessel from panel (exposed for HTML onclick)
  */
-async function departVesselWrapper(vesselId) {
+async function departVesselWrapper(vesselId, vesselName) {
   const { departVessel } = await import('./harbor-map/vessel-panel.js');
-  return await departVessel(vesselId);
+  return await departVessel(vesselId, vesselName);
 }
 
 /**

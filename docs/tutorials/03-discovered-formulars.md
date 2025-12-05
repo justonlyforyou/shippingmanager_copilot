@@ -24,11 +24,6 @@ if (userHasPerk("cheap_harbor_fees")) {
 }
 ```
 
-**Verified Example:**
-- Custom1Ship (cargo=1700 TEU, distance=5207 nm)
-- Calculated: (17000 / 5207) * 1700^1.2 = $24,542
-- Game showed: $24,569 (0.1% difference)
-
 ---
 
 ## Harbor Fee MIN/MAX (UI Display)
@@ -43,12 +38,6 @@ MIN = 17000 / distance
 MAX = (17000 / distance) * Math.pow(27000, 0.2)
     = (17000 / distance) * 7.697
 ```
-
-**Verified Examples:**
-| Vessel | Distance | Calculated MIN | Game MIN | Calculated MAX | Game MAX |
-|--------|----------|----------------|----------|----------------|----------|
-| NAVICOM | 933 nm | $18.22 | $18.22 | $140.27 | $140.23 |
-| Custom1Ship | 5207 nm | $3.265 | $3.26 | $25.13 | $25.13 |
 
 ---
 
@@ -89,13 +78,9 @@ fuel = fuel * (1 - totalReduction / 100)
 fuel_kg_per_nm = capacity * Math.sqrt(speed) * fuel_factor / 40
 ```
 
-**Verified Example:**
-| Vessel | Capacity | Speed | fuel_factor | Calculated | Game Display |
-|--------|----------|-------|-------------|------------|--------------|
-| MV Ancylon | 480 TEU | 18 kn | ~1.079 | 54.94 kg/nm | 54.94 kg/nm |
-
 **Note:** `fuel_factor` is vessel-specific and must be retrieved from API vessel data.
 Without knowing fuel_factor, calculate the base value (fuel_factor=1) then derive:
+
 ```javascript
 fuel_factor = game_display_value / (capacity * Math.sqrt(speed) / 40)
 ```
@@ -121,11 +106,6 @@ if (userHasPerk("reduce_co2_consumption")) {
 }
 ```
 
-**Verified Example:**
-| Vessel | Capacity | co2_factor | Calculated | Game Display |
-|--------|----------|------------|------------|--------------|
-| MV Ancylon | 480 TEU | 1 | 1.968 kg/TEU/nm | 1.97 kg/TEU/nm |
-
 ---
 
 ## Route Creation Fee
@@ -146,13 +126,6 @@ routeFee = (40 * capacity + 10 * distance) * trainingMultiplier + drydockPrice
 ```javascript
 routeFee = 40 * capacity + 10 * distance
 ```
-
-**Verified Examples:**
-| Vessel | Capacity | Distance | Calculated | Game |
-|--------|----------|----------|------------|------|
-| Atlantic Venture | 294 TEU | 1375 nm | 25,510 | 25,510 |
-| NAVICOM | 250 TEU | 933 nm | 19,330 | 19,330 |
-| Custom1Ship | 2000 TEU | 5207 nm | 132,070 | 132,070 |
 
 ---
 
@@ -176,12 +149,6 @@ if (speedBoostActive) {
 ```
 
 **Output:** Time in seconds
-
-**Verified Examples:**
-| Vessel | Distance | Speed | Calculated | Game |
-|--------|----------|-------|------------|------|
-| NAVICOM | 933 nm | 20 kn | 4548.75s (01:15:49) | 01:15:48 |
-| Atlantic Venture | 1375 nm | 12 kn | 9143.75s (02:32:24) | 02:32:24 |
 
 ---
 
@@ -211,17 +178,6 @@ Example: Vessel with 19% risk at 8 kn speed:
 ```
 distance_in_danger_zone = (19 - 1) * 8 / 5.7 = 25.3 nm
 ```
-
-**Verified Examples:**
-
-| Vessel | Total Distance | Speed | Risk | Danger Zone Distance |
-|--------|---------------|-------|------|---------------------|
-| Triumph | 4,407 nm | 22 kn | 10% | 35 nm |
-| OCEAN DAME | 2,787 nm | 10 kn | 12% | 20 nm |
-| Sea Spirit | 920 nm | 5 kn | 13% | 11 nm |
-| SS Valley | 2,584 nm | 8 kn | 14% | 19 nm |
-| SS Valley_6128 | 2,209 nm | 8 kn | 19% | 26 nm |
-| Blue Ocean | 4,561 nm | 8 kn | 28% | 38 nm |
 
 **Notes:**
 - If route doesn't cross a danger zone: `hijacking_risk = 0` (not 5%)
@@ -308,4 +264,4 @@ result = (value === 0) ? 0 : Math.pow(value, 3)
 
 ---
 
-*Last updated: 2025-12-01*
+*Last updated: 2025-12-05*

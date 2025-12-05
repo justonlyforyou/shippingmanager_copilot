@@ -30,14 +30,15 @@ function updateAtPortTabCount(vessels) {
 }
 
 /**
- * Update the At Sea tab button to show count of vessels enroute
+ * Update the At Sea tab button to show count of vessels enroute (excluding drydock trips)
  * @param {Array} vessels - All vessels from API
  */
 function updateAtSeaTabCount(vessels) {
   const tabBtn = document.querySelector('.depart-tab-btn[data-status="enroute"]');
   if (!tabBtn) return;
 
-  const count = vessels.filter(v => v.status === 'enroute').length;
+  // Exclude drydock trips - they show in Drydock tab
+  const count = vessels.filter(v => v.status === 'enroute' && v.route_dry_operation !== 1).length;
   tabBtn.textContent = count > 0 ? `At Sea (${count})` : 'At Sea';
 }
 
@@ -97,7 +98,7 @@ function updateAnchorTabCount(vessels) {
 }
 
 /**
- * Update the DryDock tab button to show count of vessels in maintenance
+ * Update the DryDock tab button to show count of vessels in maintenance + enroute to drydock
  * @param {Array} vessels - All vessels from API
  */
 function updateDryDockTabCount(vessels) {
@@ -105,9 +106,11 @@ function updateDryDockTabCount(vessels) {
   if (!dryDockTabBtn) return;
 
   const maintenanceCount = vessels.filter(v => v.status === 'maintenance').length;
+  const enrouteDrydockCount = vessels.filter(v => v.status === 'enroute' && v.route_dry_operation === 1).length;
+  const totalCount = maintenanceCount + enrouteDrydockCount;
 
-  if (maintenanceCount > 0) {
-    dryDockTabBtn.textContent = `DryDock (${maintenanceCount})`;
+  if (totalCount > 0) {
+    dryDockTabBtn.textContent = `DryDock (${totalCount})`;
   } else {
     dryDockTabBtn.textContent = 'DryDock';
   }
@@ -150,6 +153,116 @@ function getPortDrydock(portCode) {
   if (!portsCache || !portCode) return null;
   const port = portsCache[portCode];
   return port?.drydock || null;
+}
+
+/**
+ * Render the Drydock tab with two sections: In Maintenance and Enroute to Drydock
+ * @param {HTMLElement} contentArea - Content container
+ * @param {Array} vessels - All vessels
+ */
+async function renderDrydockTab(contentArea, vessels) {
+  // Split vessels into two groups
+  const inMaintenance = vessels.filter(v => v.status === 'maintenance');
+  const enrouteToDrydock = vessels.filter(v => v.status === 'enroute' && v.route_dry_operation === 1);
+
+  if (inMaintenance.length === 0 && enrouteToDrydock.length === 0) {
+    contentArea.innerHTML = '<div class="depart-empty-state">No vessels in drydock or enroute to drydock</div>';
+    updateDepartButtonCount();
+    return;
+  }
+
+  let html = '';
+
+  // Section 1: In Maintenance
+  if (inMaintenance.length > 0) {
+    html += '<div class="depart-section-header">In Maintenance</div>';
+    html += '<div class="depart-vessel-list">';
+    inMaintenance.forEach(vessel => {
+      html += renderVesselItem(vessel, 'maintenance');
+    });
+    html += '</div>';
+  }
+
+  // Section 2: Enroute to Drydock
+  if (enrouteToDrydock.length > 0) {
+    html += '<div class="depart-section-header">Enroute to Drydock</div>';
+    html += '<div class="depart-vessel-list">';
+    enrouteToDrydock.forEach(vessel => {
+      html += renderDrydockEnrouteItem(vessel);
+    });
+    html += '</div>';
+  }
+
+  contentArea.innerHTML = html;
+
+  // Add event handlers
+  addVesselItemEventHandlers(contentArea);
+
+  // Update button count
+  updateDepartButtonCount();
+}
+
+/**
+ * Render a vessel item for enroute-to-drydock section
+ * @param {Object} vessel - Vessel data
+ * @returns {string} HTML string
+ */
+function renderDrydockEnrouteItem(vessel) {
+  const routeName = vessel.route_name || 'No Route';
+
+  // Calculate ETA
+  const now = Math.floor(Date.now() / 1000);
+  const eta = vessel.route_end_time;
+  const secondsRemaining = eta - now;
+
+  let etaDisplay = '';
+  if (secondsRemaining > 0) {
+    const hours = Math.floor(secondsRemaining / 3600);
+    const minutes = Math.floor((secondsRemaining % 3600) / 60);
+    etaDisplay = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  } else {
+    etaDisplay = 'Arriving';
+  }
+
+  // Determine direction: to drydock (outbound) or returning (inbound)
+  // If destination has a drydock facility, it's outbound. Otherwise it's returning.
+  const destinationPort = vessel.route_destination?.replace(/_/g, ' ') || 'Unknown';
+
+  // Check if destination port has drydock
+  const destHasDrydock = getPortDrydock(vessel.route_destination);
+  const isOutbound = destHasDrydock !== null;
+  const directionLabel = isOutbound ? 'To Drydock' : 'Returning';
+  const directionClass = isOutbound ? 'depart-status-drydock-outbound' : 'depart-status-drydock-returning';
+
+  // Vessel type emoji
+  const typeEmoji = vessel.capacity_type === 'tanker' ? '🛢️' : '📦';
+
+  // Custom build badge
+  const isCustomBuild = vessel.type_name === 'N/A';
+
+  const detailsHtml = `
+    <div>Status: <span class="${directionClass}">${directionLabel}</span></div>
+    <div>Destination: <span class="depart-port-name">${destinationPort}</span></div>
+    <div>ETA: <span class="depart-eta">${etaDisplay}</span></div>
+  `;
+
+  return `
+    <div class="depart-vessel-item" data-vessel-id="${vessel.id}" data-is-parked="false">
+      <span class="depart-route-link depart-route-corner" data-route-name="${routeName}" title="Click to filter map by this route">(${routeName})</span>
+      <span class="depart-type-corner" title="${vessel.capacity_type === 'tanker' ? 'Tanker' : 'Container'}">${typeEmoji}</span>
+      <div class="depart-vessel-info">
+        <div class="depart-vessel-name">
+          ${escapeHtml(vessel.name)}${isCustomBuild ? '<span class="custom-build-badge" title="Custom Build">CB</span>' : ''}
+          <button class="vessel-locate-btn" data-vessel-id="${vessel.id}" title="Show on map">
+            <span>📍</span>
+          </button>
+        </div>
+        <div class="depart-vessel-details">
+          ${detailsHtml}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -332,6 +445,12 @@ async function loadVesselsByStatus(status) {
       return;
     }
 
+    // Handle drydock/maintenance tab separately (shows both in-maintenance and enroute-to-drydock)
+    if (status === 'maintenance') {
+      await renderDrydockTab(contentArea, data.vessels);
+      return;
+    }
+
     // Filter vessels based on status
     let filteredVessels;
     if (status === 'port') {
@@ -340,8 +459,11 @@ async function loadVesselsByStatus(status) {
     } else if (status === 'pending') {
       // Pending includes both 'pending' and 'delivery' status
       filteredVessels = data.vessels.filter(v => v.status === 'pending' || v.status === 'delivery');
+    } else if (status === 'enroute') {
+      // Enroute but NOT on drydock operation (those go to drydock tab)
+      filteredVessels = data.vessels.filter(v => v.status === 'enroute' && v.route_dry_operation !== 1);
     } else {
-      // Direct status match (enroute, maintenance, anchor)
+      // Direct status match (anchor, etc.)
       filteredVessels = data.vessels.filter(v => v.status === status);
     }
 
@@ -869,6 +991,55 @@ function getStatusInfo(status) {
 }
 
 /**
+ * Get loading/unloading status for a vessel
+ * @param {Object} vessel - Vessel data
+ * @returns {Object|null} { status: 'loading'|'unloading', timeLeft: seconds } or null if not loading/unloading
+ */
+function getLoadingStatus(vessel) {
+  const ar = vessel.active_route;
+  if (!ar) return null;
+
+  const loadingLeft = ar.loading_time_left || 0;
+  const arrivalLeft = ar.arrival_time_left || 0;
+  const unloadingLeft = ar.unloading_time_left || 0;
+
+  // Loading: loading_time_left > 0
+  if (loadingLeft > 0) {
+    return { status: 'loading', timeLeft: loadingLeft };
+  }
+
+  // Unloading: arrived (arrival_time_left == 0) but still unloading (unloading_time_left > 0)
+  if (arrivalLeft === 0 && unloadingLeft > 0) {
+    return { status: 'unloading', timeLeft: unloadingLeft };
+  }
+
+  return null;
+}
+
+/**
+ * Format loading/unloading status with timer
+ * @param {Object} loadingStatus - From getLoadingStatus()
+ * @returns {string} Formatted string like "Loading - 2h 15m" or "Unloading - 45m"
+ */
+function formatLoadingStatus(loadingStatus) {
+  if (!loadingStatus) return '';
+
+  const seconds = loadingStatus.timeLeft;
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+
+  let timeStr = '';
+  if (hours > 0) {
+    timeStr = `${hours}h ${minutes}m`;
+  } else {
+    timeStr = `${minutes}m`;
+  }
+
+  const label = loadingStatus.status === 'loading' ? 'Loading' : 'Unloading';
+  return `${label} - ${timeStr}`;
+}
+
+/**
  * Render a single vessel item based on status
  * @param {Object} vessel - Vessel data
  * @param {string} status - Current tab status
@@ -905,17 +1076,24 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
     // Check if current port has drydock
     const drydock = getPortDrydock(vessel.current_port_code);
     const drydockText = drydock ? '(with Drydock)' : '(no Drydock)';
+    // Check for loading/unloading status
+    const loadingStatus = getLoadingStatus(vessel);
+    const loadingStatusText = loadingStatus ? ` <span class="depart-loading-status">(${formatLoadingStatus(loadingStatus)})</span>` : '';
     detailsHtml = `
-      <div>At port: <span class="depart-port-name">${currentPort}</span> ${drydockText}</div>
+      <div>At port: <span class="depart-port-name">${currentPort}</span> ${drydockText}${loadingStatusText}</div>
       <div>Destination: <span class="depart-port-name">${nextDestination || 'No route'}</span></div>
       <div>Duration: <span class="depart-duration">${durationText}</span></div>
     `;
   } else if (status === 'enroute') {
     // At sea - show ETA and route
     const etaText = formatETA(vessel);
+    // Check for loading/unloading status (can still be loading at origin or unloading at destination)
+    const loadingStatus = getLoadingStatus(vessel);
+    const loadingStatusText = loadingStatus ? `<div>Status: <span class="depart-loading-status">${formatLoadingStatus(loadingStatus)}</span></div>` : '';
     detailsHtml = `
       <div>Route: <span class="depart-port-name">${routeOrigin}</span> - <span class="depart-port-name">${routeDestination}</span></div>
       <div>ETA: <span class="depart-eta">${etaText}</span></div>
+      ${loadingStatusText}
     `;
   } else if (status === 'pending') {
     // Pending delivery - time_arrival is SECONDS REMAINING (not timestamp!)

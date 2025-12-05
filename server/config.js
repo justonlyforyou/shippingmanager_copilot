@@ -19,34 +19,64 @@ const os = require('os');
 /**
  * Get platform-specific AppData directory without using environment variables.
  * Used for user settings, sessions, certificates (local data)
- * @returns {string} AppData\Local directory path
+ * @returns {string} AppData directory path
  */
 function getAppDataDir() {
   if (process.platform === 'win32') {
     // Windows: C:\Users\Username\AppData\Local
     return path.join(os.homedir(), 'AppData', 'Local');
   }
-  // Linux/Mac: ~/.local/share
-  return path.join(os.homedir(), '.local', 'share');
+  if (process.platform === 'darwin') {
+    // macOS: ~/Library/Application Support
+    return path.join(os.homedir(), 'Library', 'Application Support');
+  }
+  // Linux: ~/.ShippingManagerCoPilot (returns homedir, add .ShippingManagerCoPilot later)
+  return os.homedir();
+}
+
+/**
+ * Get the full app base directory path (platform-specific).
+ * This is the recommended function for getting paths to app data.
+ *   - Windows: AppData/Local/ShippingManagerCoPilot
+ *   - macOS: ~/Library/Application Support/ShippingManagerCoPilot
+ *   - Linux: ~/.ShippingManagerCoPilot
+ * @returns {string} Full app base directory path
+ */
+function getAppBaseDir() {
+  if (process.platform === 'win32') {
+    return path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot');
+  }
+  if (process.platform === 'darwin') {
+    return path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot');
+  }
+  // Linux: hidden directory in home
+  return path.join(os.homedir(), '.ShippingManagerCoPilot');
 }
 
 /**
  * Get platform-specific Local AppData directory (for machine-specific cache/data).
  * Used for forecast data, cache files, logs (non-roaming data)
- * @returns {string} AppData\Local directory path
+ * @returns {string} AppData directory path
  */
 function getLocalAppDataDir() {
   if (process.platform === 'win32') {
     // Windows: C:\Users\Username\AppData\Local
     return path.join(os.homedir(), 'AppData', 'Local');
   }
-  // Linux/Mac: ~/.local/share
-  return path.join(os.homedir(), '.local', 'share');
+  if (process.platform === 'darwin') {
+    // macOS: ~/Library/Application Support
+    return path.join(os.homedir(), 'Library', 'Application Support');
+  }
+  // Linux: ~/.ShippingManagerCoPilot (returns homedir, add .ShippingManagerCoPilot later)
+  return os.homedir();
 }
 
 /**
  * Get log directory path.
- * When packaged as .exe: AppData/Local/ShippingManagerCoPilot/userdata/logs/
+ * When packaged: Platform-specific app data directory
+ *   - Windows: AppData/Local/ShippingManagerCoPilot/userdata/logs/
+ *   - macOS: ~/Library/Application Support/ShippingManagerCoPilot/userdata/logs/
+ *   - Linux: ~/.ShippingManagerCoPilot/userdata/logs/
  * When running from source: ./userdata/logs/
  * @returns {string} Log directory path
  */
@@ -55,14 +85,17 @@ function getLogDir() {
   console.log(`[DEBUG] getLogDir - process.pkg = ${isPkg}`);
 
   if (isPkg) {
-    // Running as packaged .exe - use AppData/Local
     if (process.platform === 'win32') {
       const appDataPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'logs');
       console.log(`[DEBUG] Using LocalAppData logs: ${appDataPath}`);
       return appDataPath;
     }
-    // macOS/Linux
-    return path.join(os.homedir(), '.local', 'share', 'ShippingManagerCoPilot', 'userdata', 'logs');
+    if (process.platform === 'darwin') {
+      // macOS: ~/Library/Application Support/ShippingManagerCoPilot/userdata/logs
+      return path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot', 'userdata', 'logs');
+    }
+    // Linux: ~/.ShippingManagerCoPilot/userdata/logs
+    return path.join(os.homedir(), '.ShippingManagerCoPilot', 'userdata', 'logs');
   }
   // Running from source - use project directory
   const localPath = path.join(__dirname, '..', 'userdata', 'logs');
@@ -116,8 +149,11 @@ function getAppVersionCookie() {
 
 /**
  * Get settings directory path based on execution mode.
- * - .exe mode: AppData/Local/ShippingManagerCoPilot/userdata/settings/
- * - dev mode: ./userdata/settings/
+ * When packaged: Platform-specific app data directory
+ *   - Windows: AppData/Local/ShippingManagerCoPilot/userdata/settings/
+ *   - macOS: ~/Library/Application Support/ShippingManagerCoPilot/userdata/settings/
+ *   - Linux: ~/.ShippingManagerCoPilot/userdata/settings/
+ * When running from source: ./userdata/settings/
  * @returns {string} Settings directory path
  */
 function getSettingsDir() {
@@ -125,14 +161,17 @@ function getSettingsDir() {
   console.log(`[DEBUG] getSettingsDir - process.pkg = ${isPkg}`);
 
   if (isPkg) {
-    // Running as packaged .exe - use AppData/Local
     if (process.platform === 'win32') {
       const appDataPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'settings');
       console.log(`[DEBUG] Using LocalAppData settings: ${appDataPath}`);
       return appDataPath;
     }
-    // macOS/Linux
-    return path.join(os.homedir(), '.local', 'share', 'ShippingManagerCoPilot', 'userdata', 'settings');
+    if (process.platform === 'darwin') {
+      // macOS: ~/Library/Application Support/ShippingManagerCoPilot/userdata/settings
+      return path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot', 'userdata', 'settings');
+    }
+    // Linux: ~/.ShippingManagerCoPilot/userdata/settings
+    return path.join(os.homedir(), '.ShippingManagerCoPilot', 'userdata', 'settings');
   }
   // Running from source - use userdata
   const localPath = path.join(__dirname, '..', 'userdata', 'settings');
@@ -299,6 +338,7 @@ module.exports.getSessionCookie = getSessionCookie;
 module.exports.getAppPlatformCookie = getAppPlatformCookie;
 module.exports.getAppVersionCookie = getAppVersionCookie;
 module.exports.getAppDataDir = getAppDataDir;
+module.exports.getAppBaseDir = getAppBaseDir;
 module.exports.getLocalAppDataDir = getLocalAppDataDir;
 module.exports.getLogDir = getLogDir;
 module.exports.getSettingsDir = getSettingsDir;

@@ -64,9 +64,8 @@ const isPkg = !!process.pkg;
 let DATA_DIR;
 if (isPkg) {
   // Packaged mode - use AppData
-  const { getAppDataDir } = require('../config');
-  const APPDATA_DIR = path.join(getAppDataDir(), 'ShippingManagerCoPilot');
-  DATA_DIR = path.join(APPDATA_DIR, 'userdata');
+  const { getAppBaseDir } = require('../config');
+  DATA_DIR = path.join(getAppBaseDir(), 'userdata');
 } else {
   // Dev mode - use local userdata directory
   DATA_DIR = path.join(__dirname, '../../userdata');

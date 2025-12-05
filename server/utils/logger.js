@@ -34,11 +34,14 @@ function loadLogLevel() {
     let settingsPath;
 
     if (isPkg) {
-      // Running as .exe - use AppData/Local
+      // Running as packaged binary - use platform-specific paths
       if (process.platform === 'win32') {
         settingsPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'settings', 'settings.json');
+      } else if (process.platform === 'darwin') {
+        settingsPath = path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot', 'userdata', 'settings', 'settings.json');
       } else {
-        settingsPath = path.join(os.homedir(), '.local', 'share', 'ShippingManagerCoPilot', 'userdata', 'settings', 'settings.json');
+        // Linux
+        settingsPath = path.join(os.homedir(), '.ShippingManagerCoPilot', 'userdata', 'settings', 'settings.json');
       }
     } else {
       // Running from source - use userdata

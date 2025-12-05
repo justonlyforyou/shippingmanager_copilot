@@ -15,7 +15,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 const logger = require('../utils/logger');
 
 /**
@@ -51,7 +51,7 @@ const SYNC_DEBOUNCE_MS = 5000;
 function getMessengerCachePath(userId) {
   const isPkg = !!process.pkg;
   return isPkg
-    ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata', 'messenger', `content-cache-${userId}.json`)
+    ? path.join(getAppBaseDir(), 'userdata', 'messenger', `content-cache-${userId}.json`)
     : path.join(__dirname, '..', '..', 'userdata', 'messenger', `content-cache-${userId}.json`);
 }
 

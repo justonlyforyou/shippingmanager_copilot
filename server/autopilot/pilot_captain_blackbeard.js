@@ -16,7 +16,7 @@
 const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId, apiCall } = require('../utils/api');
-const { getAppDataDir } = require('../config');
+const { getAppBaseDir } = require('../config');
 const path = require('path');
 const fs = require('fs');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
@@ -24,7 +24,7 @@ const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audi
 // Use same path logic as messenger.js for hijack history
 const isPkg = !!process.pkg;
 const DATA_DIR = isPkg
-  ? path.join(getAppDataDir(), 'ShippingManagerCoPilot', 'userdata')
+  ? path.join(getAppBaseDir(), 'userdata')
   : path.join(__dirname, '../../userdata');
 
 /**

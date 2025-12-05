@@ -1047,6 +1047,11 @@
   font-weight: 600;
 }
 
+.history-row.drydock-trip {
+  color: var(--color-info, #3b82f6);
+  font-weight: 600;
+}
+
 .history-route {
   font-size: 14px;
   color: #fff;
