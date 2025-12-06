@@ -36,6 +36,21 @@ const { autoBuyStock, autoSellStock } = require('./autopilot/pilot_the_purser');
 let broadcastToUser = null;
 
 /**
+ * Fetches /game/index with global caching (10s TTL) to reduce duplicate API calls.
+ * Uses cache module for shared cache across all modules.
+ */
+async function getGameIndexCached() {
+  const cached = cache.getGameIndexCache();
+  if (cached) {
+    return cached;
+  }
+
+  const response = await apiCall('/game/index', 'POST', {});
+  cache.setGameIndexCache(response);
+  return response;
+}
+
+/**
  * Injects WebSocket broadcasting function.
  * Called by websocket.js during initialization.
  */
@@ -62,6 +77,9 @@ function initializeAutopilotState(userId) {
   } else {
     logger.info('[Autopilot] No saved pause state, defaulting to RUNNING');
   }
+
+  // Start vessel history slow sync (initial full sync, then ~2 calls/min rotation)
+  vesselHistoryStore.startAutoSync(userId);
 }
 
 /**
@@ -377,8 +395,8 @@ async function updateAllData() {
 
     logger.debug('[UpdateAll] Starting complete data fetch...');
 
-    // Fetch all data
-    const gameIndexData = await apiCall('/game/index', 'POST', {});
+    // Fetch all data (with 30-second cache to avoid duplicate calls)
+    const gameIndexData = await getGameIndexCached();
     const user = gameIndexData.user;
     const gameSettings = gameIndexData.data.user_settings;
     const vessels = gameIndexData.data.user_vessels;
@@ -732,8 +750,8 @@ async function mainEventLoop() {
     // Check for alliance changes (user may have switched alliances)
     await checkAndUpdateAllianceId();
 
-    // Fetch vessel data for badges
-    const gameIndexData = await apiCall('/game/index', 'POST', {});
+    // Fetch vessel data for badges (with 30-second cache to avoid duplicate calls)
+    const gameIndexData = await getGameIndexCached();
     const vessels = gameIndexData.data.user_vessels;
 
     const readyToDepart = vessels.filter(v => v.status === 'port' && !v.is_parked).length;
@@ -892,18 +910,6 @@ async function mainEventLoop() {
       if (settings.autoPurserAutoSellEnabled) {
         await autoSellStock(autopilotPaused, broadcastToUser, tryUpdateAllData);
       }
-    }
-
-    // Sync vessel history (incremental - only fetches new departures)
-    // This keeps the analytics "Utilization Over Time" chart up-to-date
-    try {
-      const syncResult = await vesselHistoryStore.syncVesselHistory(userId);
-      if (syncResult.newEntries > 0) {
-        logger.info(`[Loop] Vessel history sync: +${syncResult.newEntries} new entries`);
-      }
-    } catch (syncError) {
-      // Don't fail the main loop if sync fails
-      logger.debug('[Loop] Vessel history sync skipped:', syncError.message);
     }
 
   } catch (error) {

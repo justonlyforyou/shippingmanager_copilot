@@ -39,16 +39,16 @@ router.get('/anchor-point/get-price', async (req, res) => {
 
 /**
  * GET /api/anchor/get-price - Simplified endpoint for purchase dialog
- * Returns price, user cash, and anchor_next_build timer from /game/index
+ * Returns price, user cash, and anchor_next_build timer
  */
 router.get('/anchor/get-price', async (req, res) => {
   try {
     // Fetch price data
     const priceData = await apiCall('/anchor-point/get-anchor-price', 'POST', {});
 
-    // Fetch anchor timer from /game/index
-    const gameData = await apiCall('/game/index', 'POST', {});
-    const anchorNextBuild = gameData.data?.user_settings?.anchor_next_build || null;
+    // Fetch anchor timer from /user/get-user-settings (much smaller than /game/index)
+    const settingsData = await apiCall('/user/get-user-settings', 'POST', {});
+    const anchorNextBuild = settingsData.data?.settings?.anchor_next_build || null;
 
     // Get pending anchor points from settings (same as header uses)
     const userId = getUserId();

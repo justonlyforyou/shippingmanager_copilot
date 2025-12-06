@@ -12,7 +12,7 @@
  * @module analytics
  */
 
-import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails } from './api.js';
+import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsHourly, getApiStatsDates } from './api.js';
 import { escapeHtml, showNotification, formatNumber } from './utils.js';
 
 // State
@@ -20,6 +20,9 @@ let analyticsData = null;
 let lookupData = null; // Used for export
 let currentDays = 7;
 let trendChart = null;
+let isDevelMode = false;
+let apiStatsChart = null;
+let apiStatsData = null;
 
 // Cache TTL in milliseconds (1 minute)
 const CACHE_TTL = 60000;
@@ -333,6 +336,14 @@ export function initAnalytics() {
       const tabId = btn.dataset.tab;
       switchTab(tabId);
     });
+  });
+
+  // Check develMode and add API Stats tab if enabled
+  checkDevelMode().then(enabled => {
+    isDevelMode = enabled;
+    if (enabled) {
+      addApiStatsTab();
+    }
   });
 
   // Game Log category filter (INCOME/EXPENSE)
@@ -693,6 +704,11 @@ function switchTab(tabId) {
   // Load game log data when tab becomes visible
   if (tabId === 'game-log' && !lookupData) {
     loadGameLogData();
+  }
+
+  // Load API stats when tab becomes visible (develMode only)
+  if (tabId === 'api-stats' && isDevelMode) {
+    loadApiStats();
   }
 }
 
@@ -2574,6 +2590,12 @@ function renderTrendChart(dailyData) {
     return;
   }
 
+  // If container not visible yet (width 0), retry after short delay
+  if (container.offsetWidth === 0) {
+    setTimeout(() => renderTrendChart(dailyData), 100);
+    return;
+  }
+
   // Clear container and create header with title left, toggle buttons right
   const headerHtml = `
     <div class="analytics-chart-header">
@@ -4194,6 +4216,249 @@ function showRouteVesselsInfoTooltip(iconElement) {
   };
   // Delay adding listener to prevent immediate close
   setTimeout(() => document.addEventListener('click', closeHandler), 10);
+}
+
+// ============================================
+// API STATS TAB (develMode only)
+// ============================================
+
+/**
+ * Add API Stats tab button dynamically when develMode is enabled
+ */
+function addApiStatsTab() {
+  const tabsContainer = document.querySelector('.analytics-tabs');
+  if (!tabsContainer) return;
+
+  // Check if tab already exists
+  if (document.querySelector('[data-tab="api-stats"]')) return;
+
+  // Find the controls div and insert button before it
+  const controlsDiv = tabsContainer.querySelector('.analytics-controls');
+
+  const tabBtn = document.createElement('button');
+  tabBtn.className = 'analytics-tab-btn';
+  tabBtn.dataset.tab = 'api-stats';
+  tabBtn.textContent = 'API Stats';
+
+  if (controlsDiv) {
+    tabsContainer.insertBefore(tabBtn, controlsDiv);
+  } else {
+    tabsContainer.appendChild(tabBtn);
+  }
+
+  // Add click handler
+  tabBtn.addEventListener('click', () => {
+    switchTab('api-stats');
+  });
+
+  // Setup API Stats controls
+  setupApiStatsControls();
+}
+
+/**
+ * Setup API Stats tab controls
+ */
+function setupApiStatsControls() {
+  const hoursSelect = document.getElementById('apiStatsHoursSelect');
+  const refreshBtn = document.getElementById('apiStatsRefreshBtn');
+
+  if (hoursSelect) {
+    hoursSelect.addEventListener('change', () => {
+      loadApiStats();
+    });
+  }
+
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      apiStatsData = null;
+      loadApiStats();
+    });
+  }
+}
+
+/**
+ * Load API stats data
+ */
+async function loadApiStats() {
+  const loadingEl = document.getElementById('apiStatsLoading');
+  const contentEl = document.getElementById('apiStatsContent');
+  const hoursSelect = document.getElementById('apiStatsHoursSelect');
+
+  if (!loadingEl || !contentEl) return;
+
+  const hours = hoursSelect ? parseFloat(hoursSelect.value) : 24;
+
+  loadingEl.classList.remove('hidden');
+  contentEl.classList.add('hidden');
+
+  try {
+    const [stats, datesInfo] = await Promise.all([
+      getApiStats(hours),
+      getApiStatsDates()
+    ]);
+
+    apiStatsData = { stats, dates: datesInfo.dates };
+
+    renderApiStatsSummary(stats, hours, datesInfo.dates);
+    renderApiStatsChart(stats);
+    renderApiStatsTable(stats);
+
+    loadingEl.classList.add('hidden');
+    contentEl.classList.remove('hidden');
+  } catch (error) {
+    console.error('[Analytics] Error loading API stats:', error);
+    loadingEl.innerHTML = '<div class="error">Failed to load API stats</div>';
+  }
+}
+
+/**
+ * Render API stats summary metrics
+ */
+function renderApiStatsSummary(stats, hours, dates) {
+  const totalCallsEl = document.getElementById('apiStatsTotalCalls');
+  const totalErrorsEl = document.getElementById('apiStatsTotalErrors');
+  const callsPerHourEl = document.getElementById('apiStatsCallsPerHour');
+  const availableDaysEl = document.getElementById('apiStatsAvailableDays');
+
+  if (totalCallsEl) {
+    totalCallsEl.textContent = formatNumber(stats.totalCalls);
+  }
+  if (totalErrorsEl) {
+    totalErrorsEl.textContent = formatNumber(stats.totalErrors);
+    totalErrorsEl.classList.toggle('negative', stats.totalErrors > 0);
+  }
+  if (callsPerHourEl) {
+    const callsPerHour = hours > 0 ? Math.round(stats.totalCalls / hours) : 0;
+    callsPerHourEl.textContent = formatNumber(callsPerHour);
+  }
+  if (availableDaysEl) {
+    availableDaysEl.textContent = dates ? dates.length : 0;
+  }
+}
+
+/**
+ * Render API stats chart using LightweightCharts (minute-level data)
+ */
+function renderApiStatsChart(stats) {
+  const container = document.getElementById('apiStatsChartContainer');
+  if (!container) return;
+
+  // Destroy previous chart if exists
+  if (apiStatsChart) {
+    apiStatsChart.remove();
+    apiStatsChart = null;
+  }
+
+  // Clear container
+  container.innerHTML = '';
+
+  if (!stats || !stats.timeSeries || stats.timeSeries.length === 0) {
+    container.innerHTML = '<div class="no-data">No data available</div>';
+    return;
+  }
+
+  // Check if LightweightCharts is available
+  if (typeof LightweightCharts === 'undefined') {
+    container.innerHTML = '<div class="no-data">Chart library not available</div>';
+    return;
+  }
+
+  // Prepare data for chart - convert to Unix timestamps
+  // minute format is "2025-12-05 01:30" (YYYY-MM-DD HH:mm)
+  const data = stats.timeSeries.map(m => {
+    // Parse "2025-12-05 01:30" -> "2025-12-05T01:30:00"
+    const isoString = m.minute.replace(' ', 'T') + ':00';
+    const date = new Date(isoString);
+    return {
+      time: Math.floor(date.getTime() / 1000),
+      value: m.total
+    };
+  }).filter(d => !isNaN(d.time)).sort((a, b) => a.time - b.time);
+
+  console.log('[API Stats] Chart data:', data.length, 'points', data.slice(0, 3));
+  console.log('[API Stats] Container size:', container.offsetWidth, 'x', container.offsetHeight);
+
+  // If container not visible yet, wait a bit
+  if (container.offsetWidth === 0) {
+    setTimeout(() => renderApiStatsChart(stats), 100);
+    return;
+  }
+
+  // Create chart
+  apiStatsChart = LightweightCharts.createChart(container, {
+    height: 180,
+    layout: {
+      background: { type: 'solid', color: 'transparent' },
+      textColor: '#9ca3af',
+      attributionLogo: false
+    },
+    grid: {
+      vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
+      horzLines: { color: 'rgba(255, 255, 255, 0.05)' }
+    },
+    timeScale: {
+      timeVisible: true,
+      secondsVisible: false
+    },
+    rightPriceScale: {
+      borderVisible: false
+    },
+    handleScroll: true,
+    handleScale: true
+  });
+
+  // Add line series (version-compatible)
+  const lineOptions = {
+    color: 'rgba(59, 130, 246, 1)',
+    lineWidth: 2,
+    priceFormat: {
+      type: 'volume'
+    }
+  };
+
+  let series;
+  if (typeof apiStatsChart.addLineSeries === 'function') {
+    series = apiStatsChart.addLineSeries(lineOptions);
+  } else {
+    series = apiStatsChart.addSeries(LightweightCharts.LineSeries, lineOptions);
+  }
+
+  series.setData(data);
+  apiStatsChart.timeScale().fitContent();
+}
+
+/**
+ * Render API stats endpoint table
+ */
+function renderApiStatsTable(stats) {
+  const tbody = document.getElementById('apiStatsEndpointsTbody');
+  if (!tbody) return;
+
+  if (!stats.byEndpoint || Object.keys(stats.byEndpoint).length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data">No endpoint data</td></tr>';
+    return;
+  }
+
+  // Sort endpoints by call count descending
+  const endpoints = Object.entries(stats.byEndpoint)
+    .sort((a, b) => b[1].count - a[1].count);
+
+  const totalCalls = stats.totalCalls;
+
+  tbody.innerHTML = endpoints.map(([endpoint, data]) => {
+    const percent = totalCalls > 0 ? ((data.count / totalCalls) * 100).toFixed(1) : 0;
+    const errorClass = data.errors > 0 ? 'negative' : '';
+
+    return `
+      <tr>
+        <td class="endpoint-name">${escapeHtml(endpoint)}</td>
+        <td class="num">${formatNumber(data.count)}</td>
+        <td class="num ${errorClass}">${data.errors}</td>
+        <td class="num">${data.avgDuration}ms</td>
+        <td class="num">${percent}%</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // Export for global access

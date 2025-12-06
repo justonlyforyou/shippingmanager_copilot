@@ -132,9 +132,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
   try {
     const settings = state.getSettings(userId);
 
-    // Get current bunker state
-    const bunker = await gameapi.fetchBunkerState();
-    state.updateBunkerState(userId, bunker);
+    // Get current bunker state from cache (auto-updated by apiCall())
+    const bunker = state.getBunkerState(userId);
 
     // Reset fuel-failed vessels cache if fuel increased
     resetFuelFailedCacheIfIncreased(userId, bunker.fuel);
@@ -265,13 +264,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         logger.debug(`[Depart] Batch: ${departedVessels.length} departed, ${failedVessels.length} failed - Income: $${totalIncome.toLocaleString()}`);
 
         if (broadcastToUser) {
-          let bunkerState = null;
-          try {
-            bunkerState = await gameapi.fetchBunkerState();
-          } catch (fetchError) {
-            logger.warn(`[Depart] Failed to fetch bunker state for batch notification: ${fetchError.message}`);
-            bunkerState = state.getBunkerState(userId);
-          }
+          // Get bunker state from cache (auto-updated by apiCall())
+          const bunkerState = state.getBunkerState(userId);
 
           // Send batch update event (does NOT unlock button)
           broadcastToUser(userId, 'vessels_depart_batch', {
@@ -754,14 +748,8 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       let finalBunkerState = null;
       let updatedVessels = [];
 
-      // Fetch final state - wrapped in try-catch to prevent lock from getting stuck
-      try {
-        finalBunkerState = await gameapi.fetchBunkerState();
-      } catch (fetchError) {
-        logger.warn(`[Depart] Failed to fetch final bunker state: ${fetchError.message}`);
-        // Use last known bunker state
-        finalBunkerState = state.getBunkerState(userId);
-      }
+      // Get final bunker state from cache (auto-updated by apiCall())
+      finalBunkerState = state.getBunkerState(userId);
 
       const finalTotalIncome = allDepartedVessels.reduce((sum, v) => sum + v.income, 0);
       const finalTotalFuelUsed = allDepartedVessels.reduce((sum, v) => sum + v.fuelUsed, 0);

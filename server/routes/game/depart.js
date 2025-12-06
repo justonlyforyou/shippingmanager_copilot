@@ -25,6 +25,7 @@ const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
 const logger = require('../../utils/logger');
 const { broadcastToUser } = require('../../websocket');
+const { syncSpecificVessels } = require('../../analytics/vessel-history-store');
 
 const router = express.Router();
 
@@ -196,6 +197,21 @@ router.post('/depart', async (req, res) => {
       broadcastHarborMapRefresh(userId, 'vessels_departed', {
         count: vesselIds ? vesselIds.length : 'all'
       });
+    }
+
+    // Event-based vessel history sync: sync departed vessels immediately
+    if (result && result.success && result.departedCount > 0 && result.departedVessels) {
+      const departedVesselIds = result.departedVessels.map(v => v.vesselId).filter(Boolean);
+      if (departedVesselIds.length > 0) {
+        // Run async, don't block response
+        syncSpecificVessels(userId, departedVesselIds).then(syncResult => {
+          if (syncResult.newEntries > 0) {
+            logger.info(`[Depart API] Synced history for ${departedVesselIds.length} vessels: +${syncResult.newEntries} entries`);
+          }
+        }).catch(err => {
+          logger.error('[Depart API] Failed to sync vessel history:', err.message);
+        });
+      }
     }
 
     res.json(result || { success: true, message: 'Depart triggered' });

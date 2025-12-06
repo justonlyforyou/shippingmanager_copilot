@@ -1527,3 +1527,65 @@ export async function clearLookup() {
   }
 }
 
+/**
+ * Check if developer mode is enabled
+ * @returns {Promise<boolean>} True if develMode is enabled
+ */
+export async function checkDevelMode() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/devel-mode'));
+    if (!response.ok) return false;
+    const data = await response.json();
+    return data.enabled === true;
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Get API call statistics (develMode only)
+ * @param {number} hours - Hours to look back (default 24)
+ * @returns {Promise<Object>} API stats data
+ */
+export async function getApiStats(hours = 24) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/api-stats?hours=${hours}`));
+    if (!response.ok) throw new Error('Failed to get API stats');
+    return await response.json();
+  } catch (error) {
+    console.error('[API Stats] Error getting stats:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get hourly API stats for charting (develMode only)
+ * @param {number} hours - Hours to look back (default 24)
+ * @returns {Promise<Object>} Hourly API stats
+ */
+export async function getApiStatsHourly(hours = 24) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/api-stats/hourly?hours=${hours}`));
+    if (!response.ok) throw new Error('Failed to get hourly API stats');
+    return await response.json();
+  } catch (error) {
+    console.error('[API Stats] Error getting hourly stats:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get available API stats dates (develMode only)
+ * @returns {Promise<Object>} List of available dates
+ */
+export async function getApiStatsDates() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/api-stats/dates'));
+    if (!response.ok) throw new Error('Failed to get API stats dates');
+    return await response.json();
+  } catch (error) {
+    console.error('[API Stats] Error getting dates:', error);
+    throw error;
+  }
+}
+

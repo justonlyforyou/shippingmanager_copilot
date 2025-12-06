@@ -837,7 +837,7 @@
     "name": "server/websocket/hijacking-cache",
     "longname": "module:server/websocket/hijacking-cache",
     "url": "module-server_websocket_hijacking-cache.html",
-    "description": "<p>Hijacking Case Caching</p>\n<p>Provides shared caching for hijacking case details to reduce duplicate API calls.\nSolved cases are cached permanently, open cases are cached for 5 minutes.</p>"
+    "description": "<p>Hijacking Case Caching - File-Based Persistent Cache</p>\n<p>Uses LOCAL FILES to cache hijacking case details - NO API calls for resolved cases!\nStrategy:</p>\n<ul>\n<li>First check: Local file in userdata/hijack_history/{userId}-{caseId}.json</li>\n<li>If file has resolved:true -&gt; Use local data, ZERO API calls</li>\n<li>If no file or not resolved -&gt; API call once, then save locally</li>\n</ul>\n<p>This eliminates ALL API calls for resolved cases, even after server restart!</p>"
   },
   {
     "type": "module",
@@ -1757,6 +1757,14 @@
   },
   {
     "type": "method",
+    "name": "addApiStatsTab",
+    "longname": "module:analytics~addApiStatsTab",
+    "url": "module-analytics.html#~addApiStatsTab",
+    "description": "<p>Add API Stats tab button dynamically when develMode is enabled</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "buildPod2Html",
     "longname": "module:analytics~buildPod2Html",
     "url": "module-analytics.html#~buildPod2Html",
@@ -1885,6 +1893,14 @@
   },
   {
     "type": "method",
+    "name": "loadApiStats",
+    "longname": "module:analytics~loadApiStats",
+    "url": "module-analytics.html#~loadApiStats",
+    "description": "<p>Load API stats data</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "loadGameLogData",
     "longname": "module:analytics~loadGameLogData",
     "url": "module-analytics.html#~loadGameLogData",
@@ -1921,6 +1937,30 @@
     "longname": "module:analytics~preloadAllTabs",
     "url": "module-analytics.html#~preloadAllTabs",
     "description": "<p>Preload all tabs in background (parallel)\nData is cached so tabs open instantly when clicked</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "renderApiStatsChart",
+    "longname": "module:analytics~renderApiStatsChart",
+    "url": "module-analytics.html#~renderApiStatsChart",
+    "description": "<p>Render API stats chart using LightweightCharts (minute-level data)</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "renderApiStatsSummary",
+    "longname": "module:analytics~renderApiStatsSummary",
+    "url": "module-analytics.html#~renderApiStatsSummary",
+    "description": "<p>Render API stats summary metrics</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "renderApiStatsTable",
+    "longname": "module:analytics~renderApiStatsTable",
+    "url": "module-analytics.html#~renderApiStatsTable",
+    "description": "<p>Render API stats endpoint table</p>",
     "parent": "module:analytics"
   },
   {
@@ -2061,6 +2101,14 @@
   },
   {
     "type": "method",
+    "name": "setupApiStatsControls",
+    "longname": "module:analytics~setupApiStatsControls",
+    "url": "module-analytics.html#~setupApiStatsControls",
+    "description": "<p>Setup API Stats tab controls</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "setupRawTransactionsLazyLoading",
     "longname": "module:analytics~setupRawTransactionsLazyLoading",
     "url": "module-analytics.html#~setupRawTransactionsLazyLoading",
@@ -2177,6 +2225,14 @@
     "longname": "module:api.checkCompanyAge",
     "url": "module-api.html#.checkCompanyAge",
     "description": "<p>Check age of a single company (non-blocking)</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "checkDevelMode",
+    "longname": "module:api.checkDevelMode",
+    "url": "module-api.html#.checkDevelMode",
+    "description": "<p>Check if developer mode is enabled</p>",
     "parent": "module:api"
   },
   {
@@ -2401,6 +2457,30 @@
     "longname": "module:api.getAnalyticsVessels",
     "url": "module-api.html#.getAnalyticsVessels",
     "description": "<p>Get vessel performance metrics</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getApiStats",
+    "longname": "module:api.getApiStats",
+    "url": "module-api.html#.getApiStats",
+    "description": "<p>Get API call statistics (develMode only)</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getApiStatsDates",
+    "longname": "module:api.getApiStatsDates",
+    "url": "module-api.html#.getApiStatsDates",
+    "description": "<p>Get available API stats dates (develMode only)</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getApiStatsHourly",
+    "longname": "module:api.getApiStatsHourly",
+    "url": "module-api.html#.getApiStatsHourly",
+    "description": "<p>Get hourly API stats for charting (develMode only)</p>",
     "parent": "module:api"
   },
   {
@@ -7136,7 +7216,7 @@
     "name": "startAutoFlush",
     "longname": "module:server/analytics/api-stats-store~startAutoFlush",
     "url": "module-server_analytics_api-stats-store.html#~startAutoFlush",
-    "description": "<p>Start auto-flush interval</p>",
+    "description": "<p>Start auto-flush interval and run initial cleanup</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -7576,7 +7656,7 @@
     "name": "startAutoSync",
     "longname": "module:server/analytics/vessel-history-store~startAutoSync",
     "url": "module-server_analytics_vessel-history-store.html#~startAutoSync",
-    "description": "<p>Start automatic background sync for vessel history</p>",
+    "description": "<p>Start automatic background sync for vessel history\nUses slow rotation: spreads all vessel syncs over 60 minutes</p>",
     "parent": "module:server/analytics/vessel-history-store"
   },
   {
@@ -7601,6 +7681,22 @@
     "longname": "module:server/analytics/vessel-history-store~stopSync",
     "url": "module-server_analytics_vessel-history-store.html#~stopSync",
     "description": "<p>Stop the current sync process</p>",
+    "parent": "module:server/analytics/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "syncNextVesselInRotation",
+    "longname": "module:server/analytics/vessel-history-store~syncNextVesselInRotation",
+    "url": "module-server_analytics_vessel-history-store.html#~syncNextVesselInRotation",
+    "description": "<p>Sync a single vessel in the slow background rotation</p>",
+    "parent": "module:server/analytics/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "syncSpecificVessels",
+    "longname": "module:server/analytics/vessel-history-store~syncSpecificVessels",
+    "url": "module-server_analytics_vessel-history-store.html#~syncSpecificVessels",
+    "description": "<p>Sync history for specific vessel IDs (event-based, after depart)</p>",
     "parent": "module:server/analytics/vessel-history-store"
   },
   {
@@ -7680,7 +7776,7 @@
     "name": "autoRebuyCO2",
     "longname": "module:server/autopilot/pilot_atmosphere_broker~autoRebuyCO2",
     "url": "module-server_autopilot_pilot_atmosphere_broker.html#~autoRebuyCO2",
-    "description": "<p>Auto-rebuy CO2 for a single user with intelligent threshold checking.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current bunker state and prices</li>\n<li>Checks if price &lt;= threshold (uses alert threshold or custom)</li>\n<li>Verifies cash balance &gt;= minimum cash requirement</li>\n<li>Calculates available space and affordable amount</li>\n<li>Purchases CO2 up to bunker capacity or cash limit</li>\n<li>Broadcasts purchase event and updated bunker state</li>\n</ol>\n<p>Threshold Selection:</p>\n<ul>\n<li>If autoRebuyCO2UseAlert=true: uses co2Threshold (alert threshold)</li>\n<li>If autoRebuyCO2UseAlert=false: uses autoRebuyCO2Threshold (custom)</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Respects minimum cash balance (won't buy if cash &lt; minCash)</li>\n<li>Uses Math.ceil to always fill bunker completely</li>\n<li>Updates state immediately to prevent duplicate purchases</li>\n</ul>\n<p>API Interactions:</p>\n<ul>\n<li>Calls gameapi.fetchBunkerState() for current levels</li>\n<li>Calls gameapi.purchaseCO2() to execute purchase</li>\n<li>Broadcasts 'co2_purchased' and 'bunker_update' events</li>\n</ul>",
+    "description": "<p>Auto-rebuy CO2 for a single user with intelligent threshold checking.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current bunker state and prices</li>\n<li>Checks if price &lt;= threshold (uses alert threshold or custom)</li>\n<li>Verifies cash balance &gt;= minimum cash requirement</li>\n<li>Calculates available space and affordable amount</li>\n<li>Purchases CO2 up to bunker capacity or cash limit</li>\n<li>Broadcasts purchase event and updated bunker state</li>\n</ol>\n<p>Threshold Selection:</p>\n<ul>\n<li>If autoRebuyCO2UseAlert=true: uses co2Threshold (alert threshold)</li>\n<li>If autoRebuyCO2UseAlert=false: uses autoRebuyCO2Threshold (custom)</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Respects minimum cash balance (won't buy if cash &lt; minCash)</li>\n<li>Uses Math.ceil to always fill bunker completely</li>\n<li>Updates state immediately to prevent duplicate purchases</li>\n</ul>\n<p>API Interactions:</p>\n<ul>\n<li>Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())</li>\n<li>Calls gameapi.purchaseCO2() to execute purchase</li>\n<li>Broadcasts 'co2_purchased' and 'bunker_update' events</li>\n</ul>",
     "parent": "module:server/autopilot/pilot_atmosphere_broker"
   },
   {
@@ -7688,7 +7784,7 @@
     "name": "autoRebuyFuel",
     "longname": "module:server/autopilot/pilot_barrel_boss~autoRebuyFuel",
     "url": "module-server_autopilot_pilot_barrel_boss.html#~autoRebuyFuel",
-    "description": "<p>Auto-rebuy fuel for a single user with intelligent threshold checking.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current bunker state and prices</li>\n<li>Checks if price &lt;= threshold (uses alert threshold or custom)</li>\n<li>Verifies cash balance &gt;= minimum cash requirement</li>\n<li>Calculates available space and affordable amount</li>\n<li>Purchases fuel up to bunker capacity or cash limit</li>\n<li>Broadcasts purchase event and updated bunker state</li>\n</ol>\n<p>Threshold Selection:</p>\n<ul>\n<li>If autoRebuyFuelUseAlert=true: uses fuelThreshold (alert threshold)</li>\n<li>If autoRebuyFuelUseAlert=false: uses autoRebuyFuelThreshold (custom)</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Respects minimum cash balance (won't buy if cash &lt; minCash)</li>\n<li>Uses Math.ceil to always fill bunker completely</li>\n<li>Updates state immediately to prevent duplicate purchases</li>\n</ul>\n<p>API Interactions:</p>\n<ul>\n<li>Calls gameapi.fetchBunkerState() for current levels</li>\n<li>Calls gameapi.purchaseFuel() to execute purchase</li>\n<li>Broadcasts 'fuel_purchased' and 'bunker_update' events</li>\n</ul>",
+    "description": "<p>Auto-rebuy fuel for a single user with intelligent threshold checking.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current bunker state and prices</li>\n<li>Checks if price &lt;= threshold (uses alert threshold or custom)</li>\n<li>Verifies cash balance &gt;= minimum cash requirement</li>\n<li>Calculates available space and affordable amount</li>\n<li>Purchases fuel up to bunker capacity or cash limit</li>\n<li>Broadcasts purchase event and updated bunker state</li>\n</ol>\n<p>Threshold Selection:</p>\n<ul>\n<li>If autoRebuyFuelUseAlert=true: uses fuelThreshold (alert threshold)</li>\n<li>If autoRebuyFuelUseAlert=false: uses autoRebuyFuelThreshold (custom)</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Respects minimum cash balance (won't buy if cash &lt; minCash)</li>\n<li>Uses Math.ceil to always fill bunker completely</li>\n<li>Updates state immediately to prevent duplicate purchases</li>\n</ul>\n<p>API Interactions:</p>\n<ul>\n<li>Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())</li>\n<li>Calls gameapi.purchaseFuel() to execute purchase</li>\n<li>Broadcasts 'fuel_purchased' and 'bunker_update' events</li>\n</ul>",
     "parent": "module:server/autopilot/pilot_barrel_boss"
   },
   {
@@ -7869,6 +7965,14 @@
   },
   {
     "type": "method",
+    "name": "getGameIndexCached",
+    "longname": "module:server/autopilot~getGameIndexCached",
+    "url": "module-server_autopilot.html#~getGameIndexCached",
+    "description": "<p>Fetches /game/index with global caching (10s TTL) to reduce duplicate API calls.\nUses cache module for shared cache across all modules.</p>",
+    "parent": "module:server/autopilot"
+  },
+  {
+    "type": "method",
     "name": "initializeAutopilotState",
     "longname": "module:server/autopilot~initializeAutopilotState",
     "url": "module-server_autopilot.html#~initializeAutopilotState",
@@ -8029,6 +8133,14 @@
   },
   {
     "type": "method",
+    "name": "getGameIndexCache",
+    "longname": "module:server/cache~getGameIndexCache",
+    "url": "module-server_cache.html#~getGameIndexCache",
+    "description": "<p>Get cached Game Index data if valid</p>",
+    "parent": "module:server/cache"
+  },
+  {
+    "type": "method",
     "name": "invalidateCampaignCache",
     "longname": "module:server/cache~invalidateCampaignCache",
     "url": "module-server_cache.html#~invalidateCampaignCache",
@@ -8041,6 +8153,14 @@
     "longname": "module:server/cache~invalidateCoopCache",
     "url": "module-server_cache.html#~invalidateCoopCache",
     "description": "<p>Invalidate COOP cache\nCall this after sending COOP targets</p>",
+    "parent": "module:server/cache"
+  },
+  {
+    "type": "method",
+    "name": "invalidateGameIndexCache",
+    "longname": "module:server/cache~invalidateGameIndexCache",
+    "url": "module-server_cache.html#~invalidateGameIndexCache",
+    "description": "<p>Invalidate game index cache\nCall this after actions that change vessel state (depart, repair, etc.)</p>",
     "parent": "module:server/cache"
   },
   {
@@ -8081,6 +8201,14 @@
     "longname": "module:server/cache~setCoopCache",
     "url": "module-server_cache.html#~setCoopCache",
     "description": "<p>Set COOP cache</p>",
+    "parent": "module:server/cache"
+  },
+  {
+    "type": "method",
+    "name": "setGameIndexCache",
+    "longname": "module:server/cache~setGameIndexCache",
+    "url": "module-server_cache.html#~setGameIndexCache",
+    "description": "<p>Set Game Index cache</p>",
     "parent": "module:server/cache"
   },
   {
@@ -8600,7 +8728,7 @@
     "name": "fetchBunkerState",
     "longname": "module:server/gameapi/bunker~fetchBunkerState",
     "url": "module-server_gameapi_bunker.html#~fetchBunkerState",
-    "description": "<p>Fetches current bunker state (fuel, CO2, cash, capacity).\nUsed by auto-rebuy to check if purchase is needed.</p>\n<p>CRITICAL API QUIRK:</p>\n<ul>\n<li>/bunker/get-prices does NOT return capacity fields (max_fuel, max_co2)</li>\n<li>Must use /game/index endpoint which includes user_settings.max_fuel/.max_co2</li>\n<li>This is why we can't use /bunker/get-prices for bunker state</li>\n</ul>\n<p>Unit Conversions:</p>\n<ul>\n<li>API stores values in kilograms (kg)</li>\n<li>We convert to tons (t) for readability: 1t = 1000kg</li>\n<li>All internal logic uses tons, only API calls use kg</li>\n</ul>",
+    "description": "<p>Fetches current bunker state (fuel, CO2, cash, capacity).\nUsed by auto-rebuy to check if purchase is needed.</p>\n<p>CRITICAL API QUIRK:</p>\n<ul>\n<li>/bunker/get-prices does NOT return capacity fields (max_fuel, max_co2)</li>\n<li>Use /user/get-user-settings which includes settings.max_fuel/.max_co2</li>\n<li>This is much smaller than /game/index (no vessel/port data)</li>\n</ul>\n<p>Unit Conversions:</p>\n<ul>\n<li>API stores values in kilograms (kg)</li>\n<li>We convert to tons (t) for readability: 1t = 1000kg</li>\n<li>All internal logic uses tons, only API calls use kg</li>\n</ul>",
     "parent": "module:server/gameapi/bunker"
   },
   {
@@ -8656,7 +8784,7 @@
     "name": "fetchRepairCount",
     "longname": "module:server/gameapi/maintenance~fetchRepairCount",
     "url": "module-server_gameapi_maintenance.html#~fetchRepairCount",
-    "description": "<p>Fetches count of vessels needing repair.\nUsed by scheduler to update repair badge.</p>",
+    "description": "<p>Fetches count of vessels needing repair.\nUses global cache (10s TTL) to reduce duplicate API calls.\nUsed by scheduler to update repair badge.</p>",
     "parent": "module:server/gameapi/maintenance"
   },
   {
@@ -8712,7 +8840,7 @@
     "name": "fetchEventData",
     "longname": "module:server/gameapi/util~fetchEventData",
     "url": "module-server_gameapi_util.html#~fetchEventData",
-    "description": "<p>Fetches data about the current active event, if any.\nEvents affect pricing (discounts) and demand multipliers.\nUsed by fetchPrices() to apply event discounts automatically.</p>",
+    "description": "<p>Fetches data about the current active event, if any.\nUses global cache (10s TTL) to reduce duplicate API calls.\nEvents affect pricing (discounts) and demand multipliers.\nUsed by fetchPrices() to apply event discounts automatically.</p>",
     "parent": "module:server/gameapi/util"
   },
   {
@@ -8728,7 +8856,7 @@
     "name": "getGameIndex",
     "longname": "module:server/gameapi/util~getGameIndex",
     "url": "module-server_gameapi_util.html#~getGameIndex",
-    "description": "<p>Fetches complete game state from /game/index.\nReturns all vessels, ports, and game data.</p>",
+    "description": "<p>Fetches complete game state from /game/index.\nUses global cache (10s TTL) to reduce duplicate API calls.\nReturns all vessels, ports, and game data.</p>",
     "parent": "module:server/gameapi/util"
   },
   {
@@ -8744,7 +8872,7 @@
     "name": "fetchVessels",
     "longname": "module:server/gameapi/vessel~fetchVessels",
     "url": "module-server_gameapi_vessel.html#~fetchVessels",
-    "description": "<p>Fetches all user vessels from game index.\nReturns complete vessel list with status, cargo, and route info.</p>",
+    "description": "<p>Fetches all user vessels from game index.\nUses global cache (10s TTL) to reduce duplicate API calls.\nReturns complete vessel list with status, cargo, and route info.</p>",
     "parent": "module:server/gameapi/vessel"
   },
   {
@@ -10392,7 +10520,7 @@
     "name": "getCachedHijackingCase",
     "longname": "module:server/websocket/hijacking-cache~getCachedHijackingCase",
     "url": "module-server_websocket_hijacking-cache.html#~getCachedHijackingCase",
-    "description": "<p>Fetches hijacking case details with shared caching to reduce duplicate API calls.</p>\n<p>Caching strategy:</p>\n<ul>\n<li>Solved cases: Cached permanently (never changes)</li>\n<li>Open cases: Cached for 5 minutes (prices can change)</li>\n</ul>\n<p>This eliminates duplicate /hijacking/get-case calls from:</p>\n<ul>\n<li>performHijackingRefresh() (60s interval)</li>\n<li>autoNegotiateHijacking() (via autopilot)</li>\n</ul>",
+    "description": "<p>Gets hijacking case details - checks LOCAL FILE first, then memory, then API.</p>\n<p>Priority:</p>\n<ol>\n<li>Local file with resolved:true -&gt; Use it, ZERO API calls</li>\n<li>Memory cache (for open cases during session)</li>\n<li>API call (only for new/unknown cases) -&gt; Then save locally</li>\n</ol>",
     "parent": "module:server/websocket/hijacking-cache"
   },
   {
@@ -10400,7 +10528,23 @@
     "name": "invalidateHijackingCase",
     "longname": "module:server/websocket/hijacking-cache~invalidateHijackingCase",
     "url": "module-server_websocket_hijacking-cache.html#~invalidateHijackingCase",
-    "description": "<p>Invalidates the cache for a specific hijacking case.\nUsed after manual payment to force fresh data fetch.</p>",
+    "description": "<p>Invalidates the cache for a specific hijacking case.</p>",
+    "parent": "module:server/websocket/hijacking-cache"
+  },
+  {
+    "type": "method",
+    "name": "readLocalCaseFile",
+    "longname": "module:server/websocket/hijacking-cache~readLocalCaseFile",
+    "url": "module-server_websocket_hijacking-cache.html#~readLocalCaseFile",
+    "description": "<p>Reads local history file for a hijacking case.\nFile format: {userId}-{caseId}.json</p>",
+    "parent": "module:server/websocket/hijacking-cache"
+  },
+  {
+    "type": "method",
+    "name": "saveLocalCaseFile",
+    "longname": "module:server/websocket/hijacking-cache~saveLocalCaseFile",
+    "url": "module-server_websocket_hijacking-cache.html#~saveLocalCaseFile",
+    "description": "<p>Saves case details to local file for persistent caching.</p>",
     "parent": "module:server/websocket/hijacking-cache"
   },
   {
@@ -10416,7 +10560,7 @@
     "name": "startHijackingAutoRefresh",
     "longname": "module:server/websocket/hijacking-refresh~startHijackingAutoRefresh",
     "url": "module-server_websocket_hijacking-refresh.html#~startHijackingAutoRefresh",
-    "description": "<p>Starts automatic hijacking refresh polling at 60-second interval.\nCalls performHijackingRefresh() on each cycle.</p>\n<p>Why 60 Seconds:</p>\n<ul>\n<li>Hijacking status changes infrequently</li>\n<li>Longer interval reduces API load significantly</li>\n<li>Still provides reasonably real-time updates</li>\n<li>Balances freshness with performance (reduces ~2 calls/min)</li>\n</ul>",
+    "description": "<p>Starts automatic hijacking refresh polling at 5-minute interval.\nCalls performHijackingRefresh() on each cycle.</p>\n<p>Why 5 Minutes:</p>\n<ul>\n<li>Hijacking status changes very infrequently (only during active negotiations)</li>\n<li>Closed cases never change - no need to refetch</li>\n<li>Matches the cache TTL for open cases (5 minutes)</li>\n<li>Drastically reduces API calls when all cases are closed</li>\n<li>Active negotiations use direct API calls anyway (pilot_captain_blackbeard)</li>\n</ul>",
     "parent": "module:server/websocket/hijacking-refresh"
   },
   {
@@ -11281,6 +11425,14 @@
     "longname": "module:vessel-appearance-editor~saveAppearance",
     "url": "module-vessel-appearance-editor.html#~saveAppearance",
     "description": "<p>Save appearance data to server</p>",
+    "parent": "module:vessel-appearance-editor"
+  },
+  {
+    "type": "method",
+    "name": "updateSvgPreview",
+    "longname": "module:vessel-appearance-editor~updateSvgPreview",
+    "url": "module-vessel-appearance-editor.html#~updateSvgPreview",
+    "description": "<p>Update SVG preview with current color values\nCalled when any color picker changes</p>",
     "parent": "module:vessel-appearance-editor"
   },
   {

@@ -14,16 +14,23 @@
 
 const { apiCall } = require('../utils/api');
 const logger = require('../utils/logger');
+const cache = require('../cache');
 
 
 /**
  * Fetches all user vessels from game index.
+ * Uses global cache (10s TTL) to reduce duplicate API calls.
  * Returns complete vessel list with status, cargo, and route info.
  *
  * @returns {Promise<Array>} Array of vessel objects
  */
 async function fetchVessels() {
-  const data = await apiCall('/game/index', 'POST', {});
+  // Use cache to avoid duplicate /game/index calls
+  let data = cache.getGameIndexCache();
+  if (!data) {
+    data = await apiCall('/game/index', 'POST', {});
+    cache.setGameIndexCache(data);
+  }
   return data.data.user_vessels;
 }
 
@@ -112,6 +119,10 @@ async function departVessel(vesselId, speed, guards = 0) {
 
   // Extract vessel history (first entry) for additional route details
   const vesselHistory = data.data.vessel_history?.[0];
+
+  // Invalidate game index cache after successful depart
+  // This prevents stale data causing duplicate depart attempts
+  cache.invalidateGameIndexCache();
 
   return {
     success: true,

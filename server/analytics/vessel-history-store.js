@@ -617,25 +617,166 @@ async function clearStore(userId) {
   logger.info('[VesselHistoryStore] Store cleared');
 }
 
-// Auto-sync interval (5 minutes)
-const SYNC_INTERVAL = 5 * 60 * 1000;
-let autoSyncInterval = null;
+// Slow background sync: spread vessel syncs over 60 minutes
+// With 129 vessels: ~1 vessel every 28 seconds
+const SLOW_SYNC_SPREAD_MINUTES = 60;
+let slowSyncInterval = null;
+let slowSyncVesselIndex = 0;
+let slowSyncVesselList = [];
+
+/**
+ * Sync history for specific vessel IDs (event-based, after depart)
+ * @param {string} userId - User ID
+ * @param {Array<number>} vesselIds - Array of vessel IDs to sync
+ * @returns {Promise<Object>} Sync result
+ */
+async function syncSpecificVessels(userId, vesselIds) {
+  if (!vesselIds || vesselIds.length === 0) {
+    return { synced: 0, newEntries: 0 };
+  }
+
+  const store = await loadStore(userId);
+  let newEntriesTotal = 0;
+
+  // Create departure key set for deduplication
+  const existingKeys = new Set(
+    store.departures.map(d => `${d.details?.departedVessels?.[0]?.vesselId}-${d.timestamp}`)
+  );
+
+  for (const vesselId of vesselIds) {
+    const historyData = await fetchVesselHistory(vesselId);
+    if (!historyData) continue;
+
+    const vesselState = store.vessels[vesselId];
+    const newestEntryTimestamp = vesselState?.newestEntryAt || 0;
+
+    // Update vessel info
+    store.vessels[vesselId] = {
+      id: vesselId,
+      name: historyData.vessel.name,
+      typeName: historyData.vessel.type_name,
+      lastSyncedAt: Date.now(),
+      newestEntryAt: vesselState?.newestEntryAt || 0,
+      entryCount: vesselState?.entryCount || 0
+    };
+
+    // Extract hijacking risk from vessel's routes
+    const routes = historyData.vessel.routes;
+    if (routes && Array.isArray(routes)) {
+      for (const route of routes) {
+        const origin = route.origin;
+        const destination = route.destination;
+        const hijackingRisk = route.hijacking_risk;
+        if (origin && destination && hijackingRisk !== undefined && hijackingRisk !== null) {
+          const routeKey = `${origin}<>${destination}`;
+          const existing = store.routeHijackRisks[routeKey];
+          if (existing === undefined || hijackingRisk > existing) {
+            store.routeHijackRisks[routeKey] = hijackingRisk;
+          }
+        }
+      }
+    }
+
+    // Process history entries - only add new ones
+    let newForThisVessel = 0;
+    let latestTimestamp = newestEntryTimestamp;
+
+    for (const entry of historyData.history) {
+      const entryTimestamp = parseGameDate(entry.created_at);
+      const key = `${entry.vessel_id}-${entryTimestamp}`;
+
+      if (existingKeys.has(key)) continue;
+      if (entryTimestamp <= newestEntryTimestamp) continue;
+
+      const auditEntry = transformToAuditEntry(entry, { name: historyData.vessel.name });
+      store.departures.push(auditEntry);
+      existingKeys.add(key);
+      newForThisVessel++;
+
+      if (entryTimestamp > latestTimestamp) {
+        latestTimestamp = entryTimestamp;
+      }
+    }
+
+    store.vessels[vesselId].newestEntryAt = latestTimestamp;
+    store.vessels[vesselId].entryCount = (vesselState?.entryCount || 0) + newForThisVessel;
+    newEntriesTotal += newForThisVessel;
+
+    if (newForThisVessel > 0) {
+      logger.debug(`[VesselHistoryStore] Event sync ${historyData.vessel.name}: +${newForThisVessel} entries`);
+    }
+  }
+
+  // Sort and save
+  if (newEntriesTotal > 0) {
+    store.departures.sort((a, b) => a.timestamp - b.timestamp);
+    await saveStore(userId, store);
+
+    // Rebuild lookup
+    const lookupStore = require('./lookup-store');
+    lookupStore.buildLookup(userId, 0).catch(err => {
+      logger.error('[VesselHistoryStore] Failed to rebuild lookup:', err.message);
+    });
+  }
+
+  return { synced: vesselIds.length, newEntries: newEntriesTotal };
+}
+
+/**
+ * Sync a single vessel in the slow background rotation
+ * @param {string} userId - User ID
+ */
+async function syncNextVesselInRotation(userId) {
+  // Refresh vessel list if empty or at end
+  if (slowSyncVesselList.length === 0 || slowSyncVesselIndex >= slowSyncVesselList.length) {
+    const vessels = await fetchAllVessels();
+    slowSyncVesselList = vessels.map(v => v.id);
+    slowSyncVesselIndex = 0;
+    if (slowSyncVesselList.length === 0) return;
+  }
+
+  const vesselId = slowSyncVesselList[slowSyncVesselIndex];
+  slowSyncVesselIndex++;
+
+  // Sync just this one vessel
+  const result = await syncSpecificVessels(userId, [vesselId]);
+  if (result.newEntries > 0) {
+    logger.info(`[VesselHistoryStore] Slow sync: vessel ${vesselId} +${result.newEntries} entries`);
+  }
+}
 
 /**
  * Start automatic background sync for vessel history
+ * Uses slow rotation: spreads all vessel syncs over 60 minutes
  * @param {string} userId - User ID to sync for
  */
-function startAutoSync(userId) {
-  if (autoSyncInterval) {
-    clearInterval(autoSyncInterval);
+async function startAutoSync(userId) {
+  if (slowSyncInterval) {
+    clearInterval(slowSyncInterval);
   }
 
-  // Do initial sync
-  logger.info('[VesselHistoryStore] Starting initial sync...');
+  // Get vessel count to calculate interval
+  const vessels = await fetchAllVessels();
+  slowSyncVesselList = vessels.map(v => v.id);
+  slowSyncVesselIndex = 0;
+
+  if (vessels.length === 0) {
+    logger.warn('[VesselHistoryStore] No vessels found, skipping auto-sync');
+    return;
+  }
+
+  // Calculate interval: spread syncs over SLOW_SYNC_SPREAD_MINUTES
+  // e.g., 129 vessels / 60 minutes = 1 vessel every ~28 seconds
+  const intervalMs = Math.floor((SLOW_SYNC_SPREAD_MINUTES * 60 * 1000) / vessels.length);
+  const intervalSec = Math.round(intervalMs / 1000);
+
+  logger.info(`[VesselHistoryStore] Starting slow auto-sync: ${vessels.length} vessels, 1 every ${intervalSec}s (~${Math.round(vessels.length / SLOW_SYNC_SPREAD_MINUTES)}/min)`);
+
+  // Do initial full sync to catch up
+  logger.info('[VesselHistoryStore] Running initial full sync...');
   syncVesselHistory(userId).then(result => {
     logger.info(`[VesselHistoryStore] Initial sync complete: ${result.newEntries} new departures`);
 
-    // Rebuild lookup after initial sync
     if (result.newEntries > 0) {
       const lookupStore = require('./lookup-store');
       lookupStore.buildLookup(userId, 0).then(lookupResult => {
@@ -648,33 +789,21 @@ function startAutoSync(userId) {
     logger.error('[VesselHistoryStore] Initial sync failed:', err.message);
   });
 
-  // Set up recurring sync every 5 minutes
-  autoSyncInterval = setInterval(async () => {
-    try {
-      const result = await syncVesselHistory(userId);
-      if (result.newEntries > 0) {
-        logger.info(`[VesselHistoryStore] Auto-sync: ${result.newEntries} new departures`);
-
-        // Rebuild lookup after new departures
-        const lookupStore = require('./lookup-store');
-        const lookupResult = await lookupStore.buildLookup(userId, 0);
-        logger.info(`[VesselHistoryStore] Lookup rebuilt: ${lookupResult.newEntries} new, POD3=${lookupResult.matchedPod3}`);
-      }
-    } catch (err) {
-      logger.error('[VesselHistoryStore] Auto-sync failed:', err.message);
-    }
-  }, SYNC_INTERVAL);
-
-  logger.info('[VesselHistoryStore] Started auto-sync (every 5 minutes)');
+  // Set up slow rotation sync
+  slowSyncInterval = setInterval(() => {
+    syncNextVesselInRotation(userId).catch(err => {
+      logger.error('[VesselHistoryStore] Slow sync error:', err.message);
+    });
+  }, intervalMs);
 }
 
 /**
  * Stop automatic background sync
  */
 function stopAutoSync() {
-  if (autoSyncInterval) {
-    clearInterval(autoSyncInterval);
-    autoSyncInterval = null;
+  if (slowSyncInterval) {
+    clearInterval(slowSyncInterval);
+    slowSyncInterval = null;
     logger.info('[VesselHistoryStore] Stopped auto-sync');
   }
 }
@@ -700,6 +829,7 @@ async function getRouteHijackingRisks(userId) {
 
 module.exports = {
   syncVesselHistory,
+  syncSpecificVessels,
   startBackgroundSync,
   stopSync,
   getSyncProgress,

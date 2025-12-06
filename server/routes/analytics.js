@@ -22,6 +22,7 @@ const lookupStore = require('../analytics/lookup-store');
 const apiStatsStore = require('../analytics/api-stats-store');
 const { getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
+const config = require('../config');
 
 /**
  * GET /api/analytics/overview
@@ -732,15 +733,27 @@ router.delete('/lookup/clear', async (req, res) => {
 });
 
 /**
+ * GET /api/analytics/devel-mode
+ * Returns whether developer mode is enabled (undocumented feature)
+ */
+router.get('/devel-mode', async (req, res) => {
+  res.json({ enabled: config.DEVEL_MODE === true });
+});
+
+/**
  * GET /api/analytics/api-stats
  * Returns API call statistics with time-series data
+ * Only available in develMode
  *
  * Query params:
  * - hours: Number of hours to look back (default 24)
  */
 router.get('/api-stats', async (req, res) => {
+  if (!config.DEVEL_MODE) {
+    return res.status(403).json({ error: 'Developer mode not enabled' });
+  }
   try {
-    const hours = parseInt(req.query.hours, 10) || 24;
+    const hours = parseFloat(req.query.hours) || 24;
     const stats = await apiStatsStore.getStats(hours);
     res.json(stats);
   } catch (error) {
@@ -752,13 +765,17 @@ router.get('/api-stats', async (req, res) => {
 /**
  * GET /api/analytics/api-stats/hourly
  * Returns API call statistics aggregated by hour for charts
+ * Only available in develMode
  *
  * Query params:
  * - hours: Number of hours to look back (default 24)
  */
 router.get('/api-stats/hourly', async (req, res) => {
+  if (!config.DEVEL_MODE) {
+    return res.status(403).json({ error: 'Developer mode not enabled' });
+  }
   try {
-    const hours = parseInt(req.query.hours, 10) || 24;
+    const hours = parseFloat(req.query.hours) || 24;
     const stats = await apiStatsStore.getHourlyStats(hours);
     res.json(stats);
   } catch (error) {
@@ -770,8 +787,12 @@ router.get('/api-stats/hourly', async (req, res) => {
 /**
  * GET /api/analytics/api-stats/dates
  * Returns list of available stat file dates
+ * Only available in develMode
  */
 router.get('/api-stats/dates', async (req, res) => {
+  if (!config.DEVEL_MODE) {
+    return res.status(403).json({ error: 'Developer mode not enabled' });
+  }
   try {
     const dates = await apiStatsStore.getAvailableDates();
     res.json({ dates });

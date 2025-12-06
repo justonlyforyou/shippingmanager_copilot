@@ -120,14 +120,15 @@ async function performHijackingRefresh() {
 }
 
 /**
- * Starts automatic hijacking refresh polling at 60-second interval.
+ * Starts automatic hijacking refresh polling at 5-minute interval.
  * Calls performHijackingRefresh() on each cycle.
  *
- * Why 60 Seconds:
- * - Hijacking status changes infrequently
- * - Longer interval reduces API load significantly
- * - Still provides reasonably real-time updates
- * - Balances freshness with performance (reduces ~2 calls/min)
+ * Why 5 Minutes:
+ * - Hijacking status changes very infrequently (only during active negotiations)
+ * - Closed cases never change - no need to refetch
+ * - Matches the cache TTL for open cases (5 minutes)
+ * - Drastically reduces API calls when all cases are closed
+ * - Active negotiations use direct API calls anyway (pilot_captain_blackbeard)
  *
  * @function startHijackingAutoRefresh
  * @returns {void}
@@ -135,7 +136,7 @@ async function performHijackingRefresh() {
 function startHijackingAutoRefresh() {
   hijackingRefreshInterval = setInterval(async () => {
     await performHijackingRefresh();
-  }, 60000); // 60 seconds
+  }, 5 * 60 * 1000); // 5 minutes
 }
 
 /**

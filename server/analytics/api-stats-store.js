@@ -329,8 +329,11 @@ async function cleanupOldStats(daysToKeep = 30) {
   return deleted;
 }
 
+// File retention: keep only 7 days of stats
+const RETENTION_DAYS = 7;
+
 /**
- * Start auto-flush interval
+ * Start auto-flush interval and run initial cleanup
  */
 function startAutoFlush() {
   if (flushInterval) return;
@@ -340,6 +343,15 @@ function startAutoFlush() {
       logger.error('[APIStatsStore] Auto-flush failed:', err);
     });
   }, FLUSH_INTERVAL);
+
+  // Run cleanup on startup (7 day retention)
+  cleanupOldStats(RETENTION_DAYS).then(deleted => {
+    if (deleted > 0) {
+      logger.info(`[APIStatsStore] Cleaned up ${deleted} old stat files (>${RETENTION_DAYS} days)`);
+    }
+  }).catch(err => {
+    logger.error('[APIStatsStore] Cleanup failed:', err);
+  });
 
   logger.info('[APIStatsStore] Started auto-flush (every 60s)');
 }

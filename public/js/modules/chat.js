@@ -199,6 +199,14 @@ export async function loadMessages(chatFeed) {
 
       if (newOnly.length > 0) {
         handleNotifications(newOnly, data.lastReadTimestamp);
+
+        // Check for member changes only in NEW messages, not all messages
+        const hasMemberChange = newOnly.some(msg =>
+          msg.type === 'feed' && (msg.feedType === 'member_joined' || msg.feedType === 'member_left')
+        );
+        if (hasMemberChange) {
+          loadAllianceMembers();
+        }
       }
     }
 
@@ -280,13 +288,7 @@ export async function displayMessages(messagesToDisplay, chatFeed) {
     return;
   }
 
-  // Check for member_joined events and reload alliance members for @-autocomplete
-  const hasMemberJoined = messagesToDisplay.some(msg =>
-    msg.type === 'feed' && msg.feedType === 'member_joined'
-  );
-  if (hasMemberJoined) {
-    loadAllianceMembers();
-  }
+  // Note: Member change detection moved to loadMessages() to only check NEW messages
 
   // Save scroll position BEFORE re-render
   // Check if user is at bottom (within 50px threshold)
@@ -726,10 +728,9 @@ export function initWebSocket() {
       const { type, data } = JSON.parse(event.data);
       if (type === 'chat_update' || type === 'message_sent') {
         // Only load chat messages if user is in an alliance
+        // Alliance members are reloaded in displayMessages() when member_joined/member_left events occur
         if (window.settings && window.settings.allianceId) {
           loadMessages(chatFeed);
-          // Reload alliance members for @mention autocomplete (in case new member joined)
-          loadAllianceMembers();
         }
       } else if (type === 'settings_update') {
         if (window.handleSettingsUpdate) {

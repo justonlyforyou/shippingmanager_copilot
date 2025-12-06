@@ -53,7 +53,8 @@ async function autoRepairVessels(autopilotPaused, broadcastToUser, tryUpdateAllD
   try {
     const threshold = settings.maintenanceThreshold;
 
-    const bunker = await gameapi.fetchBunkerState();
+    // Get bunker state from cache (auto-updated by apiCall())
+    const bunker = state.getBunkerState(userId);
     const vessels = await gameapi.fetchVessels();
 
     const vesselsNeedingRepair = vessels.filter(v => v.wear >= threshold);

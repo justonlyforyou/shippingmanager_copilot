@@ -35,7 +35,7 @@ const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audi
  * - Updates state immediately to prevent duplicate purchases
  *
  * API Interactions:
- * - Calls gameapi.fetchBunkerState() for current levels
+ * - Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())
  * - Calls gameapi.purchaseFuel() to execute purchase
  * - Broadcasts 'fuel_purchased' and 'bunker_update' events
  *
@@ -64,20 +64,9 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
   }
 
   try {
-    // Get current state (use provided state or fetch fresh)
-    const bunker = bunkerState || await gameapi.fetchBunkerState();
-    state.updateBunkerState(userId, bunker);
-
-    // Broadcast bunker state to all clients
-    if (broadcastToUser) {
-      broadcastToUser(userId, 'bunker_update', {
-        fuel: bunker.fuel,
-        co2: bunker.co2,
-        cash: bunker.cash,
-        maxFuel: bunker.maxFuel,
-        maxCO2: bunker.maxCO2
-      });
-    }
+    // Get bunker state from provided state or cache (auto-updated by apiCall())
+    const bunker = bunkerState || state.getBunkerState(userId);
+    // No need to manually update state or broadcast - apiCall() handles that automatically
 
     const prices = state.getPrices(userId);
 

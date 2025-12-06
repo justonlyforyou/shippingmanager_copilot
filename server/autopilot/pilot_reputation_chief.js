@@ -63,7 +63,8 @@ async function autoCampaignRenewal(campaignData = null, autopilotPaused, broadca
       return;
     }
 
-    const bunker = await gameapi.fetchBunkerState();
+    // Get bunker state from cache (auto-updated by apiCall())
+    const bunker = state.getBunkerState(userId);
 
     // Check minimum cash balance
     const minCash = settings.autoCampaignRenewalMinCash !== undefined ? settings.autoCampaignRenewalMinCash : 0;

@@ -13,6 +13,7 @@
 
 const { apiCall } = require('../utils/api');
 const logger = require('../utils/logger');
+const cache = require('../cache');
 
 /**
  * Fetches the count of unread messages.
@@ -45,13 +46,19 @@ async function fetchUnreadMessages() {
 
 /**
  * Fetches data about the current active event, if any.
+ * Uses global cache (10s TTL) to reduce duplicate API calls.
  * Events affect pricing (discounts) and demand multipliers.
  * Used by fetchPrices() to apply event discounts automatically.
  *
  * @returns {Promise<Object|null>} Event data or null if no active event
  */
 async function fetchEventData() {
-  const data = await apiCall('/game/index', 'POST', {});
+  // Use cache to avoid duplicate /game/index calls
+  let data = cache.getGameIndexCache();
+  if (!data) {
+    data = await apiCall('/game/index', 'POST', {});
+    cache.setGameIndexCache(data);
+  }
 
   if (!data.data || !data.data.event || data.data.event.length === 0) {
     logger.debug('[GameAPI] No active events');
@@ -70,12 +77,18 @@ async function fetchEventData() {
 
 /**
  * Fetches complete game state from /game/index.
+ * Uses global cache (10s TTL) to reduce duplicate API calls.
  * Returns all vessels, ports, and game data.
  *
  * @returns {Promise<Object>} Game index data with vessels and ports
  */
 async function getGameIndex() {
-  return await apiCall('/game/index', 'POST', {});
+  let data = cache.getGameIndexCache();
+  if (!data) {
+    data = await apiCall('/game/index', 'POST', {});
+    cache.setGameIndexCache(data);
+  }
+  return data;
 }
 
 module.exports = {

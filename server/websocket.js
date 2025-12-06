@@ -155,29 +155,63 @@ function initWebSocket() {
             logger.warn('[WebSocket] Bunker state NOT sent - no valid cached data (waiting for autopilot loop)');
           }
 
-          // Vessel counts
+          // Vessel counts, repair count, drydock count - combined into single API call
           let vesselCounts = state.getVesselCounts(userId);
-          if (!vesselCounts) {
-            // No cached data - fetch fresh from game API
+          let repairCount = state.getRepairCount(userId);
+          let drydockCount = state.getDrydockCount(userId);
+
+          // If ANY of the counts are missing, fetch once and calculate all
+          const needsVesselData = !vesselCounts || repairCount === undefined || drydockCount === undefined;
+          if (needsVesselData) {
             try {
               const vesselsResponse = await apiCall('/game/index', 'GET');
               if (vesselsResponse?.vessels) {
-                const readyToDepart = vesselsResponse.vessels.filter(v =>
-                  v.status === 'port' && !v.is_parked
-                ).length;
-                const atAnchor = vesselsResponse.vessels.filter(v =>
-                  v.status === 'anchor'
-                ).length;
-                const pending = vesselsResponse.vessels.filter(v =>
-                  v.status === 'pending'
-                ).length;
+                const { getUserSettings } = require('./utils/api');
+                const userSettings = getUserSettings();
+                const vessels = vesselsResponse.vessels;
 
-                vesselCounts = { readyToDepart, atAnchor, pending, total: vesselsResponse.vessels.length };
-                state.updateVesselCounts(userId, vesselCounts);
-                logger.debug('[WebSocket] Vessel counts fetched from API');
+                // Calculate vessel counts if missing
+                if (!vesselCounts) {
+                  const readyToDepart = vessels.filter(v =>
+                    v.status === 'port' && !v.is_parked
+                  ).length;
+                  const atAnchor = vessels.filter(v =>
+                    v.status === 'anchor'
+                  ).length;
+                  const pending = vessels.filter(v =>
+                    v.status === 'pending'
+                  ).length;
+
+                  vesselCounts = { readyToDepart, atAnchor, pending, total: vessels.length };
+                  state.updateVesselCounts(userId, vesselCounts);
+                }
+
+                // Calculate repair count if missing
+                if (repairCount === undefined) {
+                  const maintenanceThreshold = userSettings?.maintenanceThreshold;
+                  if (maintenanceThreshold !== undefined) {
+                    repairCount = vessels.filter(v =>
+                      v.status === 'port' && !v.is_parked && v.maintenance < maintenanceThreshold
+                    ).length;
+                    state.updateRepairCount(userId, repairCount);
+                  }
+                }
+
+                // Calculate drydock count if missing
+                if (drydockCount === undefined) {
+                  const drydockThreshold = userSettings?.autoDrydockThreshold;
+                  if (drydockThreshold !== undefined) {
+                    drydockCount = vessels.filter(v =>
+                      v.status === 'port' && !v.is_parked && v.age >= drydockThreshold
+                    ).length;
+                    state.updateDrydockCount(userId, drydockCount);
+                  }
+                }
+
+                logger.debug('[WebSocket] Vessel/repair/drydock counts fetched from single API call');
               }
             } catch (error) {
-              logger.error('[WebSocket] Failed to fetch vessel counts:', error.message);
+              logger.error('[WebSocket] Failed to fetch vessel data:', error.message);
             }
           }
 
@@ -189,58 +223,12 @@ function initWebSocket() {
             logger.debug('[WebSocket] OK Vessel counts sent');
           }
 
-          // Repair count
-          let repairCount = state.getRepairCount(userId);
-          if (repairCount === undefined) {
-            // No cached data - fetch fresh from game API
-            try {
-              const vesselsResponse = await apiCall('/game/index', 'GET');
-              if (vesselsResponse?.vessels) {
-                const { getUserSettings } = require('./utils/api');
-                const userSettings = getUserSettings();
-                const maintenanceThreshold = userSettings?.maintenanceThreshold;
-                if (maintenanceThreshold !== undefined) {
-                  repairCount = vesselsResponse.vessels.filter(v =>
-                    v.status === 'port' && !v.is_parked && v.maintenance < maintenanceThreshold
-                  ).length;
-                  state.updateRepairCount(userId, repairCount);
-                  logger.debug('[WebSocket] Repair count fetched from API');
-                }
-              }
-            } catch (error) {
-              logger.error('[WebSocket] Failed to fetch repair count:', error.message);
-            }
-          }
-
           if (repairCount !== undefined) {
             ws.send(JSON.stringify({
               type: 'repair_count_update',
               data: { count: repairCount }
             }));
             logger.debug('[WebSocket] OK Repair count sent');
-          }
-
-          // Drydock count
-          let drydockCount = state.getDrydockCount(userId);
-          if (drydockCount === undefined) {
-            // No cached data - fetch fresh from game API
-            try {
-              const vesselsResponse = await apiCall('/game/index', 'GET');
-              if (vesselsResponse?.vessels) {
-                const { getUserSettings } = require('./utils/api');
-                const userSettings = getUserSettings();
-                const drydockThreshold = userSettings?.autoDrydockThreshold;
-                if (drydockThreshold !== undefined) {
-                  drydockCount = vesselsResponse.vessels.filter(v =>
-                    v.status === 'port' && !v.is_parked && v.age >= drydockThreshold
-                  ).length;
-                  state.updateDrydockCount(userId, drydockCount);
-                  logger.debug('[WebSocket] Drydock count fetched from API');
-                }
-              }
-            } catch (error) {
-              logger.error('[WebSocket] Failed to fetch drydock count:', error.message);
-            }
           }
 
           if (drydockCount !== undefined) {
@@ -256,11 +244,10 @@ function initWebSocket() {
           if (!campaignStatus) {
             // No cached data - fetch fresh from game API
             try {
-              const campaignsResponse = await apiCall('/campaign/get-campaign', 'POST', {});
-              if (campaignsResponse?.data?.campaigns) {
-                const campaigns = campaignsResponse.data.campaigns;
-                const activeCount = campaigns.filter(c => c.status === 'active').length;
-                const active = campaigns.filter(c => c.status === 'active');
+              const campaignsResponse = await apiCall('/marketing-campaign/get-marketing', 'POST', {});
+              if (campaignsResponse?.data?.active_campaigns) {
+                const active = campaignsResponse.data.active_campaigns;
+                const activeCount = active.length;
                 campaignStatus = { activeCount, active };
                 state.updateCampaignStatus(userId, campaignStatus);
                 logger.debug('[WebSocket] Campaign status fetched from API');

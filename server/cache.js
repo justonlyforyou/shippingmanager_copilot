@@ -44,12 +44,19 @@ let allianceCache = null;
 let companyCache = null;
 
 /**
+ * Game index cache (/game/index)
+ * @type {CacheEntry|null}
+ */
+let gameIndexCache = null;
+
+/**
  * Default TTL values
  */
 const CAMPAIGN_TTL = 10 * 60 * 1000; // 10 minutes (campaigns change rarely)
 const COOP_TTL = 2 * 60 * 1000;      // 2 minutes (COOP targets change when processed)
 const ALLIANCE_TTL = 30 * 60 * 1000; // 30 minutes (alliance membership almost never changes)
 const COMPANY_TTL = 5 * 60 * 1000;   // 5 minutes (company data changes on upgrades)
+const GAME_INDEX_TTL = 10 * 1000;    // 10 seconds (vessel data changes frequently)
 
 /**
  * Check if cache entry is still valid
@@ -189,6 +196,42 @@ function setCompanyCache(data, ttl = COMPANY_TTL) {
 }
 
 /**
+ * Get cached Game Index data if valid
+ * @returns {Object|null} Cached /game/index response or null
+ */
+function getGameIndexCache() {
+  if (isCacheValid(gameIndexCache)) {
+    logger.debug('[Cache] Game index cache HIT');
+    return gameIndexCache.data;
+  }
+  logger.debug('[Cache] Game index cache MISS');
+  return null;
+}
+
+/**
+ * Set Game Index cache
+ * @param {Object} data - /game/index API response
+ * @param {number} [ttl] - Optional custom TTL in milliseconds
+ */
+function setGameIndexCache(data, ttl = GAME_INDEX_TTL) {
+  gameIndexCache = {
+    data,
+    timestamp: Date.now(),
+    ttl
+  };
+  logger.debug(`[Cache] Game index cached (TTL: ${ttl}ms)`);
+}
+
+/**
+ * Invalidate game index cache
+ * Call this after actions that change vessel state (depart, repair, etc.)
+ */
+function invalidateGameIndexCache() {
+  gameIndexCache = null;
+  logger.debug('[Cache] Game index cache invalidated');
+}
+
+/**
  * Clear all caches
  */
 function clearAllCaches() {
@@ -196,6 +239,7 @@ function clearAllCaches() {
   coopCache = null;
   allianceCache = null;
   companyCache = null;
+  gameIndexCache = null;
   logger.debug('[Cache] All caches cleared');
 }
 
@@ -218,10 +262,16 @@ module.exports = {
   getCompanyCache,
   setCompanyCache,
 
+  // Game index cache
+  getGameIndexCache,
+  setGameIndexCache,
+  invalidateGameIndexCache,
+
   // Utilities
   clearAllCaches,
   CAMPAIGN_TTL,
   COOP_TTL,
   ALLIANCE_TTL,
-  COMPANY_TTL
+  COMPANY_TTL,
+  GAME_INDEX_TTL
 };

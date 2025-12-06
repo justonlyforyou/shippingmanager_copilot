@@ -18,6 +18,7 @@
 
 const { apiCall } = require('../utils/api');
 const logger = require('../utils/logger');
+const cache = require('../cache');
 
 /**
  * Gets maintenance cost for specified vessels.
@@ -113,12 +114,18 @@ async function bulkRepairVessels(vesselIds) {
 
 /**
  * Fetches count of vessels needing repair.
+ * Uses global cache (10s TTL) to reduce duplicate API calls.
  * Used by scheduler to update repair badge.
  *
  * @returns {Promise<number>} Count of vessels with wear > 0
  */
 async function fetchRepairCount() {
-  const data = await apiCall('/game/index', 'POST', {});
+  // Use cache to avoid duplicate /game/index calls
+  let data = cache.getGameIndexCache();
+  if (!data) {
+    data = await apiCall('/game/index', 'POST', {});
+    cache.setGameIndexCache(data);
+  }
   const vessels = data.data.user_vessels;
   return vessels.filter(v => v.wear > 0).length;
 }

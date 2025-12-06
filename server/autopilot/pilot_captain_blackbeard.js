@@ -293,6 +293,8 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
   // Save resolution to history
   saveToHistory(userId, caseId, null, {
     autopilot_resolved: true,
+    resolved: true,              // Case is resolved (used by cache to skip API calls)
+    final_status: finalStatus,   // Final status for cache (top level for easy access)
     resolved_at: Date.now() / 1000,
     vessel_name: vesselName,
     user_vessel_id: userVesselId,
@@ -301,8 +303,7 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
       expected_amount: finalPrice,
       actual_paid: actualPaidVerified,
       cash_before: cashBefore,
-      cash_after: cashAfterVerified,
-      final_status: finalStatus
+      cash_after: cashAfterVerified
     }
   });
 

@@ -49,7 +49,8 @@ async function autoDrydockVessels(autopilotPaused, broadcastToUser, tryUpdateAll
     const maintenanceType = settings.autoDrydockType || 'major';
     const speed = settings.autoDrydockSpeed || 'minimum';
 
-    const bunker = await gameapi.fetchBunkerState();
+    // Get bunker state from cache (auto-updated by apiCall())
+    const bunker = state.getBunkerState(userId);
     const vessels = await gameapi.fetchVessels();
 
     // Filter vessels that need drydock

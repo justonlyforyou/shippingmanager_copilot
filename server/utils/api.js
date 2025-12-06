@@ -259,6 +259,41 @@ async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, re
     const duration = Date.now() - startTime;
     apiStatsStore.recordCall(endpoint, duration, true);
 
+    // Auto-update bunker cache from user object in API response
+    // This ensures all API responses that contain user data automatically update the cache
+    // and broadcast to connected clients - eliminating redundant fetchBunkerState() calls
+    if (response.data && response.data.user) {
+      const user = response.data.user;
+      const state = require('../state');
+      const currentUserId = getUserId();
+
+      // Only update if we have valid user data and a userId
+      if (currentUserId && user.fuel !== undefined) {
+        const existingBunker = state.getBunkerState(currentUserId);
+
+        // Update bunker state (preserves maxFuel/maxCO2 from existing cache)
+        state.updateBunkerState(currentUserId, {
+          fuel: user.fuel / 1000,  // kg to tons
+          co2: user.co2 / 1000,
+          cash: user.cash,
+          points: user.points,
+          maxFuel: existingBunker.maxFuel,  // preserve existing
+          maxCO2: existingBunker.maxCO2
+        });
+
+        // Broadcast to all connected clients via WebSocket
+        const { broadcastToUser } = require('../websocket/broadcaster');
+        broadcastToUser(currentUserId, 'bunker_update', {
+          fuel: user.fuel / 1000,
+          co2: user.co2 / 1000,
+          cash: user.cash,
+          points: user.points,
+          maxFuel: existingBunker.maxFuel,
+          maxCO2: existingBunker.maxCO2
+        });
+      }
+    }
+
     return response.data;
   } catch (error) {
     if (error.response) {

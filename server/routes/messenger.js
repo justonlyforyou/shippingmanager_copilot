@@ -53,6 +53,7 @@ const {
   markChatAsReadInCache,
   deleteChatFromCache
 } = require('../websocket/messenger-content-cache');
+const { getCachedHijackingCase } = require('../websocket/hijacking-cache');
 
 const router = express.Router();
 
@@ -770,8 +771,14 @@ router.post('/hijacking/get-case', express.json(), async (req, res) => {
   }
 
   try {
-    const data = await apiCall('/hijacking/get-case', 'POST', { case_id });
-    res.json(data);
+    // Use cache to avoid duplicate API calls for resolved cases
+    const cached = await getCachedHijackingCase(case_id);
+    if (cached) {
+      res.json({ data: cached.details, user: {} });
+    } else {
+      const data = await apiCall('/hijacking/get-case', 'POST', { case_id });
+      res.json(data);
+    }
   } catch (error) {
     logger.error('Error getting hijacking case:', error);
     res.status(500).json({ error: error.message });
@@ -963,6 +970,8 @@ router.post('/hijacking/pay', express.json(), async (req, res) => {
       const updatedHistory = {
         history: historyData,
         autopilot_resolved: false,  // Manual payment = not autopilot
+        resolved: true,             // Case is resolved (used by cache to skip API calls)
+        final_status: 'paid',       // Final status for cache
         resolved_at: resolvedAt || Date.now() / 1000,
         vessel_name: vesselName,
         user_vessel_id: userVesselId,
@@ -1072,7 +1081,7 @@ router.get('/hijacking/get-cases', async (req, res) => {
       chat.system_chat && chat.body === 'vessel_got_hijacked'
     );
 
-    // Fetch full details for each case
+    // Fetch full details for each case (using shared cache)
     const casesWithDetails = await Promise.all(
       hijackingChats.map(async (chat) => {
         try {
@@ -1082,25 +1091,20 @@ router.get('/hijacking/get-cases', async (req, res) => {
             return null;
           }
 
-          // Fetch full case details
-          const caseData = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
-          const details = caseData?.data;
+          // Fetch full case details (from cache if available)
+          const caseResult = await getCachedHijackingCase(caseId);
 
-          if (!details) {
+          if (!caseResult || !caseResult.details) {
             logger.error(`[Hijacking] No details for case ${caseId}`);
             return null;
           }
 
-          // Determine if case is open
-          // Open = paid_amount is null AND status is not 'solved'
-          const isOpen = details.paid_amount === null && details.status !== 'solved';
-
           return {
             id: chat.id,                    // System message ID (for deletion)
             values: chat.values,            // Contains case_id, vessel_name, etc.
-            caseDetails: details,           // Full case data
-            isOpen: isOpen,
-            time_last_message: details.registered_at
+            caseDetails: caseResult.details, // Full case data
+            isOpen: caseResult.isOpen,
+            time_last_message: caseResult.details.registered_at
           };
         } catch (error) {
           logger.error(`[Hijacking] Error fetching case details:`, error.message);

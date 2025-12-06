@@ -1550,3 +1550,68 @@ tr.sold-vessel:hover {
     background: transparent;
   }
 }
+
+/* ============================================
+   API STATS TAB (develMode only)
+   ============================================ */
+
+.api-stats-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-12);
+}
+
+.api-stats-header h3 {
+  margin: 0;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+}
+
+.api-stats-controls {
+  display: flex;
+  gap: var(--spacing-4);
+  align-items: center;
+}
+
+.api-stats-controls .logbook-filter-select {
+  padding: 0;
+  margin: 0;
+  height: 20px;
+  line-height: 20px;
+}
+
+.api-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-12);
+  margin-bottom: var(--spacing-16);
+}
+
+.api-stats-chart-container {
+  height: 200px;
+  margin-bottom: var(--spacing-16);
+  background: var(--color-surface-darker);
+  border-radius: var(--radius-4);
+  padding: var(--spacing-8);
+}
+
+#analytics-api-stats .analytics-table .endpoint-name {
+  font-family: monospace;
+  font-size: var(--font-size-11);
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#analytics-api-stats .analytics-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (width <= 768px) {
+  .api-stats-summary {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

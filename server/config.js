@@ -318,7 +318,19 @@ const config = {
    * @constant {boolean}
    * @default false
    */
-  DEBUG_MODE: startupSettings.debugMode
+  DEBUG_MODE: startupSettings.debugMode,
+
+  /**
+   * Developer mode - undocumented hidden feature.
+   * Enables API stats tab in Business modal.
+   * Active when userdata/settings/devel.json file exists.
+   * @constant {boolean}
+   * @default false
+   */
+  get DEVEL_MODE() {
+    const develFile = path.join(getSettingsDir(), 'devel.json');
+    return fs.existsSync(develFile);
+  }
 };
 
 /**

@@ -142,8 +142,8 @@ async function fetchPrices() {
  *
  * CRITICAL API QUIRK:
  * - /bunker/get-prices does NOT return capacity fields (max_fuel, max_co2)
- * - Must use /game/index endpoint which includes user_settings.max_fuel/.max_co2
- * - This is why we can't use /bunker/get-prices for bunker state
+ * - Use /user/get-user-settings which includes settings.max_fuel/.max_co2
+ * - This is much smaller than /game/index (no vessel/port data)
  *
  * Unit Conversions:
  * - API stores values in kilograms (kg)
@@ -160,9 +160,9 @@ async function fetchBunkerState() {
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const data = await apiCall('/game/index', 'POST', {});
+      const data = await apiCall('/user/get-user-settings', 'POST', {});
       const user = data.user;
-      const settings = data.data.user_settings;
+      const settings = data.data.settings;
 
       if (!user) {
         logger.error('[GameAPI] ERROR: user object missing from API response!');

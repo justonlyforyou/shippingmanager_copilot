@@ -65,6 +65,25 @@ export function initVesselAppearanceEditor() {
   // Remove custom image button handler
   removeImageBtn?.addEventListener('click', handleRemoveCustomImage);
 
+  // Color picker change handlers - update SVG preview live
+  const colorInputIds = [
+    'appearanceHullColor',
+    'appearanceDeckColor',
+    'appearanceBridgeColor',
+    'appearanceNameColor',
+    'appearanceContainer1',
+    'appearanceContainer2',
+    'appearanceContainer3',
+    'appearanceContainer4'
+  ];
+
+  colorInputIds.forEach(id => {
+    const input = document.getElementById(id);
+    if (input) {
+      input.addEventListener('input', updateSvgPreview);
+    }
+  });
+
   console.log('[Vessel Appearance] Editor initialized');
 }
 
@@ -126,22 +145,65 @@ export function openAppearanceEditor(vesselId, vesselName, vesselData = null) {
 
 /**
  * Build SVG URL with query params from vessel data
+ * @param {number} vesselId - Vessel ID
+ * @param {Object} vesselData - Vessel data with capacity_type, capacity, name
+ * @param {string} extra - Extra query params
+ * @param {boolean} includeColors - Whether to include current color picker values
  */
-function buildSvgUrl(vesselId, vesselData, extra = '') {
-  if (!vesselData) {
-    return `/api/vessel-svg/${vesselId}${extra ? '?' + extra : ''}`;
-  }
+function buildSvgUrl(vesselId, vesselData, extra = '', includeColors = false) {
   const params = new URLSearchParams();
-  if (vesselData.capacity_type) params.set('capacity_type', vesselData.capacity_type);
-  // Get capacity: container uses dry, tanker uses crude_oil
-  let cap = vesselData.capacity;
-  if (!cap && vesselData.capacity_max) {
-    cap = vesselData.capacity_max.dry ?? vesselData.capacity_max.crude_oil;
+
+  if (vesselData) {
+    if (vesselData.capacity_type) params.set('capacity_type', vesselData.capacity_type);
+    // Get capacity: container uses dry, tanker uses crude_oil
+    let cap = vesselData.capacity;
+    if (!cap && vesselData.capacity_max) {
+      cap = vesselData.capacity_max.dry ?? vesselData.capacity_max.crude_oil;
+    }
+    if (cap) params.set('capacity', cap);
+    if (vesselData.name) params.set('name', vesselData.name);
   }
-  if (cap) params.set('capacity', cap);
-  if (vesselData.name) params.set('name', vesselData.name);
+
+  // Include current color picker values for live preview
+  if (includeColors) {
+    const hullColor = document.getElementById('appearanceHullColor')?.value;
+    const deckColor = document.getElementById('appearanceDeckColor')?.value;
+    const bridgeColor = document.getElementById('appearanceBridgeColor')?.value;
+    const nameColor = document.getElementById('appearanceNameColor')?.value;
+    const container1 = document.getElementById('appearanceContainer1')?.value;
+    const container2 = document.getElementById('appearanceContainer2')?.value;
+    const container3 = document.getElementById('appearanceContainer3')?.value;
+    const container4 = document.getElementById('appearanceContainer4')?.value;
+
+    if (hullColor) params.set('hull_color', hullColor);
+    if (deckColor) params.set('deck_color', deckColor);
+    if (bridgeColor) params.set('bridge_color', bridgeColor);
+    if (nameColor) params.set('name_color', nameColor);
+    if (container1) params.set('container_color_1', container1);
+    if (container2) params.set('container_color_2', container2);
+    if (container3) params.set('container_color_3', container3);
+    if (container4) params.set('container_color_4', container4);
+  }
+
   const queryStr = params.toString();
-  return `/api/vessel-svg/${vesselId}?${queryStr}${extra ? '&' + extra : ''}`;
+  return `/api/vessel-svg/preview?${queryStr}${extra ? '&' + extra : ''}`;
+}
+
+/**
+ * Update SVG preview with current color values
+ * Called when any color picker changes
+ */
+function updateSvgPreview() {
+  // Don't update if custom image is uploaded or exists
+  if (uploadedImageData || (hasCustomImage && !removeCustomImage)) {
+    return;
+  }
+
+  const imagePreview = document.getElementById('appearanceImagePreview');
+  if (!imagePreview) return;
+
+  const previewUrl = buildSvgUrl(currentVesselId, currentVesselData, 't=' + Date.now(), true);
+  imagePreview.innerHTML = `<img src="${previewUrl}" alt="Preview">`;
 }
 
 async function checkExistingImage(vesselId, vesselData) {
@@ -149,10 +211,44 @@ async function checkExistingImage(vesselId, vesselData) {
   const colorsSection = document.getElementById('appearanceColorsSection');
   const removeImageBtn = document.getElementById('removeCustomImageBtn');
 
-  // Fetch appearance data to check if ownImage exists
+  // Fetch appearance data to check if ownImage exists and get saved colors
   try {
     const response = await fetch(`/api/vessel/get-appearance/${vesselId}`);
     const appearance = await response.json();
+
+    // Load saved colors into color pickers
+    if (appearance.hull_color) {
+      const el = document.getElementById('appearanceHullColor');
+      if (el) el.value = appearance.hull_color;
+    }
+    if (appearance.deck_color) {
+      const el = document.getElementById('appearanceDeckColor');
+      if (el) el.value = appearance.deck_color;
+    }
+    if (appearance.bridge_color) {
+      const el = document.getElementById('appearanceBridgeColor');
+      if (el) el.value = appearance.bridge_color;
+    }
+    if (appearance.name_color) {
+      const el = document.getElementById('appearanceNameColor');
+      if (el) el.value = appearance.name_color;
+    }
+    if (appearance.container_color_1) {
+      const el = document.getElementById('appearanceContainer1');
+      if (el) el.value = appearance.container_color_1;
+    }
+    if (appearance.container_color_2) {
+      const el = document.getElementById('appearanceContainer2');
+      if (el) el.value = appearance.container_color_2;
+    }
+    if (appearance.container_color_3) {
+      const el = document.getElementById('appearanceContainer3');
+      if (el) el.value = appearance.container_color_3;
+    }
+    if (appearance.container_color_4) {
+      const el = document.getElementById('appearanceContainer4');
+      if (el) el.value = appearance.container_color_4;
+    }
 
     if (appearance.ownImage) {
       // Has custom uploaded image
@@ -164,10 +260,11 @@ async function checkExistingImage(vesselId, vesselData) {
       if (colorsSection) colorsSection.classList.add('hidden');
       if (removeImageBtn) removeImageBtn.classList.remove('hidden');
     } else {
-      // No custom image - show SVG preview
+      // No custom image - show SVG preview with current colors
       if (imagePreview) {
         imagePreview.classList.add('has-image');
-        imagePreview.innerHTML = `<img src="${buildSvgUrl(vesselId, vesselData, 't=' + Date.now())}" alt="Current">`;
+        const previewUrl = buildSvgUrl(vesselId, vesselData, 't=' + Date.now(), true);
+        imagePreview.innerHTML = `<img src="${previewUrl}" alt="Current">`;
       }
       if (colorsSection) colorsSection.classList.remove('hidden');
     }
@@ -175,7 +272,8 @@ async function checkExistingImage(vesselId, vesselData) {
     // No appearance file - show SVG with defaults
     if (imagePreview) {
       imagePreview.classList.add('has-image');
-      imagePreview.innerHTML = `<img src="${buildSvgUrl(vesselId, vesselData, 't=' + Date.now())}" alt="Current">`;
+      const previewUrl = buildSvgUrl(vesselId, vesselData, 't=' + Date.now(), true);
+      imagePreview.innerHTML = `<img src="${previewUrl}" alt="Current">`;
     }
     if (colorsSection) colorsSection.classList.remove('hidden');
   }
@@ -423,14 +521,10 @@ async function saveAppearance() {
       }
     }
 
-    // Save if: new image uploaded OR removing image OR colors changed
-    const hasImageToSave = !!uploadedImageData;
-    const needsOwnImageUpdate = removeCustomImage && hasCustomImage;
-    const shouldSave = hasImageToSave || needsOwnImageUpdate;
+    // Always save appearance data (colors are always sent)
+    console.log('[Vessel Appearance] Saving appearance data for vessel', currentVesselId);
 
-    console.log('[Vessel Appearance] Save check:', { hasImageToSave, needsOwnImageUpdate, shouldSave, imageDataLength: uploadedImageData?.length });
-
-    if (shouldSave) {
+    {
       const response = await fetch(window.apiUrl('/api/vessel/save-appearance'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
