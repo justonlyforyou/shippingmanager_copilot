@@ -222,6 +222,81 @@
                 <!-- Route vessels list populated by route-vessels-panel.js -->
             </div>
 
+            <!-- Harbor Map Filter Modal (draggable, transparent) -->
+            <div id="harborFilterModal" class="harbor-filter-modal hidden">
+                <div class="harbor-filter-header">
+                    <h3>Filter</h3>
+                    <button class="close-btn harbor-filter-close" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+                </div>
+                <div class="harbor-filter-content">
+                    <!-- Route Filter -->
+                    <div class="harbor-filter-section">
+                        <span class="harbor-filter-section-label">Route</span>
+                        <select id="harborFilterRoute">
+                            <option value="">All Routes</option>
+                        </select>
+                    </div>
+
+                    <!-- Vessel Filter -->
+                    <div class="harbor-filter-section">
+                        <span class="harbor-filter-section-label">Vessel</span>
+                        <select id="harborFilterVessel">
+                            <option value="">All Vessels</option>
+                            <option value="container">Container Ships</option>
+                            <option value="tanker">Tankers</option>
+                            <option value="enroute">En Route</option>
+                            <option value="port">At Port</option>
+                            <option value="anchor">At Anchor</option>
+                            <option value="maintenance">In Drydock</option>
+                            <option value="pending">Pending Delivery</option>
+                            <option value="moored">Moored</option>
+                        </select>
+                    </div>
+
+                    <div class="harbor-filter-divider"></div>
+
+                    <!-- Port Filters (4 types in 2x2 grid) -->
+                    <div class="harbor-filter-section">
+                        <span class="harbor-filter-section-label">Port Filters</span>
+                        <div class="harbor-filter-demand-group">
+                            <!-- Row 1: My Ports -->
+                            <div class="harbor-filter-demand-row">
+                                <div class="harbor-filter-demand-item">
+                                    <label>Max (My Ports)</label>
+                                    <select id="harborFilterDemandMaxMy">
+                                        <option value="">No Filter</option>
+                                    </select>
+                                </div>
+                                <div class="harbor-filter-demand-item">
+                                    <label>Current (My Ports)</label>
+                                    <select id="harborFilterDemandCurrentMy">
+                                        <option value="">No Filter</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <!-- Row 2: All Ports -->
+                            <div class="harbor-filter-demand-row">
+                                <div class="harbor-filter-demand-item">
+                                    <label>Max (All Ports)</label>
+                                    <select id="harborFilterDemandMaxAll">
+                                        <option value="">No Filter</option>
+                                    </select>
+                                </div>
+                                <div class="harbor-filter-demand-item">
+                                    <label>Current (All Ports)</label>
+                                    <select id="harborFilterDemandCurrentAll">
+                                        <option value="">No Filter</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="harbor-filter-footer">
+                    <button class="harbor-filter-clear-btn">Clear All</button>
+                </div>
+            </div>
+
             <!-- Depart Manager Panel (draggable, transparent) -->
             <div id="departManagerPanel" class="depart-manager-panel hidden">
                 <div class="depart-manager-header">

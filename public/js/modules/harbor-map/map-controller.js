@@ -11,7 +11,13 @@ import { showVesselPanel, hideVesselPanel } from './vessel-panel.js';
 import { showPortPanel, hidePortPanel } from './port-panel.js';
 import { hideRoutePanel } from './route-vessels-panel.js';
 import { initializePanelDrag } from './panel-drag.js';
-import { filterVessels, filterPorts, getVesselFilterOptions, getPortFilterOptions } from './filters.js';
+import {
+  filterVessels,
+  filterPorts,
+  getVesselFilterOptions,
+  getDemandFilterOptions,
+  applyDemandFilter
+} from './filters.js';
 import { showSideNotification, isMobileDevice, escapeHtml } from '../utils.js';
 import { initForecastCalendar, updateEventDiscount } from '../forecast-calendar.js';
 
@@ -69,6 +75,16 @@ let currentVessels = [];
 let currentPorts = [];
 let currentRouteFilter = localStorage.getItem('harborMapRouteFilter') || null; // null = show all, string = port pair key (e.g., "hamburg<>new_york")
 let currentPortPairGroups = null; // Port-pair groups from API (for route filter dropdown)
+
+// Demand filter states (from filter modal)
+let currentDemandMaxMyFilter = localStorage.getItem('harborMapDemandMaxMy') || '';
+let currentDemandCurrentMyFilter = localStorage.getItem('harborMapDemandCurrentMy') || '';
+let currentDemandMaxAllFilter = localStorage.getItem('harborMapDemandMaxAll') || '';
+let currentDemandCurrentAllFilter = localStorage.getItem('harborMapDemandCurrentAll') || '';
+
+// Filter modal state
+let filterModalDragging = false;
+let filterModalDragOffset = { x: 0, y: 0 };
 
 /**
  * Gets current ports data
@@ -523,58 +539,28 @@ function toggleWeatherLayer(type) {
  * Positioned in top-right corner below zoom controls
  */
 function addCustomControls() {
-  // Vessel Filter Control
-  const VesselFilterControl = L.Control.extend({
+  // Filter Button Control - Opens filter modal
+  const FilterButtonControl = L.Control.extend({
     options: { position: 'topleft' },
     onAdd: function() {
-      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-filter');
-
-      const options = getVesselFilterOptions();
-      const optionsHTML = options.map(opt =>
-        `<option value="${opt.value}" ${opt.value === currentVesselFilter ? 'selected' : ''}>${opt.label}</option>`
-      ).join('');
+      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-filter-buttons');
 
       container.innerHTML = `
-        <select id="vesselFilterSelect" title="Vessel Filter">
-          ${optionsHTML}
-        </select>
+        <button class="map-filter-btn" title="Open Filter Panel">Filter</button>
+        <button class="map-reset-btn" title="Reset All Filters">Reset</button>
       `;
 
       // Prevent map click propagation
       L.DomEvent.disableClickPropagation(container);
 
-      // Add change listener
-      container.querySelector('select').addEventListener('change', async (e) => {
-        await setVesselFilter(e.target.value);
+      // Filter button opens modal
+      container.querySelector('.map-filter-btn').addEventListener('click', () => {
+        openFilterModal();
       });
 
-      return container;
-    }
-  });
-
-  // Port Filter Control
-  const PortFilterControl = L.Control.extend({
-    options: { position: 'topleft' },
-    onAdd: function() {
-      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-filter');
-
-      const options = getPortFilterOptions();
-      const optionsHTML = options.map(opt =>
-        `<option value="${opt.value}" ${opt.value === currentPortFilter ? 'selected' : ''}>${opt.label}</option>`
-      ).join('');
-
-      container.innerHTML = `
-        <select id="portFilterSelect" title="Port Filter">
-          ${optionsHTML}
-        </select>
-      `;
-
-      // Prevent map click propagation
-      L.DomEvent.disableClickPropagation(container);
-
-      // Add change listener
-      container.querySelector('select').addEventListener('change', async (e) => {
-        await setPortFilter(e.target.value);
+      // Reset button clears all filters
+      container.querySelector('.map-reset-btn').addEventListener('click', async () => {
+        await resetAllFilters();
       });
 
       return container;
@@ -636,30 +622,6 @@ function addCustomControls() {
         setTimeout(() => {
           container.title = 'Map Style';
         }, 100);
-      });
-
-      return container;
-    }
-  });
-
-  // Route Filter Control
-  const RouteFilterControl = L.Control.extend({
-    options: { position: 'topleft' },
-    onAdd: function() {
-      const container = L.DomUtil.create('div', 'leaflet-control-custom leaflet-control-route-filter');
-      container.innerHTML = `
-        <select id="routeFilterSelect">
-          <option value="">All Routes</option>
-        </select>
-      `;
-
-      // Prevent map click propagation
-      L.DomEvent.disableClickPropagation(container);
-
-      // Add change listener
-      const selectElement = container.querySelector('select');
-      selectElement.addEventListener('change', async (e) => {
-        await setRouteFilter(e.target.value);
       });
 
       return container;
@@ -1387,10 +1349,8 @@ function addCustomControls() {
   map.addControl(new SettingsControl());
   map.addControl(new DocsControl());
 
-  // Top right controls (filter dropdowns) - THESE MUST BE LAST so they don't interfere with left controls
-  map.addControl(new RouteFilterControl());
-  map.addControl(new VesselFilterControl());
-  map.addControl(new PortFilterControl());
+  // Filter Button Control - Opens filter modal (replaces 3 dropdown controls)
+  map.addControl(new FilterButtonControl());
 
   // Add Zoom Display Control (bottom left) - add AFTER filters
   map.addControl(new ZoomDisplayControl());
@@ -2178,6 +2138,302 @@ export async function setVesselFilter(filter) {
 }
 
 /**
+ * Opens the filter modal panel.
+ * Populates dropdowns with current filter values and initializes drag behavior.
+ */
+function openFilterModal() {
+  const modal = document.getElementById('harborFilterModal');
+  if (!modal) return;
+
+  // Populate dropdowns
+  populateFilterModalDropdowns();
+
+  // Show modal
+  modal.classList.remove('hidden');
+
+  // Initialize drag behavior if not already done
+  initFilterModalDrag();
+
+  // Update filter button state
+  const filterBtn = document.querySelector('.map-filter-btn');
+  if (filterBtn) {
+    filterBtn.classList.add('active');
+  }
+
+  console.log('[Harbor Map] Filter modal opened');
+}
+
+/**
+ * Closes the filter modal panel.
+ */
+function closeFilterModal() {
+  const modal = document.getElementById('harborFilterModal');
+  if (!modal) return;
+
+  modal.classList.add('hidden');
+
+  // Update filter button state
+  const filterBtn = document.querySelector('.map-filter-btn');
+  if (filterBtn) {
+    filterBtn.classList.remove('active');
+  }
+
+  console.log('[Harbor Map] Filter modal closed');
+}
+
+/**
+ * Populates the filter modal dropdowns with current values and options.
+ * Called when modal opens to ensure data is fresh.
+ */
+function populateFilterModalDropdowns() {
+  // Route filter
+  const routeSelect = document.getElementById('harborFilterRoute');
+  if (routeSelect && currentPortPairGroups && currentPortPairGroups.groups) {
+    routeSelect.innerHTML = '<option value="">All Routes</option>' +
+      currentPortPairGroups.groups.map(g =>
+        `<option value="${g.pairKey}" ${g.pairKey === currentRouteFilter ? 'selected' : ''}>${g.displayName} (${g.vessels.length})</option>`
+      ).join('');
+  }
+
+  // Vessel filter
+  const vesselSelect = document.getElementById('harborFilterVessel');
+  if (vesselSelect) {
+    const options = getVesselFilterOptions();
+    vesselSelect.innerHTML = options.map(opt =>
+      `<option value="${opt.value}" ${opt.value === currentVesselFilter ? 'selected' : ''}>${opt.label}</option>`
+    ).join('');
+  }
+
+  // Demand filters
+  populateDemandFilterDropdown('harborFilterDemandMaxMy', 'max_my', currentDemandMaxMyFilter);
+  populateDemandFilterDropdown('harborFilterDemandCurrentMy', 'current_my', currentDemandCurrentMyFilter);
+  populateDemandFilterDropdown('harborFilterDemandMaxAll', 'max_all', currentDemandMaxAllFilter);
+  populateDemandFilterDropdown('harborFilterDemandCurrentAll', 'current_all', currentDemandCurrentAllFilter);
+}
+
+/**
+ * Populates a single demand filter dropdown.
+ *
+ * @param {string} selectId - DOM element ID
+ * @param {string} demandType - Demand filter type
+ * @param {string} currentValue - Current selected value
+ */
+function populateDemandFilterDropdown(selectId, demandType, currentValue) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  const options = getDemandFilterOptions(demandType);
+  select.innerHTML = options.map(opt =>
+    `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`
+  ).join('');
+}
+
+/**
+ * Initializes drag behavior for the filter modal.
+ */
+function initFilterModalDrag() {
+  const modal = document.getElementById('harborFilterModal');
+  const header = modal?.querySelector('.harbor-filter-header');
+  if (!modal || !header) return;
+
+  // Already initialized
+  if (header.dataset.dragInit === 'true') return;
+  header.dataset.dragInit = 'true';
+
+  header.addEventListener('mousedown', (e) => {
+    if (e.target.closest('.close-btn')) return;
+
+    filterModalDragging = true;
+    modal.classList.add('dragging');
+
+    const rect = modal.getBoundingClientRect();
+    filterModalDragOffset = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+
+    document.addEventListener('mousemove', onFilterModalDrag);
+    document.addEventListener('mouseup', onFilterModalDragEnd);
+  });
+
+  // Close button
+  const closeBtn = modal.querySelector('.harbor-filter-close');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', closeFilterModal);
+  }
+
+  // Clear button
+  const clearBtn = modal.querySelector('.harbor-filter-clear-btn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', async () => {
+      await resetAllFilters();
+      populateFilterModalDropdowns();
+    });
+  }
+
+  // Immediate filter application on dropdown change with mutual exclusivity
+  // When one filter type is selected, all others are reset
+  const routeSelect = document.getElementById('harborFilterRoute');
+  const vesselSelect = document.getElementById('harborFilterVessel');
+  const demandSelects = [
+    document.getElementById('harborFilterDemandMaxMy'),
+    document.getElementById('harborFilterDemandCurrentMy'),
+    document.getElementById('harborFilterDemandMaxAll'),
+    document.getElementById('harborFilterDemandCurrentAll')
+  ].filter(Boolean);
+
+  // Route filter - resets vessel and demand filters
+  if (routeSelect) {
+    routeSelect.addEventListener('change', async () => {
+      if (routeSelect.value) {
+        // Reset other filters
+        if (vesselSelect) vesselSelect.value = 'all_vessels';
+        demandSelects.forEach(s => s.value = '');
+      }
+      await applyFilterModalSelections();
+    });
+  }
+
+  // Vessel filter - resets route and demand filters
+  if (vesselSelect) {
+    vesselSelect.addEventListener('change', async () => {
+      if (vesselSelect.value && vesselSelect.value !== 'all_vessels') {
+        // Reset other filters
+        if (routeSelect) routeSelect.value = '';
+        demandSelects.forEach(s => s.value = '');
+      }
+      await applyFilterModalSelections();
+    });
+  }
+
+  // Demand filters - reset route and vessel filters when any demand filter is selected
+  demandSelects.forEach(demandSelect => {
+    demandSelect.addEventListener('change', async () => {
+      if (demandSelect.value) {
+        // Reset other filters
+        if (routeSelect) routeSelect.value = '';
+        if (vesselSelect) vesselSelect.value = 'all_vessels';
+        // Also reset other demand filters - only one demand filter at a time
+        demandSelects.forEach(s => {
+          if (s !== demandSelect) s.value = '';
+        });
+      }
+      await applyFilterModalSelections();
+    });
+  });
+}
+
+/**
+ * Handles filter modal drag movement.
+ *
+ * @param {MouseEvent} e - Mouse event
+ */
+function onFilterModalDrag(e) {
+  if (!filterModalDragging) return;
+
+  const modal = document.getElementById('harborFilterModal');
+  if (!modal) return;
+
+  const x = e.clientX - filterModalDragOffset.x;
+  const y = e.clientY - filterModalDragOffset.y;
+
+  modal.style.left = x + 'px';
+  modal.style.top = y + 'px';
+  modal.style.transform = 'none';
+}
+
+/**
+ * Handles filter modal drag end.
+ */
+function onFilterModalDragEnd() {
+  filterModalDragging = false;
+
+  const modal = document.getElementById('harborFilterModal');
+  if (modal) {
+    modal.classList.remove('dragging');
+  }
+
+  document.removeEventListener('mousemove', onFilterModalDrag);
+  document.removeEventListener('mouseup', onFilterModalDragEnd);
+}
+
+/**
+ * Applies the current filter modal selections and updates the map.
+ *
+ * @returns {Promise<void>}
+ */
+async function applyFilterModalSelections() {
+  // Read values from modal dropdowns
+  const routeValue = document.getElementById('harborFilterRoute')?.value || '';
+  const vesselValue = document.getElementById('harborFilterVessel')?.value || 'all_vessels';
+  const demandMaxMyValue = document.getElementById('harborFilterDemandMaxMy')?.value || '';
+  const demandCurrentMyValue = document.getElementById('harborFilterDemandCurrentMy')?.value || '';
+  const demandMaxAllValue = document.getElementById('harborFilterDemandMaxAll')?.value || '';
+  const demandCurrentAllValue = document.getElementById('harborFilterDemandCurrentAll')?.value || '';
+
+  // Update state and localStorage
+  currentRouteFilter = routeValue || null;
+  currentVesselFilter = vesselValue;
+  currentDemandMaxMyFilter = demandMaxMyValue;
+  currentDemandCurrentMyFilter = demandCurrentMyValue;
+  currentDemandMaxAllFilter = demandMaxAllValue;
+  currentDemandCurrentAllFilter = demandCurrentAllValue;
+
+  if (currentRouteFilter) {
+    localStorage.setItem('harborMapRouteFilter', currentRouteFilter);
+  } else {
+    localStorage.removeItem('harborMapRouteFilter');
+  }
+  localStorage.setItem('harborMapVesselFilter', currentVesselFilter);
+  localStorage.setItem('harborMapDemandMaxMy', currentDemandMaxMyFilter);
+  localStorage.setItem('harborMapDemandCurrentMy', currentDemandCurrentMyFilter);
+  localStorage.setItem('harborMapDemandMaxAll', currentDemandMaxAllFilter);
+  localStorage.setItem('harborMapDemandCurrentAll', currentDemandCurrentAllFilter);
+
+  console.log('[Harbor Map] Filter modal applied - Route:', currentRouteFilter, 'Vessel:', currentVesselFilter);
+  console.log('[Harbor Map] Demand filters - MaxMy:', currentDemandMaxMyFilter, 'CurrentMy:', currentDemandCurrentMyFilter, 'MaxAll:', currentDemandMaxAllFilter, 'CurrentAll:', currentDemandCurrentAllFilter);
+
+  // Close panels and apply filters
+  await closeAllPanels();
+  selectedVesselId = null;
+  selectedPortCode = null;
+  await applyFiltersAndRender();
+}
+
+/**
+ * Resets all filters to default values.
+ *
+ * @returns {Promise<void>}
+ */
+async function resetAllFilters() {
+  // Reset all filter states
+  currentRouteFilter = null;
+  currentVesselFilter = 'all_vessels';
+  currentPortFilter = 'my_ports';
+  currentDemandMaxMyFilter = '';
+  currentDemandCurrentMyFilter = '';
+  currentDemandMaxAllFilter = '';
+  currentDemandCurrentAllFilter = '';
+
+  // Update localStorage
+  localStorage.removeItem('harborMapRouteFilter');
+  localStorage.setItem('harborMapVesselFilter', currentVesselFilter);
+  localStorage.setItem('harborMapPortFilter', currentPortFilter);
+  localStorage.setItem('harborMapDemandMaxMy', '');
+  localStorage.setItem('harborMapDemandCurrentMy', '');
+  localStorage.setItem('harborMapDemandMaxAll', '');
+  localStorage.setItem('harborMapDemandCurrentAll', '');
+
+  console.log('[Harbor Map] All filters reset to defaults');
+
+  // Close panels and apply filters
+  await closeAllPanels();
+  selectedVesselId = null;
+  selectedPortCode = null;
+  await applyFiltersAndRender();
+}
+
+/**
  * Applies current filters to raw data and renders the result
  * NO API calls - pure client-side filtering
  *
@@ -2188,15 +2444,15 @@ async function applyFiltersAndRender(forceRender = false) {
   // This prevents filter state loss during automatic refreshes
   currentVesselFilter = localStorage.getItem('harborMapVesselFilter') || 'all_vessels';
   currentPortFilter = localStorage.getItem('harborMapPortFilter') || 'my_ports';
+  currentDemandMaxMyFilter = localStorage.getItem('harborMapDemandMaxMy') || '';
+  currentDemandCurrentMyFilter = localStorage.getItem('harborMapDemandCurrentMy') || '';
+  currentDemandMaxAllFilter = localStorage.getItem('harborMapDemandMaxAll') || '';
+  currentDemandCurrentAllFilter = localStorage.getItem('harborMapDemandCurrentAll') || '';
 
-  // Sync dropdown values with current filter state
-  const vesselFilterSelect = document.getElementById('vesselFilterSelect');
-  const portFilterSelect = document.getElementById('portFilterSelect');
-  if (vesselFilterSelect && vesselFilterSelect.value !== currentVesselFilter) {
-    vesselFilterSelect.value = currentVesselFilter;
-  }
-  if (portFilterSelect && portFilterSelect.value !== currentPortFilter) {
-    portFilterSelect.value = currentPortFilter;
+  // Sync modal dropdown values with current filter state (if modal is open)
+  const harborFilterVessel = document.getElementById('harborFilterVessel');
+  if (harborFilterVessel && harborFilterVessel.value !== currentVesselFilter) {
+    harborFilterVessel.value = currentVesselFilter;
   }
 
   // Debug: Check raw data
@@ -2211,8 +2467,21 @@ async function applyFiltersAndRender(forceRender = false) {
   // Apply vessel filter
   let filteredVessels = filterVessels(rawVessels, currentVesselFilter);
 
-  // Apply port filter (ports need vessel data for some filters)
-  let filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
+  // Determine active demand filter (only one can be active at a time)
+  const activeDemandFilter = currentDemandMaxMyFilter || currentDemandCurrentMyFilter ||
+                             currentDemandMaxAllFilter || currentDemandCurrentAllFilter;
+
+  // Apply port filter OR demand filter (mutually exclusive)
+  // Demand filters override port filter and use rawPorts with their own scope (my/all)
+  let filteredPorts;
+  if (activeDemandFilter) {
+    // Demand filter is active - use rawPorts and let demand filter handle scope
+    filteredPorts = applyDemandFilter(rawPorts, activeDemandFilter);
+    console.log(`[Harbor Map] Applied demand filter: ${activeDemandFilter} -> ${filteredPorts.length} ports`);
+  } else {
+    // No demand filter - use regular port filter
+    filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
+  }
 
   console.log(`[Harbor Map] Applied filters - Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}`);
   console.log(`[Harbor Map] Filtered results - Vessels: ${filteredVessels.length}/${rawVessels.length}, Ports: ${filteredPorts.length}/${rawPorts.length}`);
@@ -3010,14 +3279,9 @@ export async function updateVesselMarker(vesselId) {
  * updateRouteDropdown();
  */
 function updateRouteDropdown() {
-  const routeSelect = document.getElementById('routeFilterSelect');
-  if (!routeSelect) {
-    console.warn('[Harbor Map] Route filter select not found');
-    return;
-  }
-
-  // Clear existing options
-  routeSelect.innerHTML = '<option value="">All Routes</option>';
+  // Route dropdown is now in the filter modal (harborFilterRoute)
+  // This function updates the route data but the modal populates its own dropdowns
+  // We just need to validate the current route filter is still valid
 
   // Use port-pair groups from API response
   if (!currentPortPairGroups || !currentPortPairGroups.groups) {
@@ -3028,24 +3292,13 @@ function updateRouteDropdown() {
   const groups = currentPortPairGroups.groups;
   console.log(`[Harbor Map] Found ${groups.length} port-pair groups`);
 
-  // Add port-pair options (already sorted by vessel count from backend)
-  groups.forEach(group => {
-    const option = document.createElement('option');
-    option.value = group.pairKey; // e.g., "hamburg<>new_york"
-    option.textContent = `${group.displayName} (${group.vessels.length})`; // e.g., "DE HAM <> US NYC (5)"
-    routeSelect.appendChild(option);
-  });
-
-  // Restore selected route if it exists
+  // Validate current route filter still exists
   const pairKeys = groups.map(g => g.pairKey);
-  if (currentRouteFilter && pairKeys.includes(currentRouteFilter)) {
-    routeSelect.value = currentRouteFilter;
-  } else {
+  if (currentRouteFilter && !pairKeys.includes(currentRouteFilter)) {
     currentRouteFilter = null;
-    routeSelect.value = '';
+    localStorage.removeItem('harborMapRouteFilter');
+    console.log('[Harbor Map] Current route filter no longer valid, resetting');
   }
-
-  // Width is handled by CSS (width: fit-content)
 }
 
 /**
@@ -3068,8 +3321,8 @@ export async function setRouteFilter(pairKey) {
     localStorage.removeItem('harborMapRouteFilter');
   }
 
-  // Update the dropdown to reflect the new selection
-  const routeSelect = document.getElementById('routeFilterSelect');
+  // Update the modal dropdown to reflect the new selection (if modal is open)
+  const routeSelect = document.getElementById('harborFilterRoute');
   if (routeSelect && routeSelect.value !== (pairKey || '')) {
     routeSelect.value = pairKey || '';
   }

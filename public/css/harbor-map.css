@@ -10,7 +10,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.95);
+  background: rgb(0, 0, 0, 0.95);
   z-index: 900;
   display: flex;
   align-items: stretch;
@@ -70,7 +70,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgb(0, 0, 0, 0.5);
   text-decoration: none !important;
 }
 
@@ -79,15 +79,19 @@
 .map-close-btn:active {
   color: #fff !important;
   background: transparent !important;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 2px 4px rgb(0, 0, 0, 0.7);
   text-decoration: none !important;
   outline: none !important;
 }
 
-/* Leaflet Custom Controls - NO flex layout, buttons stack naturally (overlapping) */
+/* Leaflet Custom Controls - Grid layout for icon buttons (left) and filter buttons (right) */
 .leaflet-top.leaflet-left {
-  display: block;
-  margin-left: 0px !important;
+  display: grid !important;
+  grid-template-columns: auto auto !important;
+  grid-template-rows: auto !important;
+  row-gap: 0 !important;
+  column-gap: 2px !important;
+  margin-left: 0 !important;
   width: fit-content;
 }
 
@@ -101,10 +105,10 @@
   margin-top: 0;
 }
 
-/* Make Leaflet zoom controls horizontal and smaller */
+/* Leaflet zoom controls - vertical stacking */
 .leaflet-control-zoom {
-  display: flex;
-  flex-direction: row;
+  display: flex !important;
+  flex-direction: column !important;
   gap: 1px;
   margin: 0 !important;
   background: transparent !important;
@@ -120,6 +124,13 @@
   height: 18px !important;
   line-height: 18px !important;
   font-size: 13px !important;
+  margin: 0 !important;
+}
+
+.leaflet-control-zoom-in span,
+.leaflet-control-zoom-out span {
+  position: relative;
+  top: -1px;
 }
 
 .leaflet-control-zoom a:last-child {
@@ -140,6 +151,7 @@
 .leaflet-control-custom {
   border-radius: 4px;
   margin: 0 !important;
+  padding: 0 !important;
   background: transparent !important;
 }
 
@@ -165,8 +177,6 @@
   width: fit-content !important;
   min-width: 0 !important;
   max-width: none !important;
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
 }
 
@@ -184,8 +194,6 @@
   width: fit-content !important;
   min-width: 0 !important;
   max-width: none !important;
-  -webkit-appearance: none;
-  -moz-appearance: none;
   appearance: none;
 }
 
@@ -527,7 +535,7 @@
   width: 300px;
   min-height: calc(100% - 240px);
   max-height: calc(100% - 90px);
-  background: rgba(26, 32, 44, 0.65);
+  background: rgb(26, 32, 44, 0.65);
   backdrop-filter: blur(10px);
   border-left: none;
   border-top-left-radius: 10px;
@@ -542,7 +550,7 @@
 }
 
 /* Desktop: Position panels in bottom-right corner with fixed size */
-@media (min-width: 769px) {
+@media (width >= 769px) {
   .detail-panel {
     top: auto; /* Remove top positioning */
     bottom: 0; /* Anchor to bottom */
@@ -564,7 +572,6 @@
 .detail-panel.drag-handle {
   cursor: move;
   user-select: none;
-  -webkit-user-select: none;
 }
 
 /* Interactive elements keep their cursor */
@@ -580,7 +587,6 @@
 /* Panel body allows text selection for reading */
 .detail-panel .panel-body {
   user-select: text;
-  -webkit-user-select: text;
 }
 
 /* Panel Header */
@@ -597,7 +603,7 @@
 }
 
 /* Desktop: Move cursor on panel header to show draggability */
-@media (min-width: 769px) {
+@media (width >= 769px) {
   .panel-header {
     cursor: move;
   }
@@ -632,8 +638,8 @@
 }
 
 .vessel-name-input {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(96, 165, 250, 0.5);
+  background: rgb(255, 255, 255, 0.1);
+  border: 1px solid rgb(96, 165, 250, 0.5);
   border-radius: 4px;
   color: #fff;
   font-size: 15px;
@@ -648,9 +654,9 @@
 }
 
 .vessel-name-input:focus {
-  background: rgba(255, 255, 255, 0.15);
-  border-color: rgba(96, 165, 250, 0.8);
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.2);
+  background: rgb(255, 255, 255, 0.15);
+  border-color: rgb(96, 165, 250, 0.8);
+  box-shadow: 0 0 0 2px rgb(96, 165, 250, 0.2);
 }
 
 .rename-vessel-btn {
@@ -712,7 +718,7 @@
 }
 
 .detail-panel .close-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(255, 255, 255, 0.1);
   opacity: 1;
   transform: rotate(90deg);
   color: #ef4444;
@@ -777,39 +783,39 @@
   cursor: pointer;
   transition: transform 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
   display: inline-block;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 2px 4px rgb(0, 0, 0, 0.3));
 }
 
 .action-emoji:hover {
   transform: scale(1.15);
-  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 4px 8px rgb(0, 0, 0, 0.5));
 }
 
 .action-emoji.disabled {
   opacity: 0.3;
   cursor: not-allowed;
-  filter: grayscale(100%) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  filter: grayscale(100%) drop-shadow(0 2px 4px rgb(0, 0, 0, 0.2));
 }
 
 .action-emoji.disabled:hover {
   transform: none;
-  filter: grayscale(100%) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+  filter: grayscale(100%) drop-shadow(0 2px 4px rgb(0, 0, 0, 0.2));
 }
 
 .action-emoji.parked {
-  filter: drop-shadow(0 0 3px rgba(239, 68, 68, 0.8)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 0 3px rgb(239, 68, 68, 0.8)) drop-shadow(0 2px 4px rgb(0, 0, 0, 0.3));
 }
 
 .action-emoji.parked:hover {
-  filter: drop-shadow(0 0 5px rgba(239, 68, 68, 1)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 0 5px rgb(239, 68, 68, 1)) drop-shadow(0 4px 8px rgb(0, 0, 0, 0.5));
 }
 
 .action-emoji.not-parked {
-  filter: drop-shadow(0 0 3px rgba(34, 197, 94, 0.8)) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  filter: drop-shadow(0 0 3px rgb(34, 197, 94, 0.8)) drop-shadow(0 2px 4px rgb(0, 0, 0, 0.3));
 }
 
 .action-emoji.not-parked:hover {
-  filter: drop-shadow(0 0 5px rgba(34, 197, 94, 1)) drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
+  filter: drop-shadow(0 0 5px rgb(34, 197, 94, 1)) drop-shadow(0 4px 8px rgb(0, 0, 0, 0.5));
 }
 
 /* Cargo List in History */
@@ -846,7 +852,7 @@
 
 .vessel-info-section h4,
 .port-info-section h4 {
-  margin: 0 0 6px 0;
+  margin: 0 0 6px;
   padding-bottom: 4px;
   color: #63b3ed;
   font-size: 13px;
@@ -1000,7 +1006,7 @@
 .btn-primary:hover {
   background: #2c5282;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.4);
+  box-shadow: 0 4px 12px rgb(49, 130, 206, 0.4);
 }
 
 .btn-primary:disabled {
@@ -1032,13 +1038,13 @@
 .history-entry {
   padding: 12px;
   margin-bottom: 12px;
-  background: rgba(45, 55, 72, 0.3);
+  background: rgb(45, 55, 72, 0.3);
   border-radius: 6px;
   border-left: 3px solid #3182ce;
 }
 
 .history-entry.high-harbor-fee {
-  background: rgba(255, 140, 0, 0.15);
+  background: rgb(255, 140, 0, 0.15);
   border-left-color: #ff8c00;
 }
 
@@ -1114,7 +1120,7 @@
 .demand-category {
   margin: 6px 0;
   padding: 8px;
-  background: rgba(26, 32, 44, 0.5);
+  background: rgb(26, 32, 44, 0.5);
   border-radius: 6px;
 }
 
@@ -1141,7 +1147,7 @@
 }
 
 .vessel-category h5 {
-  margin: 0 0 4px 0;
+  margin: 0 0 4px;
   padding-bottom: 4px;
   color: #93c5fd;
   font-size: 13px;
@@ -1159,7 +1165,7 @@
 .vessel-list-item {
   padding: 8px;
   margin-bottom: 6px;
-  background: rgba(45, 55, 72, 0.5);
+  background: rgb(45, 55, 72, 0.5);
   border-radius: 6px;
   border-left: 3px solid #3182ce;
   cursor: pointer;
@@ -1167,7 +1173,7 @@
 }
 
 .vessel-list-item:hover {
-  background: rgba(49, 130, 206, 0.2);
+  background: rgb(49, 130, 206, 0.2);
   transform: translateX(4px);
   border-left-color: #63b3ed;
 }
@@ -1241,7 +1247,7 @@
 
 .port-icon {
   font-size: 18px;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 2px 4px rgb(0, 0, 0, 0.8));
 }
 
 /* Vessel Type Colors - vesselfinder.com style */
@@ -1292,24 +1298,24 @@
 .port-marker.origin .port-icon {
   color: #e53e3e;
   font-size: 12px;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 1px 2px rgb(0, 0, 0, 0.8));
 }
 
 .port-marker.destination .port-icon {
   color: #48bb78;
   font-size: 12px;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8));
+  filter: drop-shadow(0 1px 2px rgb(0, 0, 0, 0.8));
 }
 
 /* Route port tooltips - always visible */
 .route-port-tooltip {
-  background: rgba(31, 41, 55, 0.95) !important;
-  border: 1px solid rgba(96, 165, 250, 0.3) !important;
+  background: rgb(31, 41, 55, 0.95) !important;
+  border: 1px solid rgb(96, 165, 250, 0.3) !important;
   border-radius: 4px !important;
   color: #e5e7eb !important;
   font-size: 11px !important;
   padding: 6px 8px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 2px 8px rgb(0, 0, 0, 0.3) !important;
 }
 
 /* Weather popup - remove default Leaflet styling and make transparent */
@@ -1362,7 +1368,7 @@
 
 .vessel-cluster-icon div,
 .port-cluster-icon div {
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 3px 8px rgb(0, 0, 0, 0.4);
   font-size: 14px;
   position: relative;
   z-index: 1000;
@@ -1391,7 +1397,7 @@
 }
 
 /* Responsive Design */
-@media (max-width: 1024px) {
+@media (width <= 1024px) {
   .detail-panel {
     width: 250px;
     right: -250px;
@@ -1418,15 +1424,16 @@
   padding: 4px 0;
   margin: 0;
   background: transparent;
-  border-bottom: 1px solid rgba(49, 130, 206, 0.2);
+  border-bottom: 1px solid rgb(49, 130, 206, 0.2);
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   transition: all 0.2s ease;
 }
 
 .section-toggle:hover {
-  background: rgba(55, 65, 81, 0.2);
+  background: rgb(55, 65, 81, 0.2);
 }
 
 .toggle-icon {
@@ -1470,7 +1477,7 @@
 .btn-secondary:hover {
   background: linear-gradient(135deg, #5a657a 0%, #374151 100%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+  box-shadow: 0 4px 12px rgb(49, 130, 206, 0.3);
 }
 
 
@@ -1521,11 +1528,11 @@
   top: 100%;
   right: 0;
   margin-top: 4px;
-  background: rgba(31, 41, 55, 0.98);
-  border: 1px solid rgba(96, 165, 250, 0.3);
+  background: rgb(31, 41, 55, 0.98);
+  border: 1px solid rgb(96, 165, 250, 0.3);
   border-radius: 4px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 4px 12px rgb(0, 0, 0, 0.3);
   z-index: 1000;
   min-width: 120px;
 }
@@ -1544,17 +1551,11 @@
 }
 
 .history-export-menu-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: rgb(255, 255, 255, 0.05);
 }
 
 .history-export-menu-item:not(:last-child) {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.section-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  border-bottom: 1px solid rgb(255, 255, 255, 0.1);
 }
 
 /* ===== THEME-SPECIFIC STYLES ===== */
@@ -1567,11 +1568,11 @@
 }
 
 .theme-light .leaflet-control-zoom a {
-  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border: 1px solid rgb(0, 0, 0, 0.08) !important;
   background: #fff !important;
   color: #000 !important;
   margin-right: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgb(0, 0, 0, 0.1);
   border-radius: 6px !important;
 }
 
@@ -1581,7 +1582,7 @@
 
 .theme-light .leaflet-control-zoom a:hover {
   background: #f0f0f0 !important;
-  border-color: rgba(0, 0, 0, 0.25) !important;
+  border-color: rgb(0, 0, 0, 0.25) !important;
 }
 
 .theme-light .leaflet-control-custom {
@@ -1607,12 +1608,12 @@
 
 .theme-light .leaflet-control-filter select:focus,
 .theme-light .leaflet-control-settings select:focus {
-  background-color: rgba(255, 255, 255, 0.15) !important;
+  background-color: rgb(255, 255, 255, 0.15) !important;
 }
 
 .theme-light .leaflet-control-filter select option,
 .theme-light .leaflet-control-settings select option {
-  background: rgba(255, 255, 255, 0.98) !important;
+  background: rgb(255, 255, 255, 0.98) !important;
   color: #1f2937 !important;
   padding: 8px 12px !important;
   border-radius: 4px !important;
@@ -1622,7 +1623,7 @@
 .theme-light .leaflet-control-filter select option:checked,
 .theme-light .leaflet-control-settings select option:hover,
 .theme-light .leaflet-control-settings select option:checked {
-  background: rgba(243, 244, 246, 0.98) !important;
+  background: rgb(243, 244, 246, 0.98) !important;
   color: #111827 !important;
 }
 
@@ -1699,11 +1700,11 @@
 }
 
 .theme-dark .leaflet-control-zoom a {
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgb(255, 255, 255, 0.12) !important;
   background: #1f1f1f !important;
   color: #fff !important;
   margin-right: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 3px rgb(0, 0, 0, 0.3);
   border-radius: 6px !important;
 }
 
@@ -1713,7 +1714,7 @@
 
 .theme-dark .leaflet-control-zoom a:hover {
   background: #2a2a2a !important;
-  border-color: rgba(255, 255, 255, 0.4) !important;
+  border-color: rgb(255, 255, 255, 0.4) !important;
 }
 
 .theme-dark .leaflet-control-custom {
@@ -1739,12 +1740,12 @@
 
 .theme-dark .leaflet-control-filter select:focus,
 .theme-dark .leaflet-control-settings select:focus {
-  background-color: rgba(0, 0, 0, 0.3) !important;
+  background-color: rgb(0, 0, 0, 0.3) !important;
 }
 
 .theme-dark .leaflet-control-filter select option,
 .theme-dark .leaflet-control-settings select option {
-  background: rgba(31, 31, 31, 0.98) !important;
+  background: rgb(31, 31, 31, 0.98) !important;
   color: #e5e7eb !important;
   padding: 8px 12px !important;
   border-radius: 4px !important;
@@ -1754,7 +1755,7 @@
 .theme-dark .leaflet-control-filter select option:checked,
 .theme-dark .leaflet-control-settings select option:hover,
 .theme-dark .leaflet-control-settings select option:checked {
-  background: rgba(55, 65, 81, 0.98) !important;
+  background: rgb(55, 65, 81, 0.98) !important;
   color: #f9fafb !important;
 }
 
@@ -1835,7 +1836,7 @@
 }
 
 .theme-satellite .leaflet-control-zoom a {
-  border: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border: 1px solid rgb(255, 255, 255, 0.35) !important;
   background: transparent !important;
   color: #fff !important;
   box-shadow: none !important;
@@ -1848,8 +1849,8 @@
 }
 
 .theme-satellite .leaflet-control-zoom a:hover {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border-color: rgba(255, 255, 255, 0.9) !important;
+  background: rgb(255, 255, 255, 0.1) !important;
+  border-color: rgb(255, 255, 255, 0.9) !important;
 }
 
 /* Custom Controls */
@@ -1864,25 +1865,25 @@
 .theme-satellite .leaflet-control-settings select,
 .theme-satellite .leaflet-control-route-filter select {
   color: #fff !important;
-  background: rgba(0, 0, 0, 0.4) !important;
+  background: rgb(0, 0, 0, 0.4) !important;
   border: none !important;
 }
 
 .theme-satellite .leaflet-control-filter select:hover,
 .theme-satellite .leaflet-control-settings select:hover,
 .theme-satellite .leaflet-control-route-filter select:hover {
-  background: rgba(0, 0, 0, 0.6) !important;
+  background: rgb(0, 0, 0, 0.6) !important;
   transform: none !important;
 }
 
 .theme-satellite .leaflet-control-filter select:focus,
 .theme-satellite .leaflet-control-settings select:focus {
-  background-color: rgba(0, 0, 0, 0.5) !important;
+  background-color: rgb(0, 0, 0, 0.5) !important;
 }
 
 .theme-satellite .leaflet-control-filter select option,
 .theme-satellite .leaflet-control-settings select option {
-  background: rgba(31, 31, 31, 0.98) !important;
+  background: rgb(31, 31, 31, 0.98) !important;
   color: #e5e7eb !important;
   padding: 8px 12px !important;
   border-radius: 4px !important;
@@ -1892,7 +1893,7 @@
 .theme-satellite .leaflet-control-filter select option:checked,
 .theme-satellite .leaflet-control-settings select option:hover,
 .theme-satellite .leaflet-control-settings select option:checked {
-  background: rgba(55, 65, 81, 0.98) !important;
+  background: rgb(55, 65, 81, 0.98) !important;
   color: #f9fafb !important;
 }
 
@@ -1963,46 +1964,46 @@
 
 /* Tooltip Styles - Satellite Theme */
 .theme-satellite .leaflet-tooltip {
-  background-color: rgba(31, 31, 31, 0.95) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  background-color: rgb(31, 31, 31, 0.95) !important;
+  border: 1px solid rgb(255, 255, 255, 0.3) !important;
   color: #e5e7eb !important;
   border-radius: 4px !important;
   padding: 6px 10px !important;
   font-size: 12px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 2px 8px rgb(0, 0, 0, 0.3) !important;
 }
 
 .theme-satellite .leaflet-tooltip-left::before,
 .theme-satellite .leaflet-tooltip-right::before,
 .theme-satellite .leaflet-tooltip-top::before,
 .theme-satellite .leaflet-tooltip-bottom::before {
-  border-color: rgba(31, 31, 31, 0.95) !important;
+  border-color: rgb(31, 31, 31, 0.95) !important;
 }
 
 /* Tooltip directional arrows */
 .theme-satellite .leaflet-tooltip-left::before {
-  border-left-color: rgba(31, 31, 31, 0.95) !important;
+  border-left-color: rgb(31, 31, 31, 0.95) !important;
 }
 
 .theme-satellite .leaflet-tooltip-right::before {
-  border-right-color: rgba(31, 31, 31, 0.95) !important;
+  border-right-color: rgb(31, 31, 31, 0.95) !important;
 }
 
 .theme-satellite .leaflet-tooltip-top::before {
-  border-top-color: rgba(31, 31, 31, 0.95) !important;
+  border-top-color: rgb(31, 31, 31, 0.95) !important;
 }
 
 .theme-satellite .leaflet-tooltip-bottom::before {
-  border-bottom-color: rgba(31, 31, 31, 0.95) !important;
+  border-bottom-color: rgb(31, 31, 31, 0.95) !important;
 }
 
 /* Popup Styles - Satellite Theme */
 .theme-satellite .leaflet-popup-content-wrapper {
-  background-color: rgba(31, 31, 31, 0.95) !important;
+  background-color: rgb(31, 31, 31, 0.95) !important;
   color: #e5e7eb !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  border: 1px solid rgb(255, 255, 255, 0.3) !important;
   border-radius: 8px !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 4px 12px rgb(0, 0, 0, 0.3) !important;
 }
 
 .theme-satellite .leaflet-popup-tip {
@@ -2032,13 +2033,13 @@
 
 /* Tooltip Styles - Light Theme */
 .theme-light .leaflet-tooltip {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  background-color: rgb(255, 255, 255, 0.95) !important;
+  border: 1px solid rgb(0, 0, 0, 0.2) !important;
   color: #1f2937 !important;
   border-radius: 4px !important;
   padding: 6px 10px !important;
   font-size: 12px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+  box-shadow: 0 2px 8px rgb(0, 0, 0, 0.15) !important;
 }
 
 .theme-light .leaflet-tooltip-left::before,
@@ -2050,13 +2051,13 @@
 
 /* Tooltip Styles - Dark Theme */
 .theme-dark .leaflet-tooltip {
-  background-color: rgba(31, 31, 31, 0.95) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background-color: rgb(31, 31, 31, 0.95) !important;
+  border: 1px solid rgb(255, 255, 255, 0.2) !important;
   color: #e5e7eb !important;
   border-radius: 4px !important;
   padding: 6px 10px !important;
   font-size: 12px !important;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 2px 8px rgb(0, 0, 0, 0.3) !important;
 }
 
 .theme-dark .leaflet-tooltip-left::before,
@@ -2091,7 +2092,7 @@
   font-size: 12px;
   color: #a0aec0;
   padding: 8px 12px;
-  background: rgba(49, 130, 206, 0.1);
+  background: rgb(49, 130, 206, 0.1);
   border-radius: 4px;
   margin-bottom: 12px;
   text-align: center;
@@ -2106,8 +2107,8 @@
 
 /* Individual route vessel item */
 .route-vessel-item {
-  background: rgba(45, 55, 72, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgb(45, 55, 72, 0.5);
+  border: 1px solid rgb(255, 255, 255, 0.1);
   border-radius: 6px;
   padding: 10px;
   cursor: pointer;
@@ -2115,8 +2116,8 @@
 }
 
 .route-vessel-item:hover {
-  background: rgba(49, 130, 206, 0.2);
-  border-color: rgba(49, 130, 206, 0.4);
+  background: rgb(49, 130, 206, 0.2);
+  border-color: rgb(49, 130, 206, 0.4);
   transform: translateX(-2px);
 }
 
@@ -2143,22 +2144,22 @@
 }
 
 .route-vessel-status.status-enroute {
-  background: rgba(49, 130, 206, 0.3);
+  background: rgb(49, 130, 206, 0.3);
   color: #63b3ed;
 }
 
 .route-vessel-status.status-port {
-  background: rgba(72, 187, 120, 0.3);
+  background: rgb(72, 187, 120, 0.3);
   color: #68d391;
 }
 
 .route-vessel-status.status-anchor {
-  background: rgba(237, 137, 54, 0.3);
+  background: rgb(237, 137, 54, 0.3);
   color: #f6ad55;
 }
 
 .route-vessel-status.status-maintenance {
-  background: rgba(245, 101, 101, 0.3);
+  background: rgb(245, 101, 101, 0.3);
   color: #fc8181;
 }
 
@@ -2188,16 +2189,16 @@
 
 /* OpenWeatherMap Legend Styling */
 .leaflet-control.owm-legend-control {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(0, 0, 0, 0.2) !important;
+  background: rgb(255, 255, 255, 0.95) !important;
+  border: 1px solid rgb(0, 0, 0, 0.2) !important;
   border-radius: 4px !important;
   padding: 10px !important;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 1px 5px rgb(0, 0, 0, 0.4) !important;
 }
 
 .theme-dark .leaflet-control.owm-legend-control {
-  background: rgba(30, 30, 30, 0.95) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  background: rgb(30, 30, 30, 0.95) !important;
+  border: 1px solid rgb(255, 255, 255, 0.2) !important;
 }
 
 /* OWM Legend container styling */
@@ -2248,7 +2249,6 @@
 .leaflet-control-layers,
 .leaflet-control-layers-expanded,
 .leaflet-control-layers-menu {
-  background-color: transparent !important;
   background: transparent !important;
 }
 
@@ -2257,14 +2257,13 @@ div[style*="background-color: rgb(255, 255, 255)"],
 div[style*="background-color: white"],
 div[style*="background: white"],
 div[style*="background: rgb(255, 255, 255)"] {
-  background-color: transparent !important;
   background: transparent !important;
 }
 
 /* ========================================
    MOBILE RESPONSIVE STYLES (< 768px)
    ======================================== */
-@media (max-width: 767px) {
+@media (width <= 767px) {
   /* Hide header when body has map-fullscreen class */
   body.map-fullscreen .header {
     display: none !important;
@@ -2416,7 +2415,7 @@ div[style*="background: rgb(255, 255, 255)"] {
     top: 50px;
     left: 10px;
     right: 10px;
-    background: rgba(26, 32, 44, 0.9);
+    background: rgb(26, 32, 44, 0.9);
     backdrop-filter: blur(10px);
     border-radius: 10px;
     padding: 12px;
@@ -2426,7 +2425,7 @@ div[style*="background: rgb(255, 255, 255)"] {
   }
 
   .map-info-overlay h3 {
-    margin: 0 0 6px 0;
+    margin: 0 0 6px;
     color: #fff;
     font-size: 14px;
     font-weight: 600;
@@ -2489,7 +2488,7 @@ div[style*="background: rgb(255, 255, 255)"] {
   color: var(--color-white);
   font-size: var(--font-size-9);
   font-weight: var(--font-weight-bold);
-  padding: 1px 3px 0px 3px;
+  padding: 1px 3px 0;
   border-radius: var(--radius-8);
   min-width: 12px;
   text-align: center;
@@ -2512,7 +2511,7 @@ div[style*="background: rgb(255, 255, 255)"] {
   color: var(--color-white);
   font-size: var(--font-size-9);
   font-weight: var(--font-weight-bold);
-  padding: 1px 3px 0px 3px;
+  padding: 1px 3px 0;
   border-radius: var(--radius-8);
   min-width: 12px;
   text-align: center;
@@ -2568,17 +2567,8 @@ div[style*="background: rgb(255, 255, 255)"] {
 }
 
 /* ============================================
-   HARBOR MAP CUSTOM CONTROLS (TOPLEFT ALIGNMENT)
+   HARBOR MAP CUSTOM CONTROLS (GRID POSITIONING)
    ============================================ */
-
-/* Topleft layout: Icons vertical (left), Filters horizontal (right) */
-.leaflet-top.leaflet-left {
-  display: grid !important;
-  grid-template-columns: auto auto auto auto !important;
-  grid-template-rows: auto !important;
-  row-gap: 0 !important;
-  column-gap: 2px !important;
-}
 
 /* Column 1: Icon buttons container - stack vertically */
 .leaflet-top.leaflet-left > .leaflet-control-zoom {
@@ -2656,42 +2646,16 @@ div[style*="background: rgb(255, 255, 255)"] {
   margin: 0 !important;
 }
 
-/* Column 2: Filter dropdowns - arrange horizontally */
-.leaflet-top.leaflet-left > .leaflet-control-route-filter {
+/* Column 2: Filter buttons - single control with Filter and Reset buttons */
+.leaflet-top.leaflet-left > .leaflet-control-filter-buttons {
   grid-column: 2;
   grid-row: 1;
-  margin: 0 !important;
-}
-
-.leaflet-top.leaflet-left > .leaflet-control-filter:nth-of-type(1) {
-  grid-column: 3;
-  grid-row: 1;
-  margin: 0 !important;
-}
-
-.leaflet-top.leaflet-left > .leaflet-control-filter:nth-of-type(2) {
-  grid-column: 4;
-  grid-row: 1;
-  margin: 0 !important;
-}
-
-/* Make Leaflet zoom buttons vertical */
-.leaflet-control-zoom {
-  display: flex !important;
-  flex-direction: column !important;
-}
-
-.leaflet-control-zoom a {
   margin: 0 !important;
 }
 
 /* ============================================
    CUSTOM CONTROLS (LEFT SIDE ICON BUTTONS)
    ============================================ */
-
-.leaflet-control-custom {
-  padding: 0 !important;
-}
 
 /* Weather Toggle Control */
 .leaflet-control-custom.weather-toggle {
@@ -2806,4 +2770,300 @@ div[style*="background: rgb(255, 255, 255)"] {
 /* Route Polyline - Clickable */
 .route-polyline-clickable {
   cursor: pointer;
+}
+
+/* ============================================
+   HARBOR MAP FILTER MODAL
+   Draggable, transparent panel for filter controls
+   ============================================ */
+
+/**
+ * Filter control buttons - replace 3 dropdowns
+ * Matches other map control buttons (25px height, transparent)
+ */
+.leaflet-control-filter-buttons {
+  display: flex;
+  gap: 2px;
+  margin: 0 !important;
+}
+
+.leaflet-control-filter-buttons .map-filter-btn,
+.leaflet-control-filter-buttons .map-reset-btn {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--gray-700);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  height: 18px;
+  min-height: 18px;
+  max-height: 18px;
+  line-height: 18px;
+  padding: 0 var(--spacing-6);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-filter-btn:hover,
+.map-reset-btn:hover {
+  color: var(--color-info);
+}
+
+.map-filter-btn.active {
+  color: var(--color-info);
+}
+
+.map-reset-btn:hover {
+  color: var(--color-danger);
+}
+
+/**
+ * Filter Modal Panel
+ */
+.harbor-filter-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 320px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: rgb(31, 41, 55, 0.95);
+  border-radius: var(--radius-10);
+  box-shadow: var(--shadow-modal-dark);
+  border: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 2000;
+  cursor: default;
+}
+
+.harbor-filter-modal.hidden {
+  display: none;
+}
+
+/**
+ * Filter Modal Header (draggable)
+ */
+.harbor-filter-header {
+  background: rgb(55, 65, 81, 0.9);
+  padding: 0 var(--spacing-15);
+  border-radius: var(--radius-10) var(--radius-10) 0 0;
+  border-bottom: var(--border-default);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
+  cursor: move;
+  user-select: none;
+}
+
+.harbor-filter-header h3 {
+  margin: 0;
+  font-size: var(--font-size-14);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/**
+ * Filter Modal Content
+ */
+.harbor-filter-content {
+  flex: 1;
+  padding: var(--spacing-15);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+/**
+ * Filter Section
+ */
+.harbor-filter-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-6);
+}
+
+.harbor-filter-section-label {
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.harbor-filter-section select {
+  width: 100%;
+  padding: var(--spacing-8) var(--spacing-12);
+  font-size: var(--font-size-13);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-12) center;
+  padding-right: var(--spacing-30);
+}
+
+.harbor-filter-section select:focus {
+  border-color: var(--color-primary);
+}
+
+.harbor-filter-section select option {
+  background: var(--color-bg-secondary);
+  color: var(--color-text-primary);
+  padding: var(--spacing-8);
+}
+
+/**
+ * Filter Section Divider
+ */
+.harbor-filter-divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: var(--spacing-4) 0;
+}
+
+/**
+ * Demand Filter Group (4 demand filters)
+ */
+.harbor-filter-demand-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-10);
+}
+
+.harbor-filter-demand-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-10);
+}
+
+.harbor-filter-demand-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.harbor-filter-demand-item label {
+  font-size: var(--font-size-10);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.harbor-filter-demand-item select {
+  width: 100%;
+  padding: var(--spacing-6) var(--spacing-8);
+  font-size: var(--font-size-12);
+  background: var(--color-bg-input);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%239ca3af' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right var(--spacing-8) center;
+  padding-right: var(--spacing-24);
+}
+
+.harbor-filter-demand-item select:focus {
+  border-color: var(--color-primary);
+}
+
+/**
+ * Filter Modal Footer
+ */
+.harbor-filter-footer {
+  padding: var(--spacing-12) var(--spacing-15);
+  border-top: var(--border-default);
+  display: flex;
+  gap: var(--spacing-8);
+  justify-content: flex-end;
+}
+
+.harbor-filter-clear-btn {
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-4);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  padding: var(--spacing-6) var(--spacing-16);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.harbor-filter-clear-btn:hover {
+  color: var(--color-danger-light);
+  border-color: var(--color-danger-40);
+}
+
+/**
+ * Dragging State
+ */
+.harbor-filter-modal.dragging {
+  opacity: 0.9;
+  cursor: move;
+}
+
+/**
+ * Theme-specific styles for filter buttons (text color only)
+ */
+.theme-light .map-filter-btn,
+.theme-light .map-reset-btn {
+  color: var(--gray-700);
+}
+
+.theme-light .map-filter-btn:hover,
+.theme-light .map-filter-btn.active {
+  color: var(--color-info);
+}
+
+.theme-light .map-reset-btn:hover {
+  color: var(--color-danger);
+}
+
+.theme-dark .map-filter-btn,
+.theme-dark .map-reset-btn {
+  color: var(--gray-300);
+}
+
+.theme-dark .map-filter-btn:hover,
+.theme-dark .map-filter-btn.active {
+  color: var(--color-info-light);
+}
+
+.theme-dark .map-reset-btn:hover {
+  color: var(--color-danger-light);
+}
+
+.theme-satellite .map-filter-btn,
+.theme-satellite .map-reset-btn {
+  color: var(--color-white);
+  text-shadow: 0 1px 2px rgb(0, 0, 0, 0.8);
+}
+
+.theme-satellite .map-filter-btn:hover,
+.theme-satellite .map-filter-btn.active {
+  color: var(--color-info-lighter);
+}
+
+.theme-satellite .map-reset-btn:hover {
+  color: var(--color-danger-light);
 }

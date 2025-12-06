@@ -36,12 +36,12 @@
 
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
+  appearance: none;
   margin: 0;
 }
 
 input[type="number"] {
-  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 /* ============================================
@@ -52,23 +52,23 @@ button {
   background: var(--color-info);
   color: var(--color-white);
   border: none;
-  padding: 0px 30px;
+  padding: 0 30px;
   border-radius: var(--radius-6);
   cursor: pointer;
   font-size: var(--font-size-14);
   font-weight: var(--font-weight-semibold);
-  transition: background var(--transition-fast);
+  transition: var(--transition-fast);
   align-self: flex-start;
   height: 44px;
   flex-shrink: 0;
 }
 
-button:not(.close-btn):not(.remove-btn-small):hover {
-  background: var(--color-info-dark);
+button:not(.close-btn, .remove-btn-small):hover {
+  transform: scale(1.02);
 }
 
-button:not(.close-btn):not(.remove-btn-small):active {
-  background: var(--color-info-darker);
+button:not(.close-btn, .remove-btn-small):active {
+  transform: scale(0.98);
 }
 
 button:disabled {
@@ -107,6 +107,7 @@ textarea {
 
 select {
   cursor: pointer;
+  scrollbar-width: none; /* Firefox */
 }
 
 /* Select dropdown options styling */
@@ -114,12 +115,6 @@ select option {
   background: var(--color-bg-card);
   color: var(--color-text-primary);
   padding: var(--spacing-8);
-}
-
-/* Hide scrollbar in select dropdowns */
-select {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
 }
 
 select::-webkit-scrollbar {

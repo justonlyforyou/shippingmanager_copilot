@@ -207,7 +207,7 @@
     "name": "harbor-map/filters",
     "longname": "module:harbor-map/filters",
     "url": "module-harbor-map_filters.html",
-    "description": "<p>Client-Side Filtering Logic for Harbor Map\nAll filtering happens in browser - NO API calls when changing filters</p>"
+    "description": "<p>Client-Side Filtering Logic for Harbor Map\nAll filtering happens in browser - NO API calls when changing filters</p>\n<p>Filter Types:</p>\n<ul>\n<li>Max Demand: Uses the <code>demand</code> field directly (total demand capacity)</li>\n<li>Current Demand: Uses <code>demand - consumed</code> (remaining unfulfilled demand)</li>\n<li>My Ports: Only ports where isAssigned === true</li>\n<li>All Ports: All ports regardless of assignment</li>\n</ul>"
   },
   {
     "type": "module",
@@ -5293,6 +5293,46 @@
   },
   {
     "type": "method",
+    "name": "applyDemandFilter",
+    "longname": "module:harbor-map/filters.applyDemandFilter",
+    "url": "module-harbor-map_filters.html#.applyDemandFilter",
+    "description": "<p>Applies a demand filter to ports based on the filter value.\nFilter value format: {demandType}<em>{cargoType}</em>{threshold}\nExample: 'max_my_cargo_50000' or 'current_all_oil_-100000'</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
+    "name": "calculatePortCurrentCargoDemand",
+    "longname": "module:harbor-map/filters.calculatePortCurrentCargoDemand",
+    "url": "module-harbor-map_filters.html#.calculatePortCurrentCargoDemand",
+    "description": "<p>Calculates the CURRENT (actual) cargo demand for a port.\nUses <code>demand - consumed</code> to get remaining unfulfilled demand.</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
+    "name": "calculatePortCurrentOilDemand",
+    "longname": "module:harbor-map/filters.calculatePortCurrentOilDemand",
+    "url": "module-harbor-map_filters.html#.calculatePortCurrentOilDemand",
+    "description": "<p>Calculates the CURRENT (actual) oil demand for a port.\nUses <code>demand - consumed</code> to get remaining unfulfilled demand.</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
+    "name": "calculatePortMaxCargoDemand",
+    "longname": "module:harbor-map/filters.calculatePortMaxCargoDemand",
+    "url": "module-harbor-map_filters.html#.calculatePortMaxCargoDemand",
+    "description": "<p>Calculates the MAX cargo demand for a port (total demand capacity).\nUses the <code>demand</code> field directly without subtracting consumed.</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
+    "name": "calculatePortMaxOilDemand",
+    "longname": "module:harbor-map/filters.calculatePortMaxOilDemand",
+    "url": "module-harbor-map_filters.html#.calculatePortMaxOilDemand",
+    "description": "<p>Calculates the MAX oil demand for a port (total demand capacity).\nUses the <code>demand</code> field directly without subtracting consumed.</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
     "name": "filterPorts",
     "longname": "module:harbor-map/filters.filterPorts",
     "url": "module-harbor-map_filters.html#.filterPorts",
@@ -5321,6 +5361,14 @@
     "longname": "module:harbor-map/filters.filterVesselsByPortPair",
     "url": "module-harbor-map_filters.html#.filterVesselsByPortPair",
     "description": "<p>Filters vessels by port-pair (route)\nReturns only vessels that have the specified port-pair as their route</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
+    "name": "getDemandFilterOptions",
+    "longname": "module:harbor-map/filters.getDemandFilterOptions",
+    "url": "module-harbor-map_filters.html#.getDemandFilterOptions",
+    "description": "<p>Returns available demand filter options for the filter modal.\nOrganized by: Max/Current and My Ports/All Ports</p>",
     "parent": "module:harbor-map/filters"
   },
   {
@@ -5525,6 +5573,14 @@
   },
   {
     "type": "method",
+    "name": "applyFilterModalSelections",
+    "longname": "module:harbor-map/map-controller~applyFilterModalSelections",
+    "url": "module-harbor-map_map-controller.html#~applyFilterModalSelections",
+    "description": "<p>Applies the current filter modal selections and updates the map.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
     "name": "applyFiltersAndRender",
     "longname": "module:harbor-map/map-controller~applyFiltersAndRender",
     "url": "module-harbor-map_map-controller.html#~applyFiltersAndRender",
@@ -5565,6 +5621,14 @@
   },
   {
     "type": "method",
+    "name": "closeFilterModal",
+    "longname": "module:harbor-map/map-controller~closeFilterModal",
+    "url": "module-harbor-map_map-controller.html#~closeFilterModal",
+    "description": "<p>Closes the filter modal panel.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
     "name": "createVesselIcon",
     "longname": "module:harbor-map/map-controller~createVesselIcon",
     "url": "module-harbor-map_map-controller.html#~createVesselIcon",
@@ -5585,6 +5649,62 @@
     "longname": "module:harbor-map/map-controller~hideRouteVesselsPanel",
     "url": "module-harbor-map_map-controller.html#~hideRouteVesselsPanel",
     "description": "<p>Hides the route vessels panel</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "initFilterModalDrag",
+    "longname": "module:harbor-map/map-controller~initFilterModalDrag",
+    "url": "module-harbor-map_map-controller.html#~initFilterModalDrag",
+    "description": "<p>Initializes drag behavior for the filter modal.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "onFilterModalDrag",
+    "longname": "module:harbor-map/map-controller~onFilterModalDrag",
+    "url": "module-harbor-map_map-controller.html#~onFilterModalDrag",
+    "description": "<p>Handles filter modal drag movement.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "onFilterModalDragEnd",
+    "longname": "module:harbor-map/map-controller~onFilterModalDragEnd",
+    "url": "module-harbor-map_map-controller.html#~onFilterModalDragEnd",
+    "description": "<p>Handles filter modal drag end.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "openFilterModal",
+    "longname": "module:harbor-map/map-controller~openFilterModal",
+    "url": "module-harbor-map_map-controller.html#~openFilterModal",
+    "description": "<p>Opens the filter modal panel.\nPopulates dropdowns with current filter values and initializes drag behavior.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "populateDemandFilterDropdown",
+    "longname": "module:harbor-map/map-controller~populateDemandFilterDropdown",
+    "url": "module-harbor-map_map-controller.html#~populateDemandFilterDropdown",
+    "description": "<p>Populates a single demand filter dropdown.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "populateFilterModalDropdowns",
+    "longname": "module:harbor-map/map-controller~populateFilterModalDropdowns",
+    "url": "module-harbor-map_map-controller.html#~populateFilterModalDropdowns",
+    "description": "<p>Populates the filter modal dropdowns with current values and options.\nCalled when modal opens to ensure data is fresh.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "resetAllFilters",
+    "longname": "module:harbor-map/map-controller~resetAllFilters",
+    "url": "module-harbor-map_map-controller.html#~resetAllFilters",
+    "description": "<p>Resets all filters to default values.</p>",
     "parent": "module:harbor-map/map-controller"
   },
   {
@@ -5793,6 +5913,14 @@
     "longname": "module:harbor-map/vessel-panel.isLocalDepartInProgress",
     "url": "module-harbor-map_vessel-panel.html#.isLocalDepartInProgress",
     "description": "<p>Checks if a local departure is in progress (queue not empty or processing)</p>",
+    "parent": "module:harbor-map/vessel-panel"
+  },
+  {
+    "type": "method",
+    "name": "refreshOpenVesselPanel",
+    "longname": "module:harbor-map/vessel-panel.refreshOpenVesselPanel",
+    "url": "module-harbor-map_vessel-panel.html#.refreshOpenVesselPanel",
+    "description": "<p>Refreshes the open vessel panel with fresh data from the API.\nCalled when vessels are departed (autopilot or manual) to update status display.\nOnly refreshes if a vessel panel is currently open.</p>",
     "parent": "module:harbor-map/vessel-panel"
   },
   {

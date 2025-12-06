@@ -1316,6 +1316,40 @@ export function updateVesselPanelDepartButtons() {
 // Expose to window for cross-module access
 window.updateVesselPanelDepartButtons = updateVesselPanelDepartButtons;
 
+/**
+ * Refreshes the open vessel panel with fresh data from the API.
+ * Called when vessels are departed (autopilot or manual) to update status display.
+ * Only refreshes if a vessel panel is currently open.
+ *
+ * @returns {Promise<void>}
+ */
+export async function refreshOpenVesselPanel() {
+  const panel = document.getElementById('vessel-detail-panel');
+  if (!panel || !panel.classList.contains('active')) {
+    return; // No panel open
+  }
+
+  if (!currentVesselId) {
+    return; // No vessel ID stored
+  }
+
+  console.log(`[Vessel Panel] Refreshing open panel for vessel ${currentVesselId}`);
+
+  try {
+    // Fetch fresh vessel data
+    const freshVessel = await getVesselById(currentVesselId, true);
+    if (freshVessel) {
+      // Re-render the entire panel with fresh data
+      await showVesselPanel(freshVessel);
+      console.log(`[Vessel Panel] Panel refreshed - status: ${freshVessel.status}`);
+    }
+  } catch (error) {
+    console.error('[Vessel Panel] Error refreshing panel:', error);
+  }
+}
+
+// Expose refresh function to window for cross-module access
+window.refreshOpenVesselPanel = refreshOpenVesselPanel;
 
 /**
  * Toggle export menu visibility

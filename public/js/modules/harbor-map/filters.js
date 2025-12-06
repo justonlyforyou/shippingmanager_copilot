@@ -2,6 +2,12 @@
  * @fileoverview Client-Side Filtering Logic for Harbor Map
  * All filtering happens in browser - NO API calls when changing filters
  *
+ * Filter Types:
+ * - Max Demand: Uses the `demand` field directly (total demand capacity)
+ * - Current Demand: Uses `demand - consumed` (remaining unfulfilled demand)
+ * - My Ports: Only ports where isAssigned === true
+ * - All Ports: All ports regardless of assignment
+ *
  * @module harbor-map/filters
  */
 
@@ -176,55 +182,159 @@ export function filterPorts(ports, vessels, filterType) {
     }
 
     case 'my_ports_cargo_demand_very_low':
-      // Cargo demand <= 10,000 TEU
+      // Actual cargo demand <= 10,000 TEU (demand - consumed)
       return ports.filter(p => {
         if (!p.isAssigned) return false;
-        if (!p.demand || !p.demand.container) return false;
-        const totalCargo = (p.demand.container.dry || 0) + (p.demand.container.refrigerated || 0);
-        return totalCargo > 0 && totalCargo <= 10000;
+        if (!p.demand || !p.demand.container || !p.consumed || !p.consumed.container) return false;
+        let actualCargo = 0;
+        if (p.demand.container.dry !== undefined && p.consumed.container.dry !== undefined) {
+          actualCargo += p.demand.container.dry - p.consumed.container.dry;
+        }
+        if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
+          actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
+        }
+        return actualCargo > 0 && actualCargo <= 10000;
       });
 
     case 'my_ports_cargo_demand_low':
-      // Cargo demand <= 50,000 TEU
+      // Actual cargo demand <= 50,000 TEU (demand - consumed)
       return ports.filter(p => {
         if (!p.isAssigned) return false;
-        if (!p.demand || !p.demand.container) {
-          return false;
+        if (!p.demand || !p.demand.container || !p.consumed || !p.consumed.container) return false;
+        let actualCargo = 0;
+        if (p.demand.container.dry !== undefined && p.consumed.container.dry !== undefined) {
+          actualCargo += p.demand.container.dry - p.consumed.container.dry;
         }
-        const totalCargo = (p.demand.container.dry || 0) + (p.demand.container.refrigerated || 0);
-        console.log('[Filter] Port ' + p.code + ' cargo demand: ' + totalCargo + ' TEU');
-        return totalCargo > 0 && totalCargo <= 50000;
+        if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
+          actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
+        }
+        console.log('[Filter] Port ' + p.code + ' actual cargo demand: ' + actualCargo + ' TEU');
+        return actualCargo > 0 && actualCargo <= 50000;
       });
 
     case 'my_ports_cargo_demand_medium':
-      // Cargo demand <= 100,000 TEU
+      // Actual cargo demand <= 100,000 TEU (demand - consumed)
       return ports.filter(p => {
         if (!p.isAssigned) return false;
-        if (!p.demand || !p.demand.container) return false;
-        const totalCargo = (p.demand.container.dry || 0) + (p.demand.container.refrigerated || 0);
-        return totalCargo > 0 && totalCargo <= 100000;
+        if (!p.demand || !p.demand.container || !p.consumed || !p.consumed.container) return false;
+        let actualCargo = 0;
+        if (p.demand.container.dry !== undefined && p.consumed.container.dry !== undefined) {
+          actualCargo += p.demand.container.dry - p.consumed.container.dry;
+        }
+        if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
+          actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
+        }
+        return actualCargo > 0 && actualCargo <= 100000;
       });
 
     case 'my_ports_oil_demand_low':
-      // Oil demand <= 50,000 bbl
+      // Actual oil demand <= 50,000 bbl (demand - consumed)
       return ports.filter(p => {
         if (!p.isAssigned) return false;
-        if (!p.demand || !p.demand.tanker) return false;
-        const totalOil = (p.demand.tanker.fuel || 0) + (p.demand.tanker.crude_oil || 0);
-        const matches = totalOil > 0 && totalOil <= 50000;
+        if (!p.demand || !p.demand.tanker || !p.consumed || !p.consumed.tanker) return false;
+        let actualOil = 0;
+        if (p.demand.tanker.fuel !== undefined && p.consumed.tanker.fuel !== undefined) {
+          actualOil += p.demand.tanker.fuel - p.consumed.tanker.fuel;
+        }
+        if (p.demand.tanker.crude_oil !== undefined && p.consumed.tanker.crude_oil !== undefined) {
+          actualOil += p.demand.tanker.crude_oil - p.consumed.tanker.crude_oil;
+        }
+        const matches = actualOil > 0 && actualOil <= 50000;
         if (p.isAssigned && p.demand.tanker) {
-          console.log('[Filter] Port ' + p.code + ' oil demand: ' + totalOil + ' bbl, Matches: ' + matches);
+          console.log('[Filter] Port ' + p.code + ' actual oil demand: ' + actualOil + ' bbl, Matches: ' + matches);
         }
         return matches;
       });
 
     case 'my_ports_oil_demand_medium':
-      // Oil demand <= 100,000 bbl
+      // Actual oil demand <= 100,000 bbl (demand - consumed)
       return ports.filter(p => {
         if (!p.isAssigned) return false;
-        if (!p.demand || !p.demand.tanker) return false;
-        const totalOil = (p.demand.tanker.fuel || 0) + (p.demand.tanker.crude_oil || 0);
-        return totalOil > 0 && totalOil <= 100000;
+        if (!p.demand || !p.demand.tanker || !p.consumed || !p.consumed.tanker) return false;
+        let actualOil = 0;
+        if (p.demand.tanker.fuel !== undefined && p.consumed.tanker.fuel !== undefined) {
+          actualOil += p.demand.tanker.fuel - p.consumed.tanker.fuel;
+        }
+        if (p.demand.tanker.crude_oil !== undefined && p.consumed.tanker.crude_oil !== undefined) {
+          actualOil += p.demand.tanker.crude_oil - p.consumed.tanker.crude_oil;
+        }
+        return actualOil > 0 && actualOil <= 100000;
+      });
+
+    // >= Filters (high demand)
+    case 'my_ports_cargo_demand_gte_10k':
+      // Actual cargo demand >= 10,000 TEU (demand - consumed)
+      return ports.filter(p => {
+        if (!p.isAssigned) return false;
+        if (!p.demand || !p.demand.container || !p.consumed || !p.consumed.container) return false;
+        let actualCargo = 0;
+        if (p.demand.container.dry !== undefined && p.consumed.container.dry !== undefined) {
+          actualCargo += p.demand.container.dry - p.consumed.container.dry;
+        }
+        if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
+          actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
+        }
+        return actualCargo >= 10000;
+      });
+
+    case 'my_ports_cargo_demand_gte_50k':
+      // Actual cargo demand >= 50,000 TEU (demand - consumed)
+      return ports.filter(p => {
+        if (!p.isAssigned) return false;
+        if (!p.demand || !p.demand.container || !p.consumed || !p.consumed.container) return false;
+        let actualCargo = 0;
+        if (p.demand.container.dry !== undefined && p.consumed.container.dry !== undefined) {
+          actualCargo += p.demand.container.dry - p.consumed.container.dry;
+        }
+        if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
+          actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
+        }
+        return actualCargo >= 50000;
+      });
+
+    case 'my_ports_cargo_demand_gte_100k':
+      // Actual cargo demand >= 100,000 TEU (demand - consumed)
+      return ports.filter(p => {
+        if (!p.isAssigned) return false;
+        if (!p.demand || !p.demand.container || !p.consumed || !p.consumed.container) return false;
+        let actualCargo = 0;
+        if (p.demand.container.dry !== undefined && p.consumed.container.dry !== undefined) {
+          actualCargo += p.demand.container.dry - p.consumed.container.dry;
+        }
+        if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
+          actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
+        }
+        return actualCargo >= 100000;
+      });
+
+    case 'my_ports_oil_demand_gte_50k':
+      // Actual oil demand >= 50,000 bbl (demand - consumed)
+      return ports.filter(p => {
+        if (!p.isAssigned) return false;
+        if (!p.demand || !p.demand.tanker || !p.consumed || !p.consumed.tanker) return false;
+        let actualOil = 0;
+        if (p.demand.tanker.fuel !== undefined && p.consumed.tanker.fuel !== undefined) {
+          actualOil += p.demand.tanker.fuel - p.consumed.tanker.fuel;
+        }
+        if (p.demand.tanker.crude_oil !== undefined && p.consumed.tanker.crude_oil !== undefined) {
+          actualOil += p.demand.tanker.crude_oil - p.consumed.tanker.crude_oil;
+        }
+        return actualOil >= 50000;
+      });
+
+    case 'my_ports_oil_demand_gte_100k':
+      // Actual oil demand >= 100,000 bbl (demand - consumed)
+      return ports.filter(p => {
+        if (!p.isAssigned) return false;
+        if (!p.demand || !p.demand.tanker || !p.consumed || !p.consumed.tanker) return false;
+        let actualOil = 0;
+        if (p.demand.tanker.fuel !== undefined && p.consumed.tanker.fuel !== undefined) {
+          actualOil += p.demand.tanker.fuel - p.consumed.tanker.fuel;
+        }
+        if (p.demand.tanker.crude_oil !== undefined && p.consumed.tanker.crude_oil !== undefined) {
+          actualOil += p.demand.tanker.crude_oil - p.consumed.tanker.crude_oil;
+        }
+        return actualOil >= 100000;
       });
 
     default:
@@ -243,12 +353,20 @@ function calculateVesselUtilization(vessel) {
   if (!vessel.capacity || !vessel.capacity_max) return 0;
 
   if (vessel.capacity_type === 'container') {
-    const currentCargo = (vessel.capacity.dry || 0) + (vessel.capacity.refrigerated || 0);
-    const maxCapacity = (vessel.capacity_max.dry || 0) + (vessel.capacity_max.refrigerated || 0);
+    let currentCargo = 0;
+    let maxCapacity = 0;
+    if (vessel.capacity.dry !== undefined) currentCargo += vessel.capacity.dry;
+    if (vessel.capacity.refrigerated !== undefined) currentCargo += vessel.capacity.refrigerated;
+    if (vessel.capacity_max.dry !== undefined) maxCapacity += vessel.capacity_max.dry;
+    if (vessel.capacity_max.refrigerated !== undefined) maxCapacity += vessel.capacity_max.refrigerated;
     return maxCapacity > 0 ? (currentCargo / maxCapacity) * 100 : 0;
   } else if (vessel.capacity_type === 'tanker') {
-    const currentCargo = (vessel.capacity.fuel || 0) + (vessel.capacity.crude_oil || 0);
-    const maxCapacity = (vessel.capacity_max.fuel || 0) + (vessel.capacity_max.crude_oil || 0);
+    let currentCargo = 0;
+    let maxCapacity = 0;
+    if (vessel.capacity.fuel !== undefined) currentCargo += vessel.capacity.fuel;
+    if (vessel.capacity.crude_oil !== undefined) currentCargo += vessel.capacity.crude_oil;
+    if (vessel.capacity_max.fuel !== undefined) maxCapacity += vessel.capacity_max.fuel;
+    if (vessel.capacity_max.crude_oil !== undefined) maxCapacity += vessel.capacity_max.crude_oil;
     return maxCapacity > 0 ? (currentCargo / maxCapacity) * 100 : 0;
   }
 
@@ -293,8 +411,13 @@ export function getPortFilterOptions() {
     { value: 'my_ports_cargo_demand_very_low', label: 'Demand <= 10k TEU' },
     { value: 'my_ports_cargo_demand_low', label: 'Demand <= 50k TEU' },
     { value: 'my_ports_cargo_demand_medium', label: 'Demand <= 100k TEU' },
+    { value: 'my_ports_cargo_demand_gte_10k', label: 'Demand >= 10k TEU' },
+    { value: 'my_ports_cargo_demand_gte_50k', label: 'Demand >= 50k TEU' },
+    { value: 'my_ports_cargo_demand_gte_100k', label: 'Demand >= 100k TEU' },
     { value: 'my_ports_oil_demand_low', label: 'Demand <= 50k bbl' },
-    { value: 'my_ports_oil_demand_medium', label: 'Demand <= 100k bbl' }
+    { value: 'my_ports_oil_demand_medium', label: 'Demand <= 100k bbl' },
+    { value: 'my_ports_oil_demand_gte_50k', label: 'Demand >= 50k bbl' },
+    { value: 'my_ports_oil_demand_gte_100k', label: 'Demand >= 100k bbl' }
   ];
 }
 
@@ -338,4 +461,213 @@ export function filterPortsByPortPair(ports, pairKey) {
   const filtered = ports.filter(p => portCodes.includes(p.code));
   console.log('[Filter] Filtered ports by port-pair ' + pairKey + ': ' + filtered.length + ' ports');
   return filtered;
+}
+
+/**
+ * Calculates the MAX cargo demand for a port (total demand capacity).
+ * Uses the `demand` field directly without subtracting consumed.
+ *
+ * @param {Object} port - Port object with demand data
+ * @returns {number} Total cargo demand in TEU, or -1 if no data
+ */
+export function calculatePortMaxCargoDemand(port) {
+  if (!port.demand || !port.demand.container) return -1;
+
+  let totalDemand = 0;
+  let hasData = false;
+
+  if (port.demand.container.dry !== undefined) {
+    totalDemand += port.demand.container.dry;
+    hasData = true;
+  }
+  if (port.demand.container.refrigerated !== undefined) {
+    totalDemand += port.demand.container.refrigerated;
+    hasData = true;
+  }
+
+  return hasData ? totalDemand : -1;
+}
+
+/**
+ * Calculates the CURRENT (actual) cargo demand for a port.
+ * Uses `demand - consumed` to get remaining unfulfilled demand.
+ *
+ * @param {Object} port - Port object with demand and consumed data
+ * @returns {number} Actual cargo demand in TEU, or -1 if no data
+ */
+export function calculatePortCurrentCargoDemand(port) {
+  if (!port.demand || !port.demand.container) return -1;
+  if (!port.consumed || !port.consumed.container) return -1;
+
+  let actualDemand = 0;
+  let hasData = false;
+
+  if (port.demand.container.dry !== undefined && port.consumed.container.dry !== undefined) {
+    actualDemand += port.demand.container.dry - port.consumed.container.dry;
+    hasData = true;
+  }
+  if (port.demand.container.refrigerated !== undefined && port.consumed.container.refrigerated !== undefined) {
+    actualDemand += port.demand.container.refrigerated - port.consumed.container.refrigerated;
+    hasData = true;
+  }
+
+  return hasData ? actualDemand : -1;
+}
+
+/**
+ * Calculates the MAX oil demand for a port (total demand capacity).
+ * Uses the `demand` field directly without subtracting consumed.
+ *
+ * @param {Object} port - Port object with demand data
+ * @returns {number} Total oil demand in bbl, or -1 if no data
+ */
+export function calculatePortMaxOilDemand(port) {
+  if (!port.demand || !port.demand.tanker) return -1;
+
+  let totalDemand = 0;
+  let hasData = false;
+
+  if (port.demand.tanker.fuel !== undefined) {
+    totalDemand += port.demand.tanker.fuel;
+    hasData = true;
+  }
+  if (port.demand.tanker.crude_oil !== undefined) {
+    totalDemand += port.demand.tanker.crude_oil;
+    hasData = true;
+  }
+
+  return hasData ? totalDemand : -1;
+}
+
+/**
+ * Calculates the CURRENT (actual) oil demand for a port.
+ * Uses `demand - consumed` to get remaining unfulfilled demand.
+ *
+ * @param {Object} port - Port object with demand and consumed data
+ * @returns {number} Actual oil demand in bbl, or -1 if no data
+ */
+export function calculatePortCurrentOilDemand(port) {
+  if (!port.demand || !port.demand.tanker) return -1;
+  if (!port.consumed || !port.consumed.tanker) return -1;
+
+  let actualDemand = 0;
+  let hasData = false;
+
+  if (port.demand.tanker.fuel !== undefined && port.consumed.tanker.fuel !== undefined) {
+    actualDemand += port.demand.tanker.fuel - port.consumed.tanker.fuel;
+    hasData = true;
+  }
+  if (port.demand.tanker.crude_oil !== undefined && port.consumed.tanker.crude_oil !== undefined) {
+    actualDemand += port.demand.tanker.crude_oil - port.consumed.tanker.crude_oil;
+    hasData = true;
+  }
+
+  return hasData ? actualDemand : -1;
+}
+
+/**
+ * Returns available demand filter options for the filter modal.
+ * Organized by: Max/Current and My Ports/All Ports
+ *
+ * @param {string} demandType - 'max_my' | 'current_my' | 'max_all' | 'current_all'
+ * @returns {Array<Object>} Filter options with {value, label}
+ */
+export function getDemandFilterOptions(demandType) {
+  const baseOptions = [
+    { value: '', label: 'No Filter' }
+  ];
+
+  const cargoThresholds = [
+    { value: '10000', label: '>= 10k TEU', comparison: 'gte' },
+    { value: '50000', label: '>= 50k TEU', comparison: 'gte' },
+    { value: '100000', label: '>= 100k TEU', comparison: 'gte' },
+    { value: '-10000', label: '<= 10k TEU', comparison: 'lte' },
+    { value: '-50000', label: '<= 50k TEU', comparison: 'lte' },
+    { value: '-100000', label: '<= 100k TEU', comparison: 'lte' }
+  ];
+
+  const oilThresholds = [
+    { value: 'oil_50000', label: '>= 50k bbl', comparison: 'gte' },
+    { value: 'oil_100000', label: '>= 100k bbl', comparison: 'gte' },
+    { value: 'oil_-50000', label: '<= 50k bbl', comparison: 'lte' },
+    { value: 'oil_-100000', label: '<= 100k bbl', comparison: 'lte' }
+  ];
+
+  // Build options with type prefix
+  const prefix = demandType + '_';
+  const options = [...baseOptions];
+
+  // Add cargo options
+  cargoThresholds.forEach(t => {
+    options.push({
+      value: prefix + 'cargo_' + t.value,
+      label: 'Cargo ' + t.label
+    });
+  });
+
+  // Add oil options
+  oilThresholds.forEach(t => {
+    options.push({
+      value: prefix + t.value,
+      label: 'Oil ' + t.label.replace('>=', '>=').replace('<=', '<=')
+    });
+  });
+
+  return options;
+}
+
+/**
+ * Applies a demand filter to ports based on the filter value.
+ * Filter value format: {demandType}_{cargoType}_{threshold}
+ * Example: 'max_my_cargo_50000' or 'current_all_oil_-100000'
+ *
+ * @param {Array<Object>} ports - All ports
+ * @param {string} filterValue - Filter value from dropdown
+ * @returns {Array<Object>} Filtered ports
+ */
+export function applyDemandFilter(ports, filterValue) {
+  if (!ports || ports.length === 0) return [];
+  if (!filterValue) return ports;
+
+  // Parse filter value: demandType_scope_cargoType_threshold
+  // Examples: max_my_cargo_50000, current_all_oil_-100000
+  const parts = filterValue.split('_');
+  if (parts.length < 4) return ports;
+
+  const demandType = parts[0]; // 'max' or 'current'
+  const scope = parts[1]; // 'my' or 'all'
+  const cargoType = parts[2]; // 'cargo' or 'oil'
+  const thresholdStr = parts.slice(3).join('_'); // handle negative numbers
+
+  const threshold = parseInt(thresholdStr, 10);
+  if (isNaN(threshold)) return ports;
+
+  const isLessThanOrEqual = threshold < 0;
+  const absThreshold = Math.abs(threshold);
+
+  return ports.filter(p => {
+    // Check scope
+    if (scope === 'my' && !p.isAssigned) return false;
+
+    // Calculate demand based on type and cargo
+    let demandValue;
+    if (cargoType === 'cargo') {
+      demandValue = demandType === 'max'
+        ? calculatePortMaxCargoDemand(p)
+        : calculatePortCurrentCargoDemand(p);
+    } else {
+      demandValue = demandType === 'max'
+        ? calculatePortMaxOilDemand(p)
+        : calculatePortCurrentOilDemand(p);
+    }
+
+    // No data available
+    if (demandValue === -1) return false;
+
+    // Apply comparison
+    if (isLessThanOrEqual) {
+      return demandValue > 0 && demandValue <= absThreshold;
+    }
+    return demandValue >= absThreshold;
+  });
 }

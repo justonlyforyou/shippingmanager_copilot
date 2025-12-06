@@ -1671,6 +1671,11 @@ Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.tota
   if (window.refreshDepartManagerIfOpen) {
     window.refreshDepartManagerIfOpen();
   }
+
+  // Refresh open vessel panel to update status (port -> enroute)
+  if (window.refreshOpenVesselPanel) {
+    window.refreshOpenVesselPanel();
+  }
 }
 
 /**
