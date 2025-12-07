@@ -34,9 +34,9 @@ let serverReady = false;
 function initScheduler() {
   logger.info('[Scheduler] Initializing schedulers...');
 
-  // 1. Price Updates: At :01, :16, :31, :46 every hour (4 times per hour)
+  // 1. Price Updates: At :01 and :31 every hour (2 times per hour)
   // Game prices change at :00 and :30, we fetch 1 minute after to ensure fresh data
-  new CronJob('0 1,16,31,46 * * * *', async () => {
+  new CronJob('0 1,31 * * * *', async () => {
     try {
       const userId = getUserId();
       if (!userId) return;

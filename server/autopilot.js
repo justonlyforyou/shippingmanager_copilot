@@ -31,6 +31,8 @@ const { autoAnchorPointPurchase, setBroadcastFunction: setHarbormasterBroadcast 
 const vesselHistoryStore = require('./analytics/vessel-history-store');
 const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
 const { autoBuyStock, autoSellStock } = require('./autopilot/pilot_the_purser');
+const { sendPriceAlert } = require('./utils/telegram');
+const { saveSettings } = require('./settings-schema');
 
 // WebSocket broadcasting function (injected by websocket.js)
 let broadcastToUser = null;
@@ -163,8 +165,54 @@ async function updatePrices() {
 
     await checkPriceAlerts(userId, prices);
 
+    // Telegram alerts for green prices
+    await checkTelegramPriceAlerts(userId, prices);
+
   } catch (error) {
     logger.error('[Prices] Failed to update prices:', error.message);
+  }
+}
+
+/**
+ * Sends Telegram alerts when prices are in the green zone.
+ * Uses cooldown to prevent spam (1 hour between alerts).
+ * IMPORTANT: Uses regular prices (not discounted) so alerts are consistent for all users.
+ */
+async function checkTelegramPriceAlerts(userId, prices) {
+  try {
+    const settings = state.getSettings(userId);
+    if (!settings || !settings.telegramAlertEnabled) return;
+    if (!prices || !prices.fuel || !prices.co2) return;
+
+    // Reset cooldowns at :01 and :31 (when prices change)
+    // This allows alerts for both fuel AND co2 at each price change
+    const now = new Date();
+    const minutes = now.getMinutes();
+    if (minutes === 1 || minutes === 31) {
+      settings.telegramLastFuelAlert = 0;
+      settings.telegramLastCO2Alert = 0;
+      logger.debug('[Telegram] Cooldowns reset for new price slot');
+    }
+
+    // Use REGULAR prices (not discounted) for Telegram alerts
+    // This ensures alerts show prices that are valid for ALL users, not just personal discounts
+    const fuelPrice = prices.regularFuel || prices.fuel;
+    const co2Price = prices.regularCO2 || prices.co2;
+
+    // Callback to update cooldown timestamps in settings
+    const updateSettings = async (updates) => {
+      const newSettings = { ...settings, ...updates };
+      state.updateSettings(userId, newSettings);
+      await saveSettings(userId, newSettings);
+    };
+
+    const result = await sendPriceAlert(settings, fuelPrice, co2Price, updateSettings);
+
+    if (result.sent) {
+      logger.info(`[Telegram] Price alert sent (${result.type}): Fuel=$${fuelPrice}, CO2=$${co2Price}`);
+    }
+  } catch (error) {
+    logger.error('[Telegram] Failed to check price alerts:', error.message);
   }
 }
 
@@ -173,7 +221,7 @@ async function updatePrices() {
  */
 async function checkPriceAlerts(userId, prices) {
   const settings = state.getSettings(userId);
-  if (!settings || !settings.enablePriceAlerts) return;
+  if (!settings) return;
   if (!prices) return;
 
   const alerts = [];

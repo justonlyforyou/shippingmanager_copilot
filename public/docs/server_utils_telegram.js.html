@@ -3,7 +3,7 @@
 <head>
     
     <meta charset="utf-8">
-    <title>server/gameapi/bunker - Documentation</title>
+    <title>server/utils/telegram.js - Documentation</title>
     
     
     <script src="scripts/prettify/prettify.js"></script>
@@ -352,994 +352,229 @@
 
 <div id="main">
     
-    <h1 class="page-title">server/gameapi/bunker</h1>
-    
-
-    
-
-
-
-
-<section>
-
-<header>
-    
-        
-            
-        
-    
-</header>
-
-<article>
-    
-        <div class="container-overview">
-        
-            
-                <div class="description usertext"><p>Bunker Operations API Client Module</p>
-<p>This module handles all bunker-related API calls including:</p>
-<ul>
-<li>Fetching fuel and CO2 prices (with event discount handling)</li>
-<li>Getting bunker state (fuel, CO2, cash, capacity)</li>
-<li>Purchasing fuel and CO2 certificates</li>
-<li>Price bug detection and logging</li>
-</ul>
-<p>API Quirks:</p>
-<ul>
-<li>Prices use UTC time slots (00:00, 00:30, 01:00, etc.)</li>
-<li>Fuel/CO2 stored in kg but displayed in tons (1t = 1000kg)</li>
-<li>Purchase API doesn't return cost (must calculate ourselves)</li>
-</ul></div>
-            
-
-            
-                
-
-
-
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>Bunker Operations API Client Module</p>
-<p>This module handles all bunker-related API calls including:</p>
-<ul>
-<li>Fetching fuel and CO2 prices (with event discount handling)</li>
-<li>Getting bunker state (fuel, CO2, cash, capacity)</li>
-<li>Purchasing fuel and CO2 certificates</li>
-<li>Price bug detection and logging</li>
-</ul>
-<p>API Quirks:</p>
-<ul>
-<li>Prices use UTC time slots (00:00, 00:30, 01:00, etc.)</li>
-<li>Fuel/CO2 stored in kg but displayed in tons (1t = 1000kg)</li>
-<li>Purchase API doesn't return cost (must calculate ourselves)</li>
-</ul></li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_gameapi_bunker.js.html">server/gameapi/bunker.js</a>, <a href="server_gameapi_bunker.js.html#line1">line 1</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-            
-        
-        </div>
-    
-
-    
-
-    
-        <h3 class="subsection-title">Requires</h3>
-
-        <ul>
-            <li>module:../utils/api</li>
-        
-            <li>module:../utils/logger</li>
-        </ul>
-    
-
-    
-    
-    
-
-     
-
-    
-
-    
-
-    
-        <h3 class="subsection-title">Methods</h3>
-
-        
-            
-
-    
-
-    <h4 class="name" id="~fetchBunkerState"><span class="type-signature type-signature-async, inner">(async, inner) </span>fetchBunkerState<span class="signature">()</span><span class="type-signature"> &rarr; {Promise.&lt;Object>}</span></h4>
-
-    
-
-
-
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>Fetches current bunker state (fuel, CO2, cash, capacity).
-Used by auto-rebuy to check if purchase is needed.</p>
-<p>CRITICAL API QUIRK:</p>
-<ul>
-<li>/bunker/get-prices does NOT return capacity fields (max_fuel, max_co2)</li>
-<li>Use /user/get-user-settings which includes settings.max_fuel/.max_co2</li>
-<li>This is much smaller than /game/index (no vessel/port data)</li>
-</ul>
-<p>Unit Conversions:</p>
-<ul>
-<li>API stores values in kilograms (kg)</li>
-<li>We convert to tons (t) for readability: 1t = 1000kg</li>
-<li>All internal logic uses tons, only API calls use kg</li>
-</ul></li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_gameapi_bunker.js.html">server/gameapi/bunker.js</a>, <a href="server_gameapi_bunker.js.html#line179">line 179</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5 class="h5-throws">Throws:</h5>
-
-        
-
-<dl>
-    <dt>
-        <div class="param-desc usertext">
-        <p>If user_settings or capacity fields missing</p>
-        </div>
-    </dt>
-    <dd></dd>
-    <dt>
-        <dl class="param-type">
-            <dt>
-                Type
-            </dt>
-            <dd>
-                
-<span class="param-type">Error</span>
-
-
-
-            </dd>
-        </dl>
-    </dt>
-    <dd></dd>
-</dl>
-
-
-    
-
-
-<h5 class="h5-returns">Returns:</h5>
-
-        
-<div class="param-desc">
-    <p>Bunker state with fuel, co2, cash, maxFuel, maxCO2 (all in tons except cash)</p>
-</div>
-
-
-
-<dl class="param-type">
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Promise.&lt;Object></span>
-
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-        
-            
-
-    
-
-    <h4 class="name" id="~fetchPrices"><span class="type-signature type-signature-async, inner">(async, inner) </span>fetchPrices<span class="signature">()</span><span class="type-signature"> &rarr; {Promise.&lt;Object>}</span></h4>
-
-    
-
-
-
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>Fetches current fuel and CO2 prices from the game API.
-Used by scheduler to update prices every 30 minutes.</p>
-<p>UTC Time Slot Matching:</p>
-<ul>
-<li>Prices change every 30 minutes (00:00, 00:30, 01:00, etc.)</li>
-<li>Must match current UTC time to correct slot</li>
-<li>Falls back to event prices if available during events</li>
-</ul>
-<p>Event Handling:</p>
-<ul>
-<li>API returns event_fuel_discount/event_co2_discount during events</li>
-<li>Discounted prices in discounted_fuel/discounted_co2 fields</li>
-<li>Event data includes percentage discount and type</li>
-</ul></li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_gameapi_bunker.js.html">server/gameapi/bunker.js</a>, <a href="server_gameapi_bunker.js.html#line42">line 42</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5 class="h5-throws">Throws:</h5>
-
-        
-
-<dl>
-    <dt>
-        <div class="param-desc usertext">
-        <p>If no valid price found for current time slot</p>
-        </div>
-    </dt>
-    <dd></dd>
-    <dt>
-        <dl class="param-type">
-            <dt>
-                Type
-            </dt>
-            <dd>
-                
-<span class="param-type">Error</span>
-
-
-
-            </dd>
-        </dl>
-    </dt>
-    <dd></dd>
-</dl>
-
-
-    
-
-
-<h5 class="h5-returns">Returns:</h5>
-
-        
-<div class="param-desc">
-    <p>Prices object: {fuel, co2, eventDiscount, eventData, regularFuel, regularCO2}</p>
-</div>
-
-
-
-<dl class="param-type">
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Promise.&lt;Object></span>
-
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-        
-            
-
-    
-
-    <h4 class="name" id="~purchaseCO2"><span class="type-signature type-signature-async, inner">(async, inner) </span>purchaseCO2<span class="signature">(amount, pricePerTon<span class="signature-attributes">opt</span>)</span><span class="type-signature"> &rarr; {Promise.&lt;Object>}</span></h4>
-
-    
-
-
-
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>Purchases specified amount of CO2 certificates.
-Used by auto-rebuy feature.</p>
-<p>API Quirks:</p>
-<ul>
-<li>Same quirks as purchaseFuel (see above)</li>
-<li>API field name is 'co2' OR 'co2_certificate' depending on endpoint</li>
-<li>Always check both fields: data.user.co2 || data.user.co2_certificate</li>
-</ul></li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_gameapi_bunker.js.html">server/gameapi/bunker.js</a>, <a href="server_gameapi_bunker.js.html#line331">line 331</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-    <h5 class="h5-parameters">Parameters:</h5>
-    
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-        <th>Default</th>
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>amount</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last"><p>Amount in tons (integer)</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>pricePerTon</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-|
-
-<span class="param-type">null</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    <code>null</code>
-                
-                </td>
-            
-
-            <td class="description last"><p>Optional price override, fetches from state if null</p></td>
-        </tr>
-
-    
-    </tbody>
-</table>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5 class="h5-throws">Throws:</h5>
-
-        
-
-<dl>
-    <dt>
-        <div class="param-desc usertext">
-        <p>If API call fails</p>
-        </div>
-    </dt>
-    <dd></dd>
-    <dt>
-        <dl class="param-type">
-            <dt>
-                Type
-            </dt>
-            <dd>
-                
-<span class="param-type">Error</span>
-
-
-
-            </dd>
-        </dl>
-    </dt>
-    <dd></dd>
-</dl>
-
-
-    
-
-
-<h5 class="h5-returns">Returns:</h5>
-
-        
-<div class="param-desc">
-    <p>Purchase result: {success, amount, newTotal, cost}</p>
-</div>
-
-
-
-<dl class="param-type">
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Promise.&lt;Object></span>
-
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-        
-            
-
-    
-
-    <h4 class="name" id="~purchaseFuel"><span class="type-signature type-signature-async, inner">(async, inner) </span>purchaseFuel<span class="signature">(amount, pricePerTon<span class="signature-attributes">opt</span>)</span><span class="type-signature"> &rarr; {Promise.&lt;Object>}</span></h4>
-
-    
-
-
-
-
-<dl class="details">
-    
-    <dt class="tag-description">Description:</dt>
-    <dd class="tag-description"><ul class="dummy"><li><p>Purchases specified amount of fuel.
-Used by auto-rebuy feature.</p>
-<p>API Quirks:</p>
-<ul>
-<li>API expects amount in kilograms (kg), not tons</li>
-<li>This function accepts tons and converts to kg internally (amount * 1000)</li>
-<li>Response does NOT include updated capacity fields (max_fuel, max_co2)</li>
-<li>Response does NOT include purchase cost - we calculate it ourselves</li>
-<li>Purchase is INSTANT (no delay/cooldown in game API)</li>
-</ul>
-<p>Why Unit Conversion:</p>
-<ul>
-<li>Game UI displays tons (more readable: &quot;500t&quot; vs &quot;500000kg&quot;)</li>
-<li>API internally uses kg for precision</li>
-<li>Conversion factor: 1 ton = 1000 kg (always integer math)</li>
-</ul></li></ul></dd>
-    
-
-    
-    <dt class="tag-source">Source:</dt>
-    <dd class="tag-source"><ul class="dummy"><li>
-        <a href="server_gameapi_bunker.js.html">server/gameapi/bunker.js</a>, <a href="server_gameapi_bunker.js.html#line274">line 274</a>
-    </li></ul></dd>
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-
-    
-</dl>
-
-
-
-
-
-
-
-
-
-
-
-
-
-    <h5 class="h5-parameters">Parameters:</h5>
-    
-
-<table class="params">
-    <thead>
-    <tr>
-        
-        <th>Name</th>
-        
-
-        <th>Type</th>
-
-        
-        <th>Attributes</th>
-        
-
-        
-        <th>Default</th>
-        
-
-        <th class="last">Description</th>
-    </tr>
-    </thead>
-
-    <tbody>
-    
-
-        <tr>
-            
-                <td class="name"><code>amount</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                </td>
-            
-
-            <td class="description last"><p>Amount in tons (integer)</p></td>
-        </tr>
-
-    
-
-        <tr>
-            
-                <td class="name"><code>pricePerTon</code></td>
-            
-
-            <td class="type">
-            
-                
-<span class="param-type">number</span>
-|
-
-<span class="param-type">null</span>
-
-
-
-            
-            </td>
-
-            
-                <td class="attributes">
-                
-                    &lt;optional><br>
-                
-
-                
-
-                
-                </td>
-            
-
-            
-                <td class="default">
-                
-                    <code>null</code>
-                
-                </td>
-            
-
-            <td class="description last"><p>Optional price override, fetches from state if null</p></td>
-        </tr>
-
-    
-    </tbody>
-</table>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-<h5 class="h5-throws">Throws:</h5>
-
-        
-
-<dl>
-    <dt>
-        <div class="param-desc usertext">
-        <p>If API call fails</p>
-        </div>
-    </dt>
-    <dd></dd>
-    <dt>
-        <dl class="param-type">
-            <dt>
-                Type
-            </dt>
-            <dd>
-                
-<span class="param-type">Error</span>
-
-
-
-            </dd>
-        </dl>
-    </dt>
-    <dd></dd>
-</dl>
-
-
-    
-
-
-<h5 class="h5-returns">Returns:</h5>
-
-        
-<div class="param-desc">
-    <p>Purchase result: {success, amount, newTotal, cost}</p>
-</div>
-
-
-
-<dl class="param-type">
-    <dt>
-        Type
-    </dt>
-    <dd>
-        
-<span class="param-type">Promise.&lt;Object></span>
-
-
-
-    </dd>
-</dl>
-
-    
-
-
-
-        
-    
-
-    
-
-    
-</article>
-
-</section>
+    <h1 class="page-title">server/utils/telegram.js</h1>
+    
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * @fileoverview Telegram Alert Service
+ *
+ * Sends price alerts to Telegram when fuel/CO2 prices are in the "green" zone.
+ * Uses the Telegram Bot API to send messages.
+ *
+ * Price Thresholds (from utils.js):
+ * - Fuel green: &lt; 500 $/t
+ * - CO2 green: &lt; 10 $/t
+ *
+ * @module server/utils/telegram
+ */
+
+const logger = require('./logger');
+const { decryptData } = require('./encryption');
+
+// Cooldown between alerts (30 minutes) to prevent spam
+const ALERT_COOLDOWN_MS = 30 * 60 * 1000;
+
+/**
+ * Send a message via Telegram Bot API
+ *
+ * @param {string} botToken - Telegram bot token
+ * @param {string} chatId - Chat ID to send message to
+ * @param {string} message - Message text (supports Markdown)
+ * @returns {Promise&lt;boolean>} True if message sent successfully
+ */
+async function sendTelegramMessage(botToken, chatId, message) {
+  if (!botToken || !chatId) {
+    logger.warn('[Telegram] Missing bot token or chat ID');
+    return false;
+  }
+
+  let finalChatId = chatId;
+  if (/^\d+$/.test(chatId)) {
+    finalChatId = `-${chatId}`;
+  }
+
+  try {
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: finalChatId,
+        text: message,
+        parse_mode: 'Markdown'
+      })
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      logger.error(`[Telegram] API error: ${data.description}`);
+      return false;
+    }
+
+    logger.debug('[Telegram] Message sent successfully');
+    return true;
+  } catch (error) {
+    logger.error(`[Telegram] Failed to send message: ${error.message}`);
+    return false;
+  }
+}
+
+/**
+ * Check if price is in "green" zone using user-configured thresholds
+ *
+ * @param {number} fuelPrice - Current fuel price
+ * @param {number} co2Price - Current CO2 price
+ * @param {Object} settings - User settings with fuelThreshold and co2Threshold
+ * @returns {{fuelGreen: boolean, co2Green: boolean}}
+ */
+function checkGreenPrices(fuelPrice, co2Price, settings) {
+  return {
+    fuelGreen: fuelPrice > 0 &amp;&amp; settings.fuelThreshold &amp;&amp; fuelPrice &lt;= settings.fuelThreshold,
+    co2Green: co2Price > 0 &amp;&amp; settings.co2Threshold &amp;&amp; co2Price &lt;= settings.co2Threshold
+  };
+}
+
+/**
+ * Send price alert if prices are green and cooldown has passed
+ *
+ * @param {Object} settings - User settings object
+ * @param {number} fuelPrice - Current fuel price
+ * @param {number} co2Price - Current CO2 price
+ * @param {Function} updateSettings - Callback to update settings (for cooldown timestamps)
+ * @returns {Promise&lt;{sent: boolean, type: string|null}>}
+ */
+async function sendPriceAlert(settings, fuelPrice, co2Price, updateSettings) {
+  // Check if Telegram alerts are enabled
+  if (!settings.telegramAlertEnabled) {
+    return { sent: false, type: null };
+  }
+
+  // Check if we have bot token and chat ID
+  if (!settings.telegramBotToken || !settings.telegramChatId) {
+    logger.debug('[Telegram] Alerts enabled but missing token or chat ID');
+    return { sent: false, type: null };
+  }
+
+  // Check which prices are green using user-configured thresholds
+  const { fuelGreen, co2Green } = checkGreenPrices(fuelPrice, co2Price, settings);
+
+  if (!fuelGreen &amp;&amp; !co2Green) {
+    return { sent: false, type: null };
+  }
+
+  const now = Date.now();
+  const lastFuelAlert = settings.telegramLastFuelAlert || 0;
+  const lastCO2Alert = settings.telegramLastCO2Alert || 0;
+
+  // Check cooldowns
+  const canAlertFuel = fuelGreen &amp;&amp; (now - lastFuelAlert > ALERT_COOLDOWN_MS);
+  const canAlertCO2 = co2Green &amp;&amp; (now - lastCO2Alert > ALERT_COOLDOWN_MS);
+
+  if (!canAlertFuel &amp;&amp; !canAlertCO2) {
+    logger.debug('[Telegram] Prices are green but still in cooldown');
+    return { sent: false, type: null };
+  }
+
+  // Decrypt bot token
+  let botToken = settings.telegramBotToken;
+  if (botToken &amp;&amp; botToken.startsWith('KEYRING:')) {
+    botToken = await decryptData(botToken);
+    if (!botToken) {
+      logger.error('[Telegram] Failed to decrypt bot token');
+      return { sent: false, type: null };
+    }
+  }
+
+  // Build message
+  let message = '';
+  let alertType = '';
+
+  if (canAlertFuel &amp;&amp; canAlertCO2) {
+    // Both prices are green
+    message = `*Great news, Captain!*\n\nBoth fuel and CO2 prices are looking fantastic right now!\n\nFuel: *$${fuelPrice}/t*\nCO2: *$${co2Price}/t*\n\nTime to stock up!`;
+    alertType = 'both';
+  } else if (canAlertFuel) {
+    message = `*Ahoy, Captain!*\n\nFuel prices have dropped to a great level!\n\nFuel: *$${fuelPrice}/t*\n\nMight be a good time to fill up your tanks!`;
+    alertType = 'fuel';
+  } else if (canAlertCO2) {
+    message = `*Ahoy, Captain!*\n\nCO2 certificate prices are looking good!\n\nCO2: *$${co2Price}/t*\n\nA fine opportunity to stock up on certificates!`;
+    alertType = 'co2';
+  }
+
+  // Send message
+  const success = await sendTelegramMessage(botToken, settings.telegramChatId, message);
+
+  // Log sent message to console
+  if (success) {
+    logger.info(`[Telegram] Message sent to chat ${settings.telegramChatId}:`);
+    logger.info(`[Telegram] ${message.replace(/\*/g, '')}`); // Remove markdown for console
+  }
+
+  if (success &amp;&amp; updateSettings) {
+    // Update cooldown timestamps
+    const updates = {};
+    if (canAlertFuel) updates.telegramLastFuelAlert = now;
+    if (canAlertCO2) updates.telegramLastCO2Alert = now;
+
+    try {
+      await updateSettings(updates);
+    } catch (error) {
+      logger.error(`[Telegram] Failed to update cooldown timestamps: ${error.message}`);
+    }
+  }
+
+  return { sent: success, type: alertType };
+}
+
+/**
+ * Test Telegram connection by sending a test message
+ *
+ * @param {string} botToken - Bot token (may be encrypted)
+ * @param {string} chatId - Chat ID
+ * @returns {Promise&lt;{success: boolean, error: string|null}>}
+ */
+async function testTelegramConnection(botToken, chatId) {
+  if (!botToken || !chatId) {
+    return { success: false, error: 'Missing bot token or chat ID' };
+  }
+
+  // Decrypt if needed
+  let token = botToken;
+  if (token.startsWith('KEYRING:')) {
+    token = await decryptData(token);
+    if (!token) {
+      return { success: false, error: 'Failed to decrypt bot token' };
+    }
+  }
+
+  const message = `*Test Message*\n\nYour Telegram alerts are configured correctly!\n\nYou will receive notifications when fuel or CO2 prices drop to green levels.`;
+
+  const success = await sendTelegramMessage(token, chatId, message);
+
+  return {
+    success,
+    error: success ? null : 'Failed to send message. Check your bot token and chat ID.'
+  };
+}
+
+module.exports = {
+  sendTelegramMessage,
+  checkGreenPrices,
+  sendPriceAlert,
+  testTelegramConnection,
+  ALERT_COOLDOWN_MS
+};
+</code></pre>
+        </article>
+    </section>
 
 
 

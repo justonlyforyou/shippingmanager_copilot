@@ -150,11 +150,31 @@ async function getCachedHijackingCase(caseId) {
                          localData.autopilot_resolved === true ||
                          localData.resolved_at !== undefined;
       if (isResolved) {
+        // Build details from case_details or fallback to payment_verification
         const details = localData.case_details || {
+          id: caseId,
           status: localData.final_status || localData.payment_verification?.final_status || 'paid',
-          paid_amount: localData.payment_verification?.actual_paid
+          paid_amount: localData.payment_verification?.actual_paid,
+          requested_amount: localData.payment_verification?.expected_amount,
+          registered_at: localData.resolved_at || localData.cached_at / 1000 || Date.now() / 1000
         };
-        logger.debug(`[Hijacking Cache] Case ${caseId} RESOLVED from local file (zero API calls)`);
+        // Ensure registered_at exists (for time display in inbox)
+        if (!details.registered_at) {
+          details.registered_at = localData.resolved_at || localData.cached_at / 1000 || Date.now() / 1000;
+        }
+        // CRITICAL: Override paid_amount from payment_verification (case_details may have null from pre-payment API call)
+        if (localData.payment_verification?.actual_paid) {
+          details.paid_amount = localData.payment_verification.actual_paid;
+        }
+        // Ensure requested_amount exists
+        if (!details.requested_amount && localData.payment_verification?.expected_amount) {
+          details.requested_amount = localData.payment_verification.expected_amount;
+        }
+        // Force status to paid/solved for resolved cases
+        if (details.status !== 'paid' && details.status !== 'solved') {
+          details.status = 'paid';
+        }
+        logger.debug(`[Hijacking Cache] Case ${caseId} RESOLVED from local file (paid: $${details.paid_amount})`);
         return { isOpen: false, details, cached: true };
       }
     }

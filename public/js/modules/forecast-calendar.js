@@ -183,9 +183,16 @@ function createTableHTML(hourlyIntervals, dayNumber, month, year) {
         let co2Price = interval.co2_price_per_ton;
 
         // Check if event is active at this specific hour (not the whole day)
-        const eventActiveAtThisHour = isEventActiveAtTime(interval, dayNumber, month, year);
+        // IMPORTANT: Only apply PUBLIC events to forecast (not private sales)
+        // Private sales are per-slot and change, so they cannot be forecasted
+        let applyDiscount = false;
 
-        if (eventActiveAtThisHour && currentEventDiscount) {
+        if (currentEventDiscount && !currentEventDiscount.isPrivateSale) {
+            // Public events: use time_start/time_end from eventData
+            applyDiscount = isEventActiveAtTime(interval, dayNumber, month, year);
+        }
+
+        if (applyDiscount) {
             if (currentEventDiscount.type === 'fuel') {
                 fuelPrice = Math.round(fuelPrice * (1 - currentEventDiscount.percentage / 100));
             } else if (currentEventDiscount.type === 'co2') {
@@ -631,15 +638,20 @@ function updateEventBadge() {
     // Get currently visible day
     const visibleDay = getCurrentVisibleDay();
 
-    if (!visibleDay || !currentEventDiscount || !currentEventData) {
+    if (!visibleDay || !currentEventDiscount) {
         badge.classList.add('hidden');
         return;
     }
 
-    // Check if the currently visible day has ANY event hours
-    const isEventActive = isEventActiveOnDay(visibleDay.day, visibleDay.month, visibleDay.year);
+    // Check if discount applies to the visible day
+    let showBadge = false;
 
-    if (isEventActive) {
+    if (currentEventData) {
+        // Check if day has ANY event hours
+        showBadge = isEventActiveOnDay(visibleDay.day, visibleDay.month, visibleDay.year);
+    }
+
+    if (showBadge) {
         const resourceName = currentEventDiscount.type === 'fuel' ? 'Fuel' : 'CO2';
         text.innerHTML = `${resourceName} Event! -${currentEventDiscount.percentage}%`;
         badge.classList.remove('hidden');

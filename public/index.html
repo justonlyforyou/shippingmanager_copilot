@@ -1240,7 +1240,7 @@
                         <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
                         <div id="priceAlertsContent" class="hidden" style="display: flex; flex-direction: column; gap: 5px;" data-display-mode="flex">
                             <p style="margin: 0 0 5px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
-                                Get browser notifications when prices drop below these thresholds
+                                Get browser and Telegram notifications when prices drop below these thresholds
                             </p>
 
                             <div style="display: flex; flex-direction: column; gap: 5px;">
@@ -1253,7 +1253,7 @@
                                     id="fuelThreshold"
                                     value="400"
                                     min="1"
-                                   
+
                                     style="width: 100px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px;"
                                 />
                             </div>
@@ -1267,7 +1267,7 @@
                                     id="co2Threshold"
                                     value="7"
                                     min="1"
-                                   
+
                                     style="width: 100px; padding: 6px 10px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px;"
                                 />
                             </div>
@@ -1288,6 +1288,65 @@
                         " onmouseover="this.style.background='rgba(59, 130, 246, 0.3)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.2)'">
                             Test notification
                         </button>
+
+                        <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 15px 0;"></div>
+
+                        <p style="margin: 0 0 10px 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                            Telegram Configuration
+                        </p>
+
+                        <div class="settings-option-box">
+                            <label class="settings-checkbox-label">
+                                <input type="checkbox" id="telegramAlertEnabled" class="settings-checkbox">
+                                <span class="settings-checkbox-text">Enable Telegram Alerts</span>
+                            </label>
+                        </div>
+
+                        <div id="telegramConfigOptions" class="settings-suboptions hidden" style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+                            <div style="display: flex; flex-direction: column; gap: 5px; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
+                                <label for="telegramBotToken" style="margin: 0; color: #e0e0e0; font-size: 14px;">
+                                    Bot Token (from @BotFather)
+                                </label>
+                                <input
+                                    type="password"
+                                    id="telegramBotToken"
+                                    placeholder="Enter your bot token..."
+                                    style="width: 100%; padding: 8px 12px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px;"
+                                />
+                                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 11px;">Token is encrypted and stored securely in your OS credential manager</p>
+                            </div>
+
+                            <div style="display: flex; flex-direction: column; gap: 5px; padding: 12px; background: rgba(31, 41, 55, 0.5); border-radius: 8px;">
+                                <label for="telegramChatId" style="margin: 0; color: #e0e0e0; font-size: 14px;">
+                                    Chat ID (your user ID or group ID)
+                                </label>
+                                <input
+                                    type="text"
+                                    id="telegramChatId"
+                                    placeholder="e.g. 123456789 or -100123456789"
+                                    style="width: 100%; padding: 8px 12px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px;"
+                                />
+                                <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 11px;">Get your ID by messaging @userinfobot on Telegram</p>
+                            </div>
+
+                            <button id="testTelegramBtn" style="
+                                margin-top: 5px;
+                                width: 100%;
+                                padding: 10px;
+                                background: rgba(59, 130, 246, 0.2);
+                                border: 1px solid rgba(59, 130, 246, 0.4);
+                                border-radius: 6px;
+                                color: #60a5fa;
+                                cursor: pointer;
+                                font-weight: 600;
+                                font-size: 14px;
+                                transition: all 0.2s;
+                            " onmouseover="this.style.background='rgba(59, 130, 246, 0.3)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.2)'">
+                                Test Connection
+                            </button>
+
+                            <div id="telegramStatus" style="display: none; padding: 10px; border-radius: 6px; font-size: 13px;"></div>
+                        </div>
                         </div>
                     </div>
 

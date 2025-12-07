@@ -147,6 +147,71 @@ router.get('/contact/get-contacts', async (req, res) => {
 });
 
 /**
+ * POST /api/contact/add-contact - Adds a user to the contact list.
+ *
+ * Request Body:
+ * {
+ *   user_id: number  // Required: User ID to add as contact
+ * }
+ *
+ * @name POST /api/contact/add-contact
+ */
+router.post('/contact/add-contact', express.json(), async (req, res) => {
+  const { user_id } = req.body;
+
+  if (!user_id || !Number.isInteger(user_id)) {
+    return res.status(400).json({ error: 'Valid user_id required' });
+  }
+
+  try {
+    const data = await apiCall('/contact/add-contact', 'POST', { user_id });
+
+    if (data.error) {
+      return res.status(400).json({ error: data.error });
+    }
+
+    res.json({ success: true, data: data.data });
+  } catch (error) {
+    logger.error('Failed to add contact:', error);
+    res.status(500).json({ error: 'Failed to add contact' });
+  }
+});
+
+/**
+ * POST /api/contact/remove-contact - Removes a user from the contact list.
+ *
+ * Request Body:
+ * {
+ *   user_id: number  // Required: User ID to remove from contacts
+ * }
+ *
+ * @name POST /api/contact/remove-contact
+ */
+router.post('/contact/remove-contact', express.json(), async (req, res) => {
+  const { user_id } = req.body;
+
+  if (!user_id || !Number.isInteger(user_id)) {
+    return res.status(400).json({ error: 'Valid user_id required' });
+  }
+
+  try {
+    // Game API expects user_ids as JSON string array
+    const data = await apiCall('/contact/remove-contacts', 'POST', {
+      user_ids: JSON.stringify([user_id])
+    });
+
+    if (data.error) {
+      return res.status(400).json({ error: data.error });
+    }
+
+    res.json({ success: true, data: data.data });
+  } catch (error) {
+    logger.error('Failed to remove contact:', error);
+    res.status(500).json({ error: 'Failed to remove contact' });
+  }
+});
+
+/**
  * GET /api/messenger/get-chats - Retrieves list of all active conversation threads.
  *
  * This endpoint fetches all messenger conversations (DM threads) for the current user.

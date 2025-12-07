@@ -12,7 +12,7 @@
  * @module analytics
  */
 
-import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsHourly, getApiStatsDates } from './api.js';
+import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsDates } from './api.js';
 import { escapeHtml, showNotification, formatNumber } from './utils.js';
 
 // State
@@ -22,7 +22,6 @@ let currentDays = 7;
 let trendChart = null;
 let isDevelMode = false;
 let apiStatsChart = null;
-let apiStatsData = null;
 
 // Cache TTL in milliseconds (1 minute)
 const CACHE_TTL = 60000;
@@ -779,6 +778,13 @@ async function loadAnalyticsData() {
     const overviewTab = document.getElementById('analytics-overview');
     if (overviewTab && !overviewTab.classList.contains('hidden') && analyticsData.summary) {
       setTimeout(() => renderTrendChart(analyticsData.summary.dailyBreakdown), 50);
+    }
+
+    // Re-render vessel revenue charts with new time-filtered entries
+    // (preloadAllTabs won't re-render if vessels are already cached)
+    if (analyticsData.vessels) {
+      renderVesselsRevenueChart(analyticsData.vessels, analyticsData.summary?.vesselRevenueEntries);
+      renderBottomVesselsRevenueChart(analyticsData.vessels, analyticsData.summary?.vesselRevenueEntries);
     }
 
     // Preload all tabs in background (parallel)
@@ -4270,7 +4276,6 @@ function setupApiStatsControls() {
 
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      apiStatsData = null;
       loadApiStats();
     });
   }
@@ -4296,8 +4301,6 @@ async function loadApiStats() {
       getApiStats(hours),
       getApiStatsDates()
     ]);
-
-    apiStatsData = { stats, dates: datesInfo.dates };
 
     renderApiStatsSummary(stats, hours, datesInfo.dates);
     renderApiStatsChart(stats);

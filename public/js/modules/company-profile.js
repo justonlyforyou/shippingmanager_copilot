@@ -8,6 +8,8 @@
 
 import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
 import { showPurchaseDialog } from './ui-dialogs.js';
+import { openNewChat } from './messenger.js';
+import { fetchContacts } from './api.js';
 
 let navigationHistory = [];
 let currentView = 'own'; // 'own', 'search', 'profile'
@@ -84,7 +86,7 @@ async function loadCompanyProfile(userId, isOwn = false) {
     title.textContent = isOwn ? 'My Company' : data.company_name || 'Company Profile';
 
     // Render company data
-    renderCompanyProfile(data, isOwn);
+    await renderCompanyProfile(data, isOwn);
 
     // Load stock chart if company has IPO (stock_total > 0)
     // API structure: data.user = YOUR info, data.data.company = TARGET company info
@@ -507,7 +509,7 @@ function attachStockActionListeners(purchaseStock) {
  * Attaches click listeners to alliance items
  */
 function attachAllianceClickListener() {
-  const allianceItems = document.querySelectorAll('.alliance-result-item');
+  const allianceItems = document.querySelectorAll('#companyProfileContent .alliance-result-item');
 
   allianceItems.forEach(item => {
     item.addEventListener('click', async (e) => {
@@ -518,9 +520,9 @@ function attachAllianceClickListener() {
         // Close company profile overlay
         closeCompanyProfile();
 
-        // Open alliance overlay
-        const { showAllianceCoopOverlay } = await import('./alliance-tabs.js');
-        await showAllianceCoopOverlay();
+        // Open alliance details modal for the specific alliance
+        const { showAllianceDetailsModal } = await import('./alliance-tabs.js');
+        await showAllianceDetailsModal(allianceId);
       }
     });
   });
@@ -855,7 +857,7 @@ function formatMoraleLabel(label) {
  * @param {Object} responseData - Company data from API
  * @param {boolean} isOwn - Whether this is own profile
  */
-function renderCompanyProfile(responseData, isOwn) {
+async function renderCompanyProfile(responseData, isOwn) {
   const content = document.getElementById('companyProfileContent');
 
   // Log full response for debugging
@@ -1013,6 +1015,30 @@ function renderCompanyProfile(responseData, isOwn) {
   // Generate guest emoji (diagonal strikethrough if not guest)
   const guestHtml = isGuest ? '<span class="emoji-tooltip" data-tooltip="Guest Account">👋</span>' : '<span class="emoji-strikethrough" data-tooltip="Not a Guest">👋</span>';
 
+  // Generate action buttons row (only for other profiles, not own)
+  // Check if user is already a contact to show Add OR Remove button
+  let isContact = false;
+  if (!isOwn && companyId) {
+    try {
+      const contactsData = await fetchContacts();
+      const allContacts = [...(contactsData.contacts || []), ...(contactsData.alliance_contacts || [])];
+      isContact = allContacts.some(c => c.id === companyId);
+    } catch (error) {
+      console.error('[Company Profile] Failed to check contacts:', error);
+    }
+  }
+
+  const contactButtonHtml = isContact
+    ? `<button class="company-profile-action-btn danger" data-action="remove-contact" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Remove Contact</button>`
+    : `<button class="company-profile-action-btn" data-action="add-contact" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Add Contact</button>`;
+
+  const actionButtonsHtml = !isOwn && companyId ? `
+    <div class="company-profile-actions">
+      ${contactButtonHtml}
+      <button class="company-profile-action-btn" data-action="message" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Send Message</button>
+    </div>
+  ` : '';
+
   // Staff training points banner (only for own profile)
   const staffTrainingPoints = isOwn ? (user.staff_training_points || 0) : 0;
   const staffPointsBannerHtml = (isOwn && staffTrainingPoints > 0) ? `
@@ -1029,12 +1055,106 @@ function renderCompanyProfile(responseData, isOwn) {
         <h3 class="company-profile-name">${adminPrefix}${escapeHtml(companyName)} ${companyId ? `(ID ${companyId})` : ''}${companyTypeHtml}${difficultyHtml}${purchaseHtml}${ipoHtml}${guestHtml}</h3>
         ${ceoBadgeHtml}
       </div>
+      ${actionButtonsHtml}
 
       ${xpProgressHtml}
 
       ${sectionsHtml}
     </div>
   `;
+
+  // Add click handlers for action buttons (if present)
+  const actionBtns = content.querySelectorAll('.company-profile-action-btn');
+  actionBtns.forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const action = btn.dataset.action;
+      const targetUserId = parseInt(btn.dataset.userId);
+      const targetCompanyName = btn.dataset.companyName;
+
+      if (action === 'message' && targetUserId && targetCompanyName) {
+        openNewChat(targetCompanyName, targetUserId);
+      } else if (action === 'add-contact' && targetUserId) {
+        await addToContacts(targetUserId, targetCompanyName, btn);
+      } else if (action === 'remove-contact' && targetUserId) {
+        await removeFromContacts(targetUserId, targetCompanyName, btn);
+      }
+    });
+  });
+}
+
+/**
+ * Adds a user to contacts
+ * @param {number} userId - User ID to add
+ * @param {string} companyName - Company name for notification
+ * @param {HTMLElement} btn - Button element to update state
+ */
+async function addToContacts(userId, companyName, btn) {
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+
+    const response = await fetch(window.apiUrl('/api/contact/add-contact'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to add contact');
+    }
+
+    // Transform to Remove button
+    btn.disabled = false;
+    btn.textContent = 'Remove Contact';
+    btn.dataset.action = 'remove-contact';
+    btn.classList.add('danger');
+    btn.classList.remove('success');
+    showSideNotification(`${companyName} added to contacts`, 'success');
+  } catch (error) {
+    console.error('[Company Profile] Add contact error:', error);
+    btn.disabled = false;
+    btn.textContent = 'Add Contact';
+    showSideNotification(error.message, 'error');
+  }
+}
+
+/**
+ * Removes a user from contacts
+ * @param {number} userId - User ID to remove
+ * @param {string} companyName - Company name for notification
+ * @param {HTMLElement} btn - Button element to update state
+ */
+async function removeFromContacts(userId, companyName, btn) {
+  try {
+    btn.disabled = true;
+    btn.textContent = 'Removing...';
+
+    const response = await fetch(window.apiUrl('/api/contact/remove-contact'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId })
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Failed to remove contact');
+    }
+
+    // Transform to Add button
+    btn.disabled = false;
+    btn.textContent = 'Add Contact';
+    btn.dataset.action = 'add-contact';
+    btn.classList.remove('danger');
+    btn.classList.remove('success');
+    showSideNotification(`${companyName} removed from contacts`, 'success');
+  } catch (error) {
+    console.error('[Company Profile] Remove contact error:', error);
+    btn.disabled = false;
+    btn.textContent = 'Remove Contact';
+    showSideNotification(error.message, 'error');
+  }
 }
 
 /**

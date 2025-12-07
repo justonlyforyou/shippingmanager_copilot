@@ -210,7 +210,14 @@ const SETTINGS_SCHEMA = {
   allianceWelcomeMessage: 'Welcome to our Alliance!\nJoin the Ally Chat and say Hello :)',
 
   // Campaign Data (cached from API)
-  company_type: null  // User's company type from game API (e.g., ['container', 'tanker'])
+  company_type: null,  // User's company type from game API (e.g., ['container', 'tanker'])
+
+  // Telegram Alerts
+  telegramAlertEnabled: false,  // Enable Telegram price alerts
+  telegramBotToken: null,       // Encrypted bot token (stored via keyring, this holds the keyring reference)
+  telegramChatId: null,         // Chat ID to send messages to
+  telegramLastFuelAlert: 0,     // Timestamp of last fuel alert (prevent spam)
+  telegramLastCO2Alert: 0       // Timestamp of last CO2 alert (prevent spam)
 };
 
 /**

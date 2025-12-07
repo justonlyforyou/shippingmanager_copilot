@@ -179,6 +179,110 @@ export function registerDialogEventListeners(handlers, settings, testBrowserNoti
   // Test notification button
   document.getElementById('testAlertBtn').addEventListener('click', testBrowserNotification);
 
+  // Telegram Alerts toggle
+  const telegramAlertCheckbox = document.getElementById('telegramAlertEnabled');
+  const telegramConfigOptions = document.getElementById('telegramConfigOptions');
+
+  if (telegramAlertCheckbox && telegramConfigOptions) {
+    // Load initial Telegram settings
+    fetch(window.apiUrl('/api/settings/telegram'))
+      .then(res => res.json())
+      .then(data => {
+        telegramAlertCheckbox.checked = data.enabled;
+        document.getElementById('telegramChatId').value = data.chatId || '';
+        if (data.hasToken) {
+          document.getElementById('telegramBotToken').placeholder = '(token saved securely)';
+        }
+        // Show/hide config based on enabled state
+        if (data.enabled) {
+          telegramConfigOptions.classList.remove('hidden');
+        }
+      })
+      .catch(err => console.error('[Telegram] Failed to load settings:', err));
+
+    // Auto-save function for Telegram settings
+    async function saveTelegramSettings() {
+      const botToken = document.getElementById('telegramBotToken').value;
+      const chatId = document.getElementById('telegramChatId').value;
+      const enabled = telegramAlertCheckbox.checked;
+
+      try {
+        const response = await fetch(window.apiUrl('/api/settings/telegram'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ botToken, chatId, enabled })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success && result.hasToken) {
+          document.getElementById('telegramBotToken').value = '';
+          document.getElementById('telegramBotToken').placeholder = '(token saved securely)';
+        }
+      } catch (error) {
+        console.error('[Telegram] Auto-save failed:', error);
+      }
+    }
+
+    // Toggle config visibility and auto-save
+    telegramAlertCheckbox.addEventListener('change', function() {
+      if (this.checked) {
+        telegramConfigOptions.classList.remove('hidden');
+      } else {
+        telegramConfigOptions.classList.add('hidden');
+      }
+      saveTelegramSettings();
+    });
+
+    // Auto-save on input change (debounced)
+    let saveTimeout;
+    const telegramBotTokenInput = document.getElementById('telegramBotToken');
+    const telegramChatIdInput = document.getElementById('telegramChatId');
+
+    telegramBotTokenInput.addEventListener('input', () => {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(saveTelegramSettings, 1000);
+    });
+
+    telegramChatIdInput.addEventListener('input', () => {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(saveTelegramSettings, 1000);
+    });
+
+    // Test Telegram connection
+    document.getElementById('testTelegramBtn').addEventListener('click', async () => {
+      const statusDiv = document.getElementById('telegramStatus');
+
+      try {
+        statusDiv.style.display = 'block';
+        statusDiv.style.background = 'rgba(59, 130, 246, 0.2)';
+        statusDiv.style.color = '#60a5fa';
+        statusDiv.textContent = 'Sending test message...';
+
+        const response = await fetch(window.apiUrl('/api/settings/telegram/test'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          statusDiv.style.background = 'rgba(34, 197, 94, 0.2)';
+          statusDiv.style.color = '#4ade80';
+          statusDiv.textContent = 'Test message sent! Check your Telegram.';
+        } else {
+          throw new Error(result.error || 'Test failed');
+        }
+      } catch (error) {
+        statusDiv.style.background = 'rgba(239, 68, 68, 0.2)';
+        statusDiv.style.color = '#f87171';
+        statusDiv.textContent = `Error: ${error.message}`;
+      }
+
+      setTimeout(() => { statusDiv.style.display = 'none'; }, 5000);
+    });
+  }
+
   // Delete logbook button with confirmation
   document.getElementById('deleteLogbookBtn').addEventListener('click', async () => {
     const { showConfirmDialog } = await import('../ui-dialogs.js');

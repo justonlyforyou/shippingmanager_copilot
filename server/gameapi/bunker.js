@@ -79,6 +79,20 @@ async function fetchPrices() {
     eventDiscount = { percentage: eventFuelDiscount, type: 'fuel' };
   } else if (eventCO2Discount && discountedCO2) {
     eventDiscount = { percentage: eventCO2Discount, type: 'co2' };
+  } else if (discountedFuel !== null && currentPrice && currentPrice.fuel_price > discountedFuel) {
+    // Private user discount: calculate discount percentage from price difference
+    const calculatedDiscount = Math.round((1 - discountedFuel / currentPrice.fuel_price) * 100);
+    if (calculatedDiscount > 0) {
+      eventDiscount = { percentage: calculatedDiscount, type: 'fuel', isPrivateSale: true };
+      logger.debug(`[GameAPI] PRIVATE DISCOUNT detected: ${calculatedDiscount}% off fuel (regular: $${currentPrice.fuel_price}, discounted: $${discountedFuel})`);
+    }
+  } else if (discountedCO2 !== null && currentPrice && currentPrice.co2_price > discountedCO2) {
+    // Private user discount on CO2: calculate discount percentage from price difference
+    const calculatedDiscount = Math.round((1 - discountedCO2 / currentPrice.co2_price) * 100);
+    if (calculatedDiscount > 0) {
+      eventDiscount = { percentage: calculatedDiscount, type: 'co2', isPrivateSale: true };
+      logger.debug(`[GameAPI] PRIVATE DISCOUNT detected: ${calculatedDiscount}% off CO2 (regular: $${currentPrice.co2_price}, discounted: $${discountedCO2})`);
+    }
   }
 
   // NO FALLBACK - If time slot not found and no event prices, THROW ERROR
@@ -114,16 +128,24 @@ async function fetchPrices() {
     logger.debug(`[GameAPI] Current prices (${currentPrice.time}): Fuel=$${finalFuelPrice}/t, CO2=$${finalCO2Price}/t`);
   }
 
-  // Fetch full event data if there's an active event
+  // ALWAYS fetch event data first (checks for public events from /game/index)
   let eventData = null;
-  if (eventDiscount) {
-    try {
-      // Import from util.js to get event data
-      const { fetchEventData } = require('./util');
-      eventData = await fetchEventData();
-    } catch (error) {
-      logger.warn('[GameAPI] Failed to fetch event data:', error.message);
-    }
+  try {
+    const { fetchEventData } = require('./util');
+    eventData = await fetchEventData();
+  } catch (error) {
+    logger.warn('[GameAPI] Failed to fetch event data:', error.message);
+  }
+
+  // If no public event but we have eventDiscount (private sale), create fake event data
+  if (!eventData && eventDiscount && eventDiscount.isPrivateSale) {
+    eventData = {
+      name: `Discount:_${eventDiscount.percentage}%`,
+      type: 'personal_discount',
+      discount_type: eventDiscount.type,
+      discount: eventDiscount.percentage,
+      isPrivateSale: true
+    };
   }
 
   return {

@@ -1960,7 +1960,7 @@ async function renderHighScoreTab() {
  * Shows a modal with alliance details
  * @param {number} allianceId - The alliance ID to show details for
  */
-async function showAllianceDetailsModal(allianceId) {
+export async function showAllianceDetailsModal(allianceId) {
   // Create modal overlay if it doesn't exist
   let modal = document.getElementById('allianceDetailsModal');
   if (!modal) {

@@ -261,6 +261,14 @@ textarea:focus {
 }
 
 /* ============================================
+   MESSENGER OVERLAY
+   ============================================ */
+
+#messengerOverlay {
+  z-index: calc(var(--z-overlay) + 10);
+}
+
+/* ============================================
    MESSENGER FEED
    ============================================ */
 
@@ -476,27 +484,72 @@ textarea:focus {
   font-size: var(--font-size-14);
 }
 
+.contact-name.clickable {
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.contact-name.clickable:hover {
+  text-decoration: underline;
+  color: var(--color-info-lighter);
+}
+
+.contact-id {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-weight-normal);
+  font-size: var(--font-size-11);
+}
+
 .contact-alliance {
   color: var(--color-text-secondary);
   font-size: var(--font-size-12);
   margin-top: var(--spacing-2);
 }
 
+.contact-button-cell {
+  display: flex;
+  gap: var(--spacing-8);
+}
+
+.contact-send-btn,
+.contact-remove-btn {
+  padding: var(--spacing-4) var(--spacing-12);
+  max-height: 20px;
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .contact-send-btn {
   background: var(--color-info-20);
   border: 1px solid var(--color-info-30);
   color: var(--color-info-light);
-  padding: var(--spacing-6) var(--spacing-15);
-  border-radius: var(--radius-6);
-  cursor: pointer;
-  font-size: var(--font-size-13);
-  font-weight: var(--font-weight-semibold);
-  transition: var(--transition-fast);
 }
 
 .contact-send-btn:hover {
   background: var(--color-info-30);
   border-color: var(--color-info-lighter);
+}
+
+.contact-remove-btn {
+  background: transparent;
+  border: 1px solid var(--color-danger-30);
+  color: var(--color-danger);
+}
+
+.contact-remove-btn:hover:not(:disabled) {
+  background: var(--color-danger-10);
+  border-color: var(--color-danger);
+}
+
+.contact-remove-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* ============================================

@@ -526,15 +526,19 @@ router.get('/', async (req, res) => {
             const { getUserCompanyName } = require('../utils/api');
             const companyName = getUserCompanyName() || 'Captain';
 
-            // Get current event discount info
-            const { fetchPrices } = require('../gameapi');
+            // Get current event discount info from state (same source as UI)
+            // IMPORTANT: Only show global events in chatbot, NOT private user discounts
+            const state = require('../state');
+            const { getUserId } = require('../utils/api');
+            const userId = getUserId();
             let eventDiscount = null;
-            try {
-                const prices = await fetchPrices();
-                eventDiscount = prices.eventDiscount || null;
-            } catch (error) {
-                logger.error('[Forecast] Error fetching event discount:', error);
-                // Continue without event discount
+            if (userId) {
+                const prices = state.getPrices(userId);
+                const discount = prices?.eventDiscount || null;
+                // Only use discount if it's NOT a private sale (isPrivateSale flag)
+                if (discount && !discount.isPrivateSale) {
+                    eventDiscount = discount;
+                }
             }
 
             // Determine day and month/year

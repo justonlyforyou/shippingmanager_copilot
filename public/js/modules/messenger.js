@@ -499,96 +499,99 @@ async function displaySystemMessage(chat) {
   let autopilotResolved = false;
 
   if (chat.body === 'vessel_got_hijacked' && chat.values?.case_id) {
+    // First load local history to check if case is already resolved
+    let negotiationHistory = [];
+    let resolvedAt = null;
+    let paymentVerification = null;
     try {
-      const response = await fetch('/api/hijacking/get-case', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ case_id: chat.values.case_id })
-      });
-      const data = await response.json();
-      if (response.ok && data.data) {
-        caseDetails = data.data;
-        console.log('[Hijacking] Case details loaded:', caseDetails);
-
-        // Load negotiation history from server
-        let negotiationHistory = [];
-        let resolvedAt = null;
-        let paymentVerification = null;
-        try {
-          const historyResponse = await fetch(`/api/hijacking/history/${chat.values.case_id}`);
-          const historyData = await historyResponse.json();
-          negotiationHistory = historyData.history || [];
-          autopilotResolved = historyData.autopilot_resolved || false;
-          resolvedAt = historyData.resolved_at || null;
-          paymentVerification = historyData.payment_verification || null;
-        } catch (error) {
-          console.error('Error loading hijack history:', error);
-        }
-
-        // Add initial demand if not in history
-        if (negotiationHistory.length === 0 && chat.values.requested_amount) {
-          negotiationHistory.push({
-            type: 'pirate',
-            amount: chat.values.requested_amount,
-            timestamp: chat.time_last_message
-          });
-        }
-
-        // Check if we need to add user proposal
-        if (caseDetails.user_proposal &&
-            !negotiationHistory.find(h => h.type === 'user' && h.amount === caseDetails.user_proposal)) {
-          negotiationHistory.push({
-            type: 'user',
-            amount: caseDetails.user_proposal,
-            timestamp: Date.now() / 1000
-          });
-        }
-
-        // Check if pirates counter-offered (requested amount changed)
-        const lastPirateOffer = negotiationHistory.filter(h => h.type === 'pirate').pop();
-        if (lastPirateOffer && caseDetails.requested_amount !== lastPirateOffer.amount) {
-          negotiationHistory.push({
-            type: 'pirate',
-            amount: caseDetails.requested_amount,
-            timestamp: Date.now() / 1000
-          });
-        }
-
-        // Save updated history to server
-        try {
-          // Preserve autopilot_resolved, resolved_at, and payment_verification if they exist
-          const dataToSave = {
-            history: negotiationHistory
-          };
-
-          // Always preserve these fields if they exist
-          if (autopilotResolved) {
-            dataToSave.autopilot_resolved = true;
-          }
-          if (resolvedAt) {
-            dataToSave.resolved_at = resolvedAt;
-          }
-          if (paymentVerification) {
-            dataToSave.payment_verification = paymentVerification;
-          }
-
-          await fetch(`/api/hijacking/history/${chat.values.case_id}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dataToSave)
-          });
-        } catch (error) {
-          console.error('Error saving hijack history:', error);
-        }
-
-        caseDetails.offers = negotiationHistory;
-        caseDetails.payment_verification = paymentVerification;
-
-        // Polling removed - we now use 2-minute verification system after each offer
-        // No automatic polling to avoid unnecessary chat reloads
-      }
+      const historyResponse = await fetch(`/api/hijacking/history/${chat.values.case_id}`);
+      const historyData = await historyResponse.json();
+      negotiationHistory = historyData.history || [];
+      autopilotResolved = historyData.autopilot_resolved || false;
+      resolvedAt = historyData.resolved_at || null;
+      paymentVerification = historyData.payment_verification || null;
     } catch (error) {
-      console.error('Error fetching hijacking case:', error);
+      console.error('Error loading hijack history:', error);
+    }
+
+    // Only call Game API if case is NOT resolved (saves API calls for closed cases)
+    if (!resolvedAt) {
+      try {
+        const response = await fetch('/api/hijacking/get-case', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ case_id: chat.values.case_id })
+        });
+        const data = await response.json();
+        if (response.ok && data.data) {
+          caseDetails = data.data;
+          console.log('[Hijacking] Case details loaded from API:', caseDetails);
+
+          // Add initial demand if not in history
+          if (negotiationHistory.length === 0 && chat.values.requested_amount) {
+            negotiationHistory.push({
+              type: 'pirate',
+              amount: chat.values.requested_amount,
+              timestamp: chat.time_last_message
+            });
+          }
+
+          // Check if we need to add user proposal
+          if (caseDetails.user_proposal &&
+              !negotiationHistory.find(h => h.type === 'user' && h.amount === caseDetails.user_proposal)) {
+            negotiationHistory.push({
+              type: 'user',
+              amount: caseDetails.user_proposal,
+              timestamp: Date.now() / 1000
+            });
+          }
+
+          // Check if pirates counter-offered (requested amount changed)
+          const lastPirateOffer = negotiationHistory.filter(h => h.type === 'pirate').pop();
+          if (lastPirateOffer && caseDetails.requested_amount !== lastPirateOffer.amount) {
+            negotiationHistory.push({
+              type: 'pirate',
+              amount: caseDetails.requested_amount,
+              timestamp: Date.now() / 1000
+            });
+          }
+
+          // Save updated history to server
+          try {
+            const dataToSave = { history: negotiationHistory };
+            if (autopilotResolved) dataToSave.autopilot_resolved = true;
+            if (resolvedAt) dataToSave.resolved_at = resolvedAt;
+            if (paymentVerification) dataToSave.payment_verification = paymentVerification;
+
+            await fetch(`/api/hijacking/history/${chat.values.case_id}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(dataToSave)
+            });
+          } catch (error) {
+            console.error('Error saving hijack history:', error);
+          }
+
+          caseDetails.offers = negotiationHistory;
+          caseDetails.payment_verification = paymentVerification;
+        }
+      } catch (error) {
+        console.error('Error fetching hijacking case:', error);
+      }
+    } else {
+      // Case is resolved - build caseDetails from local history only (no API call needed)
+      console.log('[Hijacking] Case already resolved, using cached history');
+      // CRITICAL: Set paid_amount from payment_verification to mark as resolved
+      const paidAmount = paymentVerification?.actual_paid || paymentVerification?.expected_amount || chat.values.requested_amount;
+      caseDetails = {
+        case_id: chat.values.case_id,
+        vessel_name: chat.values.vessel_name,
+        requested_amount: paymentVerification?.expected_amount || chat.values.requested_amount,
+        paid_amount: paidAmount,
+        status: 'paid',
+        offers: negotiationHistory,
+        payment_verification: paymentVerification
+      };
     }
   }
 
@@ -1557,6 +1560,36 @@ export async function deleteCurrentChat() {
  * Hijacking handler: Accept the full ransom price
  */
 window.acceptHijackingPrice = async function(caseId, amount) {
+  // CRITICAL: First check if case is already resolved locally - prevent double payment!
+  try {
+    const historyResponse = await fetch(`/api/hijacking/history/${caseId}`);
+    const historyData = await historyResponse.json();
+    if (historyData.resolved_at || historyData.autopilot_resolved) {
+      showSideNotification(
+        `<strong>Case Already Resolved</strong><br><br>` +
+        `This case has already been paid.<br>` +
+        `Paid: $${(historyData.payment_verification?.actual_paid || amount).toLocaleString()}`,
+        'info',
+        5000
+      );
+      // Re-render to show resolved state
+      const feed = document.getElementById('messengerFeed');
+      const bubble = feed.querySelector('.message-bubble.hijacking');
+      if (bubble) {
+        const storedValues = bubble.dataset.chatValues ? JSON.parse(bubble.dataset.chatValues) : {};
+        const chat = {
+          body: 'vessel_got_hijacked',
+          values: { case_id: caseId, ...storedValues },
+          time_last_message: Date.now() / 1000
+        };
+        await displaySystemMessage(chat);
+      }
+      return;
+    }
+  } catch (error) {
+    console.error('[Hijacking] Failed to check local history:', error);
+  }
+
   // CRITICAL: ALWAYS get current price from API - NEVER trust cached values!
   let actualAmount = amount;
 
@@ -1569,6 +1602,17 @@ window.acceptHijackingPrice = async function(caseId, amount) {
 
     const caseData = await caseResponse.json();
     if (caseResponse.ok && caseData.data) {
+      // CRITICAL: Check if case is already resolved in Game API
+      if (caseData.data.paid_amount !== null || caseData.data.status === 'solved' || caseData.data.status === 'paid') {
+        showSideNotification(
+          `<strong>Case Already Resolved</strong><br><br>` +
+          `This case was already paid in-game.<br>` +
+          `Amount: $${(caseData.data.paid_amount || caseData.data.requested_amount).toLocaleString()}`,
+          'info',
+          5000
+        );
+        return;
+      }
       actualAmount = caseData.data.requested_amount;
       console.log(`[Hijacking] Current price from API: $${actualAmount} (cached was: $${amount})`);
     }
@@ -1640,6 +1684,24 @@ window.acceptHijackingPrice = async function(caseId, amount) {
 
     const updatedCase = caseData.data;
 
+    // CRITICAL: Save payment verification to local history BEFORE re-rendering
+    // This ensures displaySystemMessage sees the resolved state
+    if (paymentVerification) {
+      try {
+        await fetch(`/api/hijacking/history/${caseId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            resolved_at: Date.now() / 1000,
+            payment_verification: paymentVerification
+          })
+        });
+        console.log('[Hijacking] Saved payment verification to local history');
+      } catch (error) {
+        console.error('[Hijacking] Failed to save payment verification:', error);
+      }
+    }
+
     // Get the original chat values from the stored data
     const feed = document.getElementById('messengerFeed');
     // Hijacking messages use 'hijacking' class, not 'system'
@@ -1661,7 +1723,7 @@ window.acceptHijackingPrice = async function(caseId, amount) {
         time_last_message: Date.now() / 1000
       };
 
-      // Re-render the message with updated case details
+      // Re-render the message with updated case details (now sees resolved state)
       await displaySystemMessage(chat);
     }
 

@@ -73,6 +73,8 @@ const { getSettingsFilePath, validateSettings } = require('../settings-schema');
 const { getUserId, apiCall, getAllianceId } = require('../utils/api');
 const logger = require('../utils/logger');
 const { isDebugMode } = logger;
+const { encryptData } = require('../utils/encryption');
+const { testTelegramConnection } = require('../utils/telegram');
 
 /**
  * GET /api/settings - Retrieves current application settings from persistent storage.
@@ -399,6 +401,147 @@ router.post('/settings', async (req, res) => {
   } catch (error) {
     logger.error('Error saving settings:', error);
     res.status(500).json({ error: 'Failed to save settings' });
+  }
+});
+
+/**
+ * POST /api/settings/telegram - Save Telegram bot token (encrypted via OS keyring)
+ *
+ * The bot token is stored encrypted using the OS credential manager:
+ * - Windows: DPAPI
+ * - macOS: Keychain
+ * - Linux: libsecret
+ *
+ * The settings.json file only stores a reference (KEYRING:...) not the actual token.
+ */
+router.post('/settings/telegram', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'User not logged in' });
+    }
+
+    const { botToken, chatId, enabled } = req.body;
+
+    // Read current settings
+    const settingsFile = getSettingsFilePath(userId);
+    let settings = {};
+    try {
+      const data = await fs.readFile(settingsFile, 'utf8');
+      settings = JSON.parse(data);
+    } catch {
+      // File doesn't exist, use empty settings
+    }
+
+    // Encrypt bot token using OS keyring if provided
+    // If botToken is empty/null, preserve the existing token (user didn't change it)
+    if (botToken && botToken.trim()) {
+      const accountName = `telegram_bot_${userId}`;
+      const encryptedRef = await encryptData(botToken.trim(), accountName);
+      settings.telegramBotToken = encryptedRef;
+      logger.info(`[Telegram] Bot token encrypted and stored in OS keyring for user ${userId}`);
+    } else if (botToken === '' || botToken === null) {
+      // User explicitly cleared the token OR didn't enter one - keep existing if available
+      // settings.telegramBotToken is already loaded from file, so it's preserved
+      logger.debug(`[Telegram] Bot token not provided, preserving existing token (hasToken: ${!!settings.telegramBotToken})`);
+    }
+
+    // Save chat ID (not sensitive, stored as plain text)
+    if (chatId !== undefined) {
+      settings.telegramChatId = chatId ? chatId.trim() : null;
+    }
+
+    // Save enabled state
+    if (enabled !== undefined) {
+      settings.telegramAlertEnabled = !!enabled;
+    }
+
+    // Write updated settings
+    await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+
+    // Update state
+    try {
+      const state = require('../state');
+      state.updateSettings(userId, settings);
+    } catch (error) {
+      logger.error('[Telegram] Failed to update state:', error);
+    }
+
+    res.json({
+      success: true,
+      hasToken: !!settings.telegramBotToken,
+      chatId: settings.telegramChatId,
+      enabled: settings.telegramAlertEnabled
+    });
+  } catch (error) {
+    logger.error('[Telegram] Error saving settings:', error);
+    res.status(500).json({ error: 'Failed to save Telegram settings' });
+  }
+});
+
+/**
+ * GET /api/settings/telegram - Get Telegram settings (without exposing token)
+ */
+router.get('/settings/telegram', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'User not logged in' });
+    }
+
+    const settingsFile = getSettingsFilePath(userId);
+    let settings = {};
+    try {
+      const data = await fs.readFile(settingsFile, 'utf8');
+      settings = JSON.parse(data);
+    } catch {
+      // File doesn't exist
+    }
+
+    res.json({
+      hasToken: !!settings.telegramBotToken,
+      chatId: settings.telegramChatId || '',
+      enabled: settings.telegramAlertEnabled || false
+    });
+  } catch (error) {
+    logger.error('[Telegram] Error loading settings:', error);
+    res.status(500).json({ error: 'Failed to load Telegram settings' });
+  }
+});
+
+/**
+ * POST /api/settings/telegram/test - Test Telegram connection
+ */
+router.post('/settings/telegram/test', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'User not logged in' });
+    }
+
+    const settingsFile = getSettingsFilePath(userId);
+    let settings = {};
+    try {
+      const data = await fs.readFile(settingsFile, 'utf8');
+      settings = JSON.parse(data);
+    } catch {
+      return res.status(400).json({ error: 'No Telegram settings configured' });
+    }
+
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      return res.status(400).json({ error: 'Bot token or chat ID not configured' });
+    }
+
+    const result = await testTelegramConnection(settings.telegramBotToken, settings.telegramChatId);
+
+    if (result.success) {
+      res.json({ success: true, message: 'Test message sent successfully!' });
+    } else {
+      res.status(400).json({ success: false, error: result.error });
+    }
+  } catch (error) {
+    logger.error('[Telegram] Error testing connection:', error);
+    res.status(500).json({ error: 'Failed to test Telegram connection' });
   }
 });
 

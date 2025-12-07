@@ -735,11 +735,14 @@ export async function showContactList() {
           return `
             <div class="contact-row">
               <div class="contact-name-cell">
-                <span class="contact-name">${escapeHtml(contactName)}</span><span class="contact-id"> (${userId})</span>
+                <span class="contact-name clickable" data-user-id="${userId}">${escapeHtml(contactName)}</span><span class="contact-id"> (${userId})</span>
               </div>
               <div class="contact-button-cell">
+                <button class="contact-remove-btn" data-user-id="${userId}" data-company-name="${escapeHtml(contactName)}">
+                  Remove
+                </button>
                 <button class="contact-send-btn" data-user-id="${userId}" data-company-name="${escapeHtml(contactName)}">
-                  📩 Send
+                  Send
                 </button>
               </div>
             </div>
@@ -781,6 +784,54 @@ export async function showContactList() {
           document.getElementById('contactListOverlay').classList.add('hidden');
           if (window.openNewChatFromContact) {
             window.openNewChatFromContact(companyName, userId);
+          }
+        });
+      });
+
+      listContainer.querySelectorAll('.contact-remove-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const userId = parseInt(btn.dataset.userId);
+          const companyName = btn.dataset.companyName;
+
+          btn.disabled = true;
+          btn.textContent = 'Removing...';
+
+          try {
+            const response = await fetch(window.apiUrl('/api/contact/remove-contact'), {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId })
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Failed to remove contact');
+            }
+
+            // Remove the row from DOM
+            const row = btn.closest('.contact-row');
+            if (row) {
+              row.remove();
+            }
+
+            showSideNotification(`${companyName} removed from contacts`, 'success');
+          } catch (error) {
+            console.error('[Contacts] Remove error:', error);
+            btn.disabled = false;
+            btn.textContent = 'Remove';
+            showSideNotification(error.message, 'error');
+          }
+        });
+      });
+
+      // Click handler for contact names - open company profile
+      listContainer.querySelectorAll('.contact-name.clickable').forEach(nameEl => {
+        nameEl.addEventListener('click', async () => {
+          const userId = parseInt(nameEl.dataset.userId);
+          if (userId) {
+            document.getElementById('contactListOverlay').classList.add('hidden');
+            const { openPlayerProfile } = await import('./company-profile.js');
+            openPlayerProfile(userId);
           }
         });
       });

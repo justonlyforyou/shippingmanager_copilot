@@ -27,9 +27,10 @@ export function updateEventData(eventData) {
         return;
     }
 
-    // Check if event has ended
+    // Check if event has ended (private sales never end, so no time_end check for them)
     const now = Math.floor(Date.now() / 1000);
-    const eventEnded = eventData && eventData.time_end && (eventData.time_end <= now);
+    const isPrivateSale = eventData && eventData.isPrivateSale === true;
+    const eventEnded = !isPrivateSale && eventData && eventData.time_end && (eventData.time_end <= now);
 
     // Only create banner if we have event data AND a valid, non-empty event name AND event hasn't ended
     if (eventData && eventData.name && eventData.name.trim() !== '' && !eventEnded) {
