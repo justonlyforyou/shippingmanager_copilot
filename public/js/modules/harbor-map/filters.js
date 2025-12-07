@@ -589,6 +589,9 @@ export function getDemandFilterOptions(demandType) {
   const oilThresholds = [
     { value: 'oil_50000', label: '>= 50k bbl', comparison: 'gte' },
     { value: 'oil_100000', label: '>= 100k bbl', comparison: 'gte' },
+    { value: 'oil_5000000', label: '>= 5M bbl', comparison: 'gte' },
+    { value: 'oil_10000000', label: '>= 10M bbl', comparison: 'gte' },
+    { value: 'oil_15000000', label: '>= 15M bbl', comparison: 'gte' },
     { value: 'oil_-50000', label: '<= 50k bbl', comparison: 'lte' },
     { value: 'oil_-100000', label: '<= 100k bbl', comparison: 'lte' }
   ];

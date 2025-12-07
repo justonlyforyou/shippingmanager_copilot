@@ -5788,14 +5788,6 @@
   },
   {
     "type": "method",
-    "name": "populateDemandFilterDropdown",
-    "longname": "module:harbor-map/map-controller~populateDemandFilterDropdown",
-    "url": "module-harbor-map_map-controller.html#~populateDemandFilterDropdown",
-    "description": "<p>Populates a single demand filter dropdown.</p>",
-    "parent": "module:harbor-map/map-controller"
-  },
-  {
-    "type": "method",
     "name": "populateFilterModalDropdowns",
     "longname": "module:harbor-map/map-controller~populateFilterModalDropdowns",
     "url": "module-harbor-map_map-controller.html#~populateFilterModalDropdowns",
@@ -5832,6 +5824,14 @@
     "longname": "module:harbor-map/map-controller~toggleWeatherLayer",
     "url": "module-harbor-map_map-controller.html#~toggleWeatherLayer",
     "description": "<p>Toggles weather overlay (Rain Radar or Cloud Cover)</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "updateDemandFilterDropdowns",
+    "longname": "module:harbor-map/map-controller~updateDemandFilterDropdowns",
+    "url": "module-harbor-map_map-controller.html#~updateDemandFilterDropdowns",
+    "description": "<p>Updates demand filter dropdowns based on current port scope.\nPopulates the Max and Current demand dropdowns with options for the selected scope.</p>",
     "parent": "module:harbor-map/map-controller"
   },
   {

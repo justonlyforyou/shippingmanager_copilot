@@ -255,36 +255,29 @@
 
                     <div class="harbor-filter-divider"></div>
 
-                    <!-- Port Filters (4 types in 2x2 grid) -->
+                    <!-- Port Scope Selector -->
                     <div class="harbor-filter-section">
-                        <span class="harbor-filter-section-label">Port Filters</span>
+                        <span class="harbor-filter-section-label">Show Ports</span>
+                        <select id="harborFilterPortScope">
+                            <option value="my_ports">My Ports</option>
+                            <option value="all_ports">All Ports</option>
+                        </select>
+                    </div>
+
+                    <!-- Port Demand Filters (dynamic based on scope) -->
+                    <div class="harbor-filter-section">
+                        <span class="harbor-filter-section-label">Demand Filters</span>
                         <div class="harbor-filter-demand-group">
-                            <!-- Row 1: My Ports -->
                             <div class="harbor-filter-demand-row">
                                 <div class="harbor-filter-demand-item">
-                                    <label>Max (My Ports)</label>
-                                    <select id="harborFilterDemandMaxMy">
+                                    <label id="harborFilterDemandMaxLabel">Max Demand</label>
+                                    <select id="harborFilterDemandMax">
                                         <option value="">No Filter</option>
                                     </select>
                                 </div>
                                 <div class="harbor-filter-demand-item">
-                                    <label>Current (My Ports)</label>
-                                    <select id="harborFilterDemandCurrentMy">
-                                        <option value="">No Filter</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <!-- Row 2: All Ports -->
-                            <div class="harbor-filter-demand-row">
-                                <div class="harbor-filter-demand-item">
-                                    <label>Max (All Ports)</label>
-                                    <select id="harborFilterDemandMaxAll">
-                                        <option value="">No Filter</option>
-                                    </select>
-                                </div>
-                                <div class="harbor-filter-demand-item">
-                                    <label>Current (All Ports)</label>
-                                    <select id="harborFilterDemandCurrentAll">
+                                    <label id="harborFilterDemandCurrentLabel">Current Demand</label>
+                                    <select id="harborFilterDemandCurrent">
                                         <option value="">No Filter</option>
                                     </select>
                                 </div>

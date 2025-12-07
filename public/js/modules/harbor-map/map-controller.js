@@ -76,11 +76,10 @@ let currentPorts = [];
 let currentRouteFilter = localStorage.getItem('harborMapRouteFilter') || null; // null = show all, string = port pair key (e.g., "hamburg<>new_york")
 let currentPortPairGroups = null; // Port-pair groups from API (for route filter dropdown)
 
-// Demand filter states (from filter modal)
-let currentDemandMaxMyFilter = localStorage.getItem('harborMapDemandMaxMy') || '';
-let currentDemandCurrentMyFilter = localStorage.getItem('harborMapDemandCurrentMy') || '';
-let currentDemandMaxAllFilter = localStorage.getItem('harborMapDemandMaxAll') || '';
-let currentDemandCurrentAllFilter = localStorage.getItem('harborMapDemandCurrentAll') || '';
+// Port scope and demand filter states (from filter modal)
+let currentPortScope = localStorage.getItem('harborMapPortScope') || 'my_ports'; // 'my_ports' or 'all_ports'
+let currentDemandMaxFilter = localStorage.getItem('harborMapDemandMax') || '';
+let currentDemandCurrentFilter = localStorage.getItem('harborMapDemandCurrent') || '';
 
 // Filter modal state
 let filterModalDragging = false;
@@ -2204,28 +2203,40 @@ function populateFilterModalDropdowns() {
     ).join('');
   }
 
-  // Demand filters
-  populateDemandFilterDropdown('harborFilterDemandMaxMy', 'max_my', currentDemandMaxMyFilter);
-  populateDemandFilterDropdown('harborFilterDemandCurrentMy', 'current_my', currentDemandCurrentMyFilter);
-  populateDemandFilterDropdown('harborFilterDemandMaxAll', 'max_all', currentDemandMaxAllFilter);
-  populateDemandFilterDropdown('harborFilterDemandCurrentAll', 'current_all', currentDemandCurrentAllFilter);
+  // Port scope selector
+  const portScopeSelect = document.getElementById('harborFilterPortScope');
+  if (portScopeSelect) {
+    portScopeSelect.value = currentPortScope;
+  }
+
+  // Demand filters (dynamic based on current port scope)
+  updateDemandFilterDropdowns();
 }
 
 /**
- * Populates a single demand filter dropdown.
- *
- * @param {string} selectId - DOM element ID
- * @param {string} demandType - Demand filter type
- * @param {string} currentValue - Current selected value
+ * Updates demand filter dropdowns based on current port scope.
+ * Populates the Max and Current demand dropdowns with options for the selected scope.
  */
-function populateDemandFilterDropdown(selectId, demandType, currentValue) {
-  const select = document.getElementById(selectId);
-  if (!select) return;
+function updateDemandFilterDropdowns() {
+  const demandType = currentPortScope === 'my_ports' ? 'my' : 'all';
 
-  const options = getDemandFilterOptions(demandType);
-  select.innerHTML = options.map(opt =>
-    `<option value="${opt.value}" ${opt.value === currentValue ? 'selected' : ''}>${opt.label}</option>`
-  ).join('');
+  // Update Max Demand dropdown
+  const maxSelect = document.getElementById('harborFilterDemandMax');
+  if (maxSelect) {
+    const maxOptions = getDemandFilterOptions(`max_${demandType}`);
+    maxSelect.innerHTML = maxOptions.map(opt =>
+      `<option value="${opt.value}" ${opt.value === currentDemandMaxFilter ? 'selected' : ''}>${opt.label}</option>`
+    ).join('');
+  }
+
+  // Update Current Demand dropdown
+  const currentSelect = document.getElementById('harborFilterDemandCurrent');
+  if (currentSelect) {
+    const currentOptions = getDemandFilterOptions(`current_${demandType}`);
+    currentSelect.innerHTML = currentOptions.map(opt =>
+      `<option value="${opt.value}" ${opt.value === currentDemandCurrentFilter ? 'selected' : ''}>${opt.label}</option>`
+    ).join('');
+  }
 }
 
 /**
@@ -2275,12 +2286,25 @@ function initFilterModalDrag() {
   // When one filter type is selected, all others are reset
   const routeSelect = document.getElementById('harborFilterRoute');
   const vesselSelect = document.getElementById('harborFilterVessel');
-  const demandSelects = [
-    document.getElementById('harborFilterDemandMaxMy'),
-    document.getElementById('harborFilterDemandCurrentMy'),
-    document.getElementById('harborFilterDemandMaxAll'),
-    document.getElementById('harborFilterDemandCurrentAll')
-  ].filter(Boolean);
+  const portScopeSelect = document.getElementById('harborFilterPortScope');
+  const demandMaxSelect = document.getElementById('harborFilterDemandMax');
+  const demandCurrentSelect = document.getElementById('harborFilterDemandCurrent');
+
+  // Port scope selector - updates demand dropdowns and applies filter
+  if (portScopeSelect) {
+    portScopeSelect.addEventListener('change', async () => {
+      currentPortScope = portScopeSelect.value;
+
+      // Clear demand filters when switching scope
+      currentDemandMaxFilter = '';
+      currentDemandCurrentFilter = '';
+
+      // Update demand dropdowns with new scope
+      updateDemandFilterDropdowns();
+
+      await applyFilterModalSelections();
+    });
+  }
 
   // Route filter - resets vessel and demand filters
   if (routeSelect) {
@@ -2288,7 +2312,8 @@ function initFilterModalDrag() {
       if (routeSelect.value) {
         // Reset other filters
         if (vesselSelect) vesselSelect.value = 'all_vessels';
-        demandSelects.forEach(s => s.value = '');
+        if (demandMaxSelect) demandMaxSelect.value = '';
+        if (demandCurrentSelect) demandCurrentSelect.value = '';
       }
       await applyFilterModalSelections();
     });
@@ -2300,27 +2325,38 @@ function initFilterModalDrag() {
       if (vesselSelect.value && vesselSelect.value !== 'all_vessels') {
         // Reset other filters
         if (routeSelect) routeSelect.value = '';
-        demandSelects.forEach(s => s.value = '');
+        if (demandMaxSelect) demandMaxSelect.value = '';
+        if (demandCurrentSelect) demandCurrentSelect.value = '';
       }
       await applyFilterModalSelections();
     });
   }
 
-  // Demand filters - reset route and vessel filters when any demand filter is selected
-  demandSelects.forEach(demandSelect => {
-    demandSelect.addEventListener('change', async () => {
-      if (demandSelect.value) {
+  // Demand Max filter - resets route, vessel, and other demand filter
+  if (demandMaxSelect) {
+    demandMaxSelect.addEventListener('change', async () => {
+      if (demandMaxSelect.value) {
         // Reset other filters
         if (routeSelect) routeSelect.value = '';
         if (vesselSelect) vesselSelect.value = 'all_vessels';
-        // Also reset other demand filters - only one demand filter at a time
-        demandSelects.forEach(s => {
-          if (s !== demandSelect) s.value = '';
-        });
+        if (demandCurrentSelect) demandCurrentSelect.value = '';
       }
       await applyFilterModalSelections();
     });
-  });
+  }
+
+  // Demand Current filter - resets route, vessel, and other demand filter
+  if (demandCurrentSelect) {
+    demandCurrentSelect.addEventListener('change', async () => {
+      if (demandCurrentSelect.value) {
+        // Reset other filters
+        if (routeSelect) routeSelect.value = '';
+        if (vesselSelect) vesselSelect.value = 'all_vessels';
+        if (demandMaxSelect) demandMaxSelect.value = '';
+      }
+      await applyFilterModalSelections();
+    });
+  }
 }
 
 /**
@@ -2366,18 +2402,17 @@ async function applyFilterModalSelections() {
   // Read values from modal dropdowns
   const routeValue = document.getElementById('harborFilterRoute')?.value || '';
   const vesselValue = document.getElementById('harborFilterVessel')?.value || 'all_vessels';
-  const demandMaxMyValue = document.getElementById('harborFilterDemandMaxMy')?.value || '';
-  const demandCurrentMyValue = document.getElementById('harborFilterDemandCurrentMy')?.value || '';
-  const demandMaxAllValue = document.getElementById('harborFilterDemandMaxAll')?.value || '';
-  const demandCurrentAllValue = document.getElementById('harborFilterDemandCurrentAll')?.value || '';
+  const portScopeValue = document.getElementById('harborFilterPortScope')?.value || 'my_ports';
+  const demandMaxValue = document.getElementById('harborFilterDemandMax')?.value || '';
+  const demandCurrentValue = document.getElementById('harborFilterDemandCurrent')?.value || '';
 
   // Update state and localStorage
   currentRouteFilter = routeValue || null;
   currentVesselFilter = vesselValue;
-  currentDemandMaxMyFilter = demandMaxMyValue;
-  currentDemandCurrentMyFilter = demandCurrentMyValue;
-  currentDemandMaxAllFilter = demandMaxAllValue;
-  currentDemandCurrentAllFilter = demandCurrentAllValue;
+  currentPortScope = portScopeValue;
+  currentPortFilter = portScopeValue; // Keep currentPortFilter in sync with currentPortScope
+  currentDemandMaxFilter = demandMaxValue;
+  currentDemandCurrentFilter = demandCurrentValue;
 
   if (currentRouteFilter) {
     localStorage.setItem('harborMapRouteFilter', currentRouteFilter);
@@ -2385,13 +2420,13 @@ async function applyFilterModalSelections() {
     localStorage.removeItem('harborMapRouteFilter');
   }
   localStorage.setItem('harborMapVesselFilter', currentVesselFilter);
-  localStorage.setItem('harborMapDemandMaxMy', currentDemandMaxMyFilter);
-  localStorage.setItem('harborMapDemandCurrentMy', currentDemandCurrentMyFilter);
-  localStorage.setItem('harborMapDemandMaxAll', currentDemandMaxAllFilter);
-  localStorage.setItem('harborMapDemandCurrentAll', currentDemandCurrentAllFilter);
+  localStorage.setItem('harborMapPortScope', currentPortScope);
+  localStorage.setItem('harborMapPortFilter', currentPortFilter);
+  localStorage.setItem('harborMapDemandMax', currentDemandMaxFilter);
+  localStorage.setItem('harborMapDemandCurrent', currentDemandCurrentFilter);
 
   console.log('[Harbor Map] Filter modal applied - Route:', currentRouteFilter, 'Vessel:', currentVesselFilter);
-  console.log('[Harbor Map] Demand filters - MaxMy:', currentDemandMaxMyFilter, 'CurrentMy:', currentDemandCurrentMyFilter, 'MaxAll:', currentDemandMaxAllFilter, 'CurrentAll:', currentDemandCurrentAllFilter);
+  console.log('[Harbor Map] Port Scope:', currentPortScope, 'Demand Max:', currentDemandMaxFilter, 'Demand Current:', currentDemandCurrentFilter);
 
   // Close panels and apply filters
   await closeAllPanels();
@@ -2409,20 +2444,18 @@ async function resetAllFilters() {
   // Reset all filter states
   currentRouteFilter = null;
   currentVesselFilter = 'all_vessels';
+  currentPortScope = 'my_ports';
   currentPortFilter = 'my_ports';
-  currentDemandMaxMyFilter = '';
-  currentDemandCurrentMyFilter = '';
-  currentDemandMaxAllFilter = '';
-  currentDemandCurrentAllFilter = '';
+  currentDemandMaxFilter = '';
+  currentDemandCurrentFilter = '';
 
   // Update localStorage
   localStorage.removeItem('harborMapRouteFilter');
   localStorage.setItem('harborMapVesselFilter', currentVesselFilter);
+  localStorage.setItem('harborMapPortScope', currentPortScope);
   localStorage.setItem('harborMapPortFilter', currentPortFilter);
-  localStorage.setItem('harborMapDemandMaxMy', '');
-  localStorage.setItem('harborMapDemandCurrentMy', '');
-  localStorage.setItem('harborMapDemandMaxAll', '');
-  localStorage.setItem('harborMapDemandCurrentAll', '');
+  localStorage.setItem('harborMapDemandMax', '');
+  localStorage.setItem('harborMapDemandCurrent', '');
 
   console.log('[Harbor Map] All filters reset to defaults');
 
@@ -2443,16 +2476,20 @@ async function applyFiltersAndRender(forceRender = false) {
   // IMPORTANT: Re-read filter values from localStorage to ensure they're up to date
   // This prevents filter state loss during automatic refreshes
   currentVesselFilter = localStorage.getItem('harborMapVesselFilter') || 'all_vessels';
+  currentPortScope = localStorage.getItem('harborMapPortScope') || 'my_ports';
   currentPortFilter = localStorage.getItem('harborMapPortFilter') || 'my_ports';
-  currentDemandMaxMyFilter = localStorage.getItem('harborMapDemandMaxMy') || '';
-  currentDemandCurrentMyFilter = localStorage.getItem('harborMapDemandCurrentMy') || '';
-  currentDemandMaxAllFilter = localStorage.getItem('harborMapDemandMaxAll') || '';
-  currentDemandCurrentAllFilter = localStorage.getItem('harborMapDemandCurrentAll') || '';
+  currentDemandMaxFilter = localStorage.getItem('harborMapDemandMax') || '';
+  currentDemandCurrentFilter = localStorage.getItem('harborMapDemandCurrent') || '';
 
   // Sync modal dropdown values with current filter state (if modal is open)
   const harborFilterVessel = document.getElementById('harborFilterVessel');
   if (harborFilterVessel && harborFilterVessel.value !== currentVesselFilter) {
     harborFilterVessel.value = currentVesselFilter;
+  }
+
+  const harborFilterPortScope = document.getElementById('harborFilterPortScope');
+  if (harborFilterPortScope && harborFilterPortScope.value !== currentPortScope) {
+    harborFilterPortScope.value = currentPortScope;
   }
 
   // Debug: Check raw data
@@ -2468,8 +2505,7 @@ async function applyFiltersAndRender(forceRender = false) {
   let filteredVessels = filterVessels(rawVessels, currentVesselFilter);
 
   // Determine active demand filter (only one can be active at a time)
-  const activeDemandFilter = currentDemandMaxMyFilter || currentDemandCurrentMyFilter ||
-                             currentDemandMaxAllFilter || currentDemandCurrentAllFilter;
+  const activeDemandFilter = currentDemandMaxFilter || currentDemandCurrentFilter;
 
   // Apply port filter OR demand filter (mutually exclusive)
   // Demand filters override port filter and use rawPorts with their own scope (my/all)
@@ -2479,7 +2515,7 @@ async function applyFiltersAndRender(forceRender = false) {
     filteredPorts = applyDemandFilter(rawPorts, activeDemandFilter);
     console.log(`[Harbor Map] Applied demand filter: ${activeDemandFilter} -> ${filteredPorts.length} ports`);
   } else {
-    // No demand filter - use regular port filter
+    // No demand filter - use regular port filter based on current scope
     filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
   }
 
