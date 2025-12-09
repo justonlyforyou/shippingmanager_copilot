@@ -914,7 +914,7 @@ router.post('/alliance-accept-user', express.json(), async (req, res) => {
     });
 
     if (data.error) {
-      logger.error('[Alliance Accept User] API error:', data.error);
+      logger.error('[Alliance Accept User] API error:', JSON.stringify(data, null, 2));
       return res.status(400).json({ error: data.error });
     }
 

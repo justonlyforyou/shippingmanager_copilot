@@ -205,6 +205,10 @@ const SETTINGS_SCHEMA = {
   chatbotDMCommandsEnabled: false,
   chatbotCustomCommands: [],
 
+  // Staff Captain
+  enableStaffCaptain: false,
+  staffCaptainTargetMorale: 80,  // Target morale percentage (100, 95, 85, 80, 75)
+
   // Alliance Management
   allianceWelcomeSubject: 'Welcome to [allianceName]',
   allianceWelcomeMessage: 'Welcome to our Alliance!\nJoin the Ally Chat and say Hello :)',

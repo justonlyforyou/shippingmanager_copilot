@@ -66,7 +66,7 @@ const config = require('./server/config');
 const { setupMiddleware } = require('./server/middleware');
 const { initializeAlliance } = require('./server/utils/api');
 const { createHttpsServer } = require('./server/certificate');
-const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAutoRefresh, startHijackingAutoRefresh, startIpoAutoRefresh } = require('./server/websocket');
+const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAutoRefresh, startHijackingAutoRefresh, startIpoAutoRefresh, startStaffAutoRefresh } = require('./server/websocket');
 const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
@@ -127,6 +127,7 @@ const stockRoutes = require('./server/routes/stock');
 const broadcastRoutes = require('./server/routes/broadcast');
 const analyticsRoutes = require('./server/routes/analytics');
 const transactionsRoutes = require('./server/routes/transactions');
+const serverConfigRoutes = require('./server/routes/server-config');
 
 // Initialize Express app
 const app = express();
@@ -180,6 +181,7 @@ app.use('/api', stockRoutes);
 app.use('/api/broadcast', broadcastRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/transactions', transactionsRoutes);
+app.use('/api', serverConfigRoutes);
 
 // Autopilot pause/resume endpoint
 app.post('/api/autopilot/toggle', async (req, res) => {
@@ -393,15 +395,17 @@ const chatBot = require('./server/chatbot');
     logger.debug(`[ChatBot] DM Commands enabled`);
   }
 
-  // Start chat, messenger, hijacking, and IPO polling
+  // Start chat, messenger, hijacking, IPO, and staff polling
   startChatAutoRefresh();
   startMessengerAutoRefresh();
   startHijackingAutoRefresh();
   startIpoAutoRefresh();
+  startStaffAutoRefresh();
   logger.debug('[Alliance Chat] Started 20-second chat polling');
   logger.debug('[Messenger] Started 20-second messenger polling');
   logger.debug('[Hijacking] Started 60-second hijacking polling');
   logger.debug('[IPO Alert] Started 5-minute IPO polling');
+  logger.debug('[Staff] Started 5-minute staff morale polling');
 
   // Start transaction history auto-sync (every 5 minutes)
   transactionStore.startAutoSync(userId);

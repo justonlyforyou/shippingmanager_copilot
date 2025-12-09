@@ -167,13 +167,13 @@ router.post('/create-user-route', async (req, res) => {
     logger.info(`[Route Planner] Creating route ${route_id} for vessel ${user_vessel_id}`);
 
     const data = await apiCall('/route/create-user-route', 'POST', {
-      route_id: route_id,
-      user_vessel_id: user_vessel_id,
-      speed: speed || 6,
-      guards: guards || 0,
-      dry_operation: dry_operation || 0,
-      price_dry: price_dry || 655,
-      price_refrigerated: price_refrigerated || 655
+      route_id,
+      user_vessel_id,
+      speed,
+      guards,
+      dry_operation,
+      price_dry,
+      price_refrigerated
     });
 
     // Log the route creation to the logbook

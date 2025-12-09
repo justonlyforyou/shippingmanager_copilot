@@ -1188,13 +1188,15 @@ async function submitBuild() {
 
           if (drydockCost > 0) {
             // Ask user if they want fast delivery
+            const vesselType = vesselDrydock?.vessel_type || 'Vessel';
             const useFastDelivery = await showConfirmDialog({
               title: 'Fast Delivery Available',
-              message: 'Use Bug-Using for fast delivery?',
-              infoPopup: 'By triggering drydock immediately after build, delivery time is reduced to ~1 hour (the drydock duration). This is a known game exploit.',
+              message: 'Use Bug for fast delivery?',
+              infoPopup: 'By triggering drydock immediately after build, delivery time is reduced to 60 minutes (the drydock duration). This is a known game exploit. If you skip this now, you can activate it later via the vessels menu by sending the ship to drydock (wrench icon).',
               details: [
+                { label: 'Vessel', value: vesselType },
                 { label: 'Drydock Cost', value: `$${formatNumber(drydockCost)}` },
-                { label: 'Delivery Time', value: '~1 hour instead of normal build time' }
+                { label: 'Delivery Time', value: '60 minutes instead of normal build time' }
               ],
               confirmText: 'Yes, use Fast Delivery',
               cancelText: 'No, normal delivery'
@@ -1215,7 +1217,7 @@ async function submitBuild() {
               });
 
               if (drydockResponse.ok) {
-                showSideNotification('Fast delivery activated - vessel will arrive in ~1 hour', 'success');
+                showSideNotification('Fast delivery activated - vessel will arrive in 60 minutes', 'success');
               } else {
                 const drydockError = await drydockResponse.json();
                 console.error('[Build] Drydock trigger failed:', drydockError);

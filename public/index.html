@@ -1316,7 +1316,7 @@
                                 <input
                                     type="text"
                                     id="telegramChatId"
-                                    placeholder="e.g. 123456789 or -100123456789"
+                                    placeholder="e.g. 123456789 or 1003121595207"
                                     style="width: 100%; padding: 8px 12px; background: rgba(17, 24, 39, 0.8); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 6px; color: #fff; font-size: 14px;"
                                 />
                                 <p style="margin: 5px 0 0 0; color: #6b7280; font-size: 11px;">Get your ID by messaging @userinfobot on Telegram</p>
@@ -1520,10 +1520,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">⛽ Autopilot - Barrel Boss</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically purchase fuel when price drops at/below threshold.
-                                </p>
-                                <p style="margin: 4px 0 0 28px; color: #fbbf24; font-size: 11px; line-height: 1.4;">
-                                    💡 Checks every minute. Purchases when price is at/below threshold.
+                                    Automatically purchase fuel when price drops at/below threshold. (checks every 60 seconds)
                                 </p>
 
                                 <!-- Min Cash Reserve (always visible when feature enabled) -->
@@ -1588,10 +1585,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">💨 Autopilot - Atmosphere Broker</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically purchase CO2 when price drops at/below threshold.
-                                </p>
-                                <p style="margin: 4px 0 0 28px; color: #22c55e; font-size: 11px; line-height: 1.4;">
-                                    💡 Checks every minute. Purchases when price is at/below threshold.
+                                    Automatically purchase CO2 when price drops at/below threshold. (checks every 60 seconds)
                                 </p>
 
                                 <!-- Min Cash Reserve (always visible when feature enabled) -->
@@ -1656,10 +1650,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🚢 Autopilot - Cargo Marshal</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Intelligently departs vessels based on port demand and fuel prices.
-                                </p>
-                                <p style="margin: 4px 0 0 28px; color: #60a5fa; font-size: 11px; line-height: 1.4;">
-                                    💡 Checks every minute. Departs vessels when ready and profitable.
+                                    Intelligently departs vessels based on port demand and fuel prices. (checks every 60 seconds)
                                 </p>
                                 <p style="margin: 4px 0 0 28px; color: #fbbf24; font-size: 11px; line-height: 1.4;">
                                     ⚠️ Requires minimum 10t fuel in bunker - no vessels will be sent if fuel is below this threshold.
@@ -1724,7 +1715,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">⚓ Autopilot - Harbormaster</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically purchase anchor points when available capacity drops below threshold. Checks every 5 minutes.
+                                    Automatically purchase anchor points when available capacity drops below threshold. (checks every 5 minutes)
                                 </p>
 
                                 <div id="autoAnchorPointOptions" class="autopilot-options autopilot-options-light-blue hidden">
@@ -1763,7 +1754,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🔧 Autopilot - Yard Foreman</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically repair all vessels when wear threshold is reached. Event-driven (checks every 60 seconds).
+                                    Automatically repair all vessels when wear threshold is reached. (checks every 60 seconds)
                                 </p>
                                 <p style="margin: 4px 0 0 28px; color: #6b7280; font-size: 11px; font-style: italic;">
                                     Uses the wear threshold configured in the Maintenance section below
@@ -1796,7 +1787,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🛠️ Autopilot - Drydock Master</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically send vessels to drydock when hours_until_check reaches threshold. Event-driven (checks every 60 seconds).
+                                    Automatically send vessels to drydock when hours_until_check reaches threshold. (checks every 60 seconds)
                                 </p>
                                 <p style="margin: 4px 0 0 28px; color: #6b7280; font-size: 11px; font-style: italic;">
                                     Uses the drydock threshold configured in General Settings
@@ -1843,7 +1834,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">📊 Autopilot - Reputation Chief</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    When active campaigns drop below 3, immediately purchase the most expensive one that current funds allow. Event-driven (checks every 60 seconds).
+                                    When active campaigns drop below 3, immediately purchase the most expensive one that current funds allow. (checks every 60 seconds)
                                 </p>
 
                                 <div id="autoCampaignRenewalOptions" class="autopilot-options autopilot-options-blue">
@@ -1872,7 +1863,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">🤝 Autopilot - Fair Hand</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically contribute to alliance COOP when targets are available. Event-driven (checks every 60 seconds).
+                                    Automatically contribute to alliance COOP when targets are available. (checks every 5 minutes)
                                 </p>
 
                                 <div id="autoCoopOptions" class="autopilot-options autopilot-options-blue hidden">
@@ -1897,7 +1888,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">☠️ Autopilot - Cap'n Blackbeard</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically negotiate and accept hijacking ransoms with payment verification. Event-driven (checks every 60 seconds).
+                                    Automatically negotiate and accept hijacking ransoms with payment verification. (checks every 60 seconds)
                                 </p>
 
                                 <div id="autoNegotiateOptions" class="autopilot-options autopilot-options-blue hidden">
@@ -1922,10 +1913,7 @@
                                     <span style="color: #e0e0e0; font-size: 14px; font-weight: 500;">💰 Autopilot - The Purser</span>
                                 </label>
                                 <p style="margin: 8px 0 0 28px; color: #9ca3af; font-size: 12px; line-height: 1.4;">
-                                    Automatically buy stocks from fresh IPOs matching your alert threshold.
-                                </p>
-                                <p style="margin: 4px 0 0 28px; color: #22c55e; font-size: 11px;">
-                                    💡 Uses your "Enable IPO Alerts" threshold setting from Stock tab
+                                    Automatically buy stocks from fresh IPOs matching your alert threshold. Uses your "Enable IPO Alerts" threshold setting from Stock tab. (checks every 5 minutes)
                                 </p>
 
                                 <div id="autoPurserOptions" class="autopilot-options autopilot-options-green hidden">
@@ -1990,6 +1978,30 @@
                                             <input type="checkbox" id="notifyThePurserDesktop" class="autopilot-agent-checkbox" style="width: 16px; height: 16px; margin-right: 8px; cursor: pointer;" checked>
                                             <span style="color: #d1d5db; font-size: 13px;">🔔 Enable desktop notifications</span>
                                         </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Staff Captain (Auto Staff Morale) -->
+                            <div class="staff-captain-container">
+                                <label class="staff-captain-label">
+                                    <input type="checkbox" id="enableStaffCaptain" class="staff-captain-checkbox">
+                                    <span class="staff-captain-title">😊 Autopilot - Staff Captain</span>
+                                </label>
+                                <p class="staff-captain-description">
+                                    Automatically manage staff salaries to maintain crew and management morale at target level. (checks every 5 minutes)
+                                </p>
+
+                                <div id="staffCaptainOptions" class="autopilot-options autopilot-options-purple hidden">
+                                    <div class="staff-captain-option-row">
+                                        <label for="staffCaptainTargetMorale" class="staff-captain-option-label">😊 Target Morale</label>
+                                        <select id="staffCaptainTargetMorale" class="staff-captain-select">
+                                            <option value="100">100%</option>
+                                            <option value="95">&gt;95%</option>
+                                            <option value="85">&gt;85%</option>
+                                            <option value="80">&gt;80%</option>
+                                            <option value="75">&gt;75%</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -2200,6 +2212,109 @@
                         " onmouseover="this.style.background='rgba(59, 130, 246, 0.3)'" onmouseout="this.style.background='rgba(59, 130, 246, 0.2)'">
                             Download CA Certificate
                         </a>
+                        </div>
+                    </div>
+
+                    <!-- Server Configuration Section -->
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(245, 158, 11, 0.05); border: 2px solid rgba(245, 158, 11, 0.3); border-radius: 12px;">
+                        <h3 onclick="toggleSection('serverConfigContent')" style="margin: 0 0 10px 0; font-size: 18px; color: #f59e0b; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                            <span>⚙️ Server Configuration</span>
+                            <span id="serverConfigToggle" style="font-size: 16px; color: #9ca3af; font-weight: normal;">➕</span>
+                        </h3>
+                        <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
+                        <div id="serverConfigContent" class="hidden" style="display: flex; flex-direction: column; gap: 15px;" data-display-mode="flex">
+                            <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                                Configure server IP address and port. Changes require server restart.
+                            </p>
+
+                            <!-- IP/Port Settings -->
+                            <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
+                                <h4 style="margin: 0 0 12px 0; color: #f59e0b; font-size: 14px; font-weight: 600;">Network Settings</h4>
+                                <div style="display: flex; flex-direction: column; gap: 12px;">
+                                    <!-- Host -->
+                                    <div>
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Host/IP Address:</label>
+                                        <select id="serverHost" style="width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                                            <option value="127.0.0.1">127.0.0.1 (localhost only)</option>
+                                            <option value="0.0.0.0">0.0.0.0 (all interfaces)</option>
+                                        </select>
+                                        <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px; font-style: italic;">
+                                            127.0.0.1 = local access only | 0.0.0.0 = network access enabled
+                                        </p>
+                                    </div>
+
+                                    <!-- Port -->
+                                    <div>
+                                        <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Port (1-65535):</label>
+                                        <input type="number" id="serverPort" min="1" max="65535" value="12345" style="width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px;">
+                                    </div>
+
+                                    <!-- Save Button -->
+                                    <button id="saveServerConfigBtn" onclick="saveServerConfig()" style="padding: 10px; background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 6px; color: #fbbf24; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">
+                                        💾 Save Configuration
+                                    </button>
+
+                                    <!-- Status Message -->
+                                    <div id="serverConfigStatus" style="display: none; padding: 8px; border-radius: 4px; font-size: 12px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Backup & Restore Section -->
+                    <div style="margin-bottom: 10px; padding: 20px; background: rgba(168, 85, 247, 0.05); border: 2px solid rgba(168, 85, 247, 0.3); border-radius: 12px;">
+                        <h3 onclick="toggleSection('backupRestoreContent')" style="margin: 0 0 10px 0; font-size: 18px; color: #a855f7; font-weight: 700; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                            <span>💾 Backup & Restore</span>
+                            <span id="backupRestoreToggle" style="font-size: 16px; color: #9ca3af; font-weight: normal;">➕</span>
+                        </h3>
+                        <div style="height: 1px; background: rgba(255, 255, 255, 0.1); margin: 10px 0 15px 0;"></div>
+                        <div id="backupRestoreContent" class="hidden" style="display: flex; flex-direction: column; gap: 15px;" data-display-mode="flex">
+                            <p style="margin: 0; color: #9ca3af; font-size: 13px; line-height: 1.4;">
+                                Create backups of your userdata directory or restore from a previous backup.
+                            </p>
+
+                            <!-- Backup Info -->
+                            <div id="backupInfoBox" style="padding: 12px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; display: none;">
+                                <div style="color: #9ca3af; font-size: 12px; margin-bottom: 4px;">Userdata Directory:</div>
+                                <div id="backupPath" style="color: #e0e0e0; font-size: 11px; font-family: monospace; word-break: break-all;"></div>
+                                <div style="margin-top: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                    <div>
+                                        <div style="color: #9ca3af; font-size: 11px;">Files:</div>
+                                        <div id="backupFileCount" style="color: #e0e0e0; font-size: 13px; font-weight: 600;">-</div>
+                                    </div>
+                                    <div>
+                                        <div style="color: #9ca3af; font-size: 11px;">Size:</div>
+                                        <div id="backupTotalSize" style="color: #e0e0e0; font-size: 13px; font-weight: 600;">-</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Backup Actions -->
+                            <div style="padding: 16px; background: rgba(31, 41, 55, 0.3); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px;">
+                                <h4 style="margin: 0 0 12px 0; color: #a855f7; font-size: 14px; font-weight: 600;">Actions</h4>
+                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <!-- Create Backup Button -->
+                                    <button id="createBackupBtn" onclick="createBackup()" style="padding: 12px; background: rgba(168, 85, 247, 0.2); border: 1px solid rgba(168, 85, 247, 0.4); border-radius: 6px; color: #c084fc; font-weight: 600; font-size: 13px; cursor: pointer; transition: all 0.2s;">
+                                        📦 Create Backup (Download ZIP)
+                                    </button>
+
+                                    <!-- Restore Backup Section -->
+                                    <div style="padding: 12px; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 6px;">
+                                        <div style="color: #fbbf24; font-size: 12px; font-weight: 500; margin-bottom: 8px;">📥 Restore from Backup:</div>
+                                        <input type="file" id="backupFileInput" accept=".zip" style="display: none;" onchange="handleBackupFileSelected()">
+                                        <button onclick="document.getElementById('backupFileInput').click()" style="width: 100%; padding: 10px; background: rgba(245, 158, 11, 0.2); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 4px; color: #fbbf24; font-weight: 600; font-size: 12px; cursor: pointer;">
+                                            Select Backup ZIP File
+                                        </button>
+                                        <div id="selectedFileName" style="display: none; margin-top: 8px; padding: 8px; background: rgba(31, 41, 55, 0.5); border-radius: 4px; color: #e0e0e0; font-size: 11px;"></div>
+                                        <button id="restoreBackupBtn" onclick="restoreBackup()" style="display: none; width: 100%; margin-top: 8px; padding: 10px; background: rgba(245, 158, 11, 0.3); border: 1px solid rgba(245, 158, 11, 0.5); border-radius: 4px; color: #fbbf24; font-weight: 600; font-size: 12px; cursor: pointer;">
+                                            🔄 Restore Backup
+                                        </button>
+                                    </div>
+
+                                    <!-- Status Message -->
+                                    <div id="backupStatus" style="display: none; padding: 8px; border-radius: 4px; font-size: 12px;"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

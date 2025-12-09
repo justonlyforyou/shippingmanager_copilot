@@ -327,6 +327,17 @@ function updateAutoPilotToggles(newSettings) {
   if (autoPurserMinCashInput && newSettings.autoPurserMinCash !== undefined) {
     autoPurserMinCashInput.value = formatNumberWithSeparator(String(newSettings.autoPurserMinCash));
   }
+
+  // Staff Captain settings sync
+  const enableStaffCaptainCheckbox = document.getElementById('enableStaffCaptain');
+  if (enableStaffCaptainCheckbox && newSettings.enableStaffCaptain !== undefined) {
+    enableStaffCaptainCheckbox.checked = newSettings.enableStaffCaptain;
+    document.getElementById('staffCaptainOptions')?.classList.toggle('hidden', !newSettings.enableStaffCaptain);
+  }
+  const staffCaptainTargetMoraleSelect = document.getElementById('staffCaptainTargetMorale');
+  if (staffCaptainTargetMoraleSelect && newSettings.staffCaptainTargetMorale !== undefined) {
+    staffCaptainTargetMoraleSelect.value = String(newSettings.staffCaptainTargetMorale);
+  }
   const autoPurserMaxPriceInput = document.getElementById('autoPurserMaxPrice');
   if (autoPurserMaxPriceInput && newSettings.autoPurserMaxPrice !== undefined) {
     autoPurserMaxPriceInput.value = newSettings.autoPurserMaxPrice;

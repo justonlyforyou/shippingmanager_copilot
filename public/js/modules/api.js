@@ -469,9 +469,10 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
     if (!response.ok) {
       const error = await response.json();
       if (window.DEBUG_MODE) {
-        console.log('[API DEBUG] Error response:', error);
+        console.log('[API DEBUG] Error response:', JSON.stringify(error, null, 2));
       }
-      throw new Error(error.error);
+      const errorMessage = typeof error.error === 'string' ? error.error : (error.message || JSON.stringify(error));
+      throw new Error(errorMessage);
     }
 
     const result = await response.json();
@@ -1537,7 +1538,7 @@ export async function checkDevelMode() {
     if (!response.ok) return false;
     const data = await response.json();
     return data.enabled === true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

@@ -31,6 +31,7 @@ const { autoAnchorPointPurchase, setBroadcastFunction: setHarbormasterBroadcast 
 const vesselHistoryStore = require('./analytics/vessel-history-store');
 const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
 const { autoBuyStock, autoSellStock } = require('./autopilot/pilot_the_purser');
+const { manageStaffMorale } = require('./autopilot/pilot_staff_captain');
 const { sendPriceAlert } = require('./utils/telegram');
 const { saveSettings } = require('./settings-schema');
 
@@ -759,22 +760,23 @@ function getCachedCapacity(vessel) {
 // Main Event Loop
 // ============================================================================
 
-const LOOP_INTERVAL = 60000;  // 60 seconds
+const LOOP_INTERVAL_FAST = 60000;  // 60 seconds - fast operations
+const LOOP_INTERVAL_SLOW = 5 * 60 * 1000;  // 5 minutes - slow operations
 
 /**
- * Main event-driven autopilot loop.
- * Runs every 60 seconds, checks game state, triggers autopilot functions.
+ * Fast autopilot loop (60 seconds).
+ * Handles time-sensitive operations: bunker, vessels, repairs, drydock, hijacking.
  */
-async function mainEventLoop() {
+async function fastEventLoop() {
   const userId = getUserId();
   if (!userId) {
-    setTimeout(mainEventLoop, LOOP_INTERVAL);
+    setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
     return;
   }
 
   const settings = state.getSettings(userId);
   if (!settings) {
-    setTimeout(mainEventLoop, LOOP_INTERVAL);
+    setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
     return;
   }
 
@@ -784,14 +786,14 @@ async function mainEventLoop() {
     const bunker = state.getBunkerState(userId);
 
     if (!prices || prices.fuel <= 0 || prices.co2 <= 0) {
-      logger.warn('[Loop] Skipping - prices not loaded yet (fuel: $' + (prices?.fuel || 0) + ', co2: $' + (prices?.co2 || 0) + ')');
-      setTimeout(mainEventLoop, LOOP_INTERVAL);
+      logger.warn('[Fast Loop] Skipping - prices not loaded yet (fuel: $' + (prices?.fuel || 0) + ', co2: $' + (prices?.co2 || 0) + ')');
+      setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
       return;
     }
 
     if (!bunker || bunker.cash === undefined || bunker.points === undefined) {
-      logger.warn('[Loop] Skipping - bunker data not loaded yet');
-      setTimeout(mainEventLoop, LOOP_INTERVAL);
+      logger.warn('[Fast Loop] Skipping - bunker data not loaded yet');
+      setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
       return;
     }
 
@@ -898,12 +900,12 @@ async function mainEventLoop() {
 
     // Skip automation if paused
     if (autopilotPaused) {
-      logger.info('[Loop] Autopilot PAUSED - Skipping all automation (badge updates completed)');
-      setTimeout(mainEventLoop, LOOP_INTERVAL);
+      logger.info('[Fast Loop] Autopilot PAUSED - Skipping all automation (badge updates completed)');
+      setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
       return;
     }
 
-    logger.debug('[Loop] Autopilot RUNNING - Executing automation tasks');
+    logger.debug('[Fast Loop] Autopilot RUNNING - Executing fast automation tasks');
 
     // Auto-rebuy runs EVERY loop
     await autoRebuyAll();
@@ -931,16 +933,6 @@ async function mainEventLoop() {
       await autoDrydockVessels(autopilotPaused, broadcastToUser, tryUpdateAllData);
     }
 
-    // COOP targets available
-    if (settings.autoCoopEnabled) {
-      const coopData = await fetchCoopDataCached();
-      const available = coopData.data?.coop?.available;
-      if (available > 0) {
-        logger.debug(`[Loop] ${available} COOP target(s) available`);
-        await autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData);
-      }
-    }
-
     // Hijacking cases
     if (settings.autoNegotiateHijacking) {
       await autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdateAllData);
@@ -952,6 +944,52 @@ async function mainEventLoop() {
     // Campaign status update and auto-renewal
     await updateCampaigns();
 
+  } catch (error) {
+    logger.error('[Fast Loop] FATAL ERROR in fast event loop:', error);
+    logger.error('[Fast Loop] Stack trace:', error.stack);
+    logger.error('[Fast Loop] Application will exit due to fatal error in loop');
+    process.exit(1);
+  }
+
+  setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
+}
+
+/**
+ * Slow autopilot loop (5 minutes).
+ * Handles slow operations: COOP, IPO/stock trading, staff morale.
+ */
+async function slowEventLoop() {
+  const userId = getUserId();
+  if (!userId) {
+    setTimeout(slowEventLoop, LOOP_INTERVAL_SLOW);
+    return;
+  }
+
+  const settings = state.getSettings(userId);
+  if (!settings) {
+    setTimeout(slowEventLoop, LOOP_INTERVAL_SLOW);
+    return;
+  }
+
+  try {
+    if (autopilotPaused) {
+      logger.info('[Slow Loop] Autopilot PAUSED - Skipping slow automation');
+      setTimeout(slowEventLoop, LOOP_INTERVAL_SLOW);
+      return;
+    }
+
+    logger.debug('[Slow Loop] Autopilot RUNNING - Executing slow automation tasks');
+
+    // COOP targets available
+    if (settings.autoCoopEnabled) {
+      const coopData = await fetchCoopDataCached();
+      const available = coopData.data?.coop?.available;
+      if (available > 0) {
+        logger.debug(`[Slow Loop] ${available} COOP target(s) available`);
+        await autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData);
+      }
+    }
+
     // The Purser - Auto stock trading (buy from fresh IPOs, sell falling investments)
     if (settings.autoPurserEnabled) {
       await autoBuyStock(autopilotPaused, broadcastToUser, tryUpdateAllData);
@@ -960,22 +998,30 @@ async function mainEventLoop() {
       }
     }
 
+    // Staff Captain - Auto staff morale management
+    if (settings.enableStaffCaptain) {
+      await manageStaffMorale(autopilotPaused, broadcastToUser);
+    }
+
   } catch (error) {
-    logger.error('[Loop] FATAL ERROR in main event loop:', error);
-    logger.error('[Loop] Stack trace:', error.stack);
-    logger.error('[Loop] Application will exit due to fatal error in main loop');
+    logger.error('[Slow Loop] FATAL ERROR in slow event loop:', error);
+    logger.error('[Slow Loop] Stack trace:', error.stack);
+    logger.error('[Slow Loop] Application will exit due to fatal error in loop');
     process.exit(1);
   }
 
-  setTimeout(mainEventLoop, LOOP_INTERVAL);
+  setTimeout(slowEventLoop, LOOP_INTERVAL_SLOW);
 }
 
 /**
- * Starts the main event loop.
+ * Starts both event loops (fast and slow).
  */
 function startMainEventLoop() {
-  logger.info('[Loop] Starting main event loop (60s interval)');
-  mainEventLoop();
+  logger.info('[Loop] Starting fast event loop (60s interval)');
+  fastEventLoop();
+
+  logger.info('[Loop] Starting slow event loop (5min interval)');
+  slowEventLoop();
 }
 
 /**

@@ -1427,6 +1427,9 @@ export async function sendPrivateMessage() {
 
   try {
     console.log('[Messenger] Sending to API...');
+    console.log('[Messenger] targetUserId:', currentPrivateChat.targetUserId, 'type:', typeof currentPrivateChat.targetUserId);
+    console.log('[Messenger] subject:', subject);
+    console.log('[Messenger] message length:', message.length);
     await apiSendPrivateMessage(currentPrivateChat.targetUserId, subject, message);
     console.log('[Messenger] API call successful');
 

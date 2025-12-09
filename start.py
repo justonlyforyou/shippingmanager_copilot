@@ -101,6 +101,9 @@ server_process = None
 # Global flag to prevent multiple simultaneous restarts
 _server_starting = False
 
+# Global flag to signal that a restart was requested during boot
+_restart_requested = False
+
 _settings_logged = False
 
 def load_settings():
@@ -500,12 +503,22 @@ def start_server(settings):
 
             try:
                 while True:
+                    # Check if restart was requested during boot
+                    if _restart_requested:
+                        print("[SM-CoPilot] Restart requested during boot - aborting current startup", file=sys.stderr)
+                        return False
+
                     # Check timeout
                     if time.time() - start_time > timeout:
                         error_msg = "Timeout waiting for server ready"
                         print(f"[SM-CoPilot] {error_msg}", file=sys.stderr)
                         log_to_server_file('fatal', error_msg)
                         log_to_server_file('fatal', 'Application exiting due to server startup timeout')
+                        return False
+
+                    # Check if server_process was cleared (server stopped during health check)
+                    if server_process is None:
+                        print("[SM-CoPilot] Server process was stopped during health check", file=sys.stderr)
                         return False
 
                     # Check if process crashed
@@ -662,6 +675,16 @@ def start_server_no_dialog(settings):
         start_time = time.time()
 
         while time.time() - start_time < max_wait:
+            # Check if restart was requested during boot
+            if _restart_requested:
+                print("[SM-CoPilot] Restart requested during boot - aborting current startup", file=sys.stderr)
+                return False
+
+            # Check if server_process was cleared (server stopped during startup)
+            if server_process is None:
+                print("[SM-CoPilot] Server process was stopped during startup", file=sys.stderr)
+                return False
+
             if server_process.poll() is not None:
                 print("[SM-CoPilot] Server process crashed during startup", file=sys.stderr)
                 return False
@@ -793,8 +816,35 @@ def stop_server():
 
 def restart_server(settings):
     """Restart the server with new settings"""
+    global _restart_requested, loading_dialog
+
     print("[SM-CoPilot] Restarting server...", file=sys.stderr)
+
+    # If server is currently starting, signal it to abort
+    if _server_starting:
+        print("[SM-CoPilot] Server is currently starting - requesting abort...", file=sys.stderr)
+        _restart_requested = True
+
+        # Close loading dialog if it exists
+        if loading_dialog:
+            try:
+                loading_dialog.quit()
+                loading_dialog.destroy()
+            except:
+                pass
+            loading_dialog = None
+
+        # Wait for current startup to abort (max 10 seconds)
+        wait_start = time.time()
+        while _server_starting and time.time() - wait_start < 10:
+            time.sleep(0.1)
+
+        # Reset flag
+        _restart_requested = False
+
     stop_server()
+    time.sleep(2)
+    print("[SM-CoPilot] Starting server after restart...", file=sys.stderr)
     return start_server(settings)
 
 # Global reference to settings window
@@ -877,298 +927,6 @@ def set_window_icon(window):
             window.iconbitmap(str(ICON_PATH))
         except Exception as e:
             print(f"[SM-CoPilot] Could not set window icon: {e}", file=sys.stderr)
-
-def show_settings_dialog(error_message=None):
-    """Show settings dialog window with consistent design"""
-    global settings_window, _server_starting
-
-    # Prevent opening settings during server startup
-    if _server_starting:
-        print("[SM-CoPilot] Cannot open Settings while server is starting", file=sys.stderr)
-        return
-
-    # Prevent multiple settings windows
-    if settings_window is not None:
-        try:
-            settings_window.lift()
-            settings_window.attributes('-topmost', True)
-            settings_window.after(100, lambda: settings_window.attributes('-topmost', False))
-            settings_window.focus_force()
-            return
-        except:
-            settings_window = None
-
-    settings = load_settings()
-
-    # Create settings window
-    root = tk.Tk()
-    settings_window = root
-
-    # Hide while setting up
-    root.withdraw()
-
-    # Adjust height if error message present
-    window_height = 380 if error_message else 330
-
-    root.title("Shipping Manager CoPilot - Settings")
-    root.resizable(False, False)
-
-    # Always on top
-    root.attributes('-topmost', True)
-
-    # Set window icon
-    set_window_icon(root)
-
-    # Dark theme colors (matching session-selector)
-    bg_color = "#111827"
-    fg_color = "#e0e0e0"
-    accent_color = "#3b82f6"
-    card_bg = "#1f2937"
-    input_bg = "#374151"
-    input_fg = "#e0e0e0"
-
-    root.configure(bg=bg_color)
-
-    # Handle window close
-    def on_close():
-        global settings_window
-        settings_window = None
-        root.quit()
-        root.destroy()
-
-    root.protocol("WM_DELETE_WINDOW", on_close)
-
-    # Error message (if present)
-    if error_message:
-        error_frame = tk.Frame(root, bg="#7f1d1d", relief=tk.SOLID, borderwidth=1)
-        error_frame.pack(pady=(15, 5), padx=30, fill=tk.X)
-
-        error_label = tk.Label(
-            error_frame,
-            text=error_message,
-            font=("Segoe UI", 10, "bold"),
-            bg="#7f1d1d",
-            fg="#fecaca",
-            wraplength=440,
-            justify=tk.LEFT,
-            padx=10,
-            pady=8
-        )
-        error_label.pack()
-
-    # Header
-    header_frame = tk.Frame(root, bg=bg_color)
-    header_frame.pack(pady=(20, 10), padx=30, fill=tk.X)
-
-    title_label = tk.Label(
-        header_frame,
-        text="⚙️ Server Settings",
-        font=("Segoe UI", 18, "bold"),
-        bg=bg_color,
-        fg=accent_color
-    )
-    title_label.pack()
-
-    subtitle_label = tk.Label(
-        header_frame,
-        text="Configure server host and port",
-        font=("Segoe UI", 10),
-        bg=bg_color,
-        fg="#9ca3af"
-    )
-    subtitle_label.pack(pady=(5, 0))
-
-    # Settings form (centered, horizontal layout)
-    form_frame = tk.Frame(root, bg=bg_color)
-    form_frame.pack(pady=20, padx=40)
-
-    # Host setting
-    host_label = tk.Label(
-        form_frame,
-        text="Host:",
-        font=("Segoe UI", 11),
-        bg=bg_color,
-        fg=fg_color
-    )
-    host_label.grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
-
-    # Get available IPs
-    available_ips = get_available_ips()
-
-    # Create combobox with default theme (more reliable clicking)
-    host_var = tk.StringVar(value=settings['host'])
-
-    host_combo = ttk.Combobox(
-        form_frame,
-        textvariable=host_var,
-        values=available_ips,
-        font=("Segoe UI", 11),
-        state="readonly",
-        width=15
-    )
-    host_combo.grid(row=0, column=1, sticky=tk.W, padx=(0, 20), ipady=3)
-
-    # Set current value or default to first option
-    if settings['host'] in available_ips:
-        host_combo.set(settings['host'])
-    else:
-        host_combo.set(available_ips[0])
-
-    # Port setting
-    port_label = tk.Label(
-        form_frame,
-        text="Port:",
-        font=("Segoe UI", 11),
-        bg=bg_color,
-        fg=fg_color
-    )
-    port_label.grid(row=0, column=2, sticky=tk.W, padx=(0, 10))
-
-    port_var = tk.StringVar()
-    port_entry = tk.Entry(
-        form_frame,
-        textvariable=port_var,
-        font=("Segoe UI", 11),
-        bg=input_bg,
-        fg=input_fg,
-        insertbackground=fg_color,
-        relief=tk.FLAT,
-        borderwidth=0,
-        width=8
-    )
-    port_entry.grid(row=0, column=3, sticky=tk.W, ipady=5, ipadx=10)
-
-    # Set port value explicitly
-    port_var.set(str(settings['port']))
-
-    # Info label (centered)
-    info_frame = tk.Frame(root, bg=bg_color)
-    info_frame.pack(pady=10, padx=40, fill=tk.X)
-
-    info_label = tk.Label(
-        info_frame,
-        text="0.0.0.0 = all interfaces | 127.0.0.1 = localhost only",
-        font=("Segoe UI", 9),
-        bg=bg_color,
-        fg="#6b7280"
-    )
-    info_label.pack()
-
-    # Button frame (centered)
-    button_frame = tk.Frame(root, bg=bg_color)
-    button_frame.pack(pady=20)
-
-    def save_and_restart():
-        """Save settings and restart server"""
-        global settings_window
-        try:
-            port = int(port_var.get())
-            if port < 1 or port > 65535:
-                raise ValueError("Port must be between 1 and 65535")
-
-            host = host_var.get().strip()
-            if not host:
-                raise ValueError("Host cannot be empty")
-
-            # Load current settings first to preserve debugMode and logLevel
-            current_settings = load_settings()
-
-            # Merge with new port/host values
-            new_settings = {
-                'port': port,
-                'host': host,
-                'debugMode': current_settings.get('debugMode', False),
-                'logLevel': current_settings.get('logLevel', 'info')
-            }
-
-            if save_settings(new_settings):
-                # Close settings window first
-                settings_window = None
-                root.destroy()
-
-                # Restart server in a NEW thread to avoid Tkinter threading issues
-                def do_restart():
-                    if restart_server(new_settings):
-                        print(f"[SM-CoPilot] Settings saved! Server restarted on {host}:{port}", file=sys.stderr)
-                    else:
-                        print(f"[SM-CoPilot] Settings saved but server failed to restart", file=sys.stderr)
-
-                thread = threading.Thread(target=do_restart, daemon=True)
-                thread.start()
-            else:
-                messagebox.showerror("Error", "Failed to save settings", parent=root)
-
-        except ValueError as e:
-            messagebox.showerror("Invalid Input", str(e), parent=root)
-
-    def cancel():
-        """Close settings window"""
-        global settings_window
-        settings_window = None
-        root.destroy()
-
-    # Save & Restart button (blue)
-    save_btn = tk.Button(
-        button_frame,
-        text="Save & Restart",
-        command=save_and_restart,
-        font=("Segoe UI", 11, "bold"),
-        bg=accent_color,
-        fg="white",
-        activebackground="#2563eb",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=22,
-        pady=10
-    )
-    save_btn.pack(side=tk.LEFT, padx=8)
-
-    # Cancel button (gray)
-    cancel_btn = tk.Button(
-        button_frame,
-        text="Cancel",
-        command=cancel,
-        font=("Segoe UI", 11),
-        bg="#4b5563",
-        fg="white",
-        activebackground="#6b7280",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=22,
-        pady=10
-    )
-    cancel_btn.pack(side=tk.LEFT, padx=8)
-
-    # Position window in bottom-right corner AFTER all widgets are added
-    root.update_idletasks()
-    width = 500
-    padding = 10
-    taskbar_height = 60  # Conservative estimate for taskbar
-    x = root.winfo_screenwidth() - width - padding
-    y = root.winfo_screenheight() - window_height - taskbar_height - padding
-
-    # Make sure window doesn't go off-screen
-    if y < 0:
-        y = padding
-    if x < 0:
-        x = padding
-
-    root.geometry(f'{width}x{window_height}+{x}+{y}')
-
-    # Show window
-    root.deiconify()
-
-    # Show window in foreground
-    root.attributes('-topmost', True)
-    root.focus_force()
-    root.after(100, lambda: root.attributes('-topmost', False))
-
-    # Run mainloop (will block until window is closed)
-    root.mainloop()
 
 def show_loading_dialog(settings, on_ready_callback):
     """Show loading dialog with animation that transitions to ready state"""
@@ -2053,532 +1811,6 @@ def get_userdata_path():
     else:
         return PROJECT_ROOT / 'userdata'
 
-def show_backup_dialog():
-    """Show backup dialog with custom design"""
-    # Dark theme colors (matching settings dialog)
-    bg_color = "#111827"
-    fg_color = "#e0e0e0"
-    accent_color = "#3b82f6"
-    success_color = "#10b981"
-
-    root = tk.Tk()
-    root.withdraw()
-
-    root.title("Shipping Manager CoPilot - Backup")
-    root.resizable(False, False)
-    root.attributes('-topmost', True)
-    set_window_icon(root)
-    root.configure(bg=bg_color)
-
-    # Header
-    header_frame = tk.Frame(root, bg=bg_color)
-    header_frame.pack(pady=(20, 10), padx=30, fill=tk.X)
-
-    title_label = tk.Label(
-        header_frame,
-        text="💾 Create Backup",
-        font=("Segoe UI", 18, "bold"),
-        bg=bg_color,
-        fg=accent_color
-    )
-    title_label.pack()
-
-    subtitle_label = tk.Label(
-        header_frame,
-        text="Backup all userdata to a ZIP file",
-        font=("Segoe UI", 10),
-        bg=bg_color,
-        fg="#9ca3af"
-    )
-    subtitle_label.pack(pady=(5, 0))
-
-    # Info frame
-    info_frame = tk.Frame(root, bg=bg_color)
-    info_frame.pack(pady=20, padx=40, fill=tk.X)
-
-    userdata_path = get_userdata_path()
-
-    info_label = tk.Label(
-        info_frame,
-        text=f"Backup location:\n{userdata_path}",
-        font=("Segoe UI", 10),
-        bg=bg_color,
-        fg=fg_color,
-        justify=tk.LEFT
-    )
-    info_label.pack()
-
-    # Status label
-    status_label = tk.Label(
-        info_frame,
-        text="",
-        font=("Segoe UI", 10, "bold"),
-        bg=bg_color,
-        fg=success_color,
-        justify=tk.LEFT,
-        wraplength=400
-    )
-    status_label.pack(pady=(10, 0))
-
-    # Button frame
-    button_frame = tk.Frame(root, bg=bg_color)
-    button_frame.pack(pady=20)
-
-    def do_backup():
-        """Execute backup"""
-        try:
-            if not userdata_path.exists():
-                status_label.config(text=f"Error: Userdata directory not found", fg="#ef4444")
-                return
-
-            # Create backup filename with timestamp
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_filename = f"SMCoPilot_Backup_{timestamp}.zip"
-
-            # Ask user where to save
-            initial_dir = Path.home() / 'Documents'
-            save_path = filedialog.asksaveasfilename(
-                title="Save Backup",
-                initialdir=initial_dir,
-                initialfile=backup_filename,
-                defaultextension=".zip",
-                filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
-                parent=root
-            )
-
-            if not save_path:
-                print("[Backup] User cancelled backup", file=sys.stderr)
-                return
-
-            save_path = Path(save_path)
-
-            # Update status
-            status_label.config(text="Creating backup...", fg=accent_color)
-            root.update()
-
-            # Create ZIP file
-            print(f"[Backup] Creating backup from {userdata_path}...", file=sys.stderr)
-            with zipfile.ZipFile(save_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                # Add metadata file
-                metadata = {
-                    'version': '1.0',
-                    'created': datetime.now().isoformat(),
-                    'source': 'ShippingManagerCoPilot',
-                    'execution_mode': 'exe' if IS_FROZEN else 'script'
-                }
-                zipf.writestr('backup_metadata.json', json.dumps(metadata, indent=2))
-
-                # Add all files from userdata
-                for root_dir, dirs, files in os.walk(userdata_path):
-                    for file in files:
-                        file_path = Path(root_dir) / file
-                        arcname = file_path.relative_to(userdata_path.parent)
-                        zipf.write(file_path, arcname)
-                        print(f"[Backup] Added: {arcname}", file=sys.stderr)
-
-            print(f"[Backup] Backup created successfully: {save_path}", file=sys.stderr)
-            status_label.config(text=f"✓ Backup created:\n{save_path.name}", fg=success_color)
-
-        except Exception as e:
-            print(f"[Backup] Error creating backup: {e}", file=sys.stderr)
-            status_label.config(text=f"Error: {str(e)}", fg="#ef4444")
-
-    def close_dialog():
-        root.destroy()
-
-    # Create Backup button
-    backup_btn = tk.Button(
-        button_frame,
-        text="Create Backup",
-        command=do_backup,
-        font=("Segoe UI", 11, "bold"),
-        bg=accent_color,
-        fg="white",
-        activebackground="#2563eb",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=18,
-        pady=10
-    )
-    backup_btn.pack(side=tk.LEFT, padx=8)
-
-    # Close button
-    close_btn = tk.Button(
-        button_frame,
-        text="Close",
-        command=close_dialog,
-        font=("Segoe UI", 11),
-        bg="#4b5563",
-        fg="white",
-        activebackground="#6b7280",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=18,
-        pady=10
-    )
-    close_btn.pack(side=tk.LEFT, padx=8)
-
-    # Position window centered in screen
-    root.update_idletasks()
-    width = 500
-    height = 280
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width - width) // 2
-    y = (screen_height - height) // 2
-
-    root.geometry(f"{width}x{height}+{x}+{y}")
-    root.deiconify()
-
-    # Keep on top permanently
-    root.attributes('-topmost', True)
-    root.lift()
-    root.focus_force()
-
-    root.mainloop()
-
-def create_backup():
-    """Show backup dialog"""
-    show_backup_dialog()
-
-def validate_backup(zip_path):
-    """Validate backup ZIP structure and return metadata"""
-    try:
-        with zipfile.ZipFile(zip_path, 'r') as zipf:
-            # Check for metadata file
-            if 'backup_metadata.json' not in zipf.namelist():
-                return False, "Invalid backup: missing metadata file"
-
-            # Read metadata
-            metadata_str = zipf.read('backup_metadata.json').decode('utf-8')
-            metadata = json.loads(metadata_str)
-
-            # Validate metadata structure
-            required_fields = ['version', 'created', 'source']
-            missing_fields = [f for f in required_fields if f not in metadata]
-
-            if missing_fields:
-                return False, f"Invalid backup: missing metadata fields: {', '.join(missing_fields)}"
-
-            if metadata.get('source') != 'ShippingManagerCoPilot':
-                return False, "Invalid backup: not a ShippingManagerCoPilot backup"
-
-            # Check for userdata directory
-            has_userdata = any('userdata/' in name for name in zipf.namelist())
-            if not has_userdata:
-                return False, "Invalid backup: no userdata folder found"
-
-            return True, metadata
-
-    except zipfile.BadZipFile:
-        return False, "Invalid backup: not a valid ZIP file"
-    except json.JSONDecodeError:
-        return False, "Invalid backup: corrupted metadata"
-    except Exception as e:
-        return False, f"Invalid backup: {str(e)}"
-
-def show_restore_dialog():
-    """Show restore dialog with custom design"""
-    # Dark theme colors
-    bg_color = "#111827"
-    fg_color = "#e0e0e0"
-    accent_color = "#3b82f6"
-    success_color = "#10b981"
-    warning_color = "#f59e0b"
-    error_color = "#ef4444"
-
-    root = tk.Tk()
-    root.withdraw()
-
-    root.title("Shipping Manager CoPilot - Restore")
-    root.resizable(False, False)
-    root.attributes('-topmost', True)
-    set_window_icon(root)
-    root.configure(bg=bg_color)
-
-    # Header
-    header_frame = tk.Frame(root, bg=bg_color)
-    header_frame.pack(pady=(20, 10), padx=30, fill=tk.X)
-
-    title_label = tk.Label(
-        header_frame,
-        text="📦 Restore Backup",
-        font=("Segoe UI", 18, "bold"),
-        bg=bg_color,
-        fg=accent_color
-    )
-    title_label.pack()
-
-    subtitle_label = tk.Label(
-        header_frame,
-        text="Restore userdata from a backup ZIP file",
-        font=("Segoe UI", 10),
-        bg=bg_color,
-        fg="#9ca3af"
-    )
-    subtitle_label.pack(pady=(5, 0))
-
-    # Info frame
-    info_frame = tk.Frame(root, bg=bg_color)
-    info_frame.pack(pady=20, padx=40, fill=tk.X)
-
-    # Backup file label
-    backup_file_label = tk.Label(
-        info_frame,
-        text="No backup file selected",
-        font=("Segoe UI", 10),
-        bg=bg_color,
-        fg="#6b7280",
-        justify=tk.LEFT,
-        wraplength=400
-    )
-    backup_file_label.pack()
-
-    # Backup info label
-    backup_info_label = tk.Label(
-        info_frame,
-        text="",
-        font=("Segoe UI", 9),
-        bg=bg_color,
-        fg="#9ca3af",
-        justify=tk.LEFT,
-        wraplength=400
-    )
-    backup_info_label.pack(pady=(5, 0))
-
-    # Status label
-    status_label = tk.Label(
-        info_frame,
-        text="",
-        font=("Segoe UI", 10, "bold"),
-        bg=bg_color,
-        fg=success_color,
-        justify=tk.LEFT,
-        wraplength=400
-    )
-    status_label.pack(pady=(10, 0))
-
-    # Store selected backup path
-    selected_backup = {'path': None, 'metadata': None}
-
-    def select_backup_file():
-        """Select backup file and validate it"""
-        initial_dir = Path.home() / 'Documents'
-        backup_path = filedialog.askopenfilename(
-            title="Select Backup File",
-            initialdir=initial_dir,
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
-            parent=root
-        )
-
-        if not backup_path:
-            return
-
-        backup_path = Path(backup_path)
-
-        # Validate backup
-        print(f"[Restore] Validating backup: {backup_path}", file=sys.stderr)
-        status_label.config(text="Validating backup...", fg=accent_color)
-        root.update()
-
-        is_valid, result = validate_backup(backup_path)
-
-        if not is_valid:
-            status_label.config(text=f"Invalid backup: {result}", fg=error_color)
-            backup_file_label.config(text="No valid backup selected", fg="#6b7280")
-            backup_info_label.config(text="")
-            selected_backup['path'] = None
-            selected_backup['metadata'] = None
-            restore_btn.config(state=tk.DISABLED)
-            return
-
-        # Valid backup
-        metadata = result
-        backup_date = datetime.fromisoformat(metadata['created']).strftime('%Y-%m-%d %H:%M:%S')
-
-        selected_backup['path'] = backup_path
-        selected_backup['metadata'] = metadata
-
-        backup_file_label.config(text=f"Selected: {backup_path.name}", fg=success_color)
-        backup_info_label.config(
-            text=f"Created: {backup_date}\nVersion: {metadata.get('version', 'Unknown')}",
-            fg="#9ca3af"
-        )
-        status_label.config(text="✓ Valid backup file", fg=success_color)
-        restore_btn.config(state=tk.NORMAL)
-
-    def do_restore():
-        """Execute restore"""
-        try:
-            if not selected_backup['path']:
-                status_label.config(text="Please select a backup file first", fg=warning_color)
-                return
-
-            backup_path = selected_backup['path']
-            userdata_path = get_userdata_path()
-
-            # Update status
-            status_label.config(text="Restoring backup...", fg=accent_color)
-            root.update()
-
-            # Create backup of current data before restore
-            print("[Restore] Creating backup of current data before restore...", file=sys.stderr)
-            temp_backup_dir = userdata_path.parent / f'userdata_backup_{int(time.time())}'
-            if userdata_path.exists():
-                shutil.copytree(userdata_path, temp_backup_dir)
-                print(f"[Restore] Current data backed up to: {temp_backup_dir}", file=sys.stderr)
-
-            try:
-                # Extract backup
-                print(f"[Restore] Extracting backup to {userdata_path.parent}...", file=sys.stderr)
-
-                with zipfile.ZipFile(backup_path, 'r') as zipf:
-                    # Get all files except metadata
-                    files_to_extract = [f for f in zipf.namelist() if f != 'backup_metadata.json']
-
-                    for file in files_to_extract:
-                        zipf.extract(file, userdata_path.parent)
-                        print(f"[Restore] Extracted: {file}", file=sys.stderr)
-
-                # Remove temporary backup after successful restore
-                if temp_backup_dir.exists():
-                    shutil.rmtree(temp_backup_dir)
-                    print(f"[Restore] Removed temporary backup", file=sys.stderr)
-
-                print("[Restore] Restore completed successfully", file=sys.stderr)
-                status_label.config(text="✓ Restore complete! Restart recommended.", fg=success_color)
-
-                # Ask to restart
-                restart_confirm = messagebox.askyesno(
-                    "Restart Server",
-                    "Backup restored successfully!\n\n"
-                    "A server restart is recommended to apply changes.\n\n"
-                    "Restart now?",
-                    parent=root
-                )
-
-                if restart_confirm:
-                    settings = load_settings()
-                    root.destroy()
-                    restart_server(settings)
-
-            except Exception as e:
-                # Restore failed - recover from temp backup
-                print(f"[Restore] Error during restore: {e}", file=sys.stderr)
-
-                if temp_backup_dir.exists():
-                    print("[Restore] Restoring from temporary backup...", file=sys.stderr)
-                    if userdata_path.exists():
-                        shutil.rmtree(userdata_path)
-                    shutil.copytree(temp_backup_dir, userdata_path)
-                    shutil.rmtree(temp_backup_dir)
-                    print("[Restore] Recovered from temporary backup", file=sys.stderr)
-
-                raise
-
-        except Exception as e:
-            print(f"[Restore] Error restoring backup: {e}", file=sys.stderr)
-            status_label.config(text=f"Error: {str(e)}", fg=error_color)
-
-    def close_dialog():
-        root.destroy()
-
-    # Button frame
-    button_frame = tk.Frame(root, bg=bg_color)
-    button_frame.pack(pady=20)
-
-    # Select Backup button
-    select_btn = tk.Button(
-        button_frame,
-        text="Select Backup",
-        command=select_backup_file,
-        font=("Segoe UI", 11, "bold"),
-        bg="#6b7280",
-        fg="white",
-        activebackground="#9ca3af",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=15,
-        pady=10
-    )
-    select_btn.pack(side=tk.LEFT, padx=8)
-
-    # Restore button (disabled initially)
-    restore_btn = tk.Button(
-        button_frame,
-        text="Restore",
-        command=do_restore,
-        font=("Segoe UI", 11, "bold"),
-        bg=accent_color,
-        fg="white",
-        activebackground="#2563eb",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=15,
-        pady=10,
-        state=tk.DISABLED
-    )
-    restore_btn.pack(side=tk.LEFT, padx=8)
-
-    # Close button
-    close_btn = tk.Button(
-        button_frame,
-        text="Close",
-        command=close_dialog,
-        font=("Segoe UI", 11),
-        bg="#4b5563",
-        fg="white",
-        activebackground="#6b7280",
-        activeforeground="white",
-        relief=tk.RAISED,
-        borderwidth=2,
-        cursor="hand2",
-        width=15,
-        pady=10
-    )
-    close_btn.pack(side=tk.LEFT, padx=8)
-
-    # Position window centered in screen
-    root.update_idletasks()
-    width = 550
-    height = 340
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    x = (screen_width - width) // 2
-    y = (screen_height - height) // 2
-
-    root.geometry(f"{width}x{height}+{x}+{y}")
-    root.deiconify()
-
-    # Keep on top permanently
-    root.attributes('-topmost', True)
-    root.lift()
-    root.focus_force()
-
-    root.mainloop()
-
-def restore_backup():
-    """Show restore dialog"""
-    show_restore_dialog()
-
-def on_backup_data(icon, item):
-    """Backup menu item clicked"""
-    thread = threading.Thread(target=create_backup, daemon=True)
-    thread.start()
-
-def on_restore_data(icon, item):
-    """Restore menu item clicked"""
-    thread = threading.Thread(target=restore_backup, daemon=True)
-    thread.start()
-
 def on_launch_app(icon, item):
     """Launch App menu item clicked"""
     settings = load_settings()
@@ -2586,32 +1818,50 @@ def on_launch_app(icon, item):
     print(f"[SM-CoPilot] Opening browser: {url}", file=sys.stderr)
     webbrowser.open(url)
 
-def on_settings(icon, item):
-    """Settings menu item clicked"""
-    # Run settings dialog in separate thread to avoid blocking tray icon
-    thread = threading.Thread(target=show_settings_dialog, daemon=True)
-    thread.start()
-
 def on_restart(icon, item):
     """Restart menu item clicked"""
-    global loading_dialog, settings_window
+    global loading_dialog, settings_window, _restart_requested
     print("[SM-CoPilot] Restart requested from tray menu...", file=sys.stderr)
 
-    # Clear global references (don't try to destroy from wrong thread - causes Tcl error)
-    loading_dialog = None
-    settings_window = None
-
     def do_restart():
+        global loading_dialog, _restart_requested
+
         # Load current settings
         settings = load_settings()
 
-        # Stop server (no Tkinter operations here)
-        stop_server()
-        time.sleep(0.5)
+        # If server is currently starting, signal it to abort
+        if _server_starting:
+            print("[SM-CoPilot] Server is currently starting - requesting abort...", file=sys.stderr)
+            _restart_requested = True
 
-        # Start server without loading dialog (avoid Tkinter from background thread)
+            # Close loading dialog if it exists
+            if loading_dialog:
+                try:
+                    loading_dialog.quit()
+                    loading_dialog.destroy()
+                except:
+                    pass
+                loading_dialog = None
+
+            # Wait for current startup to abort (max 10 seconds)
+            wait_start = time.time()
+            while _server_starting and time.time() - wait_start < 10:
+                time.sleep(0.1)
+
+            # Reset flag
+            _restart_requested = False
+
+        # Clear global references (don't try to destroy from wrong thread - causes Tcl error)
+        loading_dialog = None
+        settings_window = None
+
+        # Stop server
+        stop_server()
+        time.sleep(2)
+
+        # Start server with session selection dialog
         print("[SM-CoPilot] Starting server...", file=sys.stderr)
-        if start_server_no_dialog(settings):
+        if start_server(settings):
             print("[SM-CoPilot] Server restarted successfully", file=sys.stderr)
         else:
             print("[SM-CoPilot] Failed to restart server", file=sys.stderr)
@@ -2978,13 +2228,7 @@ def main():
     # Create menu
     menu = pystray.Menu(
         pystray.MenuItem("Launch App", on_launch_app),
-        pystray.MenuItem("Settings", on_settings),
         pystray.MenuItem("Restart", on_restart),
-        pystray.Menu.SEPARATOR,
-        pystray.MenuItem("Backup & Restore", pystray.Menu(
-            pystray.MenuItem("Create Backup", on_backup_data),
-            pystray.MenuItem("Restore Backup", on_restore_data)
-        )),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Certificates", pystray.Menu(
             pystray.MenuItem("Install CA Certificate", on_install_certificates),

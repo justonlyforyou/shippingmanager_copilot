@@ -447,8 +447,13 @@ router.post('/settings/telegram', async (req, res) => {
     }
 
     // Save chat ID (not sensitive, stored as plain text)
+    // IMPORTANT: Always store WITHOUT minus, we add it when sending to Telegram API
     if (chatId !== undefined) {
-      settings.telegramChatId = chatId ? chatId.trim() : null;
+      let cleanChatId = chatId ? chatId.trim() : null;
+      if (cleanChatId && cleanChatId.startsWith('-')) {
+        cleanChatId = cleanChatId.substring(1);
+      }
+      settings.telegramChatId = cleanChatId;
     }
 
     // Save enabled state

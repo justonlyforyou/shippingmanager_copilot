@@ -1116,6 +1116,9 @@ async function processDepartureQueue() {
   isProcessingQueue = true;
   const { showSideNotification } = await import('../utils.js');
 
+  // Track failures for summary notification
+  const failuresByReason = {}; // { reason: count }
+
   while (departureQueue.length > 0) {
     const { vesselId, vesselName, resolve, reject } = departureQueue.shift();
 
@@ -1141,9 +1144,10 @@ async function processDepartureQueue() {
         continue;
       }
 
-      // Handle global insufficient fuel - notification already sent by Cargo Marshal via WebSocket
+      // Handle global insufficient fuel - track for summary
       if (result.reason === 'insufficient_fuel') {
-        console.log(`[Vessel Panel] ${vesselName} blocked - insufficient fuel (notification sent by backend)`);
+        console.log(`[Vessel Panel] ${vesselName} blocked - insufficient fuel`);
+        failuresByReason['insufficient fuel'] = (failuresByReason['insufficient fuel'] || 0) + 1;
         reject(new Error('Insufficient fuel'));
         continue;
       }
@@ -1153,8 +1157,7 @@ async function processDepartureQueue() {
         console.log(`[Vessel Panel] ${vesselName} departed successfully`);
         resolve(result);
       } else {
-        // Vessel failed to depart - extract error info from response or use passed name
-        const cleanName = vesselName.replace(/^(MV|MS|MT|SS)\s+/i, '');
+        // Vessel failed to depart - extract error info and track
         let reason = 'Unknown error';
 
         if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
@@ -1163,23 +1166,19 @@ async function processDepartureQueue() {
           reason = result.message || result.reason || reason;
         }
 
-        console.error(`[Vessel Panel] Failed to depart ${vesselName}:`, reason);
+        // Log full result object if reason is still unknown (debug API response structure)
+        if (reason === 'Unknown error') {
+          console.error(`[Vessel Panel] Failed to depart ${vesselName} - Full API response:`, JSON.stringify(result, null, 2));
+        } else {
+          console.error(`[Vessel Panel] Failed to depart ${vesselName}:`, reason);
+        }
 
-        // Show notification with vessel name and reason
-        showSideNotification(`
-          <div style="margin-bottom: 8px;">
-            <strong>Failed to depart</strong>
-          </div>
-          <div style="font-size: 0.9em;">
-            <span style="color: #ef4444;">${escapeHtml(cleanName)}:</span> <span style="color: #9ca3af;">${escapeHtml(reason)}</span>
-          </div>
-        `, 'error', 10000);
-
+        failuresByReason[reason] = (failuresByReason[reason] || 0) + 1;
         reject(new Error(reason));
       }
     } catch (error) {
       console.error(`[Vessel Panel] Error departing vessel ${vesselId}:`, error);
-      showSideNotification(`Error departing vessel: ${escapeHtml(error.message)}`, 'error');
+      failuresByReason[error.message] = (failuresByReason[error.message] || 0) + 1;
       reject(error);
     }
 
@@ -1187,6 +1186,21 @@ async function processDepartureQueue() {
     if (departureQueue.length > 0) {
       await new Promise(r => setTimeout(r, 500));
     }
+  }
+
+  // Show summary notification for failures
+  const failureReasons = Object.keys(failuresByReason);
+  if (failureReasons.length > 0) {
+    const totalFailed = Object.values(failuresByReason).reduce((a, b) => a + b, 0);
+    let summaryHtml = `<div style="margin-bottom: 8px;"><strong>${totalFailed} vessel${totalFailed > 1 ? 's' : ''} could not depart</strong></div>`;
+
+    // Group by reason
+    failureReasons.forEach(reason => {
+      const count = failuresByReason[reason];
+      summaryHtml += `<div style="font-size: 0.9em; color: #9ca3af;">${count}x ${escapeHtml(reason)}</div>`;
+    });
+
+    showSideNotification(summaryHtml, 'error', 10000);
   }
 
   isProcessingQueue = false;
@@ -1203,9 +1217,16 @@ async function processDepartureQueue() {
  */
 export async function departVessel(vesselId, vesselName) {
   // Check if departure is already in progress (server lock active)
-  if (isDepartInProgress()) {
+  // BUT: If local queue is empty, allow departure anyway (fallback for stuck server lock)
+  if (isDepartInProgress() && isLocalDepartInProgress()) {
     showSideNotification('Departure in progress - please wait', 'warning');
     return;
+  }
+
+  // Log warning if server lock is stuck but queue is empty
+  if (isDepartInProgress() && !isLocalDepartInProgress()) {
+    console.warn('[Vessel Panel] Server lock is active but local queue is empty - proceeding anyway (stuck lock fallback)');
+    showSideNotification('Departure lock appears stuck - proceeding anyway', 'warning', 3000);
   }
 
   // Immediately disable depart button in vessel panel

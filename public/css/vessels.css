@@ -397,9 +397,9 @@
 }
 
 .discount-badge {
-  background: var(--color-success);
+  background: var(--color-success-darker);
   color: var(--color-white);
-  padding: 3px 4px 4px 4px;
+  padding: 3px 4px 4px;
   border-radius: var(--radius-3);
   font-size: var(--font-size-10);
   font-weight: var(--font-weight-semibold);

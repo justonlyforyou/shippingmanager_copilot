@@ -494,6 +494,14 @@ async function handleVesselClick(vesselId) {
   localStorage.setItem('returnToAnalytics', 'true');
   console.log('[Analytics] handleVesselClick - set returnToAnalytics=true for vesselId:', vesselId);
 
+  // Check if vessel is sold (look up in analyticsData.vessels)
+  let vesselData = null;
+  if (analyticsData && analyticsData.vessels) {
+    vesselData = analyticsData.vessels.find(v => v.vesselId === parseInt(vesselId, 10));
+  }
+
+  const isSoldVessel = vesselData && vesselData.isOwned === false;
+
   // Close analytics overlay
   const overlay = document.getElementById('analyticsOverlay');
   if (overlay) {
@@ -507,7 +515,19 @@ async function handleVesselClick(vesselId) {
     harborMapOverlay.classList.remove('hidden');
   }
 
-  // Try to select vessel in harbor map to show vessel panel
+  // For sold vessels, show special sold vessel panel with history only
+  if (isSoldVessel) {
+    console.log('[Analytics] Opening sold vessel panel for:', vesselId);
+    try {
+      await showSoldVesselPanel(parseInt(vesselId, 10), vesselData.name);
+    } catch (error) {
+      console.error('[Analytics] Failed to show sold vessel panel:', error);
+      showNotification('Failed to load vessel history', 'error');
+    }
+    return;
+  }
+
+  // For owned vessels, try to select on harbor map
   if (window.harborMap && typeof window.harborMap.selectVesselFromPort === 'function') {
     try {
       window.harborMap.selectVesselFromPort(parseInt(vesselId, 10));
@@ -517,6 +537,182 @@ async function handleVesselClick(vesselId) {
     }
   } else {
     showNotification(`Vessel ID: ${vesselId} - View on map`, 'info');
+  }
+}
+
+/**
+ * Show sold vessel panel with history only
+ * Creates a simplified vessel panel for vessels that have been sold
+ * @param {number} vesselId - Vessel ID
+ * @param {string} vesselName - Vessel name
+ */
+async function showSoldVesselPanel(vesselId, vesselName) {
+  const panel = document.getElementById('vessel-detail-panel');
+  if (!panel) return;
+
+  // Fetch vessel history from API
+  let historyData = [];
+  try {
+    const response = await fetch(window.apiUrl(`/api/harbor-map/vessel/${vesselId}/history`));
+    if (!response.ok) {
+      throw new Error(`Failed to fetch vessel history: ${response.statusText}`);
+    }
+    const data = await response.json();
+    historyData = data.history || [];
+  } catch (error) {
+    console.error('[Analytics] Error fetching sold vessel history:', error);
+    historyData = [];
+  }
+
+  // Render simplified panel for sold vessels
+  panel.innerHTML = `
+    <div class="panel-header">
+      <h3>
+        <span class="vessel-name-display">${escapeHtml(vesselName)}</span>
+        <span class="vessel-status sold" title="Sold" style="margin-left: 8px;">&#x1F578;&#xFE0F; Sold</span>
+      </h3>
+      <button class="close-btn" onclick="window.analytics.closeSoldVesselPanel()">×</button>
+    </div>
+
+    <div class="panel-body">
+      <div class="vessel-info-section">
+        <p style="color: var(--color-text-secondary); font-style: italic; margin-bottom: 16px;">
+          This vessel has been sold. Only trip history is available.
+        </p>
+      </div>
+
+      <div class="vessel-info-section vessel-history-section collapsible">
+        <h4 class="section-toggle" onclick="this.parentElement.classList.toggle('collapsed')">
+          <span class="toggle-icon">▼</span> Trip History
+        </h4>
+        <div class="section-content">
+          <div id="vessel-history-loading">${historyData.length === 0 ? 'No trip history available' : ''}</div>
+          <div id="vessel-history-content"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Show panel
+  panel.classList.add('active');
+
+  // Render history if available
+  if (historyData.length > 0) {
+    renderSoldVesselHistory(historyData);
+  }
+}
+
+/**
+ * Render trip history for sold vessels
+ * Simplified version without live vessel status updates
+ * @param {Array} historyData - Array of trip history entries
+ */
+function renderSoldVesselHistory(historyData) {
+  const contentEl = document.getElementById('vessel-history-content');
+  if (!contentEl) return;
+
+  // Reverse to show newest first
+  const trips = historyData.reverse();
+
+  // Format port name helper
+  const formatPortName = (portCode) => {
+    if (!portCode) return 'N/A';
+    const formatted = portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    return escapeHtml(formatted);
+  };
+
+  // Format cargo helper
+  const formatCargo = (cargo) => {
+    if (!cargo) return 'N/A';
+    if (typeof cargo === 'string') return escapeHtml(cargo);
+
+    if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
+      const dry = cargo.dry || 0;
+      const ref = cargo.refrigerated || 0;
+      return `${(dry + ref).toLocaleString()} TEU`;
+    }
+
+    if (cargo.fuel !== undefined || cargo.crude_oil !== undefined) {
+      const fuel = cargo.fuel || 0;
+      const crude = cargo.crude_oil || 0;
+      return `${(fuel + crude).toLocaleString()} bbl`;
+    }
+
+    return escapeHtml(JSON.stringify(cargo));
+  };
+
+  // Format duration
+  const formatDuration = (seconds) => {
+    if (!seconds) return 'N/A';
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${minutes}m`;
+  };
+
+  // Render trips
+  const historyHtml = trips.map(trip => {
+    const isDrydockOperation = trip.is_drydock_operation === true;
+    const isServiceTrip = !isDrydockOperation && !trip.profit && trip.cargo &&
+      (trip.cargo.dry === 0 && trip.cargo.refrigerated === 0 &&
+       trip.cargo.fuel === 0 && trip.cargo.crude_oil === 0);
+
+    return `
+    <div class="history-entry">
+      <div class="history-route">
+        <strong>${formatPortName(trip.origin)}</strong> &rarr; <strong>${formatPortName(trip.destination)}</strong>
+      </div>
+      <div class="history-details">
+        <div class="history-row">
+          <span>Date: ${trip.date ? new Date(trip.date + ' UTC').toLocaleString() : 'N/A'}</span>
+        </div>
+        ${isDrydockOperation ? `
+        <div class="history-row drydock-trip">
+          <span>Drydock Operation</span>
+        </div>` : `
+        <div class="history-row">
+          <span>Cargo: ${formatCargo(trip.cargo)}</span>
+        </div>
+        <div class="history-row">
+          <span>Income: ${isServiceTrip ? 'Service Trip' : '$' + (trip.profit !== null && trip.profit !== undefined ? trip.profit.toLocaleString() : '?')}</span>
+        </div>
+        ${trip.harbor_fee !== null && trip.harbor_fee !== undefined ? `
+        <div class="history-row">
+          <span>Harbor Fee: $${trip.harbor_fee.toLocaleString()}</span>
+        </div>
+        ` : ''}`}
+        <div class="history-row">
+          <span>Distance: ${trip.distance ? trip.distance.toLocaleString(undefined, {maximumFractionDigits: 0}) + ' nm' : 'N/A'}</span>
+        </div>
+        <div class="history-row">
+          <span>Duration: ${formatDuration(trip.duration)}</span>
+        </div>
+      </div>
+    </div>
+    `;
+  }).join('');
+
+  contentEl.innerHTML = historyHtml;
+}
+
+/**
+ * Close sold vessel panel and return to analytics
+ */
+function closeSoldVesselPanel() {
+  const panel = document.getElementById('vessel-detail-panel');
+  if (panel) {
+    panel.classList.remove('active');
+  }
+
+  // Return to analytics overlay
+  localStorage.removeItem('returnToAnalytics');
+  const harborMapOverlay = document.getElementById('harborMapOverlay');
+  if (harborMapOverlay) {
+    harborMapOverlay.classList.add('hidden');
+  }
+
+  const analyticsOverlay = document.getElementById('analyticsOverlay');
+  if (analyticsOverlay) {
+    analyticsOverlay.classList.remove('hidden');
   }
 }
 
@@ -4463,6 +4659,10 @@ function renderApiStatsTable(stats) {
     `;
   }).join('');
 }
+
+// Expose functions to window for onclick handlers
+window.analytics = window.analytics || {};
+window.analytics.closeSoldVesselPanel = closeSoldVesselPanel;
 
 // Export for global access
 export { loadAnalyticsData };

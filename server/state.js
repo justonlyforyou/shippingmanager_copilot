@@ -123,7 +123,8 @@ function getUserState(userId) {
         repair: false,
         bulkBuy: false,
         drydock: false
-      }
+      },
+      staffData: null
     });
   }
   return userStates.get(userIdString);
@@ -469,6 +470,28 @@ function getAllLocks(userId) {
   return getUserState(userId).locks;
 }
 
+/**
+ * Updates staff data.
+ *
+ * @param {string} userId - User ID
+ * @param {Object} staffData - Staff data from API
+ */
+function updateStaffData(userId, staffData) {
+  const state = getUserState(userId);
+  state.staffData = staffData;
+}
+
+/**
+ * Gets current staff data.
+ *
+ * @param {string} userId - User ID
+ * @returns {Object|null} Current staff data
+ */
+function getStaffData(userId) {
+  const state = getUserState(userId);
+  return state.staffData;
+}
+
 module.exports = {
   getUserState,
   updateBunkerState,
@@ -501,5 +524,7 @@ module.exports = {
   getEventData,
   getLockStatus,
   setLockStatus,
-  getAllLocks
+  getAllLocks,
+  updateStaffData,
+  getStaffData
 };

@@ -38,7 +38,7 @@ const path = require('path');
 const validator = require('validator');
 const { apiCall, apiCallWithRetry, getUserId } = require('../../utils/api');
 const gameapi = require('../../gameapi');
-const { broadcastToUser } = require('../../websocket');
+const { broadcastToUser, broadcastHarborMapRefresh } = require('../../websocket');
 const logger = require('../../utils/logger');
 const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
@@ -725,12 +725,9 @@ router.post('/broadcast-purchase-summary', express.json(), async (req, res) => {
     });
 
     // Trigger Harbor Map refresh (vessels purchased)
-    const { broadcastHarborMapRefresh } = require('../../websocket');
-    if (broadcastHarborMapRefresh) {
-      broadcastHarborMapRefresh(userId, 'vessels_purchased', {
-        count: vessels.length
-      });
-    }
+    broadcastHarborMapRefresh(userId, 'vessels_purchased', {
+      count: vessels.length
+    });
 
     // Update anchor points - just decrement available by purchased count (no extra API call needed!)
     const state = require('../../state');
@@ -850,12 +847,9 @@ router.post('/broadcast-sale-summary', express.json(), async (req, res) => {
     }
 
     // Trigger Harbor Map refresh (vessels sold)
-    const { broadcastHarborMapRefresh } = require('../../websocket');
-    if (broadcastHarborMapRefresh) {
-      broadcastHarborMapRefresh(userId, 'vessels_sold', {
-        count: totalVessels
-      });
-    }
+    broadcastHarborMapRefresh(userId, 'vessels_sold', {
+      count: totalVessels
+    });
 
     res.json({ success: true });
   } catch (error) {
@@ -1165,13 +1159,10 @@ router.post('/rename-vessel', express.json(), async (req, res) => {
     // Broadcast Harbor Map refresh
     const userId = getUserId();
     if (userId) {
-      const { broadcastHarborMapRefresh } = require('../../websocket');
-      if (broadcastHarborMapRefresh) {
-        broadcastHarborMapRefresh(userId, 'vessel_renamed', {
-          vessel_id: vessel_id,
-          new_name: trimmedName
-        });
-      }
+      broadcastHarborMapRefresh(userId, 'vessel_renamed', {
+        vessel_id: vessel_id,
+        new_name: trimmedName
+      });
     }
 
     res.json(data);
@@ -1356,19 +1347,6 @@ router.post('/build-vessel', express.json(), async (req, res) => {
   try {
     const userId = getUserId();
 
-    // BEFORE BUILD: Get existing vessel IDs so we can find the new one after build
-    // (Game API doesn't return vessel_id in build response)
-    let existingVesselIds = new Set();
-    try {
-      const existingVessels = await apiCall('/vessel/get-all-user-vessels', 'GET');
-      if (existingVessels?.data) {
-        existingVesselIds = new Set(existingVessels.data.map(v => v.id));
-        logger.debug(`[Build Vessel] Captured ${existingVesselIds.size} existing vessel IDs before build`);
-      }
-    } catch (preCheckErr) {
-      logger.warn('[Build Vessel] Could not fetch existing vessels:', preCheckErr.message);
-    }
-
     // Forward build request to game API
     const data = await apiCall('/vessel/build-vessel', 'POST', {
       name,
@@ -1399,38 +1377,35 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       return res.status(500).json({ error: 'Build failed - API did not confirm' });
     }
 
-    // AFTER BUILD: Find the new vessel by comparing vessel lists
-    // Game API doesn't return vessel_id in build response, so we have to find it
-    let newVesselId = data.vessel_id || data.data?.vessel_id;
+    // AFTER BUILD: Find the new vessel by name in pending vessels
+    // Game API doesn't return vessel_id in build response, so we search by name
+    let newVesselId = null;
 
-    if (!newVesselId && existingVesselIds.size > 0) {
-      try {
-        const currentVessels = await apiCall('/vessel/get-all-user-vessels', 'GET');
-        if (currentVessels?.data) {
-          // Find vessel that wasn't in the original list
-          const newVessel = currentVessels.data.find(v => !existingVesselIds.has(v.id));
-          if (newVessel) {
-            newVesselId = newVessel.id;
-            logger.info(`[Build Vessel] Found new vessel via list comparison: ID ${newVesselId}`);
-          } else {
-            // Fallback: find by name (if somehow ID matching fails)
-            const namedVessel = currentVessels.data.find(v => v.name === name && !existingVesselIds.has(v.id));
-            if (namedVessel) {
-              newVesselId = namedVessel.id;
-              logger.info(`[Build Vessel] Found new vessel by name: ID ${newVesselId}`);
-            }
-          }
-        }
-      } catch (postCheckErr) {
-        logger.warn('[Build Vessel] Could not fetch vessels after build:', postCheckErr.message);
+    try {
+      const allVessels = await apiCall('/vessel/get-all-user-vessels', 'GET');
+      if (!allVessels?.data?.user_vessels) {
+        logger.error('[Build Vessel] Failed to fetch vessels after build');
+        return res.status(500).json({ error: 'Build succeeded but failed to fetch vessel list' });
       }
+
+      // Find pending/delivery vessel with matching name
+      const pendingVessels = allVessels.data.user_vessels.filter(v => v.status === 'pending' || v.status === 'delivery');
+      logger.info(`[Build Vessel] Found ${pendingVessels.length} pending vessels`);
+
+      const newVessel = pendingVessels.find(v => v.name === name);
+      if (!newVessel) {
+        logger.error(`[Build Vessel] Vessel "${name}" not found in pending list after build!`);
+        return res.status(500).json({ error: `Build succeeded but vessel "${name}" not found in pending list` });
+      }
+
+      newVesselId = newVessel.id;
+      logger.info(`[Build Vessel] Found new vessel: ${newVessel.name} (ID ${newVesselId}, status: ${newVessel.status})`);
+    } catch (postCheckErr) {
+      logger.error('[Build Vessel] Error fetching vessels after build:', postCheckErr);
+      return res.status(500).json({ error: 'Build succeeded but failed to fetch vessel: ' + postCheckErr.message });
     }
 
     logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW) - ID: ${newVesselId}`);
-
-    if (!newVesselId) {
-      logger.warn('[Build Vessel] Could not determine vessel_id - fast delivery will not be available');
-    }
 
     // Store vessel appearance data if we found the vessel ID
     if (newVesselId) {

@@ -1032,10 +1032,14 @@ async function renderCompanyProfile(responseData, isOwn) {
     ? `<button class="company-profile-action-btn danger" data-action="remove-contact" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Remove Contact</button>`
     : `<button class="company-profile-action-btn" data-action="add-contact" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Add Contact</button>`;
 
+  const messageButtonHtml = isContact
+    ? `<button class="company-profile-action-btn" data-action="message" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Send Message</button>`
+    : '';
+
   const actionButtonsHtml = !isOwn && companyId ? `
     <div class="company-profile-actions">
       ${contactButtonHtml}
-      <button class="company-profile-action-btn" data-action="message" data-user-id="${companyId}" data-company-name="${escapeHtml(companyName)}">Send Message</button>
+      ${messageButtonHtml}
     </div>
   ` : '';
 
@@ -1105,12 +1109,8 @@ async function addToContacts(userId, companyName, btn) {
       throw new Error(error.error || 'Failed to add contact');
     }
 
-    // Transform to Remove button
-    btn.disabled = false;
-    btn.textContent = 'Remove Contact';
-    btn.dataset.action = 'remove-contact';
-    btn.classList.add('danger');
-    btn.classList.remove('success');
+    // Reload profile to update button states
+    await loadCompanyProfile(currentUserId, false);
     showSideNotification(`${companyName} added to contacts`, 'success');
   } catch (error) {
     console.error('[Company Profile] Add contact error:', error);
@@ -1142,12 +1142,8 @@ async function removeFromContacts(userId, companyName, btn) {
       throw new Error(error.error || 'Failed to remove contact');
     }
 
-    // Transform to Add button
-    btn.disabled = false;
-    btn.textContent = 'Add Contact';
-    btn.dataset.action = 'add-contact';
-    btn.classList.remove('danger');
-    btn.classList.remove('success');
+    // Reload profile to update button states
+    await loadCompanyProfile(currentUserId, false);
     showSideNotification(`${companyName} removed from contacts`, 'success');
   } catch (error) {
     console.error('[Company Profile] Remove contact error:', error);

@@ -386,6 +386,13 @@
   },
   {
     "type": "module",
+    "name": "server/autopilot/pilot_staff_captain",
+    "longname": "module:server/autopilot/pilot_staff_captain",
+    "url": "module-server_autopilot_pilot_staff_captain.html",
+    "description": "<p>Staff Captain - Auto-Manage Staff Morale Pilot</p>\n<p>Automatically manages staff salaries to maintain crew and management morale\nat or above target levels without exceeding +3% threshold.</p>"
+  },
+  {
+    "type": "module",
     "name": "server/autopilot/pilot_the_purser",
     "longname": "module:server/autopilot/pilot_the_purser",
     "url": "module-server_autopilot_pilot_the_purser.html",
@@ -680,6 +687,13 @@
   },
   {
     "type": "module",
+    "name": "server/routes/server-config",
+    "longname": "module:server/routes/server-config",
+    "url": "module-server_routes_server-config.html",
+    "description": "<p>Server Configuration and Backup/Restore Routes</p>\n<p>This module handles server configuration (IP/Port) and backup/restore operations.\nThese settings are stored in the Python launcher's settings.json file.</p>"
+  },
+  {
+    "type": "module",
     "name": "server/routes/settings",
     "longname": "module:server/routes/settings",
     "url": "module-server_routes_settings.html",
@@ -887,6 +901,13 @@
     "longname": "module:server/websocket/messenger-refresh",
     "url": "module-server_websocket_messenger-refresh.html",
     "description": "<p>Messenger Auto-Refresh Logic</p>\n<p>Manages automatic polling of messenger inbox and broadcasting unread counts to clients.\nIncludes ChatBot DM command processing.</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/websocket/staff-refresh",
+    "longname": "module:server/websocket/staff-refresh",
+    "url": "module-server_websocket_staff-refresh.html",
+    "description": "<p>Staff Morale Auto-Refresh Logic</p>\n<p>Manages automatic polling of staff morale data and broadcasting updates to clients.\nUpdates every 5 minutes.</p>"
   },
   {
     "type": "module",
@@ -1321,6 +1342,13 @@
     "longname": "05-cheatsheet",
     "url": "tutorial-05-cheatsheet.html",
     "description": "🚢 Cheat Sheet / Glitch Guide ⚡ Faster Delivery Glitch Build a new vessel. (Does not work with vessels you bought) Go straight to Maintenance &gt; Dry Dock and select your fresh ship. Send it to the dry dock immediately. Just ignore any weird behavior or visual bugs around the ship for a moment you mabe have ingame. Check the Pending Tab (left side menu) and wait for the maintenance timer to hit zero. Done: Once maintenance finishes, your ship &quot;arrives&quot; instantly (skipping the delivery travel time). Bonus: You just doubled the time until the next required dry dock! Check the next bug below, you can combo these two. 👇 🛠️ &quot;Unlimited&quot; time until next DryDock Every new vessel spawns at a port that has a dry dock. CRITICAL: Before you send your ship anywhere, throw it into the dry dock. This glitches the timer: The &quot;Time to next Dry Dock&quot; gets added on top of the default value. Example: Default is 350h &gt; after first dry dock it’s 700h &gt; then 1050h, etc. Rinse and repeat: You can do this as many times as you want. We haven't found a limit yet - as long as you have the in-game cash to pay for it! 💸"
+  },
+  {
+    "type": "shippingmanager",
+    "name": "Beginners Guide",
+    "longname": "06-beginners-guide",
+    "url": "tutorial-06-beginners-guide.html",
+    "description": "Shipping Manager – Beginner’s Guide CRITICAL WARNING: Do not spend real money on this game. Currently, there are no active developers working on the project, and the game suffers from many unresolved bugs. For Steam Players: As long as you haven't made any purchases yet, create a browser account . This allows you to log in via mobile devices to earn in-game rewards (ads) or use the in-game shop for cash transactions if absolutely necessary. However, remember the golden rule: Do not spend cash. The Steam version of this game is critically unstable and has significant limitations. If you have already spent money on your Steam account, please check out this resource: RebelShipBrowser on GitHub 1. Golden Rules for Beginners Avoid Tanker Operations until you reach Level 50. Prioritize Staff Happiness: Keep your staff status at &quot;Very Happy&quot; (100%) at all times. Maintain Reputation: Ensure your reputation stays at the top level (&gt;90%). Vessel Maintenance: Keep your ships in pristine condition (wear &lt; 2%). No IPOs: Stay away from Initial Public Offerings unless you are using a bot or have an excessive amount of free time. Focus on Growth: Concentrate on your own expansion until you are earning at least $200m per day . Alliance Strategy: Join an alliance to reap the benefits, BUT ensure you enable COOP in return. Smart Purchasing: Only buy anchor points in bundles of 10 to maximize savings. 2. Fleet Strategy &amp; Vessel Recommendations Phase 1: The Starter Fleet Fill your initial slots with the following standard vessels: 30 slots: Navicon 30 slots: Astronz 30 slots: Aquavita Phase 2: Customization &amp; Upgrades Once your initial fleet is established, begin the transition to high-efficiency custom ships: Replace all Astronz and Navicon ships with custom 2,000 TEU MIH X1 (11,000kW) vessels. Finally, replace all 30 Aquavitas with 27,000 TEU MIH X1 (11,000kW) vessels. Result: This fleet configuration creates a powerhouse capable of generating $100–120 million per day (or more) with exceptionally low fuel and CO₂ costs. 3. Route Optimization For low-level accounts using the fleet described above, the &quot;sweet spot&quot; for balancing income versus operating costs lies in routes between 1,500 nm and 3,500 nm . 4. Staff Training Priorities Follow this order to maximize efficiency early on: Shop Cash: Up to Level 15 Cheap Fuel: Up to Level 10 Technical Officer (Less Fuel Consumption): Up to Level 5 Cheap CO₂:** Up to Level 10 Not possible because of a bug Instead do Boatswains (slower wear on vessels): Up to 5 Cheap Anchor Points: Up to Level 20 Cheap Fuel: Up to Level 20 Cheap CO₂: Up to Level 20 Not possible because of a bug Instead do CTO (slower wear on vessels): Up to 20 Cheap Harbor Fees: Up to Level 20 Captain (Lower Crew Unhappiness): Up to Level 5 Boatswain (Slower Wear): Up to Level 5 First Officer (Less Crew Needed): Up to Level 5 5. The &quot;Contribution Race&quot; Strategy There is only one real secret to mastering the Contribution Race: Strategic Fleet Division. As you progress, money becomes increasingly less valuable compared to contribution points. You must organize your fleet into two distinct operational groups: Group A: Focuses purely on generating income. Group B: Focuses exclusively on generating the maximum amount of contribution points possible."
   },
   {
     "type": "method",
@@ -1788,6 +1816,14 @@
   },
   {
     "type": "method",
+    "name": "closeSoldVesselPanel",
+    "longname": "module:analytics~closeSoldVesselPanel",
+    "url": "module-analytics.html#~closeSoldVesselPanel",
+    "description": "<p>Close sold vessel panel and return to analytics</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "destroyChart",
     "longname": "module:analytics~destroyChart",
     "url": "module-analytics.html#~destroyChart",
@@ -2044,6 +2080,14 @@
   },
   {
     "type": "method",
+    "name": "renderSoldVesselHistory",
+    "longname": "module:analytics~renderSoldVesselHistory",
+    "url": "module-analytics.html#~renderSoldVesselHistory",
+    "description": "<p>Render trip history for sold vessels\nSimplified version without live vessel status updates</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "renderSummary",
     "longname": "module:analytics~renderSummary",
     "url": "module-analytics.html#~renderSummary",
@@ -2136,6 +2180,14 @@
     "longname": "module:analytics~showRouteVesselsInfoTooltip",
     "url": "module-analytics.html#~showRouteVesselsInfoTooltip",
     "description": "<p>Show info tooltip for route vessels column</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "showSoldVesselPanel",
+    "longname": "module:analytics~showSoldVesselPanel",
+    "url": "module-analytics.html#~showSoldVesselPanel",
+    "description": "<p>Show sold vessel panel with history only\nCreates a simplified vessel panel for vessels that have been sold</p>",
     "parent": "module:analytics"
   },
   {
@@ -7924,6 +7976,14 @@
   },
   {
     "type": "method",
+    "name": "manageStaffMorale",
+    "longname": "module:server/autopilot/pilot_staff_captain~manageStaffMorale",
+    "url": "module-server_autopilot_pilot_staff_captain.html#~manageStaffMorale",
+    "description": "<p>Manages staff morale by adjusting salaries for a single user.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current staff data and morale percentages</li>\n<li>Checks if crew or management morale is below target</li>\n<li>For each low-morale staff type, raises salary until target reached</li>\n<li>Stops when morale &gt;= target AND morale &lt;= target+3%</li>\n<li>Broadcasts morale updates to frontend</li>\n</ol>\n<p>Target Morale Options:</p>\n<ul>\n<li>100: Keep at 100%</li>\n<li>95: Keep &gt;= 95%</li>\n<li>85: Keep &gt;= 85%</li>\n<li>80: Keep &gt;= 80%</li>\n<li>75: Keep &gt;= 75%</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Only adjusts when morale &lt; target</li>\n<li>Stops when morale &gt;= target to avoid overspending</li>\n<li>Won't exceed target+3% to prevent wasted API calls</li>\n<li>Checks both crew AND management morale</li>\n</ul>",
+    "parent": "module:server/autopilot/pilot_staff_captain"
+  },
+  {
+    "type": "method",
     "name": "autoBuyStock",
     "longname": "module:server/autopilot/pilot_the_purser~autoBuyStock",
     "url": "module-server_autopilot_pilot_the_purser.html#~autoBuyStock",
@@ -7996,6 +8056,14 @@
   },
   {
     "type": "method",
+    "name": "fastEventLoop",
+    "longname": "module:server/autopilot~fastEventLoop",
+    "url": "module-server_autopilot.html#~fastEventLoop",
+    "description": "<p>Fast autopilot loop (60 seconds).\nHandles time-sensitive operations: bunker, vessels, repairs, drydock, hijacking.</p>",
+    "parent": "module:server/autopilot"
+  },
+  {
+    "type": "method",
     "name": "getGameIndexCached",
     "longname": "module:server/autopilot~getGameIndexCached",
     "url": "module-server_autopilot.html#~getGameIndexCached",
@@ -8016,14 +8084,6 @@
     "longname": "module:server/autopilot~isAutopilotPaused",
     "url": "module-server_autopilot.html#~isAutopilotPaused",
     "description": "<p>Returns current autopilot pause state</p>",
-    "parent": "module:server/autopilot"
-  },
-  {
-    "type": "method",
-    "name": "mainEventLoop",
-    "longname": "module:server/autopilot~mainEventLoop",
-    "url": "module-server_autopilot.html#~mainEventLoop",
-    "description": "<p>Main event-driven autopilot loop.\nRuns every 60 seconds, checks game state, triggers autopilot functions.</p>",
     "parent": "module:server/autopilot"
   },
   {
@@ -8052,10 +8112,18 @@
   },
   {
     "type": "method",
+    "name": "slowEventLoop",
+    "longname": "module:server/autopilot~slowEventLoop",
+    "url": "module-server_autopilot.html#~slowEventLoop",
+    "description": "<p>Slow autopilot loop (5 minutes).\nHandles slow operations: COOP, IPO/stock trading, staff morale.</p>",
+    "parent": "module:server/autopilot"
+  },
+  {
+    "type": "method",
     "name": "startMainEventLoop",
     "longname": "module:server/autopilot~startMainEventLoop",
     "url": "module-server_autopilot.html#~startMainEventLoop",
-    "description": "<p>Starts the main event loop.</p>",
+    "description": "<p>Starts both event loops (fast and slow).</p>",
     "parent": "module:server/autopilot"
   },
   {
@@ -9396,6 +9464,14 @@
   },
   {
     "type": "method",
+    "name": "getDirectoryStats",
+    "longname": "module:server/routes/server-config~getDirectoryStats",
+    "url": "module-server_routes_server-config.html#~getDirectoryStats",
+    "description": "<p>Helper function to get directory statistics</p>",
+    "parent": "module:server/routes/server-config"
+  },
+  {
+    "type": "method",
     "name": "GET /api/settings",
     "longname": "module:server/routes/settings.GET /api/settings",
     "url": "module-server_routes_settings.html#.GET/api/settings",
@@ -9756,6 +9832,14 @@
   },
   {
     "type": "method",
+    "name": "getStaffData",
+    "longname": "module:server/state~getStaffData",
+    "url": "module-server_state.html#~getStaffData",
+    "description": "<p>Gets current staff data.</p>",
+    "parent": "module:server/state"
+  },
+  {
+    "type": "method",
     "name": "getUserState",
     "longname": "module:server/state~getUserState",
     "url": "module-server_state.html#~getUserState",
@@ -9888,6 +9972,14 @@
     "longname": "module:server/state~updateSettings",
     "url": "module-server_state.html#~updateSettings",
     "description": "<p>Updates autopilot settings.</p>",
+    "parent": "module:server/state"
+  },
+  {
+    "type": "method",
+    "name": "updateStaffData",
+    "longname": "module:server/state~updateStaffData",
+    "url": "module-server_state.html#~updateStaffData",
+    "description": "<p>Updates staff data.</p>",
     "parent": "module:server/state"
   },
   {
@@ -10876,6 +10968,38 @@
   },
   {
     "type": "method",
+    "name": "performStaffRefresh",
+    "longname": "module:server/websocket/staff-refresh~performStaffRefresh",
+    "url": "module-server_websocket_staff-refresh.html#~performStaffRefresh",
+    "description": "<p>Performs a single staff refresh cycle.\nFetches staff data from game API and broadcasts to all clients.</p>\n<p>What This Does:</p>\n<ul>\n<li>Fetches staff morale data from /staff/get-user-staff</li>\n<li>Stores in state for autopilot access</li>\n<li>Broadcasts to frontend for UI updates</li>\n</ul>\n<p>Broadcast Data:\n{\ncrew: { group, label, percentage },\nmanagement: { group, label, percentage },\nstaff: [array of staff with morale, salary, training]\n}</p>",
+    "parent": "module:server/websocket/staff-refresh"
+  },
+  {
+    "type": "method",
+    "name": "startStaffAutoRefresh",
+    "longname": "module:server/websocket/staff-refresh~startStaffAutoRefresh",
+    "url": "module-server_websocket_staff-refresh.html#~startStaffAutoRefresh",
+    "description": "<p>Starts automatic staff refresh polling.\nRuns every 5 minutes.</p>",
+    "parent": "module:server/websocket/staff-refresh"
+  },
+  {
+    "type": "method",
+    "name": "stopStaffAutoRefresh",
+    "longname": "module:server/websocket/staff-refresh~stopStaffAutoRefresh",
+    "url": "module-server_websocket_staff-refresh.html#~stopStaffAutoRefresh",
+    "description": "<p>Stops automatic staff refresh polling.</p>",
+    "parent": "module:server/websocket/staff-refresh"
+  },
+  {
+    "type": "method",
+    "name": "triggerImmediateStaffRefresh",
+    "longname": "module:server/websocket/staff-refresh~triggerImmediateStaffRefresh",
+    "url": "module-server_websocket_staff-refresh.html#~triggerImmediateStaffRefresh",
+    "description": "<p>Triggers an immediate staff refresh (bypasses the interval).</p>",
+    "parent": "module:server/websocket/staff-refresh"
+  },
+  {
+    "type": "method",
     "name": "initWebSocket",
     "longname": "module:server/websocket~initWebSocket",
     "url": "module-server_websocket.html#~initWebSocket",
@@ -11356,6 +11480,22 @@
   },
   {
     "type": "method",
+    "name": "loadBackupInfo",
+    "longname": "module:utils.loadBackupInfo",
+    "url": "module-utils.html#.loadBackupInfo",
+    "description": "<p>Load backup information from backend</p>",
+    "parent": "module:utils"
+  },
+  {
+    "type": "method",
+    "name": "loadServerConfig",
+    "longname": "module:utils.loadServerConfig",
+    "url": "module-utils.html#.loadServerConfig",
+    "description": "<p>Load server configuration (IP/Port) from backend</p>",
+    "parent": "module:utils"
+  },
+  {
+    "type": "method",
     "name": "registerServiceWorker",
     "longname": "module:utils.registerServiceWorker",
     "url": "module-utils.html#.registerServiceWorker",
@@ -11393,6 +11533,46 @@
     "url": "module-utils.html#.showSideNotification",
     "description": "<p>Shows a side notification (slides in from right, auto-dismisses after duration)</p>",
     "parent": "module:utils"
+  },
+  {
+    "type": "method",
+    "name": "formatFileSize",
+    "longname": "module:utils~formatFileSize",
+    "url": "module-utils.html#~formatFileSize",
+    "description": "<p>Format file size in human-readable format</p>",
+    "parent": "module:utils"
+  },
+  {
+    "type": "method",
+    "name": "createBackup",
+    "longname": "module:utils~window.createBackup",
+    "url": "module-utils-window.html#.createBackup",
+    "description": "<p>Create backup (download ZIP file)</p>",
+    "parent": "module:utils~window"
+  },
+  {
+    "type": "method",
+    "name": "handleBackupFileSelected",
+    "longname": "module:utils~window.handleBackupFileSelected",
+    "url": "module-utils-window.html#.handleBackupFileSelected",
+    "description": "<p>Handle backup file selection</p>",
+    "parent": "module:utils~window"
+  },
+  {
+    "type": "method",
+    "name": "restoreBackup",
+    "longname": "module:utils~window.restoreBackup",
+    "url": "module-utils-window.html#.restoreBackup",
+    "description": "<p>Restore backup from uploaded ZIP file</p>",
+    "parent": "module:utils~window"
+  },
+  {
+    "type": "method",
+    "name": "saveServerConfig",
+    "longname": "module:utils~window.saveServerConfig",
+    "url": "module-utils-window.html#.saveServerConfig",
+    "description": "<p>Save server configuration (IP/Port) to backend</p>",
+    "parent": "module:utils~window"
   },
   {
     "type": "method",

@@ -17,7 +17,8 @@ const CATEGORIES = {
   ANCHOR: 'Anchor',
   HIJACKING: 'Hijacking',
   COOP: 'COOP',
-  MARKETING: 'Marketing'
+  MARKETING: 'Marketing',
+  STAFF: 'Staff'
 };
 
 /**

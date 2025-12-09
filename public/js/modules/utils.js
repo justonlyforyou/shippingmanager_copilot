@@ -797,3 +797,239 @@ export function isMobileDevice() {
   // Return true if either check indicates mobile
   return isMobileWidth || isMobileUA;
 }
+
+/**
+ * Load server configuration (IP/Port) from backend
+ */
+export async function loadServerConfig() {
+  try {
+    const response = await fetch(window.apiUrl('/api/server-config'));
+    const data = await response.json();
+
+    if (data.success && data.config) {
+      document.getElementById('serverHost').value = data.config.host || '127.0.0.1';
+      document.getElementById('serverPort').value = data.config.port || 12345;
+    }
+  } catch (error) {
+    console.error('[Server Config] Error loading configuration:', error);
+  }
+}
+
+/**
+ * Save server configuration (IP/Port) to backend
+ */
+window.saveServerConfig = async function() {
+  const host = document.getElementById('serverHost').value;
+  const port = parseInt(document.getElementById('serverPort').value);
+  const statusEl = document.getElementById('serverConfigStatus');
+  const saveBtn = document.getElementById('saveServerConfigBtn');
+
+  statusEl.style.display = 'none';
+
+  if (port < 1 || port > 65535) {
+    statusEl.textContent = 'Port must be between 1 and 65535';
+    statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+    statusEl.style.color = '#fca5a5';
+    statusEl.style.display = 'block';
+    return;
+  }
+
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Saving...';
+
+  try {
+    const response = await fetch(window.apiUrl('/api/server-config'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port })
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      statusEl.textContent = data.message || 'Configuration saved! Please restart the server.';
+      statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+      statusEl.style.color = '#6ee7b7';
+    } else {
+      statusEl.textContent = data.error || 'Failed to save configuration';
+      statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+      statusEl.style.color = '#fca5a5';
+    }
+    statusEl.style.display = 'block';
+  } catch (error) {
+    console.error('[Server Config] Error saving:', error);
+    statusEl.textContent = 'Error saving configuration';
+    statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+    statusEl.style.color = '#fca5a5';
+    statusEl.style.display = 'block';
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = '💾 Save Configuration';
+  }
+};
+
+/**
+ * Load backup information from backend
+ */
+export async function loadBackupInfo() {
+  try {
+    const response = await fetch(window.apiUrl('/api/backup/info'));
+    const data = await response.json();
+
+    if (data.success && data.info) {
+      document.getElementById('backupPath').textContent = data.info.path || '';
+      document.getElementById('backupFileCount').textContent = formatNumber(data.info.fileCount || 0);
+      document.getElementById('backupTotalSize').textContent = formatFileSize(data.info.totalSize || 0);
+      document.getElementById('backupInfoBox').style.display = 'block';
+    }
+  } catch (error) {
+    console.error('[Backup] Error loading backup info:', error);
+  }
+}
+
+/**
+ * Create backup (download ZIP file)
+ */
+window.createBackup = async function() {
+  const statusEl = document.getElementById('backupStatus');
+  const createBtn = document.getElementById('createBackupBtn');
+
+  statusEl.style.display = 'none';
+  createBtn.disabled = true;
+  createBtn.textContent = 'Creating Backup...';
+
+  try {
+    const response = await fetch(window.apiUrl('/api/backup/create'), {
+      method: 'POST'
+    });
+
+    if (response.ok) {
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+      a.download = `SMCoPilot_Backup_${timestamp}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      statusEl.textContent = 'Backup created and downloaded successfully!';
+      statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+      statusEl.style.color = '#6ee7b7';
+    } else {
+      const data = await response.json();
+      statusEl.textContent = data.error || 'Failed to create backup';
+      statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+      statusEl.style.color = '#fca5a5';
+    }
+    statusEl.style.display = 'block';
+  } catch (error) {
+    console.error('[Backup] Error creating backup:', error);
+    statusEl.textContent = 'Error creating backup';
+    statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+    statusEl.style.color = '#fca5a5';
+    statusEl.style.display = 'block';
+  } finally {
+    createBtn.disabled = false;
+    createBtn.textContent = '📦 Create Backup (Download ZIP)';
+  }
+};
+
+/**
+ * Handle backup file selection
+ */
+window.handleBackupFileSelected = function() {
+  const fileInput = document.getElementById('backupFileInput');
+  const fileNameEl = document.getElementById('selectedFileName');
+  const restoreBtn = document.getElementById('restoreBackupBtn');
+
+  if (fileInput.files.length > 0) {
+    const file = fileInput.files[0];
+    fileNameEl.textContent = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+    fileNameEl.style.display = 'block';
+    restoreBtn.style.display = 'block';
+  } else {
+    fileNameEl.style.display = 'none';
+    restoreBtn.style.display = 'none';
+  }
+};
+
+/**
+ * Restore backup from uploaded ZIP file
+ */
+window.restoreBackup = async function() {
+  const fileInput = document.getElementById('backupFileInput');
+  const statusEl = document.getElementById('backupStatus');
+  const restoreBtn = document.getElementById('restoreBackupBtn');
+
+  if (fileInput.files.length === 0) {
+    statusEl.textContent = 'Please select a backup file first';
+    statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+    statusEl.style.color = '#fca5a5';
+    statusEl.style.display = 'block';
+    return;
+  }
+
+  const confirmed = confirm(
+    'WARNING: Restoring a backup will overwrite all current data!\n\n' +
+    'This action cannot be undone. A backup of current data will be created automatically.\n\n' +
+    'Do you want to continue?'
+  );
+
+  if (!confirmed) {
+    return;
+  }
+
+  statusEl.style.display = 'none';
+  restoreBtn.disabled = true;
+  restoreBtn.textContent = 'Restoring...';
+
+  try {
+    const formData = new FormData();
+    formData.append('backup', fileInput.files[0]);
+
+    const response = await fetch(window.apiUrl('/api/backup/restore'), {
+      method: 'POST',
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      statusEl.textContent = data.message || 'Backup restored successfully! Server restart recommended.';
+      statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+      statusEl.style.color = '#6ee7b7';
+
+      fileInput.value = '';
+      document.getElementById('selectedFileName').style.display = 'none';
+      restoreBtn.style.display = 'none';
+    } else {
+      statusEl.textContent = data.error || 'Failed to restore backup';
+      statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+      statusEl.style.color = '#fca5a5';
+    }
+    statusEl.style.display = 'block';
+  } catch (error) {
+    console.error('[Backup] Error restoring backup:', error);
+    statusEl.textContent = 'Error restoring backup';
+    statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
+    statusEl.style.color = '#fca5a5';
+    statusEl.style.display = 'block';
+  } finally {
+    restoreBtn.disabled = false;
+    restoreBtn.textContent = '🔄 Restore Backup';
+  }
+};
+
+/**
+ * Format file size in human-readable format
+ */
+function formatFileSize(bytes) {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+}

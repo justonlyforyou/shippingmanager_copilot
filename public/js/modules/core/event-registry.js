@@ -189,7 +189,11 @@ export function registerDialogEventListeners(handlers, settings, testBrowserNoti
       .then(res => res.json())
       .then(data => {
         telegramAlertCheckbox.checked = data.enabled;
-        document.getElementById('telegramChatId').value = data.chatId || '';
+        let chatId = data.chatId || '';
+        if (chatId.startsWith('-')) {
+          chatId = chatId.substring(1);
+        }
+        document.getElementById('telegramChatId').value = chatId;
         if (data.hasToken) {
           document.getElementById('telegramBotToken').placeholder = '(token saved securely)';
         }
@@ -678,6 +682,19 @@ export function registerAutoPilotFeatureListeners(settings) {
   document.getElementById('autoDrydockMinCash').addEventListener('change', function() {
     settings.autoDrydockMinCash = parseInt(this.value.replace(/,/g, ''));
     this.value = formatNumberWithSeparator(settings.autoDrydockMinCash);
+    saveSettings(settings);
+  });
+
+  // Staff Captain
+  document.getElementById('enableStaffCaptain').addEventListener('change', function() {
+    settings.enableStaffCaptain = this.checked;
+    document.getElementById('staffCaptainOptions').classList.toggle('hidden', !this.checked);
+    saveSettings(settings);
+    updatePageTitle(settings);
+  });
+
+  document.getElementById('staffCaptainTargetMorale').addEventListener('change', function() {
+    settings.staffCaptainTargetMorale = parseInt(this.value);
     saveSettings(settings);
   });
 

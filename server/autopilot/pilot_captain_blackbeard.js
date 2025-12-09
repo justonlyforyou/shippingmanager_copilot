@@ -20,6 +20,7 @@ const { getAppBaseDir } = require('../config');
 const path = require('path');
 const fs = require('fs');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
+const { getCachedHijackingCase } = require('../websocket/hijacking-cache');
 
 // Use same path logic as messenger.js for hijack history
 const isPkg = !!process.pkg;
@@ -86,6 +87,13 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
   const WAIT_TIME_MS = 2 * 60 * 1000; // 2 minutes
 
   logger.info(`[Blackbeard] Processing case ${caseId} for ${vesselName}...`);
+
+  // FIRST: Check if case is already resolved via cache (no API call needed!)
+  const cachedCase = await getCachedHijackingCase(caseId);
+  if (cachedCase && !cachedCase.isOpen) {
+    logger.debug(`[Blackbeard] Case ${caseId} already resolved (from cache) - SKIPPING`);
+    return { success: false, reason: 'already_resolved', skipped: true };
+  }
 
   // Step 1: Get current case data
   let caseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });

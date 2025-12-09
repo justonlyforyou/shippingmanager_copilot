@@ -452,11 +452,16 @@ router.post('/messenger/get-messages', express.json(), async (req, res) => {
 router.post('/messenger/send-private', messageLimiter, express.json(), async (req, res) => {
   const { message, subject, target_user_id } = req.body;
 
+  logger.info(`[Messenger] send-private called: message=${typeof message}, subject=${typeof subject}, target_user_id=${typeof target_user_id}`);
+  logger.debug(`[Messenger] Request body: ${JSON.stringify(req.body)}`);
+
   if (!message || typeof message !== 'string' || message.length === 0 || message.length > 1000) {
+    logger.warn(`[Messenger] Invalid message: ${typeof message}, length=${message?.length}`);
     return res.status(400).json({ error: 'Invalid message' });
   }
 
   if (!subject || typeof subject !== 'string' || subject.length === 0) {
+    logger.warn(`[Messenger] Invalid subject: ${typeof subject}, value="${subject}"`);
     return res.status(400).json({ error: 'Subject is required' });
   }
 
@@ -491,8 +496,8 @@ router.post('/messenger/send-private', messageLimiter, express.json(), async (re
 
     // Check if API returned an error
     if (result.success === false || result.error) {
+      logger.error('[Messenger] Message rejected by API:', JSON.stringify(result, null, 2));
       const errorMessage = result.message || result.error || 'Message rejected by game server';
-      logger.error('Message rejected by API:', errorMessage);
       return res.status(400).json({ error: errorMessage });
     }
 

@@ -143,40 +143,57 @@ async function getCachedHijackingCase(caseId) {
 
     // FIRST: Check local file (survives server restart!)
     const localData = readLocalCaseFile(caseId);
+    logger.debug(`[Hijacking Cache] Case ${caseId} - localData found: ${!!localData}, resolved: ${localData?.resolved}, autopilot_resolved: ${localData?.autopilot_resolved}, resolved_at: ${localData?.resolved_at}`);
+
     if (localData) {
-      // If resolved locally, use it - NO API needed!
-      // Check: resolved:true (new) OR autopilot_resolved:true (old) OR resolved_at exists (manual payment)
+      // Only use file if case is RESOLVED - open cases need fresh API data
       const isResolved = localData.resolved === true ||
                          localData.autopilot_resolved === true ||
                          localData.resolved_at !== undefined;
+
+      logger.debug(`[Hijacking Cache] Case ${caseId} - isResolved check: ${isResolved}`);
+
       if (isResolved) {
-        // Build details from case_details or fallback to payment_verification
+        // Case is closed - use cached data, NO API call needed
         const details = localData.case_details || {
-          id: caseId,
-          status: localData.final_status || localData.payment_verification?.final_status || 'paid',
-          paid_amount: localData.payment_verification?.actual_paid,
-          requested_amount: localData.payment_verification?.expected_amount,
-          registered_at: localData.resolved_at || localData.cached_at / 1000 || Date.now() / 1000
-        };
-        // Ensure registered_at exists (for time display in inbox)
-        if (!details.registered_at) {
-          details.registered_at = localData.resolved_at || localData.cached_at / 1000 || Date.now() / 1000;
-        }
-        // CRITICAL: Override paid_amount from payment_verification (case_details may have null from pre-payment API call)
-        if (localData.payment_verification?.actual_paid) {
-          details.paid_amount = localData.payment_verification.actual_paid;
-        }
-        // Ensure requested_amount exists
-        if (!details.requested_amount && localData.payment_verification?.expected_amount) {
-          details.requested_amount = localData.payment_verification.expected_amount;
-        }
-        // Force status to paid/solved for resolved cases
-        if (details.status !== 'paid' && details.status !== 'solved') {
-          details.status = 'paid';
-        }
-        logger.debug(`[Hijacking Cache] Case ${caseId} RESOLVED from local file (paid: $${details.paid_amount})`);
-        return { isOpen: false, details, cached: true };
+        id: caseId,
+        status: localData.final_status || localData.payment_verification?.final_status || 'paid',
+        paid_amount: localData.payment_verification?.actual_paid,
+        requested_amount: localData.payment_verification?.expected_amount,
+        registered_at: localData.resolved_at || localData.cached_at / 1000 || Date.now() / 1000
+      };
+      // Ensure registered_at exists (for time display in inbox)
+      if (!details.registered_at) {
+        details.registered_at = localData.resolved_at || localData.cached_at / 1000 || Date.now() / 1000;
       }
+      // CRITICAL: Override paid_amount from payment_verification (case_details may have null from pre-payment API call)
+      if (localData.payment_verification?.actual_paid) {
+        details.paid_amount = localData.payment_verification.actual_paid;
+      }
+      // Ensure requested_amount exists
+      if (!details.requested_amount && localData.payment_verification?.expected_amount) {
+        details.requested_amount = localData.payment_verification.expected_amount;
+      }
+      // Force status to paid/solved for resolved cases
+      if (details.status !== 'paid' && details.status !== 'solved') {
+        details.status = 'paid';
+      }
+      // CRITICAL: Include negotiation history (stored as 'history' in local file)
+      // Frontend expects this as 'offers' array
+      if (localData.history && Array.isArray(localData.history)) {
+        details.offers = localData.history;
+      }
+      // Include payment verification for display
+      if (localData.payment_verification) {
+        details.payment_verification = localData.payment_verification;
+      }
+      logger.debug(`[Hijacking Cache] Case ${caseId} RESOLVED from local file (paid: $${details.paid_amount})`);
+      return { isOpen: false, details, cached: true };
+      } else {
+        logger.debug(`[Hijacking Cache] Case ${caseId} - File exists but NOT resolved, fetching from API`);
+      }
+    } else {
+      logger.debug(`[Hijacking Cache] Case ${caseId} - No local file found, fetching from API`);
     }
 
     // SECOND: Check memory cache
@@ -198,6 +215,7 @@ async function getCachedHijackingCase(caseId) {
     }
 
     // THIRD: Fetch from API (only for unknown or expired cases)
+    logger.debug(`[Hijacking Cache] Case ${caseId} - Making API call to /hijacking/get-case`);
     const caseData = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
     const details = caseData?.data;
     if (!details) return null;

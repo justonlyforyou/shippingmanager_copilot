@@ -21,7 +21,7 @@
  * @requires api - Backend API calls for data fetching
  */
 
-import { escapeHtml, formatNumber, renderStars, showSideNotification } from './utils.js';
+import { escapeHtml, formatNumber, renderStars, showSideNotification, loadServerConfig, loadBackupInfo } from './utils.js';
 import { fetchCampaigns, activateCampaign, fetchContacts } from './api.js';
 import { showAnchorPurchaseDialog } from './anchor-purchase.js';
 
@@ -213,27 +213,27 @@ export function showConfirmDialog(options) {
           }
         });
       });
-
-      // Handle info icon clicks
-      dialog.querySelectorAll('.confirm-dialog-info-icon').forEach(icon => {
-        icon.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const info = icon.dataset.info;
-          // Toggle info popup
-          let popup = icon.querySelector('.confirm-dialog-info-popup');
-          if (popup) {
-            popup.remove();
-          } else {
-            popup = document.createElement('div');
-            popup.className = 'confirm-dialog-info-popup';
-            popup.textContent = info;
-            icon.appendChild(popup);
-            // Auto-close after 5s
-            setTimeout(() => popup.remove(), 5000);
-          }
-        });
-      });
     }
+
+    // Handle info icon clicks
+    dialog.querySelectorAll('.confirm-dialog-info-icon').forEach(icon => {
+      icon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const info = icon.dataset.info;
+        // Toggle info popup
+        let popup = icon.querySelector('.confirm-dialog-info-popup');
+        if (popup) {
+          popup.remove();
+        } else {
+          popup = document.createElement('div');
+          popup.className = 'confirm-dialog-info-popup';
+          popup.textContent = info;
+          icon.appendChild(popup);
+          // Auto-close after 5s
+          setTimeout(() => popup.remove(), 5000);
+        }
+      });
+    });
 
     // Check if too expensive and disable confirm button
     const tooExpensiveRow = dialog.querySelector('.confirm-dialog-detail-row.too-expensive');
@@ -434,6 +434,10 @@ export function showSettings(settings) {
       }
     }
   });
+
+  // Load server configuration and backup info
+  loadServerConfig();
+  loadBackupInfo();
 
   document.getElementById('settingsOverlay').classList.remove('hidden');
 }

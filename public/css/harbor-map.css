@@ -2829,10 +2829,10 @@ div[style*="background: rgb(255, 255, 255)"] {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 320px;
+  width: 300px;
   max-width: 90vw;
   max-height: 80vh;
-  background: rgb(31, 41, 55, 0.95);
+  background: rgb(31, 41, 55, 0.9);
   border-radius: var(--radius-10);
   box-shadow: var(--shadow-modal-dark);
   border: 1px solid var(--color-border);
@@ -2876,7 +2876,7 @@ div[style*="background: rgb(255, 255, 255)"] {
  */
 .harbor-filter-content {
   flex: 1;
-  padding: var(--spacing-15);
+  padding: var(--spacing-15) 2px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -2990,11 +2990,8 @@ div[style*="background: rgb(255, 255, 255)"] {
  * Filter Modal Footer
  */
 .harbor-filter-footer {
-  padding: var(--spacing-12) var(--spacing-15);
+  padding: 5px;
   border-top: var(--border-default);
-  display: flex;
-  gap: var(--spacing-8);
-  justify-content: flex-end;
 }
 
 .harbor-filter-clear-btn {
@@ -3002,11 +2999,14 @@ div[style*="background: rgb(255, 255, 255)"] {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-4);
   color: var(--color-text-secondary);
-  font-size: var(--font-size-12);
-  font-weight: var(--font-weight-semibold);
-  padding: var(--spacing-6) var(--spacing-16);
+  font-size: var(--font-size-11);
+  font-weight: var(--font-weight-normal);
+  padding: 0 var(--spacing-10);
   cursor: pointer;
   transition: var(--transition-fast);
+  line-height: 1;
+  width: 100%;
+  height: 20px;
 }
 
 .harbor-filter-clear-btn:hover {

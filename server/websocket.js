@@ -42,6 +42,7 @@ const chatRefresh = require('./websocket/chat-refresh');
 const messengerRefresh = require('./websocket/messenger-refresh');
 const hijackingRefresh = require('./websocket/hijacking-refresh');
 const ipoRefresh = require('./websocket/ipo-refresh');
+const staffRefresh = require('./websocket/staff-refresh');
 
 // Wire up cross-module dependencies
 chatRefresh.setMessengerRefreshFn(messengerRefresh.performMessengerRefresh);
@@ -455,6 +456,33 @@ function initWebSocket() {
           logger.error('[WebSocket] Failed to send messenger/hijacking data:', messengerError.message);
         }
 
+        // Staff data
+        let staffData = state.getStaffData(userId);
+        if (!staffData) {
+          try {
+            const staffResponse = await apiCall('/staff/get-user-staff', 'POST', {});
+            if (staffResponse?.data) {
+              staffData = staffResponse.data;
+              state.updateStaffData(userId, staffData);
+              logger.debug('[WebSocket] Staff data fetched from API');
+            }
+          } catch (error) {
+            logger.error('[WebSocket] Failed to fetch staff data:', error.message);
+          }
+        }
+
+        if (staffData) {
+          ws.send(JSON.stringify({
+            type: 'staff_update',
+            data: {
+              crew: staffData.info?.crew,
+              management: staffData.info?.management,
+              staff: staffData.staff
+            }
+          }));
+          logger.debug('[WebSocket] OK Staff data sent');
+        }
+
         logger.debug('[WebSocket] All cached data sent to client');
       }
     } catch (error) {
@@ -505,6 +533,11 @@ module.exports = {
   triggerImmediateIpoRefresh: ipoRefresh.triggerImmediateIpoRefresh,
   resetIpoCache: ipoRefresh.resetIpoCache,
   getFreshIpos: ipoRefresh.getFreshIpos,
+
+  // Staff refresh (from staff-refresh.js)
+  startStaffAutoRefresh: staffRefresh.startStaffAutoRefresh,
+  stopStaffAutoRefresh: staffRefresh.stopStaffAutoRefresh,
+  triggerImmediateStaffRefresh: staffRefresh.triggerImmediateStaffRefresh,
 
   // Caching functions (from cache modules)
   getCachedMessengerChats: messengerCache.getCachedMessengerChats,
