@@ -154,6 +154,8 @@ router.post('/create-user-route', async (req, res) => {
       dry_operation,
       price_dry,
       price_refrigerated,
+      price_fuel,
+      price_crude_oil,
       // Calculated fees from client for logging
       calculated_route_fee,
       calculated_channel_cost,
@@ -165,6 +167,7 @@ router.post('/create-user-route', async (req, res) => {
     }
 
     logger.info(`[Route Planner] Creating route ${route_id} for vessel ${user_vessel_id}`);
+    logger.info(`[Route Planner] SENDING prices to game: dry=${price_dry}, ref=${price_refrigerated}, fuel=${price_fuel}, crude=${price_crude_oil}`);
 
     const data = await apiCall('/route/create-user-route', 'POST', {
       route_id,
@@ -173,8 +176,12 @@ router.post('/create-user-route', async (req, res) => {
       guards,
       dry_operation,
       price_dry,
-      price_refrigerated
+      price_refrigerated,
+      price_fuel,
+      price_crude_oil
     });
+
+    logger.info(`[Route Planner] GAME RETURNED prices: dry=${data.data?.user_vessel?.prices?.dry}, ref=${data.data?.user_vessel?.prices?.refrigerated}, fuel=${data.data?.user_vessel?.prices?.fuel}, crude=${data.data?.user_vessel?.prices?.crude_oil}`);
 
     // Log the route creation to the logbook
     try {
@@ -351,19 +358,25 @@ router.post('/update-route-data', async (req, res) => {
  *
  * @route POST /api/route/auto-price
  * @param {number} route_id - Route ID
+ * @param {number} user_vessel_id - Vessel ID
  * @returns {object} Auto-price data
  */
 router.post('/auto-price', async (req, res) => {
   try {
-    const { route_id } = req.body;
+    const { route_id, user_vessel_id } = req.body;
 
     if (!route_id) {
       return res.status(400).json({ error: 'Missing route_id' });
     }
 
-    logger.info(`[Route Planner] Getting auto-price for route ${route_id}`);
+    if (!user_vessel_id) {
+      return res.status(400).json({ error: 'Missing user_vessel_id' });
+    }
 
-    const data = await apiCall('/route/auto-price', 'POST', {
+    logger.info(`[Route Planner] Getting auto-price for route ${route_id}, vessel ${user_vessel_id}`);
+
+    const data = await apiCall('/demand/auto-price', 'POST', {
+      user_vessel_id: user_vessel_id,
       route_id: route_id
     });
 

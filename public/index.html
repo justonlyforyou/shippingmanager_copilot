@@ -430,6 +430,24 @@
                                 <span class="route-planner-info-label">Creation Fee:</span>
                                 <span class="route-planner-info-value creation-fee" data-info="creation-fee">$0</span>
                             </div>
+                            <hr class="route-planner-divider">
+                            <div class="route-planner-info-row" id="routePlannerPricesDry">
+                                <span class="route-planner-info-label">Dry Price:</span>
+                                <span class="route-planner-info-value" data-info="price-dry">-</span>
+                            </div>
+                            <div class="route-planner-info-row" id="routePlannerPricesRef">
+                                <span class="route-planner-info-label">Refrigerated Price:</span>
+                                <span class="route-planner-info-value" data-info="price-refrigerated">-</span>
+                            </div>
+                            <div class="route-planner-info-row" id="routePlannerPricesFuel">
+                                <span class="route-planner-info-label">Fuel Price:</span>
+                                <span class="route-planner-info-value" data-info="price-fuel">-</span>
+                            </div>
+                            <div class="route-planner-info-row" id="routePlannerPricesCrude">
+                                <span class="route-planner-info-label">Crude Oil Price:</span>
+                                <span class="route-planner-info-value" data-info="price-crude">-</span>
+                            </div>
+                            <button id="routePlannerResetAutoPriceBtn" class="route-planner-cancel-btn" style="margin-top: 8px;">Reset Auto-Price</button>
                         </div>
                         <button id="routePlannerCreateBtn" class="route-planner-save-btn" disabled>Create Route</button>
                     </div>
@@ -458,6 +476,22 @@
                                 <div class="route-planner-cost-row">
                                     <span class="route-planner-cost-label">Guard Cost:</span>
                                     <span id="routePlannerGuardsCost" class="route-planner-cost-value">$0</span>
+                                </div>
+                                <div class="route-planner-cost-row" id="routePlannerRoutePricesDry" style="display: none;">
+                                    <span class="route-planner-cost-label">Dry Price:</span>
+                                    <span id="routePlannerRoutePricesDryValue" class="route-planner-cost-value">-</span>
+                                </div>
+                                <div class="route-planner-cost-row" id="routePlannerRoutePricesRef" style="display: none;">
+                                    <span class="route-planner-cost-label">Refrigerated Price:</span>
+                                    <span id="routePlannerRoutePricesRefValue" class="route-planner-cost-value">-</span>
+                                </div>
+                                <div class="route-planner-cost-row" id="routePlannerRoutePricesFuel" style="display: none;">
+                                    <span class="route-planner-cost-label">Fuel Price:</span>
+                                    <span id="routePlannerRoutePricesFuelValue" class="route-planner-cost-value">-</span>
+                                </div>
+                                <div class="route-planner-cost-row" id="routePlannerRoutePricesCrude" style="display: none;">
+                                    <span class="route-planner-cost-label">Crude Oil Price:</span>
+                                    <span id="routePlannerRoutePricesCrudeValue" class="route-planner-cost-value">-</span>
                                 </div>
                             </div>
                             <div class="route-planner-actions">

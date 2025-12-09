@@ -22,6 +22,7 @@ let vesselPorts = null;
 let currentHighlightedPorts = null; // Currently filtered/highlighted ports
 let currentVesselData = null; // Vessel data for formula calculations
 let currentRouteDistance = null; // Distance of current route (for Route tab calculations)
+let currentAutoPrices = null; // Auto-price data from game API
 
 // Planning mode state (exported for map-controller)
 let planningMode = false;
@@ -179,6 +180,15 @@ export function initializeRoutePlanner() {
   const clearRouteBtn = document.getElementById('routePlannerClearRoute');
   if (clearRouteBtn) {
     clearRouteBtn.addEventListener('click', clearRouteSelection);
+  }
+
+  // Reset auto-price button
+  const resetAutoPriceBtn = document.getElementById('routePlannerResetAutoPriceBtn');
+  if (resetAutoPriceBtn) {
+    resetAutoPriceBtn.addEventListener('click', async () => {
+      if (!selectedRoute) return;
+      await updateSelectedPortDisplay();
+    });
   }
 
   // Route tab buttons
@@ -654,6 +664,45 @@ function updateRouteTabWithCurrentRoute(vessel) {
     }
   }
 
+  // Display route prices from vessel.prices
+  const isContainer = currentVesselData && currentVesselData.capacityType === 'container';
+  const isTanker = currentVesselData && currentVesselData.capacityType === 'tanker';
+
+  const priceDryRow = document.getElementById('routePlannerRoutePricesDry');
+  const priceRefRow = document.getElementById('routePlannerRoutePricesRef');
+  const priceFuelRow = document.getElementById('routePlannerRoutePricesFuel');
+  const priceCrudeRow = document.getElementById('routePlannerRoutePricesCrude');
+
+  console.log('[Route Planner] vessel.prices:', vessel.prices);
+
+  if (isContainer && vessel.prices) {
+    if (priceDryRow) {
+      priceDryRow.style.display = 'flex';
+      const valueEl = document.getElementById('routePlannerRoutePricesDryValue');
+      if (valueEl) valueEl.textContent = `$${vessel.prices.dry}/TEU`;
+    }
+    if (priceRefRow) {
+      priceRefRow.style.display = 'flex';
+      const valueEl = document.getElementById('routePlannerRoutePricesRefValue');
+      if (valueEl) valueEl.textContent = `$${vessel.prices.refrigerated}/TEU`;
+    }
+    if (priceFuelRow) priceFuelRow.style.display = 'none';
+    if (priceCrudeRow) priceCrudeRow.style.display = 'none';
+  } else if (isTanker && vessel.prices) {
+    if (priceFuelRow) {
+      priceFuelRow.style.display = 'flex';
+      const valueEl = document.getElementById('routePlannerRoutePricesFuelValue');
+      if (valueEl) valueEl.textContent = `$${vessel.prices.fuel}/bbl`;
+    }
+    if (priceCrudeRow) {
+      priceCrudeRow.style.display = 'flex';
+      const valueEl = document.getElementById('routePlannerRoutePricesCrudeValue');
+      if (valueEl) valueEl.textContent = `$${vessel.prices.crude_oil}/bbl`;
+    }
+    if (priceDryRow) priceDryRow.style.display = 'none';
+    if (priceRefRow) priceRefRow.style.display = 'none';
+  }
+
   // Disable sliders and save button if vessel is not at port or anchor
   const canModify = vessel.status === 'port' || vessel.status === 'anchor';
   const saveBtn = document.getElementById('routePlannerSaveBtn');
@@ -1063,6 +1112,71 @@ async function updateSelectedPortDisplay() {
     fuelValue.textContent = `${fuel.toFixed(2)} t`;
   }
 
+  // Fetch and display auto-price
+  try {
+    const autoPriceResponse = await fetch('/api/route/auto-price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        route_id: selectedRoute.id,
+        user_vessel_id: currentVesselId
+      })
+    });
+
+    if (autoPriceResponse.ok) {
+      const autoPriceData = await autoPriceResponse.json();
+      console.log('[Route Planner] Auto-price API response:', autoPriceData);
+
+      // Store auto-prices for later use in createRoute
+      currentAutoPrices = autoPriceData.data;
+
+      const isContainer = currentVesselData && currentVesselData.capacityType === 'container';
+      const isTanker = currentVesselData && currentVesselData.capacityType === 'tanker';
+
+      const priceDry = currentAutoPrices?.dry;
+      const priceRefrigerated = currentAutoPrices?.ref;
+      const priceFuel = currentAutoPrices?.fuel;
+      const priceCrudeOil = currentAutoPrices?.crude;
+
+      console.log('[Route Planner] Parsed prices:', { priceDry, priceRefrigerated, priceFuel, priceCrudeOil, isContainer, isTanker });
+
+      const priceDryRow = document.getElementById('routePlannerPricesDry');
+      const priceRefRow = document.getElementById('routePlannerPricesRef');
+      const priceFuelRow = document.getElementById('routePlannerPricesFuel');
+      const priceCrudeRow = document.getElementById('routePlannerPricesCrude');
+
+      if (isContainer) {
+        if (priceDryRow && priceDry !== undefined) {
+          priceDryRow.style.display = 'flex';
+          const valueEl = priceDryRow.querySelector('[data-info="price-dry"]');
+          if (valueEl) valueEl.textContent = `$${priceDry}/TEU`;
+        }
+        if (priceRefRow && priceRefrigerated !== undefined) {
+          priceRefRow.style.display = 'flex';
+          const valueEl = priceRefRow.querySelector('[data-info="price-refrigerated"]');
+          if (valueEl) valueEl.textContent = `$${priceRefrigerated}/TEU`;
+        }
+        if (priceFuelRow) priceFuelRow.style.display = 'none';
+        if (priceCrudeRow) priceCrudeRow.style.display = 'none';
+      } else if (isTanker) {
+        if (priceFuelRow && priceFuel !== undefined) {
+          priceFuelRow.style.display = 'flex';
+          const valueEl = priceFuelRow.querySelector('[data-info="price-fuel"]');
+          if (valueEl) valueEl.textContent = `$${priceFuel}/bbl`;
+        }
+        if (priceCrudeRow && priceCrudeOil !== undefined) {
+          priceCrudeRow.style.display = 'flex';
+          const valueEl = priceCrudeRow.querySelector('[data-info="price-crude"]');
+          if (valueEl) valueEl.textContent = `$${priceCrudeOil}/bbl`;
+        }
+        if (priceDryRow) priceDryRow.style.display = 'none';
+        if (priceRefRow) priceRefRow.style.display = 'none';
+      }
+    }
+  } catch (error) {
+    console.error('[Route Planner] Failed to fetch auto-price:', error);
+  }
+
   // Piracy warning and Guards slider
   const piracySection = infoSection.querySelector('.route-planner-piracy-warning');
   const guardsSelector = document.querySelector('.route-planner-guards-selector');
@@ -1384,6 +1498,14 @@ async function createRoute() {
   const totalFee = routeFee + channelCost;
 
   try {
+    // Use auto-price values that were fetched when route was displayed
+    const priceDry = currentAutoPrices?.dry;
+    const priceRefrigerated = currentAutoPrices?.ref;
+    const priceFuel = currentAutoPrices?.fuel;
+    const priceCrudeOil = currentAutoPrices?.crude;
+
+    console.log('[Route Planner] Using auto-price values:', { priceDry, priceRefrigerated, priceFuel, priceCrudeOil });
+
     const response = await fetch('/api/route/create-user-route', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1393,8 +1515,10 @@ async function createRoute() {
         speed: speed,
         guards: 0,
         dry_operation: 0,
-        price_dry: 655,
-        price_refrigerated: 655,
+        price_dry: priceDry,
+        price_refrigerated: priceRefrigerated,
+        price_fuel: priceFuel,
+        price_crude_oil: priceCrudeOil,
         // Calculated fees for logging
         calculated_route_fee: routeFee,
         calculated_channel_cost: channelCost,

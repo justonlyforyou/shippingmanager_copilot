@@ -58,17 +58,17 @@ function resetFuelFailedCacheIfIncreased(userId, newFuelLevel) {
  */
 function calculateRemainingDemand(port, vesselType) {
   if (vesselType === 'container') {
-    const dryDemand = port.demand?.container?.dry || 0;
-    const dryConsumed = port.consumed?.container?.dry || 0;
-    const refDemand = port.demand?.container?.refrigerated || 0;
-    const refConsumed = port.consumed?.container?.refrigerated || 0;
+    const dryDemand = port.demand?.container?.dry;
+    const dryConsumed = port.consumed?.container?.dry;
+    const refDemand = port.demand?.container?.refrigerated;
+    const refConsumed = port.consumed?.container?.refrigerated;
 
     return (dryDemand - dryConsumed) + (refDemand - refConsumed);
   } else if (vesselType === 'tanker') {
-    const fuelDemand = port.demand?.tanker?.fuel || 0;
-    const fuelConsumed = port.consumed?.tanker?.fuel || 0;
-    const crudeDemand = port.demand?.tanker?.crude_oil || 0;
-    const crudeConsumed = port.consumed?.tanker?.crude_oil || 0;
+    const fuelDemand = port.demand?.tanker?.fuel;
+    const fuelConsumed = port.consumed?.tanker?.fuel;
+    const crudeDemand = port.demand?.tanker?.crude_oil;
+    const crudeConsumed = port.consumed?.tanker?.crude_oil;
 
     return (fuelDemand - fuelConsumed) + (crudeDemand - crudeConsumed);
   }
@@ -84,9 +84,9 @@ function calculateRemainingDemand(port, vesselType) {
  */
 function getTotalCapacity(vessel) {
   if (vessel.capacity_type === 'container') {
-    return (vessel.capacity_max?.dry || 0) + (vessel.capacity_max?.refrigerated || 0);
+    return (vessel.capacity_max?.dry) + (vessel.capacity_max?.refrigerated);
   } else if (vessel.capacity_type === 'tanker') {
-    return (vessel.capacity_max?.fuel || 0) + (vessel.capacity_max?.crude_oil || 0);
+    return (vessel.capacity_max?.fuel) + (vessel.capacity_max?.crude_oil);
   }
   return 0;
 }
@@ -404,50 +404,29 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           continue;
         }
 
-        // CRITICAL: Check if price-per-TEU is 0 at destination using auto-price API
-        try {
-          if (vessel.route_id) {
-            const autoPriceData = await gameapi.fetchAutoPrice(vessel.id, vessel.route_id);
+        // CRITICAL: Check if prices are set (should have been set during route creation)
+        // Prices come from game API vessel object (set when route was created via create-user-route)
+        const dryPrice = vessel.prices?.dry;
+        const refPrice = vessel.prices?.refrigerated;
+        const fuelPrice = vessel.prices?.fuel;
+        const crudePrice = vessel.prices?.crude_oil;
 
-            const dryPrice = autoPriceData?.data?.dry || 0;
-            const refPrice = autoPriceData?.data?.ref || 0;
-            const fuelPrice = autoPriceData?.data?.fuel || 0;
-            const crudePrice = autoPriceData?.data?.crude_oil || 0;
+        const hasValidPrice = vesselType === 'container'
+          ? (dryPrice > 0 || refPrice > 0)
+          : (fuelPrice > 0 || crudePrice > 0);
 
-            const hasValidPrice = vesselType === 'container'
-              ? (dryPrice > 0 || refPrice > 0)
-              : (fuelPrice > 0 || crudePrice > 0);
-
-            if (!hasValidPrice) {
-              logger.warn(`[Depart] ${vessel.name}: Price per TEU is $0 at ${destination} - BLOCKING departure to avoid losses`);
-              failedVessels.push({
-                name: vessel.name,
-                destination: destination,
-                reason: `CRITICAL: Price per TEU is $0 at destination - would result in losses`
-              });
-              continue;
-            }
-
-            logger.debug(`[Depart] ${vessel.name}: Price check OK - Dry: $${dryPrice}, Ref: $${refPrice}, Fuel: $${fuelPrice}, Crude: $${crudePrice}`);
-
-            // Store prices on vessel for later use when saving trip data
-            vessel.prices = {
-              dry: dryPrice,
-              refrigerated: refPrice,
-              fuel: fuelPrice,
-              crude_oil: crudePrice
-            };
-          }
-        } catch (error) {
-          logger.error(`[Depart] ${vessel.name}: Failed to fetch auto-price - BLOCKING departure to avoid potential losses`);
-          logger.error(`[Depart] Error details: ${error.message}`);
+        if (!hasValidPrice) {
+          logger.warn(`[Depart] ${vessel.name}: Price per TEU is $0 at ${destination} - BLOCKING departure to avoid losses`);
+          logger.warn(`[Depart] ${vessel.name}: Prices from vessel object: Dry=${dryPrice}, Ref=${refPrice}, Fuel=${fuelPrice}, Crude=${crudePrice}`);
           failedVessels.push({
             name: vessel.name,
             destination: destination,
-            reason: `Cannot verify destination price (API error: ${error.message}) - blocking to prevent potential losses`
+            reason: `CRITICAL: Price per TEU is $0 at destination - would result in losses`
           });
           continue;
         }
+
+        logger.debug(`[Depart] ${vessel.name}: Price check OK - Dry: $${dryPrice}, Ref: $${refPrice}, Fuel: $${fuelPrice}, Crude: $${crudePrice}`);
 
         // Check utilization
         const cargoToLoad = Math.min(remainingDemand, vesselCapacity);
@@ -815,15 +794,15 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     }
 
     // Calculate totals from ALL departed vessels (not just last batch)
-    const totalRevenue = allDepartedVessels.reduce((sum, v) => sum + (v.income || 0), 0);
-    const totalFuelUsed = allDepartedVessels.reduce((sum, v) => sum + (v.fuelUsed || 0), 0);
-    const totalCO2Used = allDepartedVessels.reduce((sum, v) => sum + (v.co2Used || 0), 0);
-    const totalHarborFees = allDepartedVessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
+    const totalRevenue = allDepartedVessels.reduce((sum, v) => sum + v.income, 0);
+    const totalFuelUsed = allDepartedVessels.reduce((sum, v) => sum + v.fuelUsed, 0);
+    const totalCO2Used = allDepartedVessels.reduce((sum, v) => sum + v.co2Used, 0);
+    const totalHarborFees = allDepartedVessels.reduce((sum, v) => sum + v.harborFee, 0);
 
     // Calculate total contribution gained (only if tracking is enabled)
     let totalContributionGained = 0;
     if (trackContribution) {
-      totalContributionGained = allDepartedVessels.reduce((sum, v) => sum + (v.contributionGained || 0), 0);
+      totalContributionGained = allDepartedVessels.reduce((sum, v) => sum + v.contributionGained, 0);
 
       // Output to console for debugging
       if (allDepartedVessels.length > 0 && totalContributionGained > 0) {
@@ -1004,7 +983,7 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
 
     // Log warnings if any vessels had excessive harbor fees
     if (result.success && result.highFeeCount > 0) {
-      const totalHarborFees = result.highFeeVessels.reduce((sum, v) => sum + (v.harborFee || 0), 0);
+      const totalHarborFees = result.highFeeVessels.reduce((sum, v) => sum + v.harborFee, 0);
       await auditLog(
         userId,
         CATEGORIES.VESSEL,
