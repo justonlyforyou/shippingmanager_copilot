@@ -914,6 +914,13 @@ async function autoDepartVessels(autopilotPaused, broadcastToUser, autoRebuyAll,
   const userId = getUserId();
   if (!userId) return;
 
+  // CRITICAL: Check if hijacking payment is in progress
+  // Must not depart vessels while verifying ransom payment (affects cash verification)
+  if (state.getLockStatus(userId, 'hijackingPayment')) {
+    logger.debug('[Auto-Depart] Skipped - Hijacking payment in progress');
+    return;
+  }
+
   const settings = state.getSettings(userId);
 
   if (!settings.autoDepartAll) {

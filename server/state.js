@@ -122,7 +122,8 @@ function getUserState(userId) {
         co2Purchase: false,
         repair: false,
         bulkBuy: false,
-        drydock: false
+        drydock: false,
+        hijackingPayment: false
       },
       staffData: null
     });

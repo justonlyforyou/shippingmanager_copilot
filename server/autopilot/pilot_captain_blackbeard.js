@@ -43,8 +43,13 @@ function saveToHistory(userId, caseId, entry, metadata = {}) {
     let existingData = { history: [] };
     if (fs.existsSync(historyPath)) {
       existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+      // Handle legacy format where file was just an array
       if (Array.isArray(existingData)) {
         existingData = { history: existingData };
+      }
+      // CRITICAL: Ensure history array exists (may be missing if file was created by cache)
+      if (!existingData.history || !Array.isArray(existingData.history)) {
+        existingData.history = [];
       }
     }
 
@@ -270,31 +275,39 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
     return { success: false, reason: 'insufficient_funds', required: finalPrice, available: cashBefore };
   }
 
-  // PAY the ransom
-  const payResponse = await apiCall('/hijacking/pay', 'POST', { case_id: caseId });
+  // LOCK: Block Auto-Depart during payment verification
+  state.setLockStatus(userId, 'hijackingPayment', true);
+  logger.info(`[Blackbeard] Case ${caseId}: Payment lock ACQUIRED - Auto-Depart blocked`);
 
-  if (!payResponse) {
-    logger.error(`[Blackbeard] Case ${caseId}: Failed to pay ransom`);
-    return { success: false, reason: 'failed_to_pay' };
+  let paymentVerified = false;
+  let finalStatus = null;
+  let cashAfterVerified = null;
+  let actualPaidVerified = null;
+
+  try {
+    // PAY the ransom
+    const payResponse = await apiCall('/hijacking/pay', 'POST', { case_id: caseId });
+
+    if (!payResponse) {
+      logger.error(`[Blackbeard] Case ${caseId}: Failed to pay ransom`);
+      return { success: false, reason: 'failed_to_pay' };
+    }
+
+    // IMMEDIATELY verify payment (no waiting!)
+    // Re-fetch case to get accurate cash and status
+    const finalCaseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
+    finalStatus = finalCaseResponse?.data?.status;
+    cashAfterVerified = finalCaseResponse?.user?.cash;
+    actualPaidVerified = cashBefore - cashAfterVerified;
+
+    paymentVerified = (actualPaidVerified === finalPrice) && (finalStatus === 'solved' || finalStatus === 'paid');
+
+    logger.info(`[Blackbeard] Case ${caseId}: Payment made. Cash after: $${cashAfterVerified}, Deducted: $${actualPaidVerified}, Verified: ${paymentVerified}`);
+  } finally {
+    // UNLOCK: Always release lock, even on error
+    state.setLockStatus(userId, 'hijackingPayment', false);
+    logger.info(`[Blackbeard] Case ${caseId}: Payment lock RELEASED - Auto-Depart unblocked`);
   }
-
-  // IMMEDIATELY check cash after payment for verification
-  const cashAfterFromResponse = payResponse.user?.cash;
-  const actualPaidFromResponse = cashBefore - cashAfterFromResponse;
-
-  logger.info(`[Blackbeard] Case ${caseId}: Payment made. Cash after (response): $${cashAfterFromResponse}, Deducted: $${actualPaidFromResponse}`);
-
-  // WAIT 2 MINUTES before final verification
-  logger.info(`[Blackbeard] Case ${caseId}: Waiting 2 minutes before final payment verification...`);
-  await wait(WAIT_TIME_MS);
-
-  // FINAL VERIFICATION: Re-fetch case to confirm payment
-  const finalCaseResponse = await apiCall('/hijacking/get-case', 'POST', { case_id: caseId });
-  const finalStatus = finalCaseResponse?.data?.status;
-  const cashAfterVerified = finalCaseResponse?.user?.cash;
-  const actualPaidVerified = cashBefore - cashAfterVerified;
-
-  const paymentVerified = (actualPaidVerified === finalPrice) && (finalStatus === 'solved' || finalStatus === 'paid');
 
   logger.info(`[Blackbeard] Case ${caseId}: FINAL VERIFICATION - Status: ${finalStatus}, Expected: $${finalPrice}, Actual: $${actualPaidVerified}, Verified: ${paymentVerified}`);
 

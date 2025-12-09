@@ -472,6 +472,11 @@ function saveLocalCaseFile(caseId, details, isOpen) {
       cached_at: Date.now()
     };
 
+    // CRITICAL: Ensure history array exists (Blackbeard needs it)
+    if (!updatedData.history) {
+      updatedData.history = [];
+    }
+
     fs.writeFileSync(filePath, JSON.stringify(updatedData, null, 2));
     logger.debug(`[Hijacking Cache] Saved case ${caseId} to local file (resolved: ${!isOpen})`);
   } catch (error) {
