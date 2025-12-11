@@ -102,7 +102,7 @@ jobs:
         run: npm install
 
       - name: Build Node.js server for macOS (Intel)
-        run: npx @yao-pkg/pkg . --targets node22-macos-x64 --output dist/ShippingManagerCoPilot-Server
+        run: npx @yao-pkg/pkg . --targets node20-macos-x64 --output dist/ShippingManagerCoPilot-Server
 
       - name: Build Python helper scripts
         run: |
@@ -176,7 +176,7 @@ jobs:
         run: npm install
 
       - name: Build Node.js server for macOS ARM64
-        run: npx @yao-pkg/pkg . --targets node22-macos-arm64 --output dist/ShippingManagerCoPilot-Server
+        run: npx @yao-pkg/pkg . --targets node20-macos-arm64 --output dist/ShippingManagerCoPilot-Server
 
       - name: Build Python helper scripts
         run: |
@@ -255,7 +255,7 @@ jobs:
         run: npm install
 
       - name: Build Node.js server for Linux
-        run: npx @yao-pkg/pkg . --targets node22-linux-x64 --output dist/ShippingManagerCoPilot-Server
+        run: npx @yao-pkg/pkg . --targets node20-linux-x64 --output dist/ShippingManagerCoPilot-Server
 
       - name: Build Python helper scripts
         run: |

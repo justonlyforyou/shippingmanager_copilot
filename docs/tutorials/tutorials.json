@@ -8,15 +8,16 @@
   "03-discovered-formulars": {
     "title": "Discovered Formulas"
   },
-  "04-api-reference": {
-    "title": "API Reference",
-    "externalUrl": "https://shippingmanager-api-reference.pages.dev/"
-  },
   "04-cheatsheet": {
     "title": "Cheat-Sheet"
   },
-  "06-beginners-guide": {
+  "05-beginners-guide": {
     "title": "Beginners Guide",
     "externalUrl": "https://shippingmanager-beginners-guide.pages.dev/"
+  },
+  "06-api-reference": {
+    "title": "API Reference",
+    "externalUrl": "https://shippingmanager-api-reference.pages.dev/",
+    "category": "Shipping Manager"
   }
 }

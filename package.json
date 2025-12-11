@@ -14,7 +14,7 @@
     "build": "node build/build.js",
     "build:python": "python -m PyInstaller build/build-start.spec",
     "build:python:helpers": "python -m PyInstaller build/build-python.spec",
-    "build:node": "npx @yao-pkg/pkg . --targets node22-win-x64 --output dist/ShippingManagerCoPilot-Server.exe",
+    "build:node": "npx @yao-pkg/pkg . --targets node20-win-x64 --output dist/ShippingManagerCoPilot-Server.exe",
     "build:browser-login": "node build/build-browser-login.js",
     "build:package": "node build/build-package.js",
     "build:installer": "node build/build-installer.js",
