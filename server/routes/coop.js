@@ -191,7 +191,7 @@ router.get('/coop/data', async (req, res) => {
  */
 router.post('/coop/send-max', async (req, res) => {
   try {
-    const { user_id } = req.body;
+    const { user_id, source = 'manual' } = req.body;
 
     // Validate user_id is provided and is a positive integer
     if (!user_id) {
@@ -202,12 +202,27 @@ router.post('/coop/send-max', async (req, res) => {
       return res.status(400).json({ error: 'Invalid user_id. Must be a positive integer' });
     }
 
-    // Fetch current coop data to get available vessels and member info
-    const coopData = await apiCall('/coop/get-coop-data', 'POST', {});
+    // Fetch coop data and contact data in parallel to get company_name
+    const [coopData, contactData] = await Promise.all([
+      apiCall('/coop/get-coop-data', 'POST', {}),
+      apiCall('/contact/get-contacts', 'POST', {})
+    ]);
+
     const available = coopData.data?.coop?.available;
 
     if (available === 0) {
       return res.status(400).json({ error: 'No coop tickets available (season limit reached)' });
+    }
+
+    // Build company_name map from contacts
+    const companyNameMap = {};
+    const allianceContacts = contactData.data?.alliance_contacts || [];
+    allianceContacts.forEach(contact => {
+      companyNameMap[contact.id] = contact.company_name;
+    });
+    // Add own user's company name
+    if (coopData.user?.id && coopData.user?.company_name) {
+      companyNameMap[coopData.user.id] = coopData.user.company_name;
     }
 
     // Find target member to check their vessel count
@@ -217,6 +232,9 @@ router.post('/coop/send-max', async (req, res) => {
     if (!targetMember) {
       return res.status(404).json({ error: 'Target user not found in alliance' });
     }
+
+    // Get company_name from map
+    const targetCompanyName = companyNameMap[user_id] || `User ${user_id}`;
 
     // Calculate max vessels to send: min(my available, target's total vessels)
     const maxToSend = Math.min(available, targetMember.total_vessels);
@@ -267,7 +285,7 @@ router.post('/coop/send-max', async (req, res) => {
 
       return res.status(400).json({
         error: errorMessage,
-        target_user: targetMember.company_name
+        target_user: targetCompanyName
       });
     }
 
@@ -277,21 +295,24 @@ router.post('/coop/send-max', async (req, res) => {
     if (userId && departed > 0) {
       try {
         const { auditLog, CATEGORIES, SOURCES } = require('../utils/audit-logger');
+        const isAuto = source === 'auto';
+        const autopilotType = isAuto ? 'Auto-COOP' : 'Manual COOP Send';
+        const logSource = isAuto ? SOURCES.AUTOPILOT : SOURCES.MANUAL;
 
         await auditLog(
           userId,
           CATEGORIES.COOP,
-          'Manual COOP Send',
-          `Sent ${departed} vessel(s) to ${targetMember.company_name}`,
+          autopilotType,
+          `Sent ${departed} vessel(s) to ${targetCompanyName}`,
           {
             target_user_id: user_id,
-            target_company_name: targetMember.company_name,
+            target_company_name: targetCompanyName,
             vessels_sent: departed,
             vessels_requested: maxToSend,
             partial: departed < maxToSend
           },
           'SUCCESS',
-          SOURCES.MANUAL
+          logSource
         );
       } catch (auditError) {
         logger.error('[COOP] Audit logging failed:', auditError.message);

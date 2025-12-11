@@ -185,8 +185,12 @@ function generateDepartureId(vesselId, timestamp) {
  */
 function transformToAuditEntry(historyEntry, vesselInfo) {
   const timestamp = parseGameDate(historyEntry.created_at);
-  const totalCargo = (historyEntry.cargo?.dry || 0) + (historyEntry.cargo?.refrigerated || 0);
   const id = generateDepartureId(historyEntry.vessel_id, timestamp);
+
+  // Preserve original cargo structure from Game API
+  // Container: { dry, refrigerated }
+  // Tanker: { fuel, crude_oil }
+  const cargo = historyEntry.cargo ? { ...historyEntry.cargo } : {};
 
   return {
     id,
@@ -211,11 +215,7 @@ function transformToAuditEntry(historyEntry, vesselInfo) {
         income: historyEntry.route_income,
         wear: historyEntry.wear,
         duration: historyEntry.duration,
-        cargo: {
-          dry: historyEntry.cargo?.dry || 0,
-          refrigerated: historyEntry.cargo?.refrigerated || 0,
-          total: totalCargo
-        }
+        cargo
       }]
     }
   };
@@ -772,6 +772,19 @@ async function startAutoSync(userId) {
 
   logger.info(`[VesselHistoryStore] Starting slow auto-sync: ${vessels.length} vessels, 1 every ${intervalSec}s (~${Math.round(vessels.length / SLOW_SYNC_SPREAD_MINUTES)}/min)`);
 
+  // Run one-time tanker cargo migration (checks flag internally, skips if done)
+  migrateTankerCargo(userId).then(migrationResult => {
+    if (migrationResult.alreadyDone) {
+      logger.debug('[VesselHistoryStore] Tanker cargo migration already done');
+    } else if (migrationResult.noTankers) {
+      logger.debug('[VesselHistoryStore] No tankers found, migration skipped');
+    } else {
+      logger.info(`[VesselHistoryStore] Tanker cargo migration: ${migrationResult.fixed} fixed, ${migrationResult.skipped} skipped`);
+    }
+  }).catch(err => {
+    logger.error('[VesselHistoryStore] Tanker cargo migration failed:', err.message);
+  });
+
   // Do initial full sync to catch up
   logger.info('[VesselHistoryStore] Running initial full sync...');
   syncVesselHistory(userId).then(result => {
@@ -827,6 +840,150 @@ async function getRouteHijackingRisks(userId) {
   return riskMap;
 }
 
+/**
+ * Get all trips for a specific vessel from local store
+ * Returns trips in Game API format for compatibility with existing code
+ *
+ * @param {string} userId - User ID
+ * @param {number} vesselId - Vessel ID to get trips for
+ * @returns {Promise<{vessel: Object|null, history: Array}>} Vessel info and trip history
+ */
+async function getVesselTrips(userId, vesselId) {
+  const store = await loadStore(userId);
+
+  // Get vessel metadata
+  const vesselMeta = store.vessels[vesselId] || null;
+
+  // Filter departures for this vessel
+  const vesselDepartures = store.departures.filter(d => {
+    const dv = d.details?.departedVessels?.[0];
+    return dv && dv.vesselId === vesselId;
+  });
+
+  // Transform back to Game API format for compatibility
+  const history = vesselDepartures.map(d => {
+    const dv = d.details.departedVessels[0];
+    // Convert timestamp (ms) to created_at string (YYYY-MM-DD HH:MM:SS)
+    const date = new Date(d.timestamp);
+    const created_at = date.toISOString().replace('T', ' ').substring(0, 19);
+
+    return {
+      vessel_id: dv.vesselId,
+      route_origin: dv.origin,
+      route_destination: dv.destination,
+      route_name: dv.routeName,
+      total_distance: dv.distance,
+      fuel_used: dv.fuelUsed,
+      route_income: dv.income,
+      wear: dv.wear,
+      cargo: dv.cargo,
+      duration: dv.duration,
+      created_at
+    };
+  });
+
+  // Sort by created_at ascending (oldest first, like Game API)
+  history.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+  return {
+    vessel: vesselMeta ? {
+      id: vesselMeta.id,
+      name: vesselMeta.name,
+      type_name: vesselMeta.typeName
+    } : null,
+    history
+  };
+}
+
+/**
+ * One-time migration to fix tanker cargo data.
+ * Tanker departures were incorrectly stored with {dry:0, refrigerated:0, total:0}
+ * instead of {fuel, crude_oil}. This fetches correct cargo from Game API.
+ *
+ * @param {string} userId - User ID
+ * @returns {Promise<Object>} Migration result {fixed, skipped, alreadyDone}
+ */
+async function migrateTankerCargo(userId) {
+  const store = await loadStore(userId);
+
+  // Check if migration already done
+  if (store.tankerCargoMigrationDone) {
+    return { fixed: 0, skipped: 0, alreadyDone: true };
+  }
+
+  // 1. Get all vessels from Game API to identify tankers
+  const vessels = await fetchAllVessels();
+  const tankerIds = new Set(
+    vessels
+      .filter(v => v.capacity_type === 'tanker')
+      .map(v => v.id)
+  );
+
+  if (tankerIds.size === 0) {
+    store.tankerCargoMigrationDone = true;
+    await saveStore(userId, store);
+    return { fixed: 0, skipped: 0, alreadyDone: false, noTankers: true };
+  }
+
+  logger.info(`[VesselHistoryStore] Migrating tanker cargo for ${tankerIds.size} tankers...`);
+
+  // 2. Find all departures from tankers that need fixing
+  const departuresByVessel = new Map(); // vesselId -> [departure indices]
+  for (let i = 0; i < store.departures.length; i++) {
+    const d = store.departures[i];
+    const vesselId = d.details?.departedVessels?.[0]?.vesselId;
+    if (vesselId && tankerIds.has(vesselId)) {
+      if (!departuresByVessel.has(vesselId)) {
+        departuresByVessel.set(vesselId, []);
+      }
+      departuresByVessel.get(vesselId).push(i);
+    }
+  }
+
+  let fixed = 0;
+  let skipped = 0;
+
+  // 3. For each tanker, fetch history from Game API and update cargo
+  for (const [vesselId, departureIndices] of departuresByVessel) {
+    const historyData = await fetchVesselHistory(vesselId);
+    if (!historyData || !historyData.history) {
+      skipped += departureIndices.length;
+      continue;
+    }
+
+    // Build lookup: timestamp -> cargo from Game API
+    const cargoByTimestamp = new Map();
+    for (const entry of historyData.history) {
+      const timestamp = parseGameDate(entry.created_at);
+      cargoByTimestamp.set(timestamp, entry.cargo);
+    }
+
+    // Update each departure
+    for (const idx of departureIndices) {
+      const d = store.departures[idx];
+      const timestamp = d.timestamp;
+      const correctCargo = cargoByTimestamp.get(timestamp);
+
+      if (correctCargo) {
+        d.details.departedVessels[0].cargo = { ...correctCargo };
+        fixed++;
+      } else {
+        skipped++;
+      }
+    }
+
+    // Small delay between vessels
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+
+  // 4. Mark migration done and save
+  store.tankerCargoMigrationDone = true;
+  await saveStore(userId, store);
+
+  logger.info(`[VesselHistoryStore] Tanker cargo migration complete: ${fixed} fixed, ${skipped} skipped`);
+  return { fixed, skipped, alreadyDone: false };
+}
+
 module.exports = {
   syncVesselHistory,
   syncSpecificVessels,
@@ -842,6 +999,8 @@ module.exports = {
   startAutoSync,
   stopAutoSync,
   getRouteHijackingRisks,
+  getVesselTrips,
+  migrateTankerCargo,
   // Legacy alias
   syncAllVesselHistory: syncVesselHistory
 };

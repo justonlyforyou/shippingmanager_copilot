@@ -462,6 +462,25 @@ router.get('/vessel-history/info', async (req, res) => {
 });
 
 /**
+ * POST /api/analytics/vessel-history/migrate-tanker-cargo
+ * Run tanker cargo migration manually
+ */
+router.post('/vessel-history/migrate-tanker-cargo', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const result = await vesselHistoryStore.migrateTankerCargo(userId);
+    res.json(result);
+  } catch (error) {
+    logger.error('[Analytics] Error running tanker cargo migration:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/analytics/vessel-history/departures
  * Get stored vessel history departures
  *

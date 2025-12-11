@@ -11,7 +11,6 @@ const cache = require('../cache');
 const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId } = require('../utils/api');
-const { auditLog, CATEGORIES, SOURCES } = require('../utils/audit-logger');
 const { getInternalBaseUrl } = require('../config');
 
 /**
@@ -117,7 +116,8 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
       try {
         // Send via our own API endpoint
         const sendResponse = await axios.post(`${getInternalBaseUrl()}/api/coop/send-max`, {
-          user_id: member.user_id
+          user_id: member.user_id,
+          source: 'auto'
         }, {
           httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
         });
@@ -166,24 +166,6 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
       });
     }
 
-    // Log to autopilot logbook
-    if (totalSent > 0) {
-      await auditLog(
-        userId,
-        CATEGORIES.COOP,
-        'Auto-COOP',
-        `${totalSent} vessels | ${results.length} members`,
-        {
-          totalVessels: totalSent,
-          totalRequested,
-          recipientCount: results.length,
-          distributions: results
-        },
-        'SUCCESS',
-        SOURCES.AUTOPILOT
-      );
-    }
-
     // Invalidate COOP cache since we changed the available count
     if (totalSent > 0) {
       cache.invalidateCoopCache();
@@ -191,20 +173,6 @@ async function autoCoop(autopilotPaused, broadcastToUser, tryUpdateAllData) {
     }
 
   } catch (error) {
-    // Log error to autopilot logbook
-    await auditLog(
-      userId,
-      CATEGORIES.COOP,
-      'Auto-COOP',
-      `COOP distribution failed: ${error.message}`,
-      {
-        error: error.message,
-        stack: error.stack
-      },
-      'ERROR',
-      SOURCES.AUTOPILOT
-    );
-
     // AggregateError contains multiple errors in .errors array
     if (error.errors && Array.isArray(error.errors)) {
       logger.error('[Auto-COOP] Error during auto-COOP (AggregateError with multiple errors):');

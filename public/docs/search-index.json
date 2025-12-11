@@ -1331,24 +1331,10 @@
   },
   {
     "type": "shippingmanager",
-    "name": "API Reference",
-    "longname": "04-api-reference",
-    "url": "tutorial-04-api-reference.html",
-    "description": "API Reference window.location.href = 'https://shippingmanager-api-reference.pages.dev/'; If you are not redirected automatically, click here ."
-  },
-  {
-    "type": "shippingmanager",
-    "name": "Cheat-Sheet",
-    "longname": "05-cheatsheet",
-    "url": "tutorial-05-cheatsheet.html",
+    "name": "04-cheatsheet",
+    "longname": "04-cheatsheet",
+    "url": "tutorial-04-cheatsheet.html",
     "description": "🚢 Cheat Sheet / Glitch Guide ⚡ Faster Delivery Glitch Build a new vessel. (Does not work with vessels you bought) Go straight to Maintenance &gt; Dry Dock and select your fresh ship. Send it to the dry dock immediately. Just ignore any weird behavior or visual bugs around the ship for a moment you mabe have ingame. Check the Pending Tab (left side menu) and wait for the maintenance timer to hit zero. Done: Once maintenance finishes, your ship &quot;arrives&quot; instantly (skipping the delivery travel time). Bonus: You just doubled the time until the next required dry dock! Check the next bug below, you can combo these two. 👇 🛠️ &quot;Unlimited&quot; time until next DryDock Every new vessel spawns at a port that has a dry dock. CRITICAL: Before you send your ship anywhere, throw it into the dry dock. This glitches the timer: The &quot;Time to next Dry Dock&quot; gets added on top of the default value. Example: Default is 350h &gt; after first dry dock it’s 700h &gt; then 1050h, etc. Rinse and repeat: You can do this as many times as you want. We haven't found a limit yet - as long as you have the in-game cash to pay for it! 💸"
-  },
-  {
-    "type": "shippingmanager",
-    "name": "Beginners Guide",
-    "longname": "06-beginners-guide",
-    "url": "tutorial-06-beginners-guide.html",
-    "description": "Shipping Manager – Beginner’s Guide CRITICAL WARNING: Do not spend real money on this game. Currently, there are no active developers working on the project, and the game suffers from many unresolved bugs. For Steam Players: As long as you haven't made any purchases yet, create a browser account . This allows you to log in via mobile devices to earn in-game rewards (ads) or use the in-game shop for cash transactions if absolutely necessary. However, remember the golden rule: Do not spend cash. The Steam version of this game is critically unstable and has significant limitations. If you have already spent money on your Steam account, please check out this resource: RebelShipBrowser on GitHub 1. Golden Rules for Beginners Avoid Tanker Operations until you reach Level 50. Prioritize Staff Happiness: Keep your staff status at &quot;Very Happy&quot; (100%) at all times. Maintain Reputation: Ensure your reputation stays at the top level (&gt;90%). Vessel Maintenance: Keep your ships in pristine condition (wear &lt; 2%). No IPOs: Stay away from Initial Public Offerings unless you are using a bot or have an excessive amount of free time. Focus on Growth: Concentrate on your own expansion until you are earning at least $200m per day . Alliance Strategy: Join an alliance to reap the benefits, BUT ensure you enable COOP in return. Smart Purchasing: Only buy anchor points in bundles of 10 to maximize savings. 2. Fleet Strategy &amp; Vessel Recommendations Phase 1: The Starter Fleet Fill your initial slots with the following standard vessels: 30 slots: Navicon 30 slots: Astronz 30 slots: Aquavita Phase 2: Customization &amp; Upgrades Once your initial fleet is established, begin the transition to high-efficiency custom ships: Replace all Astronz and Navicon ships with custom 2,000 TEU MIH X1 (11,000kW) vessels. Finally, replace all 30 Aquavitas with 27,000 TEU MIH X1 (11,000kW) vessels. Result: This fleet configuration creates a powerhouse capable of generating $100–120 million per day (or more) with exceptionally low fuel and CO₂ costs. 3. Route Optimization For low-level accounts using the fleet described above, the &quot;sweet spot&quot; for balancing income versus operating costs lies in routes between 1,500 nm and 3,500 nm . 4. Staff Training Priorities Follow this order to maximize efficiency early on: Shop Cash: Up to Level 15 Cheap Fuel: Up to Level 10 Technical Officer (Less Fuel Consumption): Up to Level 5 Cheap CO₂:** Up to Level 10 Not possible because of a bug Instead do Boatswains (slower wear on vessels): Up to 5 Cheap Anchor Points: Up to Level 20 Cheap Fuel: Up to Level 20 Cheap CO₂: Up to Level 20 Not possible because of a bug Instead do CTO (slower wear on vessels): Up to 20 Cheap Harbor Fees: Up to Level 20 Captain (Lower Crew Unhappiness): Up to Level 5 Boatswain (Slower Wear): Up to Level 5 First Officer (Less Crew Needed): Up to Level 5 5. The &quot;Contribution Race&quot; Strategy There is only one real secret to mastering the Contribution Race: Strategic Fleet Division. As you progress, money becomes increasingly less valuable compared to contribution points. You must organize your fleet into two distinct operational groups: Group A: Focuses purely on generating income. Group B: Focuses exclusively on generating the maximum amount of contribution points possible."
   },
   {
     "type": "method",
@@ -6056,6 +6042,14 @@
   },
   {
     "type": "method",
+    "name": "getCurrentVesselId",
+    "longname": "module:harbor-map/vessel-panel.getCurrentVesselId",
+    "url": "module-harbor-map_vessel-panel.html#.getCurrentVesselId",
+    "description": "<p>Returns the currently displayed vessel ID, or null if no panel is open.</p>",
+    "parent": "module:harbor-map/vessel-panel"
+  },
+  {
+    "type": "method",
     "name": "hideVesselPanel",
     "longname": "module:harbor-map/vessel-panel.hideVesselPanel",
     "url": "module-harbor-map_vessel-panel.html#.hideVesselPanel",
@@ -7704,10 +7698,26 @@
   },
   {
     "type": "method",
+    "name": "getVesselTrips",
+    "longname": "module:server/analytics/vessel-history-store~getVesselTrips",
+    "url": "module-server_analytics_vessel-history-store.html#~getVesselTrips",
+    "description": "<p>Get all trips for a specific vessel from local store\nReturns trips in Game API format for compatibility with existing code</p>",
+    "parent": "module:server/analytics/vessel-history-store"
+  },
+  {
+    "type": "method",
     "name": "loadStore",
     "longname": "module:server/analytics/vessel-history-store~loadStore",
     "url": "module-server_analytics_vessel-history-store.html#~loadStore",
     "description": "<p>Load stored vessel history from disk (cached for 2 seconds)</p>",
+    "parent": "module:server/analytics/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "migrateTankerCargo",
+    "longname": "module:server/analytics/vessel-history-store~migrateTankerCargo",
+    "url": "module-server_analytics_vessel-history-store.html#~migrateTankerCargo",
+    "description": "<p>One-time migration to fix tanker cargo data.\nTanker departures were incorrectly stored with {dry:0, refrigerated:0, total:0}\ninstead of {fuel, crude_oil}. This fetches correct cargo from Game API.</p>",
     "parent": "module:server/analytics/vessel-history-store"
   },
   {

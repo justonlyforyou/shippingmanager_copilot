@@ -2476,11 +2476,11 @@ async function renderManagementTab() {
           </div>
           <div class="stat-row">
             <span>Contribution:</span>
-            <span class="stat-value">${member.contribution !== undefined ? formatNumber(member.contribution) : 'N/A'}</span>
+            <span class="stat-value">${formatNumber(member.stats?.this_season?.contribution)}</span>
           </div>
           <div class="stat-row">
             <span>Departures:</span>
-            <span class="stat-value">${member.departures !== undefined ? formatNumber(member.departures) : 'N/A'}</span>
+            <span class="stat-value">${formatNumber(member.stats?.this_season?.departures)}</span>
           </div>
           ${roleActionsHtml ? `
             <div class="member-card-action">

@@ -575,8 +575,20 @@ export async function showVesselPanel(vessel) {
   // Setup infinite scroll for history
   setupInfiniteScroll(panel);
 
-  // Load trip history
-  await loadVesselHistory(vessel.id);
+  // Load trip history - skip for vessels that cannot have history yet
+  // - pending/delivery: vessel not yet delivered, no trips possible
+  // - total_distance_traveled === 0 AND not enroute: never made a trip and not currently on first trip
+  const skipHistory = vessel.status === 'pending' || vessel.status === 'delivery' ||
+    (vessel.total_distance_traveled === 0 && vessel.status !== 'enroute');
+
+  if (skipHistory) {
+    const contentEl = document.getElementById('vessel-history-content');
+    const loadingEl = document.getElementById('vessel-history-loading');
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) contentEl.innerHTML = '<p class="no-data">No trip history available</p>';
+  } else {
+    await loadVesselHistory(vessel.id);
+  }
 
   // Load port demands for route details (if vessel is enroute)
   if (vessel.status === 'enroute' && (vessel.route_origin || vessel.route_destination)) {
@@ -829,6 +841,36 @@ function renderHistoryPage() {
     if (!cargo) return { total: 'N/A', list: '' };
     if (typeof cargo === 'string') return { total: escapeHtml(cargo), list: '' };
 
+    // Tanker cargo - check FIRST because old data may have dry:0, refrigerated:0 for tankers
+    // Tanker cargo has fuel and/or crude_oil fields
+    if (cargo.fuel !== undefined || cargo.crude_oil !== undefined) {
+      const fuel = cargo.fuel || 0;
+      const crude = cargo.crude_oil || 0;
+      const total = fuel + crude;
+
+      // Build utilization string
+      let utilizationStr = '';
+      if (utilization !== null && utilization !== undefined) {
+        utilizationStr = ` (${Math.round(utilization * 100)}%)`;
+      }
+
+      // Total string (no HTML wrapper)
+      const totalStr = `${total.toLocaleString()} bbl${utilizationStr}`;
+
+      // Detail items
+      const items = [];
+      if (fuel > 0) {
+        const rateStr = fuelRate ? ` | $${fuelRate}/bbl` : '';
+        items.push(`<li>Fuel: ${fuel.toLocaleString()} bbl${rateStr}</li>`);
+      }
+      if (crude > 0) {
+        const rateStr = crudeRate ? ` | $${crudeRate}/bbl` : '';
+        items.push(`<li>Crude: ${crude.toLocaleString()} bbl${rateStr}</li>`);
+      }
+      const listHtml = items.length > 0 ? `<ul class="cargo-list">${items.join('')}</ul>` : '';
+      return { total: totalStr, list: listHtml };
+    }
+
     // Container cargo
     if (cargo.dry !== undefined || cargo.refrigerated !== undefined) {
       const dry = cargo.dry || 0;
@@ -853,35 +895,6 @@ function renderHistoryPage() {
       if (ref > 0) {
         const rateStr = refRate ? ` | $${refRate}/TEU` : '';
         items.push(`<li>Ref: ${ref.toLocaleString()} TEU${rateStr}</li>`);
-      }
-      const listHtml = items.length > 0 ? `<ul class="cargo-list">${items.join('')}</ul>` : '';
-      return { total: totalStr, list: listHtml };
-    }
-
-    // Tanker cargo
-    if (cargo.fuel !== undefined || cargo.crude_oil !== undefined) {
-      const fuel = cargo.fuel || 0;
-      const crude = cargo.crude_oil || 0;
-      const total = fuel + crude;
-
-      // Build utilization string
-      let utilizationStr = '';
-      if (utilization !== null && utilization !== undefined) {
-        utilizationStr = ` (${Math.round(utilization * 100)}%)`;
-      }
-
-      // Total string (no HTML wrapper)
-      const totalStr = `${total.toLocaleString()} bbl${utilizationStr}`;
-
-      // Detail items
-      const items = [];
-      if (fuel > 0) {
-        const rateStr = fuelRate ? ` | $${fuelRate}/bbl` : '';
-        items.push(`<li>Fuel: ${fuel.toLocaleString()} bbl${rateStr}</li>`);
-      }
-      if (crude > 0) {
-        const rateStr = crudeRate ? ` | $${crudeRate}/bbl` : '';
-        items.push(`<li>Crude: ${crude.toLocaleString()} bbl${rateStr}</li>`);
       }
       const listHtml = items.length > 0 ? `<ul class="cargo-list">${items.join('')}</ul>` : '';
       return { total: totalStr, list: listHtml };
@@ -1371,6 +1384,15 @@ export async function refreshOpenVesselPanel() {
 
 // Expose refresh function to window for cross-module access
 window.refreshOpenVesselPanel = refreshOpenVesselPanel;
+
+/**
+ * Returns the currently displayed vessel ID, or null if no panel is open.
+ * @returns {number|null}
+ */
+export function getCurrentVesselId() {
+  return currentVesselId;
+}
+window.getCurrentVesselId = getCurrentVesselId;
 
 /**
  * Toggle export menu visibility

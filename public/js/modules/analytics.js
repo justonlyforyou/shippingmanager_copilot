@@ -3997,20 +3997,43 @@ function buildPod2Html(pod2, lookup, formatTs, formatName, formatCash) {
   if (autopilot === 'Auto-Depart' || autopilot === 'Manual Depart') {
     const vessel = lookup.pod2_vessel;
     if (vessel) {
-      const gross = vessel.income + Math.abs(vessel.harborFee || 0);
-      const cargoTotal = (vessel.teuDry || 0) + (vessel.teuRefrigerated || 0);
+      const gross = vessel.income + Math.abs(vessel.harborFee);
+      // Detect vessel type by rates (cargo can be 0 for both types)
+      const isTanker = vessel.fuelRate !== undefined || vessel.crudeRate !== undefined;
+
       html += `
         <div class="lookup-pod-row"><span class="lookup-pod-label">Vessel ID:</span> ${vessel.vesselId}</div>
         <div class="lookup-pod-row"><span class="lookup-pod-label">Name:</span> ${escapeHtml(vessel.name)}</div>
         <div class="lookup-pod-row"><span class="lookup-pod-label">Route:</span> ${formatName(vessel.origin)} - ${formatName(vessel.destination)}</div>
         <div class="lookup-pod-row"><span class="lookup-pod-label">Route Name:</span> ${escapeHtml(vessel.routeName || '-')}</div>
         <div class="lookup-pod-row"><span class="lookup-pod-label">Utilization:</span> ${(vessel.utilization * 100).toFixed(1)}%</div>
-        <div class="lookup-pod-row"><span class="lookup-pod-label">Capacity:</span> ${formatNumber(vessel.capacity)} TEU</div>
-        <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Total:</span> ${formatNumber(cargoTotal)} TEU</div>
-        <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Dry:</span> ${formatNumber(vessel.teuDry)} TEU</div>
-        <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Ref:</span> ${formatNumber(vessel.teuRefrigerated)} TEU</div>
-        <div class="lookup-pod-row"><span class="lookup-pod-label">Dry Rate:</span> $${formatNumber(vessel.dryRate)}</div>
-        <div class="lookup-pod-row"><span class="lookup-pod-label">Ref Rate:</span> $${formatNumber(vessel.refRate)}</div>
+      `;
+
+      if (isTanker) {
+        // Tanker vessel - show fuel/crude cargo in bbl
+        const cargoTotal = vessel.fuelCargo + vessel.crudeCargo;
+        html += `
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Capacity:</span> ${formatNumber(vessel.capacity)} bbl</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Total:</span> ${formatNumber(cargoTotal)} bbl</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Fuel:</span> ${formatNumber(vessel.fuelCargo)} bbl</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Crude:</span> ${formatNumber(vessel.crudeCargo)} bbl</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Fuel Rate:</span> $${formatNumber(vessel.fuelRate)}</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Crude Rate:</span> $${formatNumber(vessel.crudeRate)}</div>
+        `;
+      } else {
+        // Container vessel - show dry/refrigerated cargo in TEU
+        const cargoTotal = vessel.teuDry + vessel.teuRefrigerated;
+        html += `
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Capacity:</span> ${formatNumber(vessel.capacity)} TEU</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Total:</span> ${formatNumber(cargoTotal)} TEU</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Dry:</span> ${formatNumber(vessel.teuDry)} TEU</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Cargo Ref:</span> ${formatNumber(vessel.teuRefrigerated)} TEU</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Dry Rate:</span> $${formatNumber(vessel.dryRate)}</div>
+          <div class="lookup-pod-row"><span class="lookup-pod-label">Ref Rate:</span> $${formatNumber(vessel.refRate)}</div>
+        `;
+      }
+
+      html += `
         <div class="lookup-pod-row"><span class="lookup-pod-label">Speed:</span> ${vessel.speed} kn</div>
         <div class="lookup-pod-row"><span class="lookup-pod-label">Guards:</span> ${vessel.guards}</div>
         <div class="lookup-pod-row"><span class="lookup-pod-label">Fuel Used:</span> ${formatNumber(vessel.fuelUsed)} t</div>

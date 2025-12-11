@@ -1392,17 +1392,30 @@ router.post('/build-vessel', express.json(), async (req, res) => {
       const pendingVessels = allVessels.data.user_vessels.filter(v => v.status === 'pending' || v.status === 'delivery');
       logger.info(`[Build Vessel] Found ${pendingVessels.length} pending vessels`);
 
-      const newVessel = pendingVessels.find(v => v.name === name);
+      // First try exact match
+      let newVessel = pendingVessels.find(v => v.name === name);
+
+      // If not found, try startsWith - game may append a number if name already exists
+      // e.g., "MS 148kbbl-8" becomes "MS 148kbbl-8_5346"
       if (!newVessel) {
-        logger.error(`[Build Vessel] Vessel "${name}" not found in pending list after build!`);
-        return res.status(500).json({ error: `Build succeeded but vessel "${name}" not found in pending list` });
+        newVessel = pendingVessels.find(v => v.name.startsWith(name));
+        if (newVessel) {
+          logger.info(`[Build Vessel] Name was modified by game: "${name}" -> "${newVessel.name}"`);
+        }
       }
 
-      newVesselId = newVessel.id;
-      logger.info(`[Build Vessel] Found new vessel: ${newVessel.name} (ID ${newVesselId}, status: ${newVessel.status})`);
+      if (!newVessel) {
+        // Build succeeded but we can't find the vessel - log warning but don't fail
+        // The vessel was built successfully, we just can't offer fast delivery
+        logger.warn(`[Build Vessel] Vessel "${name}" not found in pending list after build - fast delivery unavailable`);
+      } else {
+        newVesselId = newVessel.id;
+        logger.info(`[Build Vessel] Found new vessel: ${newVessel.name} (ID ${newVesselId}, status: ${newVessel.status})`);
+      }
     } catch (postCheckErr) {
+      // Build succeeded but we had trouble finding the vessel - don't fail, just log
       logger.error('[Build Vessel] Error fetching vessels after build:', postCheckErr);
-      return res.status(500).json({ error: 'Build succeeded but failed to fetch vessel: ' + postCheckErr.message });
+      // Continue without vessel_id - fast delivery won't be available but modal will close
     }
 
     logger.info(`[Build Vessel] Built vessel "${name}" (${vessel_model}, ${capacity} ${vessel_model === 'container' ? 'TEU' : 'BBL'}, ${engine_type} ${engine_kw}kW) - ID: ${newVesselId}`);

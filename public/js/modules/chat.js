@@ -1673,9 +1673,19 @@ Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.tota
     window.refreshDepartManagerIfOpen();
   }
 
-  // Refresh open vessel panel to update status (port -> enroute)
-  if (window.refreshOpenVesselPanel) {
-    window.refreshOpenVesselPanel();
+  // Refresh open vessel panel ONLY if the departed vessels include the open panel's vessel
+  if (window.refreshOpenVesselPanel && window.getCurrentVesselId) {
+    const openVesselId = window.getCurrentVesselId();
+    if (openVesselId) {
+      // Check if any departed vessel matches the open panel
+      const allDepartedIds = [
+        ...(succeeded.vessels || []).map(v => v.vesselId),
+        ...(failed.vessels || []).map(v => v.vesselId)
+      ];
+      if (allDepartedIds.includes(openVesselId)) {
+        window.refreshOpenVesselPanel();
+      }
+    }
   }
 }
 

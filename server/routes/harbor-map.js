@@ -28,6 +28,7 @@ const logger = require('../utils/logger');
 const config = require('../config');
 const { enrichHistoryWithTripData } = require('../utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('../utils/migrate-harbor-fees');
+const { getVesselTrips, syncSpecificVessels } = require('../analytics/vessel-history-store');
 
 const {
   aggregateVesselData,
@@ -474,6 +475,9 @@ router.get('/port/:portCode', async (req, res) => {
  * GET /api/harbor-map/vessel/:vesselId/history
  * Returns vessel trip history for detail panel
  *
+ * Reads from LOCAL store (vessel-history-store) - never calls Game API directly.
+ * This ensures history is available even for sold vessels.
+ *
  * Response:
  * {
  *   vessel: { id, name, ... },
@@ -485,22 +489,38 @@ router.get('/vessel/:vesselId/history', async (req, res) => {
     const vesselId = parseInt(req.params.vesselId);
     const userId = getUserId();
 
-    logger.debug(`[Harbor Map] Fetching history for vessel ${vesselId}`);
+    logger.debug(`[Harbor Map] Fetching history for vessel ${vesselId} from local store`);
 
-    // Fetch vessel history from API
-    const historyResponse = await gameapi.getVesselHistory(vesselId);
+    // Get vessel history from LOCAL store (not Game API!)
+    let localData = await getVesselTrips(userId, vesselId);
 
-    if (!historyResponse?.data?.vessel_history) {
-      logger.warn(`[Harbor Map] No history found for vessel ${vesselId}`);
+    // If no local history, try to sync this vessel from Game API (new vessel case)
+    if (!localData.history || localData.history.length === 0) {
+      logger.info(`[Harbor Map] No local history for vessel ${vesselId}, triggering sync from Game API`);
+
+      try {
+        const syncResult = await syncSpecificVessels(userId, [vesselId]);
+        logger.info(`[Harbor Map] Sync result for vessel ${vesselId}: ${syncResult.newEntries} new entries`);
+
+        // Try loading again after sync
+        localData = await getVesselTrips(userId, vesselId);
+      } catch (syncError) {
+        logger.error(`[Harbor Map] Failed to sync vessel ${vesselId}:`, syncError.message);
+      }
+    }
+
+    // If still no history after sync attempt, return 404
+    if (!localData.history || localData.history.length === 0) {
+      logger.warn(`[Harbor Map] No history found for vessel ${vesselId} (even after sync attempt)`);
       return res.status(404).json({ error: 'Vessel history not found' });
     }
 
-    logger.debug(`[Harbor Map] Found ${historyResponse.data.vessel_history.length} history entries for vessel ${vesselId}`);
+    logger.debug(`[Harbor Map] Found ${localData.history.length} history entries for vessel ${vesselId}`);
 
     // Enrich history with all stored trip data (harbor fees, contribution, speed, guards, CO2, cargo rates)
-    const enrichedHistory = await enrichHistoryWithTripData(userId, historyResponse.data.vessel_history);
+    const enrichedHistory = await enrichHistoryWithTripData(userId, localData.history);
 
-    // Transform API response to match frontend expectations
+    // Transform to match frontend expectations
     res.json({
       history: enrichedHistory.map(trip => ({
         date: trip.created_at,
@@ -552,6 +572,9 @@ router.post('/clear-cache', (req, res) => {
  * POST /api/harbor-map/vessel/:vesselId/history/export
  * Exports vessel history in TXT, CSV, or JSON format
  *
+ * Reads from LOCAL store (vessel-history-store) - never calls Game API directly.
+ * This ensures history is available even for sold vessels.
+ *
  * Request Body:
  * { format: 'txt' | 'csv' | 'json' }
  *
@@ -561,6 +584,7 @@ router.post('/clear-cache', (req, res) => {
 router.post('/vessel/:vesselId/history/export', async (req, res) => {
   try {
     const vesselId = parseInt(req.params.vesselId);
+    const userId = getUserId();
     const format = req.body.format || 'json';
 
     // Validate format parameter immediately
@@ -570,17 +594,17 @@ router.post('/vessel/:vesselId/history/export', async (req, res) => {
       });
     }
 
-    logger.debug(`[Harbor Map] Exporting history for vessel ${vesselId} as ${format}`);
+    logger.debug(`[Harbor Map] Exporting history for vessel ${vesselId} as ${format} from local store`);
 
-    // Fetch vessel history from API
-    const historyResponse = await gameapi.getVesselHistory(vesselId);
+    // Get vessel history from LOCAL store (not Game API!)
+    const localData = await getVesselTrips(userId, vesselId);
 
-    if (!historyResponse?.data?.vessel_history) {
+    if (!localData.history || localData.history.length === 0) {
       return res.status(404).json({ error: 'Vessel history not found' });
     }
 
-    const history = historyResponse.data.vessel_history;
-    const vessel = historyResponse.data.vessel || { name: `Vessel ${vesselId}` };
+    const history = localData.history;
+    const vessel = localData.vessel || { name: `Vessel ${vesselId}` };
 
     // Generate filename with timestamp
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
