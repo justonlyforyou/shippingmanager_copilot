@@ -1331,7 +1331,7 @@
   },
   {
     "type": "shippingmanager",
-    "name": "04-cheatsheet",
+    "name": "Cheat-Sheet",
     "longname": "04-cheatsheet",
     "url": "tutorial-04-cheatsheet.html",
     "description": "🚢 Cheat Sheet / Glitch Guide ⚡ Faster Delivery Glitch Build a new vessel. (Does not work with vessels you bought) Go straight to Maintenance &gt; Dry Dock and select your fresh ship. Send it to the dry dock immediately. Just ignore any weird behavior or visual bugs around the ship for a moment you mabe have ingame. Check the Pending Tab (left side menu) and wait for the maintenance timer to hit zero. Done: Once maintenance finishes, your ship &quot;arrives&quot; instantly (skipping the delivery travel time). Bonus: You just doubled the time until the next required dry dock! Check the next bug below, you can combo these two. 👇 🛠️ &quot;Unlimited&quot; time until next DryDock Every new vessel spawns at a port that has a dry dock. CRITICAL: Before you send your ship anywhere, throw it into the dry dock. This glitches the timer: The &quot;Time to next Dry Dock&quot; gets added on top of the default value. Example: Default is 350h &gt; after first dry dock it’s 700h &gt; then 1050h, etc. Rinse and repeat: You can do this as many times as you want. We haven't found a limit yet - as long as you have the in-game cash to pay for it! 💸"
