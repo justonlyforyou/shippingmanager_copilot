@@ -23,7 +23,8 @@ const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audi
 const { getCachedHijackingCase } = require('../websocket/hijacking-cache');
 
 // Use same path logic as messenger.js for hijack history
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const DATA_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata')
   : path.join(__dirname, '../../userdata');

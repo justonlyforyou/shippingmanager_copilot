@@ -13,7 +13,8 @@ const path = require('path');
 const { getAppBaseDir } = require('../config');
 
 // Determine vessel appearances directory
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const VESSEL_APPEARANCES_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'vessel-appearances')
   : path.join(__dirname, '../../userdata/vessel-appearances');
@@ -232,24 +233,31 @@ function groupVesselsByPortPair(vessels, allPorts) {
 }
 
 /**
- * Creates a short abbreviation from a port code
+ * Creates a short abbreviation from a port code.
+ * Rules:
+ * - 3+ significant words: first letter of each (new_york_city -> NYC)
+ * - 1-2 significant words: first 3 letters of first word (cape_town -> CAP)
+ * - Filters out: port, of, the, de, du, di, der
  */
 function formatPortAbbreviation(portCode) {
-  const abbr = {
-    'hamburg': 'HAM', 'new_york': 'NYC', 'baltimore': 'BAL', 'barcelona': 'BCN',
-    'istanbul': 'IST', 'brisbane': 'BNE', 'port_of_botany_sydney': 'SYD',
-    'melbourne': 'MEL', 'rotterdam': 'RTM', 'antwerp': 'ANT', 'singapore': 'SIN',
-    'shanghai': 'SHA', 'hong_kong': 'HKG', 'los_angeles': 'LAX', 'long_beach': 'LGB',
-    'tokyo': 'TYO', 'busan': 'PUS', 'dubai': 'DXB', 'sydney': 'SYD', 'auckland': 'AKL'
-  };
-  if (abbr[portCode]) return abbr[portCode];
+  if (!portCode) return '???';
+
   const parts = portCode.split('_');
-  const lastPart = parts[parts.length - 1];
-  // Skip country code suffixes - use first word instead
-  if (parts.length > 1 && ['us', 'uk', 'ca', 'au', 'nz', 'br', 'mx', 'l'].includes(lastPart)) {
+
+  // Filter out common prefixes that don't count
+  const skipWords = ['port', 'of', 'the', 'de', 'du', 'di', 'der'];
+  const filtered = parts.filter(p => !skipWords.includes(p.toLowerCase()));
+
+  if (filtered.length === 0) {
+    // Fallback if all words filtered
     return parts[0].substring(0, 3).toUpperCase();
+  } else if (filtered.length >= 3) {
+    // 3+ words: first letter of each word
+    return filtered.map(w => w[0].toUpperCase()).join('');
+  } else {
+    // 1-2 words: first 3 letters of first word
+    return filtered[0].substring(0, 3).toUpperCase();
   }
-  return lastPart.substring(0, 3).toUpperCase();
 }
 
 module.exports = {

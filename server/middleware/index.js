@@ -114,9 +114,10 @@ function setupMiddleware(app) {
   app.use(express.json({ limit: '20mb' }));
 
   // Static files
-  // When running as .exe (pkg), use __dirname which points to snapshot directory
+  // When running as packaged exe (pkg/SEA), use __dirname which points to snapshot directory
   // When running as .js (dev), __dirname points to server/middleware, so go up two levels
-  const baseDir = process.pkg ? path.join(__dirname, '..', '..') : path.join(__dirname, '..', '..');
+  const { isPackaged } = require('../config');
+  const baseDir = isPackaged() ? path.join(__dirname, '..', '..') : path.join(__dirname, '..', '..');
   app.use(express.static(path.join(baseDir, 'public')));
   app.use('/data', express.static(path.join(baseDir, 'data')));
   // Serve screenshots at /docs/screenshots/ for JSDoc documentation

@@ -50,7 +50,8 @@ const { getAppBaseDir } = require('../config');
  * Path to the read tracking JSON file - use AppData when packaged as exe
  * @constant {string}
  */
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const READ_TRACKING_FILE = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'settings', 'read-tracking.json')
   : path.join(__dirname, '..', '..', 'userdata', 'settings', 'read-tracking.json');

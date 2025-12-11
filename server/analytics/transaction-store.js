@@ -14,7 +14,8 @@ const logger = require('../utils/logger');
 const { apiCallWithRetry } = require('../utils/api');
 const { getAppBaseDir } = require('../config');
 
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const DATA_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'transactions')
   : path.join(__dirname, '../../userdata/transactions');

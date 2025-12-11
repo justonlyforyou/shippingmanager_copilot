@@ -7,7 +7,7 @@
  */
 
 import { deselectAll, selectVessel, closeAllPanels, getMap } from './map-controller.js';
-import { isMobileDevice, escapeHtml, formatNumber } from '../utils.js';
+import { isMobileDevice, escapeHtml, formatNumber, toGameCode } from '../utils.js';
 
 /**
  * Shows port detail panel with port information and vessel lists
@@ -26,15 +26,12 @@ export function showPortPanel(port, vessels) {
   const panel = document.getElementById('port-detail-panel');
   if (!panel) return;
 
-  // Format port name from code (e.g., 'sankt_peterburg' -> 'Sankt Peterburg')
-  const formatPortName = (code) => {
-    return code
-      .split('_')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
+  // Format port name - uses game display codes (e.g., "US NYC")
+  const formatPortName = (code, country) => {
+    return toGameCode(code, country);
   };
 
-  const displayName = formatPortName(port.code);
+  const displayName = formatPortName(port.code, port.country);
 
   // Port image URL (local images)
   const imageUrl = `/images/ports/${port.code}.jpg`;
@@ -56,7 +53,7 @@ export function showPortPanel(port, vessels) {
 
       <div class="port-info-section">
         <h4>Port Information</h4>
-        <p><strong>Code:</strong> ${port.code.toUpperCase()}</p>
+        <p><strong>Code:</strong> ${toGameCode(port.code, port.country)}</p>
         <p><strong>Country:</strong> ${port.full_country || 'Unknown'}</p>
         <p><strong>Location:</strong><br><span class="port-location-indent">Lat ${port.lat}</span><br><span class="port-location-indent">Lon ${port.lon}</span></p>
         <p><strong>Size:</strong> ${port.size || 'N/A'}</p>

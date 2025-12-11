@@ -60,17 +60,12 @@ const router = express.Router();
 // Centralized data directory for hijack history
 // In dev mode (py start.py): use local ./userdata
 // In packaged mode (.exe): use AppData/Local
-const isPkg = !!process.pkg;
+const { getAppBaseDir, isPackaged } = require('../config');
+const isPkg = isPackaged();
 
-let DATA_DIR;
-if (isPkg) {
-  // Packaged mode - use AppData
-  const { getAppBaseDir } = require('../config');
-  DATA_DIR = path.join(getAppBaseDir(), 'userdata');
-} else {
-  // Dev mode - use local userdata directory
-  DATA_DIR = path.join(__dirname, '../../userdata');
-}
+const DATA_DIR = isPkg
+  ? path.join(getAppBaseDir(), 'userdata')
+  : path.join(__dirname, '../../userdata');
 
 /**
  * Ensures hijack history directory exists.

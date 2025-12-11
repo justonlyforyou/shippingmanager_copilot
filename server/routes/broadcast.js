@@ -21,7 +21,8 @@ const { getAppBaseDir } = require('../config');
 const logger = require('../utils/logger');
 
 // Determine data directory based on environment
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const BROADCAST_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'broadcast-templates')
   : path.join(__dirname, '../../userdata/broadcast-templates');

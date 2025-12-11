@@ -90,8 +90,8 @@ if (process.ppid) {
 }
 
 // Setup file logging - create new log file on each startup
-// Use APPDATA for logs when running as .exe (pkg sets process.pkg)
-const LOG_DIR = process.pkg
+// Use APPDATA for logs when running as packaged executable (pkg or SEA)
+const LOG_DIR = config.isPackaged()
   ? path.join(config.getAppBaseDir(), 'userdata', 'logs')
   : path.join(__dirname, 'userdata', 'logs');
 

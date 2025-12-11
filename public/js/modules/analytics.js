@@ -13,7 +13,7 @@
  */
 
 import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsDates } from './api.js';
-import { escapeHtml, showNotification, formatNumber } from './utils.js';
+import { escapeHtml, showNotification, formatNumber, toGameCode } from './utils.js';
 
 // State
 let analyticsData = null;
@@ -614,11 +614,10 @@ function renderSoldVesselHistory(historyData) {
   // Reverse to show newest first
   const trips = historyData.reverse();
 
-  // Format port name helper
+  // Format port name helper - uses game display codes (e.g., "US NYC")
   const formatPortName = (portCode) => {
     if (!portCode) return 'N/A';
-    const formatted = portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    return escapeHtml(formatted);
+    return escapeHtml(toGameCode(portCode));
   };
 
   // Format cargo helper
@@ -4219,7 +4218,7 @@ async function showLookupEntryDetails(lookupId) {
     // Helper to format underscore names (harbor_fee_on_depart -> Harbor Fee On Depart)
     const formatName = (name) => {
       if (!name) return '-';
-      return name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+      return toGameCode(name);
     };
 
     // Helper to format cash with proper sign placement (-$69.5K not $-69.5K)

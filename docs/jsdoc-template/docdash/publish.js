@@ -484,7 +484,7 @@ function buildNav(members) {
     // Split tutorials into two groups: CoPilot Tutorials and ShippingManager docs
     var copilotTutorials = [];
     var shippingManagerDocs = [];
-    var shippingManagerDocNames = ['03-discovered-formulars', '04-api-reference'];
+    var shippingManagerDocNames = ['03-discovered-formulars', '06-api-reference'];
 
     if (members.tutorials) {
         members.tutorials.forEach(function(tutorial) {
@@ -498,7 +498,7 @@ function buildNav(members) {
 
     // External URLs for tutorials (defined in tutorials.json)
     var externalTutorialUrls = {
-        '04-api-reference': 'https://shippingmanager-api-reference.pages.dev/'
+        '06-api-reference': 'https://shippingmanager-api-reference.pages.dev/'
     };
 
     // Build ShippingManager nav

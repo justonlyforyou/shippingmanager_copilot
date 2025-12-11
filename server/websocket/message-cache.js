@@ -9,7 +9,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { getAppBaseDir } = require('../config');
+const { getAppBaseDir, isPackaged } = require('../config');
 const logger = require('../utils/logger');
 
 /**
@@ -18,13 +18,16 @@ const logger = require('../utils/logger');
  */
 const processedMessageIds = new Map();
 
+// Use AppData when packaged as exe
+const isPkg = isPackaged();
+
 /**
  * Get cache file path for processed DM message IDs for a specific user
  * @param {string|number} userId - User ID
  * @returns {string} Path to user-specific processed messages cache file
  */
 function getProcessedMessagesCachePath(userId) {
-  return process.pkg
+  return isPkg
     ? path.join(getAppBaseDir(), 'userdata', 'chatbot', `processed_dm_messages-${userId}.json`)
     : path.join(__dirname, '..', '..', 'userdata', 'chatbot', `processed_dm_messages-${userId}.json`);
 }

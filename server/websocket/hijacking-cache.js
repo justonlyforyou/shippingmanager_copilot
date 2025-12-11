@@ -16,10 +16,10 @@ const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const path = require('path');
 const fs = require('fs');
-const { getAppBaseDir } = require('../config');
+const { getAppBaseDir, isPackaged } = require('../config');
 
 // Path to hijack history files
-const isPkg = !!process.pkg;
+const isPkg = isPackaged();
 const HIJACK_HISTORY_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'hijack_history')
   : path.join(__dirname, '../../userdata/hijack_history');

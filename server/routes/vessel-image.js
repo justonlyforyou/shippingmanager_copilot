@@ -18,7 +18,8 @@ const logger = require('../utils/logger');
 const config = require('../config');
 
 // Cache directory - use APPDATA when running as .exe
-const CACHE_DIR = process.pkg
+const isPkg = config.isPackaged();
+const CACHE_DIR = isPkg
   ? path.join(config.getAppBaseDir(), 'userdata', 'cache', 'vessel-images')
   : path.join(__dirname, '..', '..', 'userdata', 'cache', 'vessel-images');
 
@@ -55,7 +56,7 @@ router.use(async (req, res, next) => {
   if (vesselImagePath.startsWith('ownimage/')) {
     const vesselId = vesselImagePath.split('/').pop().replace(/\?.*$/, '');
     // ownimages are in userdata/vessel-images/ownimages (not in cache folder)
-    const ownImagesDir = process.pkg
+    const ownImagesDir = isPkg
       ? path.join(config.getAppBaseDir(), 'userdata', 'vessel-images', 'ownimages')
       : path.join(__dirname, '..', '..', 'userdata', 'vessel-images', 'ownimages');
     const ownImagePath = path.join(ownImagesDir, `${vesselId}.png`);

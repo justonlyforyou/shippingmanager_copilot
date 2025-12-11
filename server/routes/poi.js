@@ -13,10 +13,10 @@ const router = express.Router();
 const logger = require('../utils/logger');
 const fs = require('fs');
 const path = require('path');
-const { getAppBaseDir } = require('../config');
+const { getAppBaseDir, isPackaged } = require('../config');
 
 // Cache directory - use AppData when packaged as exe
-const isPkg = !!process.pkg;
+const isPkg = isPackaged();
 const CACHE_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'cache')
   : path.join(__dirname, '..', '..', 'userdata', 'cache');

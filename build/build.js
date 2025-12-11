@@ -132,10 +132,6 @@ buildSteps.push({
             checks.push({ name: 'PyInstaller', version: 'Not found', ok: false });
         }
 
-        // pkg (will be installed via npm if missing)
-        const pkgCheck = commandExists('pkg');
-        checks.push({ name: 'pkg', version: pkgCheck ? 'Installed' : 'Will install', ok: true });
-
         // Print results
         checks.forEach(check => {
             const status = check.ok ? '✓' : '✗';
@@ -195,18 +191,6 @@ if (!config.skipDeps) {
                 return { success: false };
             }
             success('Dependencies installed');
-
-            // Install pkg globally if not present
-            if (!commandExists('pkg')) {
-                info('Installing pkg globally...');
-                const pkgResult = exec('npm install -g pkg');
-                if (!pkgResult.success) {
-                    error('Failed to install pkg globally');
-                    return { success: false };
-                }
-                success('pkg installed');
-            }
-
             return { success: true };
         }
     });
@@ -233,8 +217,7 @@ if (!config.skipDocs) {
 buildSteps.push({
     name: 'Building Node.js executable',
     execute: () => {
-        info('Compiling Node.js app with pkg...');
-        info('This may take several minutes...');
+        info('Building Node.js app with SEA (Single Executable Application)...');
         const result = exec('npm run build:node');
         if (!result.success) {
             error('Node.js build failed');

@@ -31,7 +31,8 @@ const { getAppBaseDir } = require('../config');
  * Path to the IPO tracking JSON file - use AppData when packaged as exe
  * @constant {string}
  */
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const IPO_TRACKING_FILE = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'settings', 'ipo-tracking.json')
   : path.join(__dirname, '..', '..', 'userdata', 'settings', 'ipo-tracking.json');

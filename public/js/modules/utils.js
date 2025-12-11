@@ -1033,3 +1033,54 @@ function formatFileSize(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
 }
+
+/**
+ * Converts internal port code to game display code.
+ * Game uses format: "COUNTRY ABBR" (e.g., "US NYC", "ZA CAP")
+ *
+ * Rules:
+ * - 3+ significant words: first letter of each word (new_york_city -> NYC)
+ * - 1-2 significant words: first 3 letters of first word (cape_town -> CAP)
+ * - Filters out: port, of, the, de, du, di, der
+ *
+ * If country is not provided, looks up from window.portsData cache.
+ * If cache miss, returns just the abbreviation without country prefix.
+ *
+ * @param {string} code - Internal port code (e.g., "new_york_city")
+ * @param {string} [country] - Country code (e.g., "US"). Optional if window.portsData is loaded.
+ * @returns {string} Game display code (e.g., "US NYC")
+ *
+ * @example
+ * toGameCode('new_york_city', 'US');  // Returns: "US NYC"
+ * toGameCode('cape_town', 'ZA');      // Returns: "ZA CAP"
+ * toGameCode('abk_morskogo_porta_sabetta', 'RU'); // Returns: "RU AMPS"
+ * toGameCode('new_york_city');        // Returns: "US NYC" (if portsData loaded) or "NYC"
+ */
+export function toGameCode(code, country) {
+  if (!code) return '';
+
+  // Try to get country from global cache if not provided
+  if (!country && window.portsData && window.portsData[code]) {
+    country = window.portsData[code].country;
+  }
+
+  const parts = code.split('_');
+
+  // Filter out common prefixes that don't count
+  const skipWords = ['port', 'of', 'the', 'de', 'du', 'di', 'der'];
+  const filtered = parts.filter(p => !skipWords.includes(p.toLowerCase()));
+
+  let abbr;
+  if (filtered.length === 0) {
+    // Fallback if all words filtered
+    abbr = parts[0].substring(0, 3).toUpperCase();
+  } else if (filtered.length >= 3) {
+    // 3+ words: first letter of each word
+    abbr = filtered.map(w => w[0].toUpperCase()).join('');
+  } else {
+    // 1-2 words: first 3 letters of first word
+    abbr = filtered[0].substring(0, 3).toUpperCase();
+  }
+
+  return country ? (country + ' ' + abbr) : abbr;
+}

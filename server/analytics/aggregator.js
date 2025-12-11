@@ -155,7 +155,8 @@ function normalizeRouteKey(origin, destination) {
 }
 
 // Use AppData when packaged as exe
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 
 // Initialize hijack history directory (for fallback vessel_name lookup)
 HIJACK_HISTORY_DIR = isPkg

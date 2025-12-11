@@ -17,6 +17,27 @@ const path = require('path');
 const os = require('os');
 
 /**
+ * Check if running as packaged executable (pkg or SEA)
+ * @returns {boolean} True if running as packaged executable
+ */
+function isPackaged() {
+  // Check for pkg
+  if (process.pkg) {
+    return true;
+  }
+  // Check for Node.js SEA (Single Executable Application)
+  try {
+    const sea = require('node:sea');
+    if (sea && sea.isSea && sea.isSea()) {
+      return true;
+    }
+  } catch {
+    // node:sea not available, not running as SEA
+  }
+  return false;
+}
+
+/**
  * Get platform-specific AppData directory without using environment variables.
  * Used for user settings, sessions, certificates (local data)
  * @returns {string} AppData directory path
@@ -81,7 +102,7 @@ function getLocalAppDataDir() {
  * @returns {string} Log directory path
  */
 function getLogDir() {
-  const isPkg = !!process.pkg;
+  const isPkg = isPackaged();
   console.log(`[DEBUG] getLogDir - process.pkg = ${isPkg}`);
 
   if (isPkg) {
@@ -157,7 +178,7 @@ function getAppVersionCookie() {
  * @returns {string} Settings directory path
  */
 function getSettingsDir() {
-  const isPkg = !!process.pkg;
+  const isPkg = isPackaged();
   console.log(`[DEBUG] getSettingsDir - process.pkg = ${isPkg}`);
 
   if (isPkg) {
@@ -355,3 +376,4 @@ module.exports.getLocalAppDataDir = getLocalAppDataDir;
 module.exports.getLogDir = getLogDir;
 module.exports.getSettingsDir = getSettingsDir;
 module.exports.getInternalBaseUrl = getInternalBaseUrl;
+module.exports.isPackaged = isPackaged;

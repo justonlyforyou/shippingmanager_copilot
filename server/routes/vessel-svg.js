@@ -18,10 +18,10 @@ const fs = require('fs').promises;
 const path = require('path');
 const { generateVesselSvg } = require('../utils/vessel-svg-generator');
 const { getUserId } = require('../utils/api');
-const { getAppBaseDir } = require('../config');
+const { getAppBaseDir, isPackaged } = require('../config');
 const logger = require('../utils/logger');
 
-const isPkg = !!process.pkg;
+const isPkg = isPackaged();
 const VESSEL_IMAGES_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'vessel-images')
   : path.join(__dirname, '../../userdata/vessel-images');

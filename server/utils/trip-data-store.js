@@ -19,7 +19,8 @@ const logger = require('./logger');
 const { getAppBaseDir } = require('../config');
 
 // Use AppData when packaged as exe
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const TRIP_DATA_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'trip-data')
   : path.join(__dirname, '../../userdata/trip-data');

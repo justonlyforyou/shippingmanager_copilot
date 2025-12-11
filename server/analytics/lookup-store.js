@@ -20,7 +20,8 @@ const crypto = require('crypto');
 const logger = require('../utils/logger');
 const { getAppBaseDir } = require('../config');
 
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const DATA_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'analytics')
   : path.join(__dirname, '../../userdata/analytics');

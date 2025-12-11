@@ -16,9 +16,10 @@ const archiver = require('archiver');
 const unzipper = require('unzipper');
 const multer = require('multer');
 const logger = require('../utils/logger');
+const { isPackaged } = require('../config');
 
 // Get Python settings directory - matches start.py logic
-const isPkg = !!process.pkg;
+const isPkg = isPackaged();
 const PYTHON_SETTINGS_DIR = isPkg
   ? path.join(process.env.LOCALAPPDATA, 'ShippingManagerCoPilot', 'settings')
   : path.join(__dirname, '../../userdata/settings');

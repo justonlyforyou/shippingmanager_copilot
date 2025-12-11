@@ -136,14 +136,14 @@ function validateCommandArguments(command, args) {
 /**
  * Validate forecast command arguments
  * Valid formats:
- * - No args (default: tomorrow)
+ * - No args (default: today)
  * - 1 arg: day (number 1-31)
  * - 2 args: day (number 1-31) + timezone (valid timezone string)
  * @param {Array<string>} args - Command arguments
  * @returns {boolean} True if valid
  */
 function validateForecastArguments(args) {
-    // No arguments is valid (default: tomorrow)
+    // No arguments is valid (default: today)
     if (args.length === 0) {
         return true;
     }

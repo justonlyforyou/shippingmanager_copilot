@@ -3880,6 +3880,14 @@
   },
   {
     "type": "method",
+    "name": "loadPortsDataGlobal",
+    "longname": "module:core/app-initializer~loadPortsDataGlobal",
+    "url": "module-core_app-initializer.html#~loadPortsDataGlobal",
+    "description": "<p>Load ports data into global cache for toGameCode() function.\nRuns in background, doesn't block initialization.</p>",
+    "parent": "module:core/app-initializer"
+  },
+  {
+    "type": "method",
     "name": "loadUserSettings",
     "longname": "module:core/app-initializer~loadUserSettings",
     "url": "module-core_app-initializer.html#~loadUserSettings",
@@ -5195,7 +5203,7 @@
     "name": "formatPortAbbreviation",
     "longname": "module:harbor-map-aggregator~formatPortAbbreviation",
     "url": "module-harbor-map-aggregator.html#~formatPortAbbreviation",
-    "description": "<p>Creates a short abbreviation from a port code</p>",
+    "description": "<p>Creates a short abbreviation from a port code.\nRules:</p>\n<ul>\n<li>3+ significant words: first letter of each (new_york_city -&gt; NYC)</li>\n<li>1-2 significant words: first 3 letters of first word (cape_town -&gt; CAP)</li>\n<li>Filters out: port, of, the, de, du, di, der</li>\n</ul>",
     "parent": "module:harbor-map-aggregator"
   },
   {
@@ -8539,7 +8547,7 @@
     "name": "validateForecastArguments",
     "longname": "module:server/chatbot/parser~validateForecastArguments",
     "url": "module-server_chatbot_parser.html#~validateForecastArguments",
-    "description": "<p>Validate forecast command arguments\nValid formats:</p>\n<ul>\n<li>No args (default: tomorrow)</li>\n<li>1 arg: day (number 1-31)</li>\n<li>2 args: day (number 1-31) + timezone (valid timezone string)</li>\n</ul>",
+    "description": "<p>Validate forecast command arguments\nValid formats:</p>\n<ul>\n<li>No args (default: today)</li>\n<li>1 arg: day (number 1-31)</li>\n<li>2 args: day (number 1-31) + timezone (valid timezone string)</li>\n</ul>",
     "parent": "module:server/chatbot/parser"
   },
   {
@@ -8820,6 +8828,14 @@
     "longname": "module:server/config~getSettingsDir",
     "url": "module-server_config.html#~getSettingsDir",
     "description": "<p>Get settings directory path based on execution mode.\nWhen packaged: Platform-specific app data directory</p>\n<ul>\n<li>Windows: AppData/Local/ShippingManagerCoPilot/userdata/settings/</li>\n<li>macOS: ~/Library/Application Support/ShippingManagerCoPilot/userdata/settings/</li>\n<li>Linux: ~/.ShippingManagerCoPilot/userdata/settings/\nWhen running from source: ./userdata/settings/</li>\n</ul>",
+    "parent": "module:server/config"
+  },
+  {
+    "type": "method",
+    "name": "isPackaged",
+    "longname": "module:server/config~isPackaged",
+    "url": "module-server_config.html#~isPackaged",
+    "description": "<p>Check if running as packaged executable (pkg or SEA)</p>",
     "parent": "module:server/config"
   },
   {
@@ -11556,6 +11572,14 @@
     "longname": "module:utils.showSideNotification",
     "url": "module-utils.html#.showSideNotification",
     "description": "<p>Shows a side notification (slides in from right, auto-dismisses after duration)</p>",
+    "parent": "module:utils"
+  },
+  {
+    "type": "method",
+    "name": "toGameCode",
+    "longname": "module:utils.toGameCode",
+    "url": "module-utils.html#.toGameCode",
+    "description": "<p>Converts internal port code to game display code.\nGame uses format: &quot;COUNTRY ABBR&quot; (e.g., &quot;US NYC&quot;, &quot;ZA CAP&quot;)</p>\n<p>Rules:</p>\n<ul>\n<li>3+ significant words: first letter of each word (new_york_city -&gt; NYC)</li>\n<li>1-2 significant words: first 3 letters of first word (cape_town -&gt; CAP)</li>\n<li>Filters out: port, of, the, de, du, di, der</li>\n</ul>\n<p>If country is not provided, looks up from window.portsData cache.\nIf cache miss, returns just the abbreviation without country prefix.</p>",
     "parent": "module:utils"
   },
   {

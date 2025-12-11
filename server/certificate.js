@@ -55,7 +55,8 @@ const logger = require('./utils/logger');
 const { getAppBaseDir } = require('./config');
 
 // Determine if running as packaged executable
-const isPkg = typeof process.pkg !== 'undefined';
+const { isPackaged } = require('./config');
+const isPkg = isPackaged();
 
 let CERTS_DIR;
 if (isPkg) {

@@ -20,7 +20,8 @@ const path = require('path');
 const { getAppBaseDir } = require('../config');
 
 // Use AppData when packaged as exe
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const CACHE_FILE_PATH = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'cache', 'alliance_pool.json')
   : path.join(__dirname, '..', '..', 'userdata', 'cache', 'alliance_pool.json');

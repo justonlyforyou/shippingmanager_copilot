@@ -21,8 +21,9 @@ const path = require('path');
 const logger = require('./utils/logger');
 const { getAppBaseDir } = require('./config');
 
-// Get settings directory - use APPDATA when running as .exe
-const SETTINGS_DIR = process.pkg
+// Get settings directory - use APPDATA when running as packaged exe
+const { isPackaged } = require('./config');
+const SETTINGS_DIR = isPackaged()
   ? path.join(getAppBaseDir(), 'userdata', 'settings')
   : path.join(__dirname, '..', 'userdata', 'settings');
 

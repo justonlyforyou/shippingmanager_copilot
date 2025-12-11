@@ -8,7 +8,7 @@
 
 import { fetchVesselHistory, exportVesselHistory } from './api-client.js';
 import { deselectAll, getMap, getVesselById } from './map-controller.js';
-import { isMobileDevice, escapeHtml, showSideNotification } from '../utils.js';
+import { isMobileDevice, escapeHtml, showSideNotification, toGameCode } from '../utils.js';
 import { isDepartInProgress } from '../vessel-management.js';
 
 /**
@@ -238,11 +238,10 @@ export async function showVesselPanel(vessel) {
 
   const formatNumber = (num) => Math.floor(num).toLocaleString();
 
-  // Format port name with capital first letter (escaped for XSS protection)
+  // Format port name - uses game display codes (e.g., "US NYC")
   const formatPortName = (portCode) => {
     if (!portCode) return 'N/A';
-    const formatted = portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    return escapeHtml(formatted);
+    return escapeHtml(toGameCode(portCode));
   };
 
   // Capacity display (max capacity)
@@ -915,11 +914,10 @@ function renderHistoryPage() {
   const nextTrips = allHistoryData.slice(displayedHistoryCount, displayedHistoryCount + HISTORY_PAGE_SIZE);
   displayedHistoryCount += nextTrips.length;
 
-  // Format port name with capital first letter (escaped for XSS protection)
+  // Format port name - uses game display codes (e.g., "US NYC")
   const formatPortName = (portCode) => {
     if (!portCode) return 'N/A';
-    const formatted = portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
-    return escapeHtml(formatted);
+    return escapeHtml(toGameCode(portCode));
   };
 
   // Render trips

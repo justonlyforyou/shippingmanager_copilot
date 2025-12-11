@@ -19,7 +19,7 @@ on:
 
 jobs:
   # =============================================================================
-  # WINDOWS BUILD (existing flow)
+  # WINDOWS BUILD (using Node.js SEA)
   # =============================================================================
   build-windows:
     if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'windows'
@@ -46,9 +46,6 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
-      - name: Install global npm packages
-        run: npm install -g pkg
-
       - name: Install Python dependencies
         run: |
           pip install pyinstaller
@@ -71,7 +68,7 @@ jobs:
 
 
   # =============================================================================
-  # MACOS BUILD
+  # MACOS BUILD (Intel x64, using Node.js SEA)
   # =============================================================================
   build-macos:
     if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos'
@@ -101,8 +98,8 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Node.js server for macOS (Intel)
-        run: npx @yao-pkg/pkg . --targets node20-macos-x64 --output dist/ShippingManagerCoPilot-Server
+      - name: Build Node.js server for macOS (SEA)
+        run: npm run build:node:mac
 
       - name: Build Python helper scripts
         run: |
@@ -145,7 +142,7 @@ jobs:
 
 
   # =============================================================================
-  # MACOS ARM64 BUILD (Apple Silicon)
+  # MACOS ARM64 BUILD (Apple Silicon, using Node.js SEA)
   # =============================================================================
   build-macos-arm64:
     if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'macos'
@@ -175,8 +172,8 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Node.js server for macOS ARM64
-        run: npx @yao-pkg/pkg . --targets node20-macos-arm64 --output dist/ShippingManagerCoPilot-Server
+      - name: Build Node.js server for macOS ARM64 (SEA)
+        run: npm run build:node:mac
 
       - name: Build Python helper scripts
         run: |
@@ -215,7 +212,7 @@ jobs:
 
 
   # =============================================================================
-  # LINUX BUILD
+  # LINUX BUILD (using Node.js SEA)
   # =============================================================================
   build-linux:
     if: github.event_name == 'push' || github.event.inputs.platforms == 'all' || github.event.inputs.platforms == 'linux'
@@ -254,8 +251,8 @@ jobs:
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Node.js server for Linux
-        run: npx @yao-pkg/pkg . --targets node20-linux-x64 --output dist/ShippingManagerCoPilot-Server
+      - name: Build Node.js server for Linux (SEA)
+        run: npm run build:node:linux
 
       - name: Build Python helper scripts
         run: |

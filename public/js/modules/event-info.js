@@ -7,7 +7,7 @@
  * @module event-info
  */
 
-import { escapeHtml } from './utils.js';
+import { escapeHtml , toGameCode } from './utils.js';
 
 let currentEventData = null;
 let timerInterval = null;
@@ -93,7 +93,7 @@ export function openEventModal() {
 
     // Capitalize port names
     const capitalizedPorts = ports.map(port => {
-        return port.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        return toGameCode(port);
     });
 
     // Calculate time remaining from time_end (live calculation, not cached ends_in)
@@ -119,7 +119,7 @@ export function openEventModal() {
 
     // Format name and type (replace underscores, capitalize)
     const formatName = (str) => {
-        return str.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+        return toGameCode(str);
     };
 
     // Capitalize first letter

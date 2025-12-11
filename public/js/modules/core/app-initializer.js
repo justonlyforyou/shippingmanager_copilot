@@ -551,10 +551,40 @@ function registerAllEventListeners(settings, debouncedFunctions) {
 }
 
 /**
+ * Load ports data into global cache for toGameCode() function.
+ * Runs in background, doesn't block initialization.
+ */
+async function loadPortsDataGlobal() {
+  try {
+    const response = await fetch('/api/port/get-assigned-ports');
+    const data = await response.json();
+
+    if (response.ok && data.data?.ports) {
+      window.portsData = {};
+      for (const port of data.data.ports) {
+        window.portsData[port.code] = {
+          country: port.country,
+          fullCountry: port.full_country,
+          size: port.size
+        };
+      }
+      if (window.DEBUG_MODE) {
+        console.log();
+      }
+    }
+  } catch (error) {
+    console.error('[Init] Error loading ports data:', error);
+  }
+}
+
+/**
  * Load initial data with delays to prevent socket hang-ups.
  */
 async function loadInitialData() {
   const chatFeed = document.getElementById('chatFeed');
+
+  // Load ports data for toGameCode() function (used app-wide for port display)
+  loadPortsDataGlobal();
 
   await loadAllianceMembers();
 

@@ -18,7 +18,7 @@ import {
   getDemandFilterOptions,
   applyDemandFilter
 } from './filters.js';
-import { showSideNotification, isMobileDevice, escapeHtml } from '../utils.js';
+import { showSideNotification, isMobileDevice, escapeHtml, toGameCode } from '../utils.js';
 import { initForecastCalendar, updateEventDiscount } from '../forecast-calendar.js';
 
 // Map instance
@@ -1712,7 +1712,7 @@ export function renderPorts(ports) {
     }
 
     // Format port name
-    const portName = port.code.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    const portName = toGameCode(port.code, port.country);
 
     // Prepare tooltip content
     const portTooltipContent = `
@@ -1907,8 +1907,8 @@ export function drawRoute(route, ports = [], autoZoom = true) {
     });
 
     // Create route name for panel title
-    const originName = originPort ? originPort.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : 'Unknown';
-    const destName = destinationPort ? destinationPort.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ') : 'Unknown';
+    const originName = originPort ? toGameCode(originPort) : 'Unknown';
+    const destName = destinationPort ? toGameCode(destinationPort) : 'Unknown';
     const routeName = `${originName} - ${destName}`;
 
     console.log(`[Harbor Map] Opening route panel: ${routeName}, ${vesselsOnRoute.length} vessels`);
@@ -1919,7 +1919,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
 
   // Highlight origin port (red)
   if (originPort) {
-    const originName = originPort.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    const originName = toGameCode(originPort);
     const originMarker = L.marker(latLngs[0], { icon: portIcons.origin });
 
     // Find port data for demand info
@@ -1982,7 +1982,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
 
   // Highlight destination port (green)
   if (destinationPort) {
-    const destName = destinationPort.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    const destName = toGameCode(destinationPort);
     const destMarker = L.marker(latLngs[latLngs.length - 1], { icon: portIcons.destination });
 
     // Find port data for demand info
@@ -2315,7 +2315,8 @@ function initFilterModalDrag() {
         if (demandMaxSelect) demandMaxSelect.value = '';
         if (demandCurrentSelect) demandCurrentSelect.value = '';
       }
-      await applyFilterModalSelections();
+      // Use setRouteFilter to properly open the route vessels panel
+      await setRouteFilter(routeSelect.value);
     });
   }
 
@@ -3445,14 +3446,8 @@ export async function setRouteFilter(pairKey) {
       renderPorts(routePorts);
       clearRoute();
 
-      // Format port names for display
-      const formatPortName = (code) => {
-        const port = rawPorts.find(p => p.code === code);
-        if (port && port.name) return port.name;
-        return code.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-      };
-
-      const displayName = `${formatPortName(portA)} - ${formatPortName(portB)}`;
+      // Format port names for display using game codes
+      const displayName = `${toGameCode(portA)} - ${toGameCode(portB)}`;
 
       // Show route vessels panel with empty vessels array (will show "No vessels" message)
       showRouteVesselsPanel(`${displayName} (Historical)`, []);

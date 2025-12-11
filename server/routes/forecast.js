@@ -22,8 +22,9 @@ const { getLocalAppDataDir } = require('../config');
  * @returns {string} Path to forecast.json
  */
 function getForecastDataPath() {
-    if (process.pkg) {
-        // Running as .exe - use AppData\Local (machine-specific cache data)
+    const { isPackaged } = require('../config');
+    if (isPackaged()) {
+        // Running as packaged exe - use AppData\Local (machine-specific cache data)
         return path.join(getLocalAppDataDir(), 'ShippingManagerCoPilot', 'sysdata', 'forecast', 'forecast.json');
     }
     // Running from source - use project directory
@@ -196,14 +197,14 @@ function getMonthForDay(dayNumber) {
     const currentMonth = now.getMonth(); // 0-indexed
     const currentYear = now.getFullYear();
 
-    if (dayNumber <= currentDay) {
-        // Current month
+    if (dayNumber >= currentDay) {
+        // Current month (today or future day this month)
         return { month: currentMonth, year: currentYear };
     } else {
-        // Previous month
-        const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
-        const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
-        return { month: prevMonth, year: prevYear };
+        // Next month (day already passed, so user means next month)
+        const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+        const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+        return { month: nextMonth, year: nextYear };
     }
 }
 
@@ -555,10 +556,10 @@ router.get('/', async (req, res) => {
                 month = monthYear.month;
                 year = monthYear.year;
             } else {
-                // Default to tomorrow - use tomorrow's actual date
-                targetDay = tomorrow.getDate();
-                month = tomorrow.getMonth();
-                year = tomorrow.getFullYear();
+                // Default to TODAY (current day in CET/CEST timezone)
+                targetDay = now.getDate();
+                month = now.getMonth();
+                year = now.getFullYear();
             }
 
             const daysInMonth = getDaysInMonth(month, year);

@@ -23,9 +23,9 @@ const logger = require('./logger');
  * @returns {string} Path to sessions.json
  */
 function getSessionsPath() {
-    const { getAppBaseDir } = require('../config');
-    const isPkg = !!process.pkg;
-    console.log(`[DEBUG] getSessionsPath - process.pkg = ${isPkg}`);
+    const { getAppBaseDir, isPackaged } = require('../config');
+    const isPkg = isPackaged();
+    console.log(`[DEBUG] getSessionsPath - isPackaged = ${isPkg}`);
 
     if (isPkg) {
         // Running as packaged .exe - use AppData

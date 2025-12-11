@@ -178,12 +178,12 @@ async function handleHelpCommand(userId, userName, config, isDM, settings, sendR
 
         let forecastSection = `Get fuel and CO2 price forecast\n\n`;
         forecastSection += `${prefix}forecast [day] [timezone]\n`;
-        forecastSection += `day: 1-31 (default: tomorrow)\n`;
+        forecastSection += `day: 1-31 (default: today)\n`;
         forecastSection += `timezone: (default: ${serverTz.name})\n\n`;
         forecastSection += `Examples\n`;
         forecastSection += `${prefix}forecast 26 UTC\n`;
         forecastSection += `${prefix}forecast 15\n`;
-        forecastSection += `${prefix}forecast (for tomorrow)\n\n`;
+        forecastSection += `${prefix}forecast (for today)\n\n`;
         forecastSection += `Supported timezones:\n`;
         forecastSection += `PST, PDT, MST, MDT, CST, CDT, EST, EDT, GMT, BST, WET, WEST, CET, CEST, EET, EEST, JST, KST, IST, AEST, AEDT, ACST, ACDT, AWST, NZST, NZDT, UTC`;
         sections.push(forecastSection);
@@ -333,7 +333,8 @@ async function handleWelcomeCommand(args, userName, isDM) {
  * Get broadcast templates directory
  */
 function getBroadcastDir() {
-    const isPkg = !!process.pkg;
+    const { isPackaged } = require('../config');
+    const isPkg = isPackaged();
     return isPkg
         ? path.join(getAppBaseDir(), 'userdata', 'broadcast-templates')
         : path.join(__dirname, '../../userdata/broadcast-templates');

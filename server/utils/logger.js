@@ -30,7 +30,15 @@ function loadLogLevel() {
   }
 
   try {
-    const isPkg = !!process.pkg;
+    // Note: Cannot use isPackaged() here due to circular dependency with config.js
+    // Check both pkg and SEA directly
+    let isPkg = !!process.pkg;
+    if (!isPkg) {
+      try {
+        const sea = require('node:sea');
+        isPkg = sea && sea.isSea && sea.isSea();
+      } catch { /* not SEA */ }
+    }
     let settingsPath;
 
     if (isPkg) {

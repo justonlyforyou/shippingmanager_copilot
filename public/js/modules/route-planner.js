@@ -5,7 +5,7 @@
  * @module route-planner
  */
 
-import { showSideNotification } from './utils.js';
+import { showSideNotification , toGameCode } from './utils.js';
 
 // Drag state
 let isDragging = false;
@@ -1787,7 +1787,7 @@ function showError(message) {
  */
 function formatPortName(portCode) {
   if (!portCode) return 'Unknown';
-  return portCode.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+  return toGameCode(portCode);
 }
 
 // ============================================

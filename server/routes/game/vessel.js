@@ -46,7 +46,8 @@ const { getFuelConsumptionDisplay } = require('../../utils/fuel-calculator');
 const { getAppBaseDir } = require('../../config');
 
 // Determine vessel data directories based on environment
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../../config');
+const isPkg = isPackaged();
 const VESSEL_APPEARANCES_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'vessel-appearances')
   : path.join(__dirname, '../../../userdata/vessel-appearances');

@@ -49,7 +49,8 @@ const SYNC_DEBOUNCE_MS = 5000;
  * @returns {string} Path to user-specific messenger cache file
  */
 function getMessengerCachePath(userId) {
-  const isPkg = !!process.pkg;
+  const { isPackaged } = require('../config');
+  const isPkg = isPackaged();
   return isPkg
     ? path.join(getAppBaseDir(), 'userdata', 'messenger', `content-cache-${userId}.json`)
     : path.join(__dirname, '..', '..', 'userdata', 'messenger', `content-cache-${userId}.json`);

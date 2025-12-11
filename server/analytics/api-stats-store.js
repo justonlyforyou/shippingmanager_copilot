@@ -16,7 +16,8 @@ const path = require('path');
 const logger = require('../utils/logger');
 const { getAppBaseDir } = require('../config');
 
-const isPkg = !!process.pkg;
+const { isPackaged } = require('../config');
+const isPkg = isPackaged();
 const DATA_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'api-stats')
   : path.join(__dirname, '../../userdata/api-stats');
