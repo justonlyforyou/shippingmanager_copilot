@@ -446,6 +446,9 @@ h2.analytics-section-title {
   border-radius: var(--radius-6);
   padding: var(--spacing-16);
   min-height: 300px;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
 }
 
 .analytics-chart-header {
@@ -1614,4 +1617,166 @@ tr.sold-vessel:hover {
   .api-stats-summary {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+/* ============================================================================
+   PORT DEMAND TAB STYLES
+   ============================================================================ */
+
+.port-demand-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-16);
+}
+
+.port-demand-header h3 {
+  margin: 0;
+  font-size: var(--font-size-18);
+  font-weight: var(--font-weight-semibold);
+}
+
+.port-demand-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-12);
+}
+
+.port-demand-controls select {
+  min-width: 200px;
+}
+
+.port-demand-sync-status {
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+}
+
+.port-demand-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--spacing-12);
+  margin-bottom: var(--spacing-16);
+}
+
+.port-demand-stats .analytics-metric {
+  padding: var(--spacing-8) var(--spacing-12);
+}
+
+.port-demand-stats .analytics-metric-label {
+  font-size: var(--font-size-11);
+}
+
+.port-demand-stats .analytics-metric-value {
+  font-size: var(--font-size-14);
+}
+
+.port-demand-chart-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 400px;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-14);
+}
+
+@media (width <= 768px) {
+  .port-demand-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-12);
+  }
+
+  .port-demand-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .port-demand-controls {
+    width: 100%;
+  }
+
+  .port-demand-controls select {
+    flex: 1;
+  }
+}
+
+/* ============================================================================
+   SEARCHABLE PORT DROPDOWN
+   ============================================================================ */
+
+.port-search-dropdown {
+  position: relative;
+  min-width: 280px;
+}
+
+.port-search-input {
+  width: 100%;
+  padding: var(--spacing-6) var(--spacing-10);
+  background: var(--gray-800-95);
+  border: 1px solid var(--white-20);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  box-sizing: border-box;
+}
+
+.port-search-input:hover {
+  background: var(--gray-800);
+  border-color: var(--white-30);
+}
+
+.port-search-input:focus {
+  outline: none;
+  border-color: var(--color-info-light);
+  background: var(--gray-800);
+}
+
+.port-search-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.port-search-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  background: var(--color-bg-card);
+  border: 1px solid var(--white-20);
+  border-top: none;
+  border-radius: 0 0 var(--radius-4) var(--radius-4);
+  z-index: 100;
+  box-shadow: var(--shadow-lg);
+}
+
+.port-search-list.hidden {
+  display: none;
+}
+
+.port-search-item {
+  padding: var(--spacing-8) var(--spacing-12);
+  cursor: pointer;
+  font-size: var(--font-size-13);
+  color: var(--color-text-primary);
+  border-bottom: 1px solid var(--white-10);
+}
+
+.port-search-item:last-child {
+  border-bottom: none;
+}
+
+.port-search-item:hover,
+.port-search-item.highlighted {
+  background: var(--white-10);
+}
+
+.port-search-item.selected {
+  background: var(--color-info-dark);
+}
+
+.port-search-no-results {
+  padding: var(--spacing-12);
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: var(--font-size-13);
 }

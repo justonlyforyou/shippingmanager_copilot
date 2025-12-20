@@ -2,149 +2,17 @@
  * Autopilot Logbook Module
  *
  * Manages logging of all autopilot actions (success and errors) for debugging,
- * transparency, and accountability. Logs are stored per-user in JSON format.
+ * transparency, and accountability. Logs are stored in SQLite database.
  *
  * Features:
- * - In-memory cache with periodic disk writes (every 30 seconds)
- * - Atomic file writes to prevent corruption
+ * - SQLite storage for reliable persistence
  * - Filter support (status, time range, search)
  * - Export to TXT, CSV, JSON formats
- * - Manual deletion (no automatic rotation)
+ * - Manual deletion
  */
 
-const fs = require('fs').promises;
-const path = require('path');
 const crypto = require('crypto');
 const logger = require('./utils/logger');
-
-// Configuration
-const { getLogDir } = require('./config');
-const LOG_DIR = path.join(getLogDir(), 'autopilot');
-const LOG_FILE_NAME = 'autopilot-log.json';
-const WRITE_INTERVAL = 30000; // 30 seconds
-
-// In-memory cache: { userId: [...logEntries] }
-const logCache = new Map();
-
-// Dirty flags: { userId: boolean }
-const dirtyFlags = new Map();
-
-// Write timer
-let writeTimer = null;
-
-/**
- * Initialize the logbook system
- * Start periodic disk writes
- */
-function initialize() {
-  // Ensure data directory exists
-  fs.mkdir(LOG_DIR, { recursive: true }).catch(err => {
-    logger.error('Failed to create log directory:', err);
-  });
-
-  // Start periodic write timer
-  if (!writeTimer) {
-    writeTimer = setInterval(flushAllToDisk, WRITE_INTERVAL);
-    logger.debug('Logbook: Periodic write timer started (30s interval)');
-  }
-}
-
-/**
- * Get the log file path for a user
- */
-function getLogFilePath(userId) {
-  return path.join(LOG_DIR, `${userId}-${LOG_FILE_NAME}`);
-}
-
-/**
- * Load logs from disk into memory cache
- */
-async function loadLogsFromDisk(userId) {
-  const filePath = getLogFilePath(userId);
-
-  try {
-    const data = await fs.readFile(filePath, 'utf8');
-    const logs = JSON.parse(data);
-
-    // Migration: Add IDs to entries that don't have them
-    let migrated = false;
-    for (const log of logs) {
-      if (!log.id) {
-        log.id = `log_${log.timestamp}_${crypto.randomUUID().slice(0, 8)}`;
-        migrated = true;
-      }
-    }
-    if (migrated) {
-      logger.info(`Logbook: Migrated entries with missing IDs for user ${userId}`);
-      dirtyFlags.set(userId, true);
-    }
-
-    logCache.set(userId, logs);
-    logger.debug(`Logbook: Loaded ${logs.length} entries for user ${userId}`);
-    return logs;
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      // File doesn't exist yet - create empty array
-      logCache.set(userId, []);
-      return [];
-    }
-    logger.error(`Logbook: Failed to load logs for user ${userId}:`, err);
-    logCache.set(userId, []);
-    return [];
-  }
-}
-
-/**
- * Get logs from cache (load from disk if not cached)
- */
-async function getLogsFromCache(userId) {
-  if (!logCache.has(userId)) {
-    await loadLogsFromDisk(userId);
-  }
-  return logCache.get(userId) || [];
-}
-
-/**
- * Write logs to disk atomically (temp file + rename)
- */
-async function writeLogsToDisk(userId, logs) {
-  const filePath = getLogFilePath(userId);
-  const tempPath = `${filePath}.tmp`;
-
-  try {
-    const data = JSON.stringify(logs, null, 2);
-    await fs.writeFile(tempPath, data, 'utf8');
-    await fs.rename(tempPath, filePath);
-    dirtyFlags.set(userId, false);
-    logger.debug(`Logbook: Wrote ${logs.length} entries to disk for user ${userId}`);
-  } catch (err) {
-    logger.error(`Logbook: Failed to write logs for user ${userId}:`, err);
-    // Clean up temp file if it exists
-    try {
-      await fs.unlink(tempPath);
-    } catch {
-      // Ignore - file might not exist
-    }
-  }
-}
-
-/**
- * Flush all dirty caches to disk
- */
-async function flushAllToDisk() {
-  const flushPromises = [];
-
-  for (const [userId, isDirty] of dirtyFlags.entries()) {
-    if (isDirty && logCache.has(userId)) {
-      const logs = logCache.get(userId);
-      flushPromises.push(writeLogsToDisk(userId, logs));
-    }
-  }
-
-  if (flushPromises.length > 0) {
-    await Promise.all(flushPromises);
-  }
-}
 
 /**
  * Log an autopilot action
@@ -174,15 +42,24 @@ async function logAutopilotAction(userId, autopilot, status, summary, details = 
     details: cleanDetails
   };
 
-  // Get logs from cache
-  const logs = await getLogsFromCache(userId);
-
-  // Prepend new entry (newest first)
-  logs.unshift(logEntry);
-
-  // Update cache
-  logCache.set(userId, logs);
-  dirtyFlags.set(userId, true);
+  // Write to SQLite
+  try {
+    const { getDb } = require('./database');
+    const db = getDb(userId);
+    db.prepare(`
+      INSERT OR IGNORE INTO autopilot_log (id, timestamp, autopilot, status, summary, details)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(
+      logEntry.id,
+      logEntry.timestamp,
+      logEntry.autopilot,
+      logEntry.status,
+      logEntry.summary,
+      JSON.stringify(logEntry.details)
+    );
+  } catch (dbErr) {
+    logger.error(`Logbook: SQLite write failed: ${dbErr.message}`);
+  }
 
   logger.debug(`Logbook: [${status}] ${autopilot}: ${summary}`);
 
@@ -192,7 +69,6 @@ async function logAutopilotAction(userId, autopilot, status, summary, details = 
     broadcastToUser(userId, 'logbook_update', logEntry);
   } catch {
     // Silently fail if WebSocket not available (e.g., during startup)
-    // Don't log error to avoid spam - WebSocket might not be initialized yet
   }
 
   return logEntry;
@@ -306,7 +182,7 @@ function searchInObject(obj, searchTerm) {
 }
 
 /**
- * Get log entries with optional filters
+ * Get log entries with optional filters from SQLite
  *
  * @param {string} userId - User ID
  * @param {object} filters - Filter options
@@ -317,170 +193,161 @@ function searchInObject(obj, searchTerm) {
  * @returns {array} Filtered log entries
  */
 async function getLogEntries(userId, filters = {}) {
-  let logs = await getLogsFromCache(userId);
+  const { getDb } = require('./database');
+  const db = getDb(userId);
 
-  // Apply status filter
+  // Build SQL query with filters
+  let query = 'SELECT id, timestamp, autopilot, status, summary, details FROM autopilot_log WHERE 1=1';
+  const params = [];
+
+  // Status filter
   if (filters.status && filters.status !== 'ALL') {
-    logs = logs.filter(log => log.status === filters.status);
+    query += ' AND status = ?';
+    params.push(filters.status);
   }
 
-  // Apply transaction filter
-  if (filters.transaction && filters.transaction !== 'ALL') {
-    logs = logs.filter(log => getTransactionType(log) === filters.transaction);
-  }
-
-  // Apply autopilot filter
+  // Autopilot filter
   if (filters.autopilot && filters.autopilot !== 'ALL') {
-    logs = logs.filter(log => log.autopilot === filters.autopilot);
+    query += ' AND autopilot = ?';
+    params.push(filters.autopilot);
   }
 
-  // Apply category filter
-  if (filters.category && filters.category !== 'ALL') {
-    logs = logs.filter(log => getCategoryFromAction(log.autopilot) === filters.category);
-  }
-
-  // Apply source filter
-  if (filters.source && filters.source !== 'ALL') {
-    logs = logs.filter(log => getSourceFromAction(log.autopilot) === filters.source);
-  }
-
-  // Apply time range filter
+  // Time range filter
   if (filters.timeRange && filters.timeRange !== 'all') {
     const now = Date.now();
-    let cutoff;
+    let cutoffStart;
+    let cutoffEnd;
 
     if (filters.timeRange === '1h') {
-      cutoff = now - (1 * 60 * 60 * 1000);
+      cutoffStart = now - (1 * 60 * 60 * 1000);
     } else if (filters.timeRange === '2h') {
-      cutoff = now - (2 * 60 * 60 * 1000);
+      cutoffStart = now - (2 * 60 * 60 * 1000);
     } else if (filters.timeRange === '6h') {
-      cutoff = now - (6 * 60 * 60 * 1000);
+      cutoffStart = now - (6 * 60 * 60 * 1000);
     } else if (filters.timeRange === '12h') {
-      cutoff = now - (12 * 60 * 60 * 1000);
+      cutoffStart = now - (12 * 60 * 60 * 1000);
     } else if (filters.timeRange === '24h') {
-      cutoff = now - (24 * 60 * 60 * 1000);
+      cutoffStart = now - (24 * 60 * 60 * 1000);
     } else if (filters.timeRange === 'today') {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      cutoff = today.getTime();
+      cutoffStart = today.getTime();
     } else if (filters.timeRange === 'yesterday') {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
       yesterday.setHours(0, 0, 0, 0);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      logs = logs.filter(log => log.timestamp >= yesterday.getTime() && log.timestamp < today.getTime());
-      return logs; // Early return for yesterday (specific day filter)
+      cutoffStart = yesterday.getTime();
+      cutoffEnd = today.getTime();
     } else if (filters.timeRange === '48h') {
-      cutoff = now - (48 * 60 * 60 * 1000);
+      cutoffStart = now - (48 * 60 * 60 * 1000);
     } else if (filters.timeRange === '7days') {
-      cutoff = now - (7 * 24 * 60 * 60 * 1000);
+      cutoffStart = now - (7 * 24 * 60 * 60 * 1000);
     } else if (filters.timeRange === 'lastweek') {
-      // Last week = previous Monday to Sunday
       const today = new Date();
-      const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Days to go back to this week's Monday
+      const dayOfWeek = today.getDay();
+      const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       const thisMonday = new Date(today);
       thisMonday.setDate(today.getDate() - daysToMonday);
       thisMonday.setHours(0, 0, 0, 0);
-
       const lastMonday = new Date(thisMonday);
       lastMonday.setDate(thisMonday.getDate() - 7);
-
-      const lastSunday = new Date(thisMonday);
-      lastSunday.setMilliseconds(-1); // End of last Sunday
-
-      logs = logs.filter(log => log.timestamp >= lastMonday.getTime() && log.timestamp <= lastSunday.getTime());
-
-      // Apply remaining filters
-      if (filters.search && filters.search.trim() !== '') {
-        const searchTerm = filters.search.toLowerCase();
-        logs = logs.filter(log => searchInObject(log, searchTerm));
-      }
-
-      return logs; // Early return
+      cutoffStart = lastMonday.getTime();
+      cutoffEnd = thisMonday.getTime();
     } else if (filters.timeRange === '30days') {
-      cutoff = now - (30 * 24 * 60 * 60 * 1000);
+      cutoffStart = now - (30 * 24 * 60 * 60 * 1000);
     } else if (filters.timeRange === 'lastmonth') {
-      // Last month = previous calendar month
       const today = new Date();
       const firstDayOfThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       const firstDayOfLastMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-
-      logs = logs.filter(log => log.timestamp >= firstDayOfLastMonth.getTime() && log.timestamp < firstDayOfThisMonth.getTime());
-
-      // Apply remaining filters
-      if (filters.search && filters.search.trim() !== '') {
-        const searchTerm = filters.search.toLowerCase();
-        logs = logs.filter(log => searchInObject(log, searchTerm));
-      }
-
-      return logs; // Early return
+      cutoffStart = firstDayOfLastMonth.getTime();
+      cutoffEnd = firstDayOfThisMonth.getTime();
     }
 
-    if (cutoff !== undefined) {
-      logs = logs.filter(log => log.timestamp >= cutoff);
+    if (cutoffStart !== undefined) {
+      query += ' AND timestamp >= ?';
+      params.push(cutoffStart);
     }
+    if (cutoffEnd !== undefined) {
+      query += ' AND timestamp < ?';
+      params.push(cutoffEnd);
+    }
+  }
+
+  query += ' ORDER BY timestamp DESC';
+
+  // Execute query
+  let logs = db.prepare(query).all(...params);
+
+  // Parse details JSON
+  logs = logs.map(log => ({
+    ...log,
+    details: log.details ? JSON.parse(log.details) : {}
+  }));
+
+  // Apply transaction filter (post-query because it's computed)
+  if (filters.transaction && filters.transaction !== 'ALL') {
+    logs = logs.filter(log => getTransactionType(log) === filters.transaction);
+  }
+
+  // Apply category filter (post-query because it's computed)
+  if (filters.category && filters.category !== 'ALL') {
+    logs = logs.filter(log => getCategoryFromAction(log.autopilot) === filters.category);
+  }
+
+  // Apply source filter (post-query because it's computed)
+  if (filters.source && filters.source !== 'ALL') {
+    logs = logs.filter(log => getSourceFromAction(log.autopilot) === filters.source);
   }
 
   // Apply search filter (full-text search across all fields)
   if (filters.search && filters.search.trim() !== '') {
     const searchTerm = filters.search.toLowerCase();
-    console.log('[Logbook] Searching for:', searchTerm);
-    logs = logs.filter(log => {
-      const found = searchInObject(log, searchTerm);
-      if (found) {
-        console.log('[Logbook] Found match in log:', log.id, log.autopilot, log.summary);
-      }
-      return found;
-    });
-    console.log('[Logbook] Search results:', logs.length, 'entries found');
+    logs = logs.filter(log => searchInObject(log, searchTerm));
   }
 
   return logs;
 }
 
 /**
- * Delete all logs for a user (manual cleanup)
+ * Delete all logs for a user
  */
 async function deleteAllLogs(userId) {
-  const filePath = getLogFilePath(userId);
-
   try {
-    // Clear cache
-    logCache.set(userId, []);
-    dirtyFlags.set(userId, false);
-
-    // Delete file
-    await fs.unlink(filePath);
+    const { getDb } = require('./database');
+    const db = getDb(userId);
+    db.prepare('DELETE FROM autopilot_log').run();
     logger.debug(`Logbook: Deleted all logs for user ${userId}`);
     return true;
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      // File doesn't exist - that's fine
-      return true;
-    }
     logger.error(`Logbook: Failed to delete logs for user ${userId}:`, err);
     return false;
   }
 }
 
 /**
- * Get log file size in bytes
+ * Get log count
  */
-async function getLogFileSize(userId) {
-  const filePath = getLogFilePath(userId);
-
+async function getLogCount(userId) {
   try {
-    const stats = await fs.stat(filePath);
-    return stats.size;
+    const { getDb } = require('./database');
+    const db = getDb(userId);
+    const row = db.prepare('SELECT COUNT(*) as count FROM autopilot_log').get();
+    return row.count;
   } catch (err) {
-    if (err.code === 'ENOENT') {
-      return 0;
-    }
-    logger.error(`Logbook: Failed to get file size for user ${userId}:`, err);
+    logger.error(`Logbook: Failed to get log count for user ${userId}:`, err);
     return 0;
   }
+}
+
+/**
+ * Get log file size in bytes (legacy compatibility - returns estimated size)
+ */
+async function getLogFileSize(userId) {
+  const count = await getLogCount(userId);
+  // Estimate ~500 bytes per log entry
+  return count * 500;
 }
 
 /**
@@ -494,38 +361,25 @@ function formatFileSize(bytes) {
 }
 
 /**
- * Shutdown the logbook system gracefully
+ * Shutdown the logbook system gracefully (no-op for SQLite)
  */
 async function shutdown() {
-  if (writeTimer) {
-    clearInterval(writeTimer);
-    writeTimer = null;
-  }
-
-  // Flush all dirty caches
-  await flushAllToDisk();
   logger.debug('Logbook: Shutdown complete');
 }
 
-// Initialize on module load
-initialize();
-
-// Graceful shutdown on process exit
-process.on('SIGINT', async () => {
-  await shutdown();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  await shutdown();
-  process.exit(0);
-});
+/**
+ * Flush to disk (no-op for SQLite - writes are immediate)
+ */
+async function flushAllToDisk() {
+  // No-op for SQLite
+}
 
 module.exports = {
   logAutopilotAction,
   getLogEntries,
   deleteAllLogs,
   getLogFileSize,
+  getLogCount,
   formatFileSize,
   flushAllToDisk,
   shutdown,

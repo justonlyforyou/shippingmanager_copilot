@@ -36,20 +36,10 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
-
-      - name: Install Python dependencies
-        run: |
-          pip install pyinstaller
-          pip install pywin32 cryptography keyring pystray pillow requests urllib3 selenium
 
       - name: Install npm dependencies
         run: npm install
@@ -85,31 +75,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          pip install pyinstaller
-          pip install cryptography keyring pystray pillow requests urllib3 selenium
-
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Node.js server for macOS (SEA)
-        run: npm run build:node:mac
-
-      - name: Build Python helper scripts
-        run: |
-          cd build
-          pyinstaller build-python-crossplatform.spec --distpath ../dist
-
-      - name: Build main application
-        run: |
-          cd build
-          pyinstaller build-start-crossplatform.spec --distpath ../dist
+      - name: Build Node.js SEA for macOS
+        run: npm run build:sea:mac
 
       - name: Create macOS DMG
         run: |
@@ -159,31 +129,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install Python dependencies
-        run: |
-          pip install pyinstaller
-          pip install cryptography keyring pystray pillow requests urllib3 selenium
-
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Node.js server for macOS ARM64 (SEA)
-        run: npm run build:node:mac
-
-      - name: Build Python helper scripts
-        run: |
-          cd build
-          pyinstaller build-python-crossplatform.spec --distpath ../dist
-
-      - name: Build main application
-        run: |
-          cd build
-          pyinstaller build-start-crossplatform.spec --distpath ../dist
+      - name: Build Node.js SEA for macOS ARM64
+        run: npm run build:sea:mac
 
       - name: Create macOS DMG
         run: |
@@ -229,40 +179,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libsecret-1-dev \
-            python3-tk \
-            libx11-dev \
-            libxkbcommon-x11-0
-
-      - name: Install Python dependencies
-        run: |
-          pip install pyinstaller
-          pip install cryptography keyring SecretStorage pystray pillow requests urllib3 selenium
-
       - name: Install npm dependencies
         run: npm install
 
-      - name: Build Node.js server for Linux (SEA)
-        run: npm run build:node:linux
-
-      - name: Build Python helper scripts
-        run: |
-          cd build
-          pyinstaller build-python-crossplatform.spec --distpath ../dist
-
-      - name: Build main application
-        run: |
-          cd build
-          pyinstaller build-start-crossplatform.spec --distpath ../dist
+      - name: Build Node.js SEA for Linux
+        run: npm run build:sea:linux
 
       - name: Create tarball
         run: |

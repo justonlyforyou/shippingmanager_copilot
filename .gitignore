@@ -7,7 +7,6 @@ CLAUDE.md
 userdata/
 development/
 logs/
-server.pid
 sessions.json
 settings*.json
 
@@ -47,11 +46,8 @@ build/*
 reports/
 
 # C# / .NET Build artifacts
-helper/installer/bin/
-helper/installer/obj/
+helper/**/bin/
+helper/**/obj/
 helper/installer/Resources/app-payload.zip
 *.exe
 
-# BrowserLogin Build artifacts
-helper/BrowserLogin/bin/
-helper/BrowserLogin/obj/

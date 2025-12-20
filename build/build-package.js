@@ -2,12 +2,14 @@
  * @fileoverview Build Package Script
  *
  * Organizes compiled executables and assets into deployment folder structure.
- * Run after: npm run build:node && npm run build:python
+ * Run after: npm run build:sea
  *
  * Creates:
  * - dist/ShippingManagerCoPilot-v{version}/
- *   - ShippingManagerCoPilot.exe (Single-file: Python launcher + embedded Node.js server)
- *   - sysdata/forecast/ (forecast cache data)
+ *   - ShippingManagerCoPilot-Server.exe (Node.js SEA - Server with tray icon)
+ *   - ShippingManagerCoPilot-Launcher.exe (C# launcher - starts server without console)
+ *   - public/ (web assets)
+ *   - sysdata/ (system data)
  *   - LICENSE
  *   - README.md
  *   - START_HERE.txt
@@ -22,8 +24,6 @@ const version = packageJson.version;
 
 const distFolder = path.join(__dirname, '..', 'dist');
 const outputFolder = path.join(distFolder, `ShippingManagerCoPilot-v${version}`);
-const dataFolder = path.join(outputFolder, 'sysdata', 'forecast');
-const userdataFolder = path.join(outputFolder, 'userdata');
 
 console.log('='.repeat(60));
 console.log('Building ShippingManager CoPilot Package');
@@ -33,149 +33,138 @@ console.log(`Output: ${outputFolder}`);
 console.log();
 
 // Create folder structure
-console.log('[1/5] Creating folder structure...');
+console.log('[1/6] Creating folder structure...');
 if (fs.existsSync(outputFolder)) {
     fs.rmSync(outputFolder, { recursive: true, force: true });
 }
 fs.mkdirSync(outputFolder, { recursive: true });
-fs.mkdirSync(dataFolder, { recursive: true });
 
-// Create userdata directory structure
-const userdataSubfolders = ['settings', 'certs', 'logs', 'chatbot', 'hijack_history'];
+// Create userdata directory structure (will be created in AppData on first run, but include for portable mode)
+const userdataFolder = path.join(outputFolder, 'userdata');
+const userdataSubfolders = ['settings', 'certs', 'logs'];
 for (const subfolder of userdataSubfolders) {
     const subfolderPath = path.join(userdataFolder, subfolder);
     fs.mkdirSync(subfolderPath, { recursive: true });
-    // Add .gitkeep to preserve empty directories in ZIP
     fs.writeFileSync(path.join(subfolderPath, '.gitkeep'), '');
 }
-console.log('  [OK] Folders created (sysdata/, userdata/)');
+console.log('  [OK] Folders created');
 
-// Copy forecast.json if it exists
-const forecastSrc = path.join(__dirname, '..', 'sysdata', 'forecast', 'forecast.json');
-if (fs.existsSync(forecastSrc)) {
-    fs.copyFileSync(forecastSrc, path.join(dataFolder, 'forecast.json'));
-    console.log('  [OK] forecast.json copied');
-} else {
-    console.log('  [WARN] forecast.json not found (will be generated on first run)');
+// Copy sysdata
+const sysdataSrc = path.join(__dirname, '..', 'sysdata');
+const sysdataDest = path.join(outputFolder, 'sysdata');
+if (fs.existsSync(sysdataSrc)) {
+    copyDir(sysdataSrc, sysdataDest);
+    console.log('  [OK] sysdata/ copied');
 }
 
-// Copy executable
-console.log('[2/5] Copying executable...');
+// Copy executables
+console.log('[2/6] Copying executables...');
 
-// Single .exe file (Python launcher with embedded Node.js server)
-const mainExe = path.join(distFolder, 'ShippingManagerCoPilot.exe');
+// Main executable (from build:sea)
+const mainExe = path.join(distFolder, 'ShippingManagerCoPilot-Server.exe');
 if (!fs.existsSync(mainExe)) {
-    console.error(`  [ERROR] ${mainExe} not found!`);
-    console.error('  Run: npm run build (builds Node.js first, then embeds in Python)');
+    console.error('  [ERROR] ShippingManagerCoPilot-Server.exe not found!');
+    console.error('  Run: npm run build:sea');
     process.exit(1);
 }
-fs.copyFileSync(mainExe, path.join(outputFolder, 'ShippingManagerCoPilot.exe'));
-console.log('  [OK] ShippingManagerCoPilot.exe (single-file: Python + embedded Node.js server) copied');
+fs.copyFileSync(mainExe, path.join(outputFolder, 'ShippingManagerCoPilot-Server.exe'));
+console.log('  [OK] ShippingManagerCoPilot-Server.exe copied');
 
-// Copy helper executables
-console.log('[2.5/5] Copying helper executables...');
-const helperFolder = path.join(outputFolder, 'helper');
-fs.mkdirSync(helperFolder, { recursive: true });
-
-// Python-built helpers (from dist/)
-const pythonHelperExes = [
-    'get-session-windows.exe',
-    'login-dialog.exe',
-    'session-selector.exe',
-    'expired-sessions-dialog.exe'
-];
-
-for (const helperExe of pythonHelperExes) {
-    const srcPath = path.join(distFolder, helperExe);
-    if (!fs.existsSync(srcPath)) {
-        console.error(`  [ERROR] ${helperExe} not found in dist/`);
-        process.exit(1);
-    }
-    fs.copyFileSync(srcPath, path.join(helperFolder, helperExe));
-    console.log(`  [OK] ${helperExe} copied (from dist/)`);
+// C# Launcher executable (Windows only)
+const launcherExe = path.join(distFolder, 'ShippingManagerCoPilot-Launcher.exe');
+if (fs.existsSync(launcherExe)) {
+    fs.copyFileSync(launcherExe, path.join(outputFolder, 'ShippingManagerCoPilot-Launcher.exe'));
+    console.log('  [OK] ShippingManagerCoPilot-Launcher.exe copied');
+} else {
+    console.warn('  [WARN] ShippingManagerCoPilot-Launcher.exe not found - Windows GUI launcher will not be included');
 }
 
-// C#-built BrowserLogin.exe (from helper/)
-const browserLoginSrc = path.join(__dirname, '..', 'helper', 'BrowserLogin.exe');
-if (fs.existsSync(browserLoginSrc)) {
-    fs.copyFileSync(browserLoginSrc, path.join(helperFolder, 'BrowserLogin.exe'));
-    console.log(`  [OK] BrowserLogin.exe copied (from helper/)`);
+// Copy public folder
+console.log('[3/6] Copying public assets...');
+const publicSrc = path.join(distFolder, 'public');
+const publicDest = path.join(outputFolder, 'public');
+if (fs.existsSync(publicSrc)) {
+    copyDir(publicSrc, publicDest);
+    console.log('  [OK] public/ copied');
 } else {
-    console.error(`  [ERROR] BrowserLogin.exe not found in helper/`);
-    console.error('  Run: node build-browser-login.js');
+    console.error('  [ERROR] public/ not found in dist/');
+    console.error('  Run: npm run build:sea');
     process.exit(1);
 }
 
-// WebDrivers: NOT bundled - Selenium Manager downloads them automatically
-console.log('  [INFO] WebDrivers will be downloaded automatically by Selenium Manager on first run');
+// Copy node_modules (for native modules like keytar)
+console.log('[4/6] Copying native modules...');
+const nodeModulesSrc = path.join(distFolder, 'node_modules');
+if (fs.existsSync(nodeModulesSrc)) {
+    const nodeModulesDest = path.join(outputFolder, 'node_modules');
+    copyDir(nodeModulesSrc, nodeModulesDest);
+    console.log('  [OK] node_modules/ copied (native modules)');
+}
 
-// Note: Everything is embedded in one exe
-console.log('[3/5] Embedded resources...');
-console.log('  [INFO] Node.js server embedded in main .exe (extracted to temp at runtime)');
+// Copy helper/launcher/nodejs/dialogs (HTML files for GUI dialogs)
+const dialogsSrc = path.join(distFolder, 'helper', 'launcher', 'nodejs', 'dialogs');
+if (fs.existsSync(dialogsSrc)) {
+    const dialogsDest = path.join(outputFolder, 'helper', 'launcher', 'nodejs', 'dialogs');
+    copyDir(dialogsSrc, dialogsDest);
+    console.log('  [OK] helper/launcher/nodejs/dialogs/ copied');
+}
 
-// Copy public assets (favicon.ico)
-console.log('[3.5/5] Copying public assets...');
-const publicFolder = path.join(outputFolder, 'public');
-fs.mkdirSync(publicFolder, { recursive: true });
-const faviconSrc = path.join(__dirname, '..', 'public', 'favicon.ico');
-if (fs.existsSync(faviconSrc)) {
-    fs.copyFileSync(faviconSrc, path.join(publicFolder, 'favicon.ico'));
-    console.log('  [OK] favicon.ico copied');
-} else {
-    console.log('  [WARN] favicon.ico not found (will use fallback)');
+// Copy package.json (for version info)
+const packageJsonSrc = path.join(distFolder, 'package.json');
+if (fs.existsSync(packageJsonSrc)) {
+    fs.copyFileSync(packageJsonSrc, path.join(outputFolder, 'package.json'));
+    console.log('  [OK] package.json copied');
 }
 
 // Copy documentation
-console.log('[4/5] Copying documentation...');
+console.log('[5/6] Copying documentation...');
 const docs = [
-    { src: 'README.md', required: true },
+    { src: 'README.md', required: false },
     { src: 'LICENSE', required: false }
 ];
 
 for (const doc of docs) {
     const srcPath = path.join(__dirname, '..', doc.src);
-    if (!fs.existsSync(srcPath)) {
-        if (doc.required) {
-            console.error(`  [ERROR] ${doc.src} not found!`);
-            process.exit(1);
-        }
-        console.log(`  [INFO] ${doc.src} not found (optional)`);
-        continue;
+    if (fs.existsSync(srcPath)) {
+        fs.copyFileSync(srcPath, path.join(outputFolder, doc.src));
+        console.log(`  [OK] ${doc.src} copied`);
+    } else if (doc.required) {
+        console.error(`  [ERROR] ${doc.src} not found!`);
+        process.exit(1);
     }
-    fs.copyFileSync(srcPath, path.join(outputFolder, doc.src));
-    console.log(`  [OK] ${doc.src} copied`);
 }
 
 // Create startup instructions
-console.log('[5/5] Creating startup guide...');
 const startupGuide = `ShippingManager CoPilot v${version}
 ${'='.repeat(60)}
 
 QUICK START:
-1. Double-click ShippingManagerCoPilot.exe to launch
-2. The app will automatically:
-   - Extract your Steam/Browser session
-   - Start the server at https://localhost:12345
-   - Open the web interface
+1. Run the installer or extract this folder
+2. Double-click ShippingManagerCoPilot-Server.exe to start
+3. Open https://localhost:12345 in your browser
 
 FIRST RUN:
 - Accept the self-signed certificate warning in your browser
-- Select your login method if prompted (Steam or Browser)
-- Allow firewall exception for local network access (optional)
+- Log in via Steam extraction or browser login when prompted
+
+HEADLESS MODE (no GUI):
+  ShippingManagerCoPilot-Server.exe
+
+  Or with npm (development):
+  npm run start:headless
+
+CLI OPTIONS:
+  --list-sessions           List all saved sessions
+  --add-session-interactive Add a new session via CLI
+  --remove-session=<id>     Remove a session
 
 DATA STORAGE:
-- User settings: AppData/Local/ShippingManagerCoPilot/userdata/settings/
-- Session cache: AppData/Local/ShippingManagerCoPilot/userdata/settings/sessions.json
-- Certificates: AppData/Local/ShippingManagerCoPilot/userdata/certs/
+- Windows: %LOCALAPPDATA%/ShippingManagerCoPilot/userdata/
+- Portable: ./userdata/ (if exists)
 
 TROUBLESHOOTING:
-- If Steam session fails: Close Steam completely, restart app
-- If browser session fails: Log into shippingmanager.cc first
-- Port already in use: Close other instances or change PORT in config
-
-NETWORK ACCESS:
-The app is accessible on your local network at the IP shown in console.
-Other devices can connect by accepting the certificate warning.
+- Steam session fails: Close Steam completely, restart app
+- Port in use: Set PORT environment variable
 
 For full documentation, see README.md
 `;
@@ -185,9 +174,9 @@ console.log('  [OK] START_HERE.txt created');
 
 console.log();
 console.log('='.repeat(60));
-console.log('[OK] Build complete!');
+console.log('[OK] Package created!');
 console.log('='.repeat(60));
-console.log(`Package location: ${outputFolder}`);
+console.log(`Location: ${outputFolder}`);
 console.log();
 
 // Create app-payload.zip for installer
@@ -195,17 +184,14 @@ console.log('[6/6] Creating installer payload...');
 const installerResourcesFolder = path.join(__dirname, '..', 'helper', 'installer', 'Resources');
 const payloadZipPath = path.join(installerResourcesFolder, 'app-payload.zip');
 
-// Create Resources folder if it doesn't exist
 if (!fs.existsSync(installerResourcesFolder)) {
     fs.mkdirSync(installerResourcesFolder, { recursive: true });
 }
 
-// Remove old payload if exists
 if (fs.existsSync(payloadZipPath)) {
     fs.unlinkSync(payloadZipPath);
 }
 
-// Create ZIP archive
 const output = fs.createWriteStream(payloadZipPath);
 const archive = archiver('zip', { zlib: { level: 9 } });
 
@@ -217,18 +203,33 @@ archive.on('error', (err) => {
 output.on('close', () => {
     const sizeInMB = (archive.pointer() / 1024 / 1024).toFixed(2);
     console.log(`  [OK] Installer payload created (${sizeInMB} MB)`);
-    console.log(`  [OK] Location: ${payloadZipPath}`);
+    console.log(`  Location: ${payloadZipPath}`);
     console.log();
     console.log('Next steps:');
-    console.log('  1. Test: Run ShippingManagerCoPilot.exe in the output folder');
-    console.log('  2. Build installer: cd helper/installer && dotnet publish -c Release');
-    console.log('  3. Distribute: Share the installer executable');
+    console.log('  1. Test: Run ShippingManagerCoPilot-Server.exe');
+    console.log('  2. Build installer: npm run build:installer');
     console.log();
 });
 
 archive.pipe(output);
-
-// Add all files from output folder to ZIP (preserving directory structure)
 archive.directory(outputFolder, false);
-
 archive.finalize();
+
+/**
+ * Copy directory recursively
+ */
+function copyDir(src, dest) {
+    fs.mkdirSync(dest, { recursive: true });
+    const entries = fs.readdirSync(src, { withFileTypes: true });
+
+    for (const entry of entries) {
+        const srcPath = path.join(src, entry.name);
+        const destPath = path.join(dest, entry.name);
+
+        if (entry.isDirectory()) {
+            copyDir(srcPath, destPath);
+        } else {
+            fs.copyFileSync(srcPath, destPath);
+        }
+    }
+}

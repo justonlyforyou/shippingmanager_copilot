@@ -77,7 +77,16 @@ function isDebugMode() {
 }
 
 /**
- * Custom format for console output with timestamps
+ * Get user ID prefix for log messages
+ * @returns {string} User ID prefix or empty string
+ */
+function getUserIdPrefix() {
+  const userId = process.env.SELECTED_USER_ID;
+  return userId ? `[${userId}] ` : '';
+}
+
+/**
+ * Custom format for console output with timestamps and userId prefix
  */
 const consoleFormat = winston.format.combine(
   winston.format.timestamp({
@@ -85,7 +94,8 @@ const consoleFormat = winston.format.combine(
   }),
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
     const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
-    return `[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
+    const userPrefix = getUserIdPrefix();
+    return `${userPrefix}[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
   })
 );
 
@@ -100,16 +110,35 @@ if (!fs.existsSync(logDir)) {
 }
 
 const serverLogPath = path.join(logDir, 'server.log');
-const debugLogPath = path.join(logDir, 'debug.log');
 
 /**
- * Build transports array - only include debug.log when debug mode is active
+ * File format (without colors, for log files)
  */
-// Winston only writes to console (stdout)
-// Python's start.py captures stdout and routes to log files based on level
+const fileFormat = winston.format.combine(
+  winston.format.timestamp({
+    format: 'YYYY-MM-DDTHH:mm:ssZ'
+  }),
+  winston.format.printf(({ timestamp, level, message, ...meta }) => {
+    const metaStr = Object.keys(meta).length ? ' ' + JSON.stringify(meta) : '';
+    const userPrefix = getUserIdPrefix();
+    return `${userPrefix}[${timestamp}] [${level.toUpperCase()}] ${message}${metaStr}`;
+  })
+);
+
+/**
+ * Build transports array - everything goes to server.log
+ */
 const transports = [
+  // Console output
   new winston.transports.Console({
     format: consoleFormat
+  }),
+  // server.log - all logs (level based on settings/debug mode), overwritten on start
+  new winston.transports.File({
+    filename: serverLogPath,
+    level: loadLogLevel(),
+    format: fileFormat,
+    options: { flags: 'w' }
   })
 ];
 
@@ -160,7 +189,6 @@ module.exports = {
   warn,
   debug,
   serverLogPath,
-  debugLogPath,
   logger, // Export raw winston logger for advanced use
   isDebugMode // Export debug mode checker
 };

@@ -28,7 +28,8 @@ const logger = require('../utils/logger');
 const config = require('../config');
 const { enrichHistoryWithTripData } = require('../utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('../utils/migrate-harbor-fees');
-const { getVesselTrips, syncSpecificVessels } = require('../analytics/vessel-history-store');
+const { vesselHistoryStore } = require('../database/store-adapter');
+const { syncSpecificVessels, getVesselTrips } = vesselHistoryStore;
 
 const {
   aggregateVesselData,
@@ -99,7 +100,8 @@ router.get('/overview', async (req, res) => {
       'my_ports_with_arrived_vessels',
       'my_ports_with_anchored_vessels',
       'my_ports_with_vessels_in_maint',
-      'my_ports_with_pending_vessels'
+      'my_ports_with_pending_vessels',
+      'my_ports_no_route'
     ];
     if (!validFilters.includes(filter)) {
       return res.status(400).json({
@@ -175,6 +177,19 @@ router.get('/overview', async (req, res) => {
       ports = assignedPortsWithDemand.filter(p => portsWithPendingVessels.has(p.code)).map(p => ({ ...p, isAssigned: true }));
       vessels = vesselsWithPositions.filter(v => (v.status === 'pending' || v.status === 'delivery') && v.current_port_code && portsWithPendingVessels.has(v.current_port_code));
       logger.debug(`[Harbor Map] Filter: ${filter}, Ports: ${ports.length}, Vessels: ${vessels.length}`);
+    } else if (filter === 'my_ports_no_route') {
+      // Show ports that are NOT assigned to the user (opposite of my_ports)
+      const assignedPortCodes = new Set(assignedPorts.map(p => p.code));
+
+      // Get all ports that are NOT assigned
+      ports = allPortsWithDemand
+        .filter(p => !assignedPortCodes.has(p.code))
+        .map(p => ({ ...p, isAssigned: false }));
+
+      // Show all vessels for context
+      vessels = vesselsWithPositions;
+
+      logger.debug(`[Harbor Map] Filter: ${filter}, Unassigned ports: ${ports.length}`);
     } else {
       // Show all ports, but merge assigned ports (with correct demand) with all other ports
       const assignedPortsWithDemand = filterAssignedPorts(assignedPorts, allPortsWithDemand);

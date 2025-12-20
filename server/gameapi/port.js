@@ -11,8 +11,9 @@
  * @module server/gameapi/port
  */
 
-const { apiCall } = require('../utils/api');
+const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
+const { portDemandStore } = require('../database/stores');
 
 /**
  * Fetches all assigned ports with demand and consumed data.

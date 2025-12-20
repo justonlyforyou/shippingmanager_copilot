@@ -1,0 +1,363 @@
+/**
+ * Launcher Dialog Styles
+ *
+ * Uses CSS variables from public/css/variables.css
+ * Matches C# installer design: dark theme, #3b82f6 accent
+ *
+ * Design Requirements (from MIGRATION_PLAN):
+ * - Background: #1a1a1a (--color-bg-body)
+ * - Card/Panel: #252525 (--color-bg-secondary)
+ * - Primary/Accent: #3b82f6 (--color-info)
+ * - Text Primary: #e0e0e0 (--color-text-primary)
+ * - Text Secondary: #9ca3af (--color-text-secondary)
+ */
+
+/* === Base Dialog === */
+.launcher-dialog {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--color-bg-body, #1a1a1a);
+  color: var(--color-text-primary, #e0e0e0);
+  margin: 0;
+  padding: 5px 20px 20px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.launcher-dialog * {
+  box-sizing: border-box;
+}
+
+.launcher-dialog-content {
+  max-width: 100%;
+}
+
+.launcher-dialog-title {
+  color: var(--color-info, #3b82f6);
+  margin: 0 0 20px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.launcher-dialog-subtitle {
+  color: var(--color-text-secondary, #9ca3af);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* === Buttons === */
+.launcher-dialog-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.launcher-btn {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+  transition: background-color 0.15s, opacity 0.15s;
+}
+
+.launcher-btn:hover {
+  opacity: 0.9;
+}
+
+.launcher-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.launcher-btn-primary {
+  background: var(--color-info, #3b82f6);
+  color: white;
+}
+
+.launcher-btn-primary:hover:not(:disabled) {
+  background: var(--color-info-dark, #2563eb);
+}
+
+.launcher-btn-secondary {
+  background: var(--color-bg-secondary, #252525);
+  color: var(--color-text-primary, #e0e0e0);
+  border: 1px solid var(--color-border, #404040);
+}
+
+.launcher-btn-secondary:hover:not(:disabled) {
+  background: var(--color-bg-hover, #3a3a3a);
+}
+
+.launcher-btn-danger {
+  background: var(--color-danger, #ef4444);
+  color: white;
+}
+
+.launcher-btn-danger:hover:not(:disabled) {
+  background: var(--color-danger-dark, #dc2626);
+}
+
+/* === Session Cards === */
+.launcher-sessions-container {
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.launcher-session-card {
+  background: var(--color-bg-secondary, #252525);
+  padding: 15px 20px;
+  margin: 8px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.launcher-session-card:hover {
+  border-color: var(--color-info, #3b82f6);
+  background: var(--color-bg-card, #2a2a2a);
+}
+
+.launcher-session-card.selected {
+  border-color: var(--color-info, #3b82f6);
+  background: var(--color-info-10, rgb(59, 130, 246, 0.1));
+}
+
+.launcher-session-card.expired {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.launcher-session-company {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.launcher-session-info {
+  font-size: 12px;
+  color: var(--color-text-secondary, #9ca3af);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.launcher-session-method {
+  display: inline-block;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-bg-hover, #3a3a3a);
+  text-transform: uppercase;
+}
+
+/* === Login Method Cards === */
+.launcher-method-card {
+  background: var(--color-bg-secondary, #252525);
+  padding: 20px;
+  margin: 10px 0;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid var(--color-border, #404040);
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.launcher-method-card:hover:not(.disabled) {
+  border-color: var(--color-info-light, #60a5fa);
+}
+
+.launcher-method-card.selected {
+  border-color: var(--color-info, #3b82f6);
+  border-width: 3px;
+}
+
+.launcher-method-card.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.launcher-method-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.launcher-method-description {
+  font-size: 12px;
+  color: var(--color-text-secondary, #9ca3af);
+  line-height: 1.5;
+}
+
+.launcher-method-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.launcher-method-badge.recommended {
+  background: var(--color-success-dark, #10b981);
+  color: white;
+}
+
+.launcher-method-badge.windows-only {
+  background: var(--color-info, #3b82f6);
+  color: white;
+}
+
+/* === Settings Form === */
+.launcher-form-group {
+  margin-bottom: 16px;
+}
+
+.launcher-form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary, #9ca3af);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.launcher-form-group input,
+.launcher-form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: var(--color-bg-secondary, #252525);
+  border: 1px solid var(--color-border, #404040);
+  border-radius: 6px;
+  color: var(--color-text-primary, #e0e0e0);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.launcher-form-group input:focus,
+.launcher-form-group select:focus {
+  border-color: var(--color-info, #3b82f6);
+}
+
+.launcher-form-group input::placeholder {
+  color: var(--color-text-tertiary, #6b7280);
+}
+
+/* === Loading Dialog === */
+.launcher-loading-dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  min-height: 100vh;
+  padding: 30px;
+}
+
+.launcher-loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid var(--color-bg-secondary, #252525);
+  border-top-color: var(--color-info, #3b82f6);
+  border-radius: 50%;
+  animation: launcher-spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes launcher-spin {
+  to { transform: rotate(360deg); }
+}
+
+.launcher-loading-message {
+  font-size: 14px;
+  color: var(--color-text-primary, #e0e0e0);
+  margin-bottom: 10px;
+}
+
+.launcher-loading-status {
+  font-size: 12px;
+  color: var(--color-text-secondary, #9ca3af);
+}
+
+/* === URL List (Ready State) === */
+.launcher-urls-container {
+  margin-top: 20px;
+  text-align: left;
+  width: 100%;
+}
+
+.launcher-url-item {
+  background: var(--color-bg-secondary, #252525);
+  padding: 12px 16px;
+  margin: 8px 0;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.launcher-url-item:hover {
+  background: var(--color-bg-hover, #3a3a3a);
+}
+
+.launcher-url-text {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--color-info-light, #60a5fa);
+}
+
+.launcher-url-copy {
+  font-size: 11px;
+  color: var(--color-text-secondary, #9ca3af);
+}
+
+/* === Error Dialog === */
+.launcher-error-icon {
+  width: 48px;
+  height: 48px;
+  background: var(--color-danger-20, rgb(239, 68, 68, 0.2));
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 16px;
+  color: var(--color-danger, #ef4444);
+  font-size: 24px;
+}
+
+.launcher-error-message {
+  background: var(--color-bg-secondary, #252525);
+  padding: 12px 16px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--color-danger-light, #fca5a5);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+/* === Scrollbar === */
+.launcher-dialog ::-webkit-scrollbar {
+  width: 8px;
+}
+
+.launcher-dialog ::-webkit-scrollbar-track {
+  background: var(--color-bg-body, #1a1a1a);
+}
+
+.launcher-dialog ::-webkit-scrollbar-thumb {
+  background: var(--color-border, #404040);
+  border-radius: 4px;
+}
+
+.launcher-dialog ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-light, #505050);
+}

@@ -17,6 +17,7 @@ const fs = require('fs').promises;
 const path = require('path');
 const { broadcast } = require('./websocket');
 const { getSettingsDir } = require('./config');
+const logger = require('./utils/logger');
 
 const SETTINGS_FILE = path.join(getSettingsDir(), 'settings.json');
 
@@ -55,7 +56,7 @@ async function loadSettings() {
     const data = await fs.readFile(SETTINGS_FILE, 'utf8');
     return JSON.parse(data);
   } catch (error) {
-    console.error('[Backend Automation] Failed to load settings:', error);
+    logger.error('[Backend Automation] Failed to load settings:', error.message);
     return {
       autoBulkRepair: false,
       autoRepairInterval: '2-3',
@@ -78,7 +79,7 @@ async function runAutoRepair() {
     // Get all vessels
     const vesselsData = await apiCall('/game/index', 'POST', {});
     if (!vesselsData?.vessels) {
-      console.error('[Backend Auto-Repair] No vessel data');
+      logger.error('[Backend Auto-Repair] No vessel data');
       return;
     }
 
@@ -144,7 +145,7 @@ async function runAutoRepair() {
       });
     }
   } catch (error) {
-    console.error('[Backend Auto-Repair] Error:', error);
+    logger.error('[Backend Auto-Repair] Error:', error.message);
   }
 }
 

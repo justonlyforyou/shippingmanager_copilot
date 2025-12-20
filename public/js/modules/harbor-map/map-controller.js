@@ -2218,7 +2218,7 @@ function populateFilterModalDropdowns() {
  * Populates the Max and Current demand dropdowns with options for the selected scope.
  */
 function updateDemandFilterDropdowns() {
-  const demandType = currentPortScope === 'my_ports' ? 'my' : 'all';
+  const demandType = currentPortScope.startsWith('my_ports') ? 'my' : 'all';
 
   // Update Max Demand dropdown
   const maxSelect = document.getElementById('harborFilterDemandMax');

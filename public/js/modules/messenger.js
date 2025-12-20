@@ -527,6 +527,17 @@ async function displaySystemMessage(chat) {
           caseDetails = data.data;
           console.log('[Hijacking] Case details loaded from API:', caseDetails);
 
+          // Check if API says case is already resolved (paid_amount exists)
+          if (caseDetails.paid_amount !== null && caseDetails.paid_amount !== undefined) {
+            console.log('[Hijacking] API says case is resolved, updating local state');
+            resolvedAt = Date.now() / 1000;
+            paymentVerification = {
+              actual_paid: caseDetails.paid_amount,
+              expected_amount: caseDetails.requested_amount,
+              final_status: caseDetails.status || 'paid'
+            };
+          }
+
           // Add initial demand if not in history
           if (negotiationHistory.length === 0 && chat.values.requested_amount) {
             negotiationHistory.push({
@@ -546,9 +557,10 @@ async function displaySystemMessage(chat) {
             });
           }
 
-          // Check if pirates counter-offered (requested amount changed)
+          // Check if pirates counter-offered (new amount not seen before)
           const lastPirateOffer = negotiationHistory.filter(h => h.type === 'pirate').pop();
-          if (lastPirateOffer && caseDetails.requested_amount !== lastPirateOffer.amount) {
+          const amountAlreadyInHistory = negotiationHistory.some(h => h.type === 'pirate' && h.amount === caseDetails.requested_amount);
+          if (lastPirateOffer && caseDetails.requested_amount && caseDetails.requested_amount !== lastPirateOffer.amount && !amountAlreadyInHistory) {
             negotiationHistory.push({
               type: 'pirate',
               amount: caseDetails.requested_amount,

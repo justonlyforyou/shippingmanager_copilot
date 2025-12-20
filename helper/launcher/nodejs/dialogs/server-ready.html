@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Server Ready</title>
+  <style>
+    .session-list {
+      margin: 20px 0;
+      width: 100%;
+    }
+
+    .session-item {
+      background: var(--color-bg-secondary, #252525);
+      padding: 12px 16px;
+      margin: 8px 0;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: background-color 0.15s;
+    }
+
+    .session-item:hover {
+      background: var(--color-bg-hover, #3a3a3a);
+    }
+
+    .session-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .session-icon {
+      font-size: 20px;
+    }
+
+    .session-details {
+      flex: 1;
+    }
+
+    .session-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-text-primary, #e0e0e0);
+    }
+
+    .session-port {
+      font-size: 12px;
+      color: var(--color-text-secondary, #9ca3af);
+      font-family: monospace;
+    }
+
+    .session-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .refresh-btn, .delete-btn, .autostart-btn {
+      background: var(--color-bg-hover, #3a3a3a);
+      border: 1px solid var(--color-border, #404040);
+      color: var(--color-text-primary, #e0e0e0);
+      padding: 6px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background-color 0.15s;
+    }
+
+    .refresh-btn:hover {
+      background: var(--color-info, #3b82f6);
+      border-color: var(--color-info, #3b82f6);
+    }
+
+    .delete-btn:hover {
+      background: var(--color-danger, #dc2626);
+      border-color: var(--color-danger, #dc2626);
+    }
+
+    .autostart-btn {
+      font-size: 12px;
+    }
+
+    .autostart-btn.enabled {
+      background: var(--color-success, #22c55e);
+      border-color: var(--color-success, #22c55e);
+      color: white;
+    }
+
+    .autostart-btn.disabled {
+      background: var(--color-bg-hover, #3a3a3a);
+      border-color: var(--color-border, #404040);
+      opacity: 0.7;
+    }
+
+    .confirm-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .confirm-overlay.visible {
+      display: flex;
+    }
+
+    .confirm-dialog {
+      background: var(--color-bg-primary, #1a1a1a);
+      border: 1px solid var(--color-border, #404040);
+      border-radius: 8px;
+      padding: 20px;
+      max-width: 400px;
+      text-align: center;
+    }
+
+    .confirm-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--color-text-primary, #e0e0e0);
+      margin-bottom: 12px;
+    }
+
+    .confirm-message {
+      font-size: 13px;
+      color: var(--color-text-secondary, #9ca3af);
+      margin-bottom: 16px;
+    }
+
+    .confirm-checkbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      justify-content: center;
+    }
+
+    .confirm-checkbox label {
+      font-size: 12px;
+      color: var(--color-text-secondary, #9ca3af);
+    }
+
+    .confirm-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .confirm-btn {
+      padding: 8px 16px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .confirm-cancel {
+      background: var(--color-bg-secondary, #252525);
+      border: 1px solid var(--color-border, #404040);
+      color: var(--color-text-primary, #e0e0e0);
+    }
+
+    .confirm-delete {
+      background: var(--color-danger, #dc2626);
+      border: none;
+      color: white;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+
+    .action-btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background-color 0.15s;
+    }
+
+    .add-account-btn {
+      background: var(--color-info, #3b82f6);
+      border: none;
+      color: white;
+    }
+
+    .add-account-btn:hover {
+      background: var(--color-info-dark, #2563eb);
+    }
+
+    .open-browser-btn {
+      background: var(--color-bg-secondary, #252525);
+      border: 1px solid var(--color-border, #404040);
+      color: var(--color-text-primary, #e0e0e0);
+    }
+
+    .open-browser-btn:hover {
+      background: var(--color-bg-hover, #3a3a3a);
+    }
+  </style>
+</head>
+<body class="launcher-dialog">
+  <!-- Confirm Delete Overlay -->
+  <div class="confirm-overlay" id="confirm-overlay">
+    <div class="confirm-dialog">
+      <div class="confirm-title">Remove Account</div>
+      <div class="confirm-message" id="confirm-message">Are you sure you want to remove this account?</div>
+      <div class="confirm-checkbox">
+        <input type="checkbox" id="delete-data-checkbox">
+        <label for="delete-data-checkbox">Also delete all user data (settings, analytics, history)</label>
+      </div>
+      <div class="confirm-buttons">
+        <button class="confirm-btn confirm-cancel" onclick="cancelDelete()">Cancel</button>
+        <button class="confirm-btn confirm-delete" onclick="confirmDelete()">Remove</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align: center; margin-bottom: 20px;">
+    <div class="launcher-dialog-title" style="margin-bottom: 8px;">Server Ready!</div>
+    <div class="launcher-dialog-subtitle" id="server-count">1 server(s) running</div>
+    <div class="launcher-dialog-subtitle" id="userdata-path" style="font-size: 11px; color: #666; margin-top: 8px; word-break: break-all;"></div>
+  </div>
+
+  <div class="session-list" id="session-list"></div>
+
+  <div class="action-buttons">
+    <button class="action-btn add-account-btn" onclick="addAccount()">+ Add Account</button>
+    <button class="action-btn open-browser-btn" onclick="openAllServers()">Open All in Browser</button>
+    <button class="action-btn open-browser-btn" onclick="minimizeToTray()">Minimize to Tray</button>
+  </div>
+
+  <script>
+    let dialogData = {};
+
+    async function init() {
+      try {
+        const dataJson = await getData();
+        dialogData = JSON.parse(dataJson);
+
+        document.getElementById('server-count').textContent = dialogData.urls.length + ' server(s) running';
+
+        if (dialogData.userdataPath) {
+          document.getElementById('userdata-path').textContent = 'Userdata: ' + dialogData.userdataPath;
+        }
+
+        renderSessions();
+      } catch (err) {
+        console.error('Init error:', err);
+      }
+    }
+
+    function renderSessions() {
+      const container = document.getElementById('session-list');
+      container.innerHTML = '';
+
+      if (dialogData.sessions && dialogData.sessions.length > 0) {
+        dialogData.sessions.forEach((session, index) => {
+          const url = dialogData.urls[index] || dialogData.urls[0];
+          const icon = session.loginMethod === 'steam' ? '&#127918;' : '&#127760;';
+          const autostart = session.autostart !== false;
+          const autostartClass = autostart ? 'enabled' : 'disabled';
+          const autostartText = autostart ? 'Autostart On' : 'Autostart Off';
+          const autostartTitle = autostart ? 'Autostart enabled - click to disable' : 'Autostart disabled - click to enable';
+
+          const item = document.createElement('div');
+          item.className = 'session-item';
+          item.innerHTML =
+            '<div class="session-info" onclick="openUrl(\'' + url + '\')">' +
+              '<span class="session-icon">' + icon + '</span>' +
+              '<div class="session-details">' +
+                '<div class="session-name">' + escapeHtml(session.companyName) + '</div>' +
+                '<div class="session-port">' + url + '</div>' +
+              '</div>' +
+            '</div>' +
+            '<div class="session-actions">' +
+              '<button class="autostart-btn ' + autostartClass + '" onclick="event.stopPropagation(); toggleAutostart(\'' + session.userId + '\', ' + autostart + ')" title="' + autostartTitle + '">' + autostartText + '</button>' +
+              '<button class="refresh-btn" onclick="event.stopPropagation(); refreshSession(\'' + session.userId + '\', \'' + session.loginMethod + '\')" title="Refresh session">&#8635;</button>' +
+              '<button class="delete-btn" onclick="event.stopPropagation(); showDeleteConfirm(\'' + session.userId + '\', \'' + escapeHtml(session.companyName) + '\')" title="Remove account">&#128465;</button>' +
+            '</div>';
+          container.appendChild(item);
+        });
+      } else {
+        dialogData.urls.forEach((url, index) => {
+          const item = document.createElement('div');
+          item.className = 'session-item';
+          item.innerHTML =
+            '<div class="session-info" onclick="openUrl(\'' + url + '\')">' +
+              '<span class="session-icon">&#127891;</span>' +
+              '<div class="session-details">' +
+                '<div class="session-name">Server ' + (index + 1) + '</div>' +
+                '<div class="session-port">' + url + '</div>' +
+              '</div>' +
+            '</div>';
+          container.appendChild(item);
+        });
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function openUrl(url) {
+      closeDialog(JSON.stringify({ action: 'open', url: url }));
+    }
+
+    function openAllServers() {
+      closeDialog(JSON.stringify({ action: 'openAll', urls: dialogData.urls }));
+    }
+
+    function minimizeToTray() {
+      closeDialog(JSON.stringify({ action: 'minimize' }));
+    }
+
+    function refreshSession(userId, loginMethod) {
+      closeDialog(JSON.stringify({ action: 'doRefresh', userId: userId, loginMethod: loginMethod }));
+    }
+
+    function addAccount() {
+      closeDialog(JSON.stringify({ action: 'addAccount' }));
+    }
+
+    function toggleAutostart(userId, currentValue) {
+      closeDialog(JSON.stringify({
+        action: 'setAutostart',
+        userId: userId,
+        autostart: !currentValue
+      }));
+    }
+
+    let pendingDeleteUserId = null;
+    let pendingDeleteCompanyName = null;
+
+    function showDeleteConfirm(userId, companyName) {
+      pendingDeleteUserId = userId;
+      pendingDeleteCompanyName = companyName;
+      document.getElementById('confirm-message').textContent =
+        'Are you sure you want to remove "' + companyName + '"?';
+      document.getElementById('delete-data-checkbox').checked = false;
+      document.getElementById('confirm-overlay').classList.add('visible');
+    }
+
+    function cancelDelete() {
+      pendingDeleteUserId = null;
+      pendingDeleteCompanyName = null;
+      document.getElementById('confirm-overlay').classList.remove('visible');
+    }
+
+    function confirmDelete() {
+      if (!pendingDeleteUserId) return;
+
+      const deleteData = document.getElementById('delete-data-checkbox').checked;
+      closeDialog(JSON.stringify({
+        action: 'removeAccount',
+        userId: pendingDeleteUserId,
+        deleteData: deleteData
+      }));
+    }
+
+    init();
+  </script>
+</body>
+</html>

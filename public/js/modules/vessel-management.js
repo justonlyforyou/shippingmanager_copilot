@@ -1051,6 +1051,9 @@ async function executeDrydock(settings, dialog, overlay) {
 
     if (data.error) {
       showSideNotification(`Drydock failed: ${data.error}`, 'error');
+    } else {
+      // Dispatch event to refresh pending view if active (handled by event listener)
+      window.dispatchEvent(new CustomEvent('drydock-completed'));
     }
   } catch (error) {
     console.error('[Drydock] Error:', error);
@@ -2754,6 +2757,17 @@ document.addEventListener('DOMContentLoaded', () => {
           applyVesselFilters();
         }
       });
+    }
+  });
+
+  // Listen for drydock-completed events to refresh pending view
+  window.addEventListener('drydock-completed', async () => {
+    if (isPendingViewActive) {
+      const { fetchVessels } = await import('./api.js');
+      const vesselResponse = await fetchVessels();
+      const pendingVessels = (vesselResponse.vessels || []).filter(v => v.status === 'pending');
+      isPendingViewActive = false; // Reset to allow showPendingVessels to re-render
+      await showPendingVessels(pendingVessels);
     }
   });
 });

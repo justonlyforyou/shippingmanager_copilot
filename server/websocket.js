@@ -140,7 +140,7 @@ function initWebSocket() {
             }));
             logger.debug('[WebSocket] OK Prices sent');
           } else if (prices) {
-            logger.warn(`[WebSocket] Prices NOT sent - invalid values: fuel=${prices.fuel}, co2=${prices.co2}`);
+            logger.debug(`[WebSocket] Prices NOT sent - invalid values: fuel=${prices.fuel}, co2=${prices.co2}`);
           }
 
           // Bunker state (fuel, CO2, cash, points)
@@ -153,7 +153,7 @@ function initWebSocket() {
             }));
             logger.debug('[WebSocket] OK Bunker state sent');
           } else {
-            logger.warn('[WebSocket] Bunker state NOT sent - no valid cached data (waiting for autopilot loop)');
+            logger.debug('[WebSocket] Bunker state NOT sent - no valid cached data (waiting for autopilot loop)');
           }
 
           // Vessel counts, repair count, drydock count - combined into single API call

@@ -181,6 +181,13 @@ export function filterPorts(ports, vessels, filterType) {
       return ports.filter(p => p.isAssigned && portsWithPendingVessels.has(p.code));
     }
 
+    case 'my_ports_no_route': {
+      // Ports that are NOT assigned to me (opposite of my_ports)
+      const filtered = ports.filter(p => !p.isAssigned);
+      console.log('[Filter] Ports not assigned: ' + filtered.length);
+      return filtered;
+    }
+
     case 'my_ports_cargo_demand_very_low':
       // Actual cargo demand <= 10,000 TEU (demand - consumed)
       return ports.filter(p => {
@@ -408,6 +415,7 @@ export function getPortFilterOptions() {
   return [
     { value: 'my_ports', label: 'My Ports' },
     { value: 'all_ports', label: 'All Ports' },
+    { value: 'my_ports_no_route', label: 'Ports No Route' },
     { value: 'my_ports_cargo_demand_very_low', label: 'Demand <= 10k TEU' },
     { value: 'my_ports_cargo_demand_low', label: 'Demand <= 50k TEU' },
     { value: 'my_ports_cargo_demand_medium', label: 'Demand <= 100k TEU' },

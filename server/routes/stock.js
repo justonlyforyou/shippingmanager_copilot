@@ -382,7 +382,7 @@ router.get('/stock/purchase-times', async (req, res) => {
     }
 
     const { getLogEntries } = require('../logbook');
-    const transactionStore = require('../analytics/transaction-store');
+    const { transactionStore } = require('../database/store-adapter');
 
     // Get all stock purchase logs from last 7 days (covers 48h lock period with margin)
     const logs = await getLogEntries(userId, {

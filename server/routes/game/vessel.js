@@ -44,13 +44,13 @@ const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
 const { getFuelConsumptionDisplay } = require('../../utils/fuel-calculator');
 const { getAppBaseDir } = require('../../config');
+const { getDb } = require('../../database');
 
 // Determine vessel data directories based on environment
 const { isPackaged } = require('../../config');
 const isPkg = isPackaged();
-const VESSEL_APPEARANCES_DIR = isPkg
-  ? path.join(getAppBaseDir(), 'userdata', 'vessel-appearances')
-  : path.join(__dirname, '../../../userdata/vessel-appearances');
+// Note: Vessel appearances are now stored in SQLite (vessel_appearances table)
+// The VESSEL_IMAGES_DIR is still used for SVG and own images
 const VESSEL_IMAGES_DIR = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'vessel-images')
   : path.join(__dirname, '../../../userdata/vessel-images');
@@ -400,10 +400,20 @@ router.post('/sell-vessels', express.json(), async (req, res) => {
 
           // Delete custom vessel image and appearance data
           const svgFile = path.join(VESSEL_IMAGES_DIR, `${userId}_${vesselId}.svg`);
-          const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${vesselId}.json`);
-
           await fs.unlink(svgFile).catch(() => {});
-          await fs.unlink(appearanceFile).catch(() => {});
+
+          // Delete appearance from SQLite
+          try {
+            const db = getDb(userId);
+            db.prepare('DELETE FROM vessel_appearances WHERE vessel_id = ?').run(vesselId);
+          } catch (dbErr) {
+            logger.debug(`[Vessel Sell] No appearance to delete for ${vesselId}: ${dbErr.message}`);
+          }
+
+          // Delete own image if exists
+          const ownImageFile = path.join(VESSEL_IMAGES_DIR, 'ownimages', `${vesselId}.png`);
+          await fs.unlink(ownImageFile).catch(() => {});
+
           logger.debug(`[Vessel Sell] Cleaned up custom vessel files for ${vesselId}`);
         }
       } catch (error) {
@@ -1424,13 +1434,44 @@ router.post('/build-vessel', express.json(), async (req, res) => {
     // Store vessel appearance data if we found the vessel ID
     if (newVesselId) {
       try {
-        await fs.mkdir(VESSEL_APPEARANCES_DIR, { recursive: true });
-
         // Check if custom image is provided
         const hasOwnImage = custom_image && custom_image.startsWith('data:image/');
 
-        const appearanceData = {
-          vesselId: newVesselId,
+        // Save appearance to SQLite
+        const db = getDb(userId);
+        db.prepare(`
+          INSERT INTO vessel_appearances (
+            vessel_id, name, vessel_model, capacity, engine_type, engine_kw,
+            range, speed, fuel_consumption, antifouling_model, bulbous, enhanced_thrusters,
+            propeller_types, hull_color, deck_color, bridge_color,
+            container_color_1, container_color_2, container_color_3, container_color_4,
+            name_color, own_image, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(vessel_id) DO UPDATE SET
+            name = excluded.name,
+            vessel_model = excluded.vessel_model,
+            capacity = excluded.capacity,
+            engine_type = excluded.engine_type,
+            engine_kw = excluded.engine_kw,
+            range = excluded.range,
+            speed = excluded.speed,
+            fuel_consumption = excluded.fuel_consumption,
+            antifouling_model = excluded.antifouling_model,
+            bulbous = excluded.bulbous,
+            enhanced_thrusters = excluded.enhanced_thrusters,
+            propeller_types = excluded.propeller_types,
+            hull_color = excluded.hull_color,
+            deck_color = excluded.deck_color,
+            bridge_color = excluded.bridge_color,
+            container_color_1 = excluded.container_color_1,
+            container_color_2 = excluded.container_color_2,
+            container_color_3 = excluded.container_color_3,
+            container_color_4 = excluded.container_color_4,
+            name_color = excluded.name_color,
+            own_image = excluded.own_image,
+            updated_at = excluded.updated_at
+        `).run(
+          newVesselId,
           name,
           vessel_model,
           capacity,
@@ -1440,23 +1481,21 @@ router.post('/build-vessel', express.json(), async (req, res) => {
           speed,
           fuel_consumption,
           antifouling_model,
-          bulbous,
-          enhanced_thrusters,
+          bulbous ? 1 : 0,
+          enhanced_thrusters ? 1 : 0,
           propeller_types,
-          hull_color: hull_color || '#b30000',
-          deck_color: deck_color || '#272525',
-          bridge_color: bridge_color || '#dbdbdb',
-          container_color_1: container_color_1 || '#ff8000',
-          container_color_2: container_color_2 || '#0000ff',
-          container_color_3: container_color_3 || '#670000',
-          container_color_4: container_color_4 || '#777777',
-          name_color: name_color || '#ffffff',
-          ownImage: hasOwnImage
-        };
-
-        const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${newVesselId}.json`);
-        await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
-        logger.debug(`[Build Vessel] Saved appearance data for vessel ${userId}_${newVesselId}`);
+          hull_color || '#b30000',
+          deck_color || '#272525',
+          bridge_color || '#dbdbdb',
+          container_color_1 || '#ff8000',
+          container_color_2 || '#0000ff',
+          container_color_3 || '#670000',
+          container_color_4 || '#777777',
+          name_color || '#ffffff',
+          hasOwnImage ? name : null,
+          Math.floor(Date.now() / 1000)
+        );
+        logger.debug(`[Build Vessel] Saved appearance data to SQLite for vessel ${newVesselId}`);
 
         // Save custom image if provided - to ownimages folder
         if (hasOwnImage) {
@@ -1470,6 +1509,20 @@ router.post('/build-vessel', express.json(), async (req, res) => {
         } else {
           // Generate SVG if no custom image
           const { generateVesselSvg } = require('../../utils/vessel-svg-generator');
+          const appearanceData = {
+            vesselId: newVesselId,
+            name,
+            vessel_model,
+            capacity,
+            hull_color: hull_color || '#b30000',
+            deck_color: deck_color || '#272525',
+            bridge_color: bridge_color || '#dbdbdb',
+            container_color_1: container_color_1 || '#ff8000',
+            container_color_2: container_color_2 || '#0000ff',
+            container_color_3: container_color_3 || '#670000',
+            container_color_4: container_color_4 || '#777777',
+            name_color: name_color || '#ffffff'
+          };
           const svg = generateVesselSvg(appearanceData);
           const svgFilePath = path.join(VESSEL_IMAGES_DIR, `${userId}_${newVesselId}.svg`);
           await fs.writeFile(svgFilePath, svg, 'utf8');
@@ -1594,12 +1647,41 @@ router.get('/get-appearance/:vesselId', async (req, res) => {
   }
 
   try {
-    const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${userId}_${vesselId}.json`);
-    const fileContent = await fs.readFile(appearanceFile, 'utf8');
-    const data = JSON.parse(fileContent);
-    res.json(data);
-  } catch {
-    // No appearance file - return defaults
+    const db = getDb(userId);
+    const row = db.prepare('SELECT * FROM vessel_appearances WHERE vessel_id = ?').get(parseInt(vesselId, 10));
+
+    if (!row) {
+      // No appearance data - return defaults
+      return res.json({ ownImage: false });
+    }
+
+    // Map database columns to expected response format
+    res.json({
+      vesselId: row.vessel_id,
+      name: row.name,
+      vessel_model: row.vessel_model,
+      capacity: row.capacity,
+      engine_type: row.engine_type,
+      engine_kw: row.engine_kw,
+      range: row.range,
+      speed: row.speed,
+      fuel_consumption: row.fuel_consumption,
+      antifouling_model: row.antifouling_model,
+      bulbous: row.bulbous === 1,
+      enhanced_thrusters: row.enhanced_thrusters === 1,
+      propeller_types: row.propeller_types,
+      hull_color: row.hull_color,
+      deck_color: row.deck_color,
+      bridge_color: row.bridge_color,
+      container_color_1: row.container_color_1,
+      container_color_2: row.container_color_2,
+      container_color_3: row.container_color_3,
+      container_color_4: row.container_color_4,
+      name_color: row.name_color,
+      ownImage: row.own_image ? true : false
+    });
+  } catch (err) {
+    logger.error(`[Vessel Appearance] Error getting appearance for ${vesselId}:`, err.message);
     res.json({ ownImage: false });
   }
 });
@@ -1649,10 +1731,10 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
   }
 
   try {
-    // Ensure directories exist
-    await fs.mkdir(VESSEL_APPEARANCES_DIR, { recursive: true });
+    // Ensure image directory exists
     await fs.mkdir(VESSEL_IMAGES_DIR, { recursive: true });
 
+    const vesselIdNum = parseInt(vesselId, 10);
     const filePrefix = `${userId}_${vesselId}`;
 
     // Check if image is being uploaded
@@ -1668,32 +1750,33 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
       logger.debug(`[Vessel Appearance] Image validated as ${validation.type}`);
     }
 
-    // Save appearance JSON - only if we have data to save
+    // Save appearance to SQLite - only if we have data to save
     const hasAppearanceData = hull_color || hasOwnImage || removeOwnImage;
 
     if (hasAppearanceData) {
-      // Read existing appearance to preserve ownImage flag if not uploading new image
+      const db = getDb(userId);
+
+      // Read existing appearance to preserve vessel type info
       let existingData = {};
-      const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
-      try {
-        const existing = await fs.readFile(appearanceFile, 'utf8');
-        existingData = JSON.parse(existing);
-      } catch {
-        // File doesn't exist yet
+      const existingRow = db.prepare('SELECT * FROM vessel_appearances WHERE vessel_id = ?').get(vesselIdNum);
+      if (existingRow) {
+        existingData = {
+          vessel_model: existingRow.vessel_model,
+          capacity: existingRow.capacity,
+          ownImage: existingRow.own_image ? true : false
+        };
       }
 
       // If existing data is missing type info, fetch from API
-      if (!existingData.vessel_model && !existingData.capacity_type && !existingData.capacity) {
+      if (!existingData.vessel_model && !existingData.capacity) {
         logger.info(`[Vessel Appearance] No type info in existing data for vessel ${vesselId}, fetching from API...`);
         try {
           const vesselsResponse = await apiCallWithRetry('/vessel/get-vessels', 'GET', null);
           if (vesselsResponse && vesselsResponse.data && vesselsResponse.data.user_vessels) {
-            const apiVessel = vesselsResponse.data.user_vessels.find(v => v.id === parseInt(vesselId));
+            const apiVessel = vesselsResponse.data.user_vessels.find(v => v.id === vesselIdNum);
             if (apiVessel) {
-              existingData.capacity_type = apiVessel.capacity_type;
-              existingData.capacity = apiVessel.capacity_max?.dry || apiVessel.capacity;
               existingData.vessel_model = apiVessel.capacity_type;
-              existingData.type = apiVessel.type;
+              existingData.capacity = apiVessel.capacity_max?.dry || apiVessel.capacity;
               logger.info(`[Vessel Appearance] Fetched type info: capacity_type=${apiVessel.capacity_type}`);
             }
           }
@@ -1713,27 +1796,45 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
         ownImageFlag = false;
       }
 
-      const appearanceData = {
-        vesselId: parseInt(vesselId),
-        name: validator.escape(name || ''),
-        // Preserve vessel type info from existing data (needed for SVG generation)
-        vessel_model: existingData.vessel_model || existingData.capacity_type,
-        capacity: existingData.capacity,
-        capacity_type: existingData.capacity_type,
-        type: existingData.type,
-        hull_color: hull_color || '#b30000',
-        deck_color: deck_color || '#272525',
-        bridge_color: bridge_color || '#dbdbdb',
-        name_color: name_color || '#ffffff',
-        container_color_1: container_color_1 || '#ff8000',
-        container_color_2: container_color_2 || '#0000ff',
-        container_color_3: container_color_3 || '#670000',
-        container_color_4: container_color_4 || '#777777',
-        ownImage: ownImageFlag
-      };
-
-      await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
-      logger.info(`[Vessel Appearance] Saved appearance for ${filePrefix}, type: ${appearanceData.capacity_type || 'unknown'}`);
+      // Upsert appearance data to SQLite
+      db.prepare(`
+        INSERT INTO vessel_appearances (
+          vessel_id, name, vessel_model, capacity,
+          hull_color, deck_color, bridge_color, name_color,
+          container_color_1, container_color_2, container_color_3, container_color_4,
+          own_image, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(vessel_id) DO UPDATE SET
+          name = COALESCE(excluded.name, vessel_appearances.name),
+          vessel_model = COALESCE(excluded.vessel_model, vessel_appearances.vessel_model),
+          capacity = COALESCE(excluded.capacity, vessel_appearances.capacity),
+          hull_color = excluded.hull_color,
+          deck_color = excluded.deck_color,
+          bridge_color = excluded.bridge_color,
+          name_color = excluded.name_color,
+          container_color_1 = excluded.container_color_1,
+          container_color_2 = excluded.container_color_2,
+          container_color_3 = excluded.container_color_3,
+          container_color_4 = excluded.container_color_4,
+          own_image = excluded.own_image,
+          updated_at = excluded.updated_at
+      `).run(
+        vesselIdNum,
+        validator.escape(name || ''),
+        existingData.vessel_model,
+        existingData.capacity,
+        hull_color || '#b30000',
+        deck_color || '#272525',
+        bridge_color || '#dbdbdb',
+        name_color || '#ffffff',
+        container_color_1 || '#ff8000',
+        container_color_2 || '#0000ff',
+        container_color_3 || '#670000',
+        container_color_4 || '#777777',
+        ownImageFlag ? name || 'custom' : null,
+        Math.floor(Date.now() / 1000)
+      );
+      logger.info(`[Vessel Appearance] Saved appearance to SQLite for vessel ${vesselId}, type: ${existingData.vessel_model || 'unknown'}`);
     }
 
     // Save image if provided - to ownimages folder
@@ -1751,37 +1852,54 @@ router.post('/save-appearance', express.json({ limit: '20mb' }), async (req, res
     if (removeOwnImage) {
       const { generateVesselSvg } = require('../../utils/vessel-svg-generator');
 
-      // Read the appearance data we just saved
-      const appearanceFile = path.join(VESSEL_APPEARANCES_DIR, `${filePrefix}.json`);
-      try {
-        let appearanceData = JSON.parse(await fs.readFile(appearanceFile, 'utf8'));
+      // Read the appearance data we just saved from SQLite
+      const db = getDb(userId);
+      const row = db.prepare('SELECT * FROM vessel_appearances WHERE vessel_id = ?').get(parseInt(vesselId, 10));
 
-        // Always fetch vessel type info from API to ensure correct SVG generation
-        logger.info(`[Vessel Appearance] Fetching type info for vessel ${vesselId} from API...`);
-        try {
-          const vesselsResponse = await apiCallWithRetry('/vessel/get-vessels', 'GET', null);
-          if (vesselsResponse && vesselsResponse.data && vesselsResponse.data.user_vessels) {
-            const apiVessel = vesselsResponse.data.user_vessels.find(v => v.id === parseInt(vesselId));
-            if (apiVessel) {
-              appearanceData.capacity_type = apiVessel.capacity_type;
-              appearanceData.capacity = apiVessel.capacity_max?.dry || apiVessel.capacity;
-              appearanceData.vessel_model = apiVessel.capacity_type;
-              appearanceData.type = apiVessel.type;
-              // Save updated appearance file with type info
-              await fs.writeFile(appearanceFile, JSON.stringify(appearanceData, null, 2), 'utf8');
-              logger.info(`[Vessel Appearance] Updated appearance with type info: capacity_type=${apiVessel.capacity_type}`);
+      if (row) {
+        let vessel_model = row.vessel_model;
+        let capacity = row.capacity;
+
+        // Fetch vessel type info from API if missing
+        if (!vessel_model || !capacity) {
+          logger.info(`[Vessel Appearance] Fetching type info for vessel ${vesselId} from API...`);
+          try {
+            const vesselsResponse = await apiCallWithRetry('/vessel/get-vessels', 'GET', null);
+            if (vesselsResponse && vesselsResponse.data && vesselsResponse.data.user_vessels) {
+              const apiVessel = vesselsResponse.data.user_vessels.find(v => v.id === parseInt(vesselId));
+              if (apiVessel) {
+                vessel_model = apiVessel.capacity_type;
+                capacity = apiVessel.capacity_max?.dry || apiVessel.capacity;
+                // Update SQLite with type info
+                db.prepare('UPDATE vessel_appearances SET vessel_model = ?, capacity = ? WHERE vessel_id = ?')
+                  .run(vessel_model, capacity, parseInt(vesselId, 10));
+                logger.info(`[Vessel Appearance] Updated SQLite with type info: capacity_type=${vessel_model}`);
+              }
             }
+          } catch (apiErr) {
+            logger.warn(`[Vessel Appearance] Could not fetch vessel type info: ${apiErr.message}`);
           }
-        } catch (apiErr) {
-          logger.warn(`[Vessel Appearance] Could not fetch vessel type info: ${apiErr.message}`);
         }
+
+        const appearanceData = {
+          vesselId: row.vessel_id,
+          name: row.name,
+          vessel_model: vessel_model,
+          capacity: capacity,
+          hull_color: row.hull_color,
+          deck_color: row.deck_color,
+          bridge_color: row.bridge_color,
+          name_color: row.name_color,
+          container_color_1: row.container_color_1,
+          container_color_2: row.container_color_2,
+          container_color_3: row.container_color_3,
+          container_color_4: row.container_color_4
+        };
 
         const svg = generateVesselSvg(appearanceData);
         const svgFilePath = path.join(VESSEL_IMAGES_DIR, `${filePrefix}.svg`);
         await fs.writeFile(svgFilePath, svg, 'utf8');
-        logger.info(`[Vessel Appearance] Generated SVG for vessel ${vesselId}, type: ${appearanceData.capacity_type || 'unknown'}`);
-      } catch (err) {
-        logger.warn(`[Vessel Appearance] Could not generate SVG: ${err.message}`);
+        logger.info(`[Vessel Appearance] Generated SVG for vessel ${vesselId}, type: ${vessel_model || 'unknown'}`);
       }
     }
 

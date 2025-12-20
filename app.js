@@ -1,3 +1,9 @@
+// Check for --gui flag - if present, launch GUI mode instead of server
+if (process.argv.includes('--gui')) {
+  require('./helper/launcher/nodejs/index');
+} else {
+// Server mode - rest of app.js runs in this block
+
 // Emergency crash handler - catches uncaught exceptions BEFORE Winston logger is initialized
 // In debug mode, this writes to stderr which is redirected to debug.log by start.py
 // In normal mode, it tries to use Winston logger if available, otherwise writes to stderr
@@ -70,9 +76,7 @@ const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAuto
 const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
-const transactionStore = require('./server/analytics/transaction-store');
-const lookupStore = require('./server/analytics/lookup-store');
-const vesselHistoryStore = require('./server/analytics/vessel-history-store');
+const { transactionStore, lookupStore, vesselHistoryStore } = require('./server/database/store-adapter');
 
 // Parent process monitoring - auto-shutdown if parent (Python) dies
 if (process.ppid) {
@@ -201,6 +205,18 @@ app.get('/api/autopilot/status', (req, res) => {
   res.json({ paused: autopilot.isAutopilotPaused() });
 });
 
+// Global error handler for API routes - returns JSON instead of HTML
+// eslint-disable-next-line no-unused-vars
+app.use('/api', (err, req, res, next) => {
+  logger.error(`[API Error] ${req.method} ${req.path}: ${err.message}`);
+  logger.error(err.stack);
+  res.status(500).json({
+    error: 'Internal server error',
+    message: err.message,
+    path: req.path
+  });
+});
+
 // Create HTTPS server
 const server = createHttpsServer(app);
 
@@ -225,56 +241,35 @@ const chatBot = require('./server/chatbot');
     logger.info('[Session] Loading sessions from encrypted storage...');
 
     try {
-      const availableSessions = await sessionManager.getAvailableSessions();
-
-      // Debug: Show all available sessions
-      logger.info(`[Session] Found ${availableSessions.length} session(s) in storage`);
-      availableSessions.forEach((s, idx) => {
-        logger.debug(`[Session]   [${idx}] User ID: ${s.userId} (${typeof s.userId}), Company: ${s.companyName}, Method: ${s.loginMethod}`);
-      });
-
-      if (availableSessions.length === 0) {
-        logger.error('[FATAL] No sessions found. Please run start.py to log in.');
-        process.exit(1);
-      }
-
       let selectedSession;
 
-      // User selection ONLY via ENV (from start.py) - NO persistence
+      // User selection via ENV (from launcher) - takes priority
       const selectedUserId = process.env.SELECTED_USER_ID;
-      logger.debug(`[Session] ENV SELECTED_USER_ID: ${selectedUserId} (${typeof selectedUserId})`);
 
       if (selectedUserId) {
-        // User was selected via start.py - use that specific session
-        logger.debug(`[Session] Searching for user ID: ${selectedUserId} in ${availableSessions.length} sessions...`);
-        selectedSession = availableSessions.find(s => s.userId === selectedUserId);
+        // Launcher selected a specific user - find that session
+        const availableSessions = await sessionManager.getAvailableSessions();
+        selectedSession = availableSessions.find(s => String(s.userId) === String(selectedUserId));
 
         if (!selectedSession) {
           logger.error(`[FATAL] Selected user ${selectedUserId} not found in available sessions.`);
-          logger.error('[FATAL] Available user IDs:');
-          availableSessions.forEach(s => {
-            logger.error(`[FATAL]   - ${s.userId} (type: ${typeof s.userId}) - ${s.companyName}`);
-            logger.error(`[FATAL]     Match result: ${s.userId} === ${selectedUserId} ? ${s.userId === selectedUserId}`);
-            logger.error(`[FATAL]     String match: "${String(s.userId)}" === "${String(selectedUserId)}" ? ${String(s.userId) === String(selectedUserId)}`);
-          });
-          logger.error('[FATAL] Please run start.py again to select a valid session.');
           process.exit(1);
         }
 
-        logger.info(`[Session] Match found! Using session for user ${selectedSession.userId} (${selectedSession.companyName})`);
-      } else if (availableSessions.length === 1) {
-        // Only one session available - use it automatically
-        selectedSession = availableSessions[0];
-        logger.info(`[Session] Using session for user ${selectedSession.userId} (${selectedSession.companyName})`);
+        logger.info(`[Session] Using selected session: ${selectedSession.companyName} (${selectedSession.userId})`);
       } else {
-        // Multiple sessions but no selection - error out
-        logger.error('[FATAL] Multiple sessions found but no session selected.');
-        logger.error('[FATAL] Please run start.py to select which session to use.');
-        logger.error('[FATAL] Available sessions:');
-        availableSessions.forEach(s => {
-          logger.error(`[FATAL]   - User ${s.userId}: ${s.companyName} (${s.loginMethod})`);
+        // No explicit selection - use centralized validation to find first valid session
+        selectedSession = await sessionManager.getFirstValidSession((level, msg) => {
+          logger[level](`[Session] ${msg}`);
         });
-        process.exit(1);
+
+        if (!selectedSession) {
+          logger.error('[FATAL] No valid sessions found.');
+          logger.error('[FATAL] Please log in first using one of these methods:');
+          logger.error('[FATAL]   1. Run "npm start" to use the launcher GUI');
+          logger.error('[FATAL]   2. Run "node launcher/cli.js" for command-line login');
+          process.exit(1);
+        }
       }
 
       // Set the session cookies in config (shipping_manager_session, app_platform, app_version)
@@ -454,3 +449,5 @@ const chatBot = require('./server/chatbot');
   logger.warn(`[Frontend] Self-signed certificate - accept security warning in browser`);
   });
 })();
+
+} // End of else block (server mode)

@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Login Method</title>
+</head>
+<body class="launcher-dialog">
+  <div class="launcher-dialog-content">
+    <h1 class="launcher-dialog-title">Choose Login Method</h1>
+    <p class="launcher-dialog-subtitle">How would you like to authenticate?</p>
+
+    <div id="steam-method" class="launcher-method-card" onclick="selectMethod('steam')">
+      <div class="launcher-method-title">
+        Steam Auto-Extract
+        <span class="launcher-method-badge windows-only">Windows only</span>
+      </div>
+      <div class="launcher-method-description">
+        Automatically extracts your session from Steam's browser cache.
+        Requires that you have logged into Shipping Manager via Steam's built-in browser.
+      </div>
+    </div>
+
+    <div id="browser-method" class="launcher-method-card" onclick="selectMethod('browser')">
+      <div class="launcher-method-title">
+        Browser Login
+      </div>
+      <div class="launcher-method-description">
+        Opens a browser window where you can login manually.
+        Works on all platforms (Windows, macOS, Linux).
+      </div>
+    </div>
+
+    <div class="launcher-dialog-buttons">
+      <button class="launcher-btn launcher-btn-secondary" onclick="cancel()">Cancel</button>
+      <button class="launcher-btn launcher-btn-primary" id="continue-btn" onclick="continueWithMethod()" disabled>Continue</button>
+    </div>
+  </div>
+
+  <script>
+    let dialogData = {};
+    let selectedMethod = null;
+
+    async function init() {
+      try {
+        const dataJson = await getData();
+        dialogData = JSON.parse(dataJson);
+
+        // Check if Steam is available
+        if (!dialogData.steamAvailable) {
+          const steamCard = document.getElementById('steam-method');
+          steamCard.classList.add('disabled');
+          steamCard.onclick = null;
+
+          // Add unavailable message
+          const desc = steamCard.querySelector('.launcher-method-description');
+          desc.innerHTML = '<span style="color: var(--color-warning);">Not available on this platform. Steam extraction only works on Windows.</span>';
+        }
+      } catch (err) {
+        console.error('Init error:', err);
+      }
+    }
+
+    function selectMethod(method) {
+      // Check if Steam method is disabled
+      if (method === 'steam' && !dialogData.steamAvailable) {
+        return;
+      }
+
+      // Remove selection from all cards
+      document.querySelectorAll('.launcher-method-card').forEach(card => {
+        card.classList.remove('selected');
+      });
+
+      // Select this method
+      document.getElementById(method + '-method').classList.add('selected');
+      selectedMethod = method;
+
+      // Enable continue button
+      document.getElementById('continue-btn').disabled = false;
+    }
+
+    function continueWithMethod() {
+      if (selectedMethod) {
+        closeDialog(JSON.stringify({ method: selectedMethod }));
+      }
+    }
+
+    function cancel() {
+      closeDialog(null);
+    }
+
+    init();
+  </script>
+</body>
+</html>

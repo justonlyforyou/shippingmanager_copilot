@@ -25,12 +25,13 @@ module.exports = [
     ignores: [
       'node_modules/**',
       'dist/**',
-      'build/**',
       'sysdata/**',
       'userdata/**',
       '.git/**',
       'coverage/**',
       '*.min.js',
+      '**/*.html',               // HTML files (not JS)
+      '**/*.css',                // CSS files (not JS)
       'docs/jsdoc-template/**',  // External JSDoc template
       'development/**',          // Development/testing scripts
       'public/docs/**',          // Generated JSDoc documentation

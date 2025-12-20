@@ -11,37 +11,10 @@ Complete guide for compiling ShippingManager CoPilot into a standalone Windows e
    node --version  # Should be >= 22.0.0
    ```
 
-2. **Python 3.10+** (https://www.python.org/)
-   ```bash
-   python --version  # Should be >= 3.10
-   ```
-
-3. **.NET 8.0 SDK** (https://dotnet.microsoft.com/download)
+2. **.NET 8.0 SDK** (https://dotnet.microsoft.com/download)
    ```bash
    dotnet --version  # Should be >= 8.0
    ```
-
-4. **PyInstaller** (for Python → .exe compilation)
-   ```bash
-   pip install pyinstaller
-   ```
-
-5. **pkg** (for Node.js → .exe compilation)
-   ```bash
-   npm install -g pkg
-   ```
-
-### Python Dependencies
-
-**Windows:**
-```bash
-pip install pywin32 cryptography keyring pystray pillow requests urllib3
-```
-
-**Linux/Mac:**
-```bash
-pip install keyring cryptography pystray pillow requests urllib3
-```
 
 ### Node.js Dependencies
 
@@ -60,16 +33,16 @@ npm run build
 ```
 
 This single command will:
-1. Check all dependencies (Node.js, Python, PyInstaller, pkg, .NET SDK)
+1. Check all dependencies (Node.js, .NET SDK)
 2. Install Node.js dependencies
 3. Generate documentation
 4. Compile Node.js application to .exe (ShippingManagerCoPilot-Server.exe)
-5. Compile Python launcher with embedded Node.js server (ShippingManagerCoPilot.exe)
+5. Compile C# launcher (ShippingManagerCoPilot.exe)
 6. Create deployment package with app-payload.zip
 7. Build WPF installer executable
 
 **Output:**
-- `dist/ShippingManagerCoPilot-v0.1.0/` (portable folder with single .exe)
+- `dist/ShippingManagerCoPilot-v0.1.0/` (portable folder with launcher + server)
 - `dist/ShippingManagerCoPilot-Installer-v0.1.0.exe` (WPF installer)
 - `dist/checksums.txt` (SHA256 hashes)
 - `public/docs/` (documentation)
@@ -96,8 +69,6 @@ If you want to build components separately:
 
 #### Step 1: Compile Node.js Server to .exe
 
-**IMPORTANT:** This step MUST be done first, as the resulting .exe is embedded in the Python launcher.
-
 ```bash
 npm run build:node
 ```
@@ -105,29 +76,32 @@ npm run build:node
 This creates:
 - `dist/ShippingManagerCoPilot-Server.exe` (Node.js backend server)
 
-This file will be embedded as a resource in the Python launcher in the next step.
-
-#### Step 2: Compile Python Launcher with Embedded Server
+#### Step 2: Compile C# Launcher
 
 ```bash
-npm run build:python
+npm run build:launcher
 ```
 
 This creates:
-- `dist/ShippingManagerCoPilot.exe` (Python launcher with embedded Node.js server)
+- `dist/ShippingManagerCoPilot.exe` (C# launcher that manages the server)
 
-The Node.js server exe from Step 1 is automatically embedded as a resource and extracted to temp folder at runtime.
+The launcher:
+- Starts the Node.js server
+- Extracts Steam session cookies (Windows only)
+- Opens the browser automatically
+- Provides system tray integration
 
 #### Step 3: Package Everything
 
 ```bash
-node build-package.js
+node build/build-package.js
 ```
 
 This organizes all files into:
 ```
 dist/ShippingManagerCoPilot-v0.1.0/
-├── ShippingManagerCoPilot.exe  (single-file: Python launcher + embedded Node.js server)
+├── ShippingManagerCoPilot.exe      (C# launcher)
+├── ShippingManagerCoPilot-Server.exe (Node.js server)
 ├── sysdata/
 │   └── forecast/  (forecast cache, created at runtime)
 ├── userdata/  (user settings, created at runtime in AppData on first run)
@@ -138,14 +112,12 @@ dist/ShippingManagerCoPilot-v0.1.0/
 └── START_HERE.txt
 ```
 
-This also creates `installer/Resources/app-payload.zip` which embeds the entire application into the installer.
-
-**Note:** All helper scripts (get-session-windows, login-dialog, session-selector) are embedded in the main .exe file.
+This also creates `helper/installer/Resources/app-payload.zip` which embeds the entire application into the installer.
 
 #### Step 4: Build Installer
 
 ```bash
-node build-installer.js
+node build/build-installer.js
 ```
 
 This creates:
@@ -171,54 +143,34 @@ The installer is a self-contained Windows executable that:
 
 ## Troubleshooting
 
-### PyInstaller Issues
-
-**Error: `Module not found`**
-```bash
-# Add missing modules to build-python.spec hiddenimports
-hiddenimports=['win32crypt', 'win32api', 'cryptography', 'your_missing_module']
-```
-
-**Error: `Failed to execute script`**
-- Check Python script runs standalone first: `python helper/get-session-windows.py`
-- Enable debug mode: Edit .spec file and set `debug=True`
-
 ### pkg Issues
 
 **Error: `Cannot find module`**
-- pkg.assets is already configured in package.json (lines 19-38)
+- pkg.assets is already configured in package.json
 - Includes: public/, server/, sysdata/forecast/, all dependencies
 - If adding new dependencies, add them to pkg.assets array
-- If adding new folders, add them with glob pattern (folder + slash + two asterisks + slash + asterisk)
+- If adding new folders, add them with glob pattern
 
 **Error: `Native module not found`**
 - Some modules (like `keytar`) need native binaries
 - Solution: Bundle as external dependency or use alternative
 
-## File Size Optimization
+### .NET Build Issues
+
+**Error: `SDK not found`**
+- Ensure .NET 8.0 SDK is installed (not just runtime)
+- Verify with: `dotnet --list-sdks`
+
+**Error: `Project file not found`**
+- Check that `helper/launcher/` directory exists
+- Ensure `.csproj` file is present
+
+## File Size
 
 Current estimated sizes:
-- Node.js Server .exe: ~80-100 MB (embedded)
-- Python Launcher .exe (with embedded Node.js server): ~100-120 MB
-- Total single-file executable: ~100-120 MB
-
-### Reduce Size (Optional)
-
-1. **Enable UPX compression** (in build-python.spec):
-   ```python
-   upx=True,
-   upx_exclude=[],
-   ```
-
-2. **Exclude unused modules** (in build-python.spec):
-   ```python
-   excludes=['tkinter', 'matplotlib', 'numpy'],
-   ```
-
-3. **pkg compression**:
-   ```bash
-   pkg . --compress GZip
-   ```
+- Node.js Server .exe: ~80-100 MB
+- C# Launcher .exe: ~1-2 MB
+- Total package: ~100 MB
 
 ## Distribution
 
@@ -229,7 +181,7 @@ cd dist
 powershell Compress-Archive -Path ShippingManagerCoPilot-v0.1.0 -DestinationPath ShippingManagerCoPilot-v0.1.0-Portable.zip
 ```
 
-The ZIP file contains the single-file executable and supporting files (README, LICENSE, data folder structure).
+The ZIP file contains the executables and supporting files (README, LICENSE, data folder structure).
 
 ## Version Updates
 
@@ -362,7 +314,7 @@ npm run docs
 The documentation is automatically:
 - Generated before every commit (via git pre-commit hook)
 - Served by the application at `https://localhost:12345/docs/index.html`
-- Accessible via the 📖 button in the UI (next to settings ⚙️)
+- Accessible via the docs button in the UI (next to settings)
 
 ### What's Included
 
@@ -374,8 +326,8 @@ The documentation includes:
 
 ### View Documentation
 
-1. Start the application (`python start.py`)
-2. Click the 📖 button in the UI, or
+1. Start the application (run `ShippingManagerCoPilot.exe`)
+2. Click the docs button in the UI, or
 3. Navigate to `https://localhost:12345/docs/index.html`
 
 ### Documentation Structure
@@ -405,16 +357,10 @@ Generated files are located in `public/docs/` and are included in git commits.
   - Run manually: `npm run lint`
   - Configuration: `eslint.config.js`
 
-- **Bandit Python Linter**: Scans Python code for security vulnerabilities
-  - Detects: SQL injection, command injection, insecure YAML, pickle usage
-  - Run manually: `npm run bandit` or `python -m bandit -r helper/ -c .bandit`
-  - Configuration: `.bandit` (YAML)
-
 - **Pre-commit Hooks**: Automated security gates block commits on errors
   - npm audit (HIGH/CRITICAL vulnerabilities)
   - ESLint errors (security issues)
-  - Bandit critical issues (Python security)
 
 ---
 
-*Last updated: 2025-12-05*
+*Last updated: 2025-12-20*

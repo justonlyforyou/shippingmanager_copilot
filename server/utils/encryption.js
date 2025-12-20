@@ -26,16 +26,31 @@
  */
 
 const os = require('os');
+const path = require('path');
+const { createRequire } = require('module');
 const logger = require('./logger');
 
 // Try to load keytar - required for secure credential storage
+// SEA: __dirname = directory containing executable, keytar is at node_modules/keytar next to exe
 let keytar;
 try {
     keytar = require('keytar');
     logger.debug('[Encryption] Using native OS credential storage (keytar)');
 } catch {
-    logger.error('[Encryption] keytar not available - secure credential storage unavailable');
-    keytar = null;
+    // SEA build: use createRequire from exe directory (__dirname in SEA = exe dir)
+    try {
+        const keytarPath = path.join(__dirname, 'node_modules', 'keytar');
+        logger.debug('[Encryption] Trying to load keytar from: ' + keytarPath);
+        
+        const exeRequire = createRequire(path.join(__dirname, 'package.json'));
+        keytar = exeRequire('keytar');
+        logger.debug('[Encryption] Loaded keytar from: ' + keytarPath);
+    } catch (seaErr) {
+        logger.error('[Encryption] keytar not available - secure credential storage unavailable');
+        logger.debug('[Encryption] SEA load error: ' + seaErr.message);
+        logger.debug('[Encryption] __dirname: ' + __dirname);
+        keytar = null;
+    }
 }
 
 /**
@@ -153,8 +168,16 @@ async function decryptData(encryptedData) {
                     // Remove null bytes: keep only even-indexed characters (0, 2, 4, 6...)
                     // Example: "e\0y\0J\0" -> "eyJ"
                     const fixed = password.split('').filter((_, i) => i % 2 === 0).join('');
-                    logger.warn(`[Encryption] Fixed Python UTF-16 encoding issue (${password.length} to ${fixed.length} chars)`);
+                    logger.info(`[Encryption] Migrating Python UTF-16 credential to UTF-8 (${password.length} to ${fixed.length} chars)`);
                     password = fixed;
+
+                    // Re-save in correct UTF-8 format so this migration only happens once
+                    try {
+                        await keytar.setPassword(SERVICE_NAME, storedAccountName, fixed);
+                        logger.info(`[Encryption] Credential migrated successfully: ${storedAccountName}`);
+                    } catch (migrationErr) {
+                        logger.error(`[Encryption] Failed to migrate credential: ${migrationErr.message}`);
+                    }
                 }
             }
             return password;

@@ -1,5 +1,5 @@
 /**
- * @fileoverview Unified Trip Data Storage
+ * @fileoverview Unified Trip Data Storage (SQLite)
  *
  * Stores all additional trip data for vessel history enrichment:
  * - Harbor fees
@@ -7,79 +7,16 @@
  * - Speed, guards, CO2 used
  * - Cargo rates and utilization
  *
- * Consolidates harbor-fee-store, contribution-store, and departure-data-store
- * into a single unified store.
+ * Uses SQLite for reliable ACID-compliant storage.
  *
  * @module server/utils/trip-data-store
  */
 
-const fs = require('fs').promises;
-const path = require('path');
 const logger = require('./logger');
-const { getAppBaseDir } = require('../config');
-
-// Use AppData when packaged as exe
-const { isPackaged } = require('../config');
-const isPkg = isPackaged();
-const TRIP_DATA_DIR = isPkg
-  ? path.join(getAppBaseDir(), 'userdata', 'trip-data')
-  : path.join(__dirname, '../../userdata/trip-data');
+const { getDb } = require('../database');
 
 // Fuzzy timestamp matching tolerance (60 seconds)
 const TOLERANCE_MS = 60 * 1000;
-
-/**
- * Ensures trip data directory exists
- */
-async function ensureDirectory() {
-  try {
-    await fs.mkdir(TRIP_DATA_DIR, { recursive: true });
-  } catch (error) {
-    logger.error('[Trip Data Store] Failed to create directory:', error.message);
-  }
-}
-
-/**
- * Gets file path for user's trip data
- * @param {number} userId - User ID
- * @returns {string} File path
- */
-function getFilePath(userId) {
-  return path.join(TRIP_DATA_DIR, `trip-data-${userId}.json`);
-}
-
-/**
- * Loads trip data from disk
- * @param {number} userId - User ID
- * @returns {Promise<Object>} Trip data map { "vesselId_timestamp": { ...tripData } }
- */
-async function loadTripData(userId) {
-  try {
-    const filePath = getFilePath(userId);
-    const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
-  } catch (error) {
-    if (error.code === 'ENOENT') {
-      return {}; // File doesn't exist yet
-    }
-    logger.error(`[Trip Data Store] Failed to load data for user ${userId}:`, error.message);
-    return {};
-  }
-}
-
-/**
- * Saves trip data to disk
- * @param {number} userId - User ID
- * @param {Object} data - Full trip data map
- */
-async function saveTripDataToDisk(userId, data) {
-  try {
-    const filePath = getFilePath(userId);
-    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
-  } catch (error) {
-    logger.error(`[Trip Data Store] Failed to save data:`, error.message);
-  }
-}
 
 /**
  * Saves all trip data for a vessel departure
@@ -100,24 +37,49 @@ async function saveTripDataToDisk(userId, data) {
  * @param {number} [tripData.fuelRate] - Price per bbl for fuel cargo
  * @param {number} [tripData.crudeRate] - Price per bbl for crude oil
  * @param {boolean} [tripData.isDrydockOperation] - Whether this was a drydock operation (no income)
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function saveTripData(userId, vesselId, timestamp, tripData) {
+function saveTripData(userId, vesselId, timestamp, tripData) {
   try {
-    await ensureDirectory();
+    const db = getDb(userId);
 
-    const allData = await loadTripData(userId);
-    const key = `${vesselId}_${timestamp}`;
+    // Use UPSERT to merge with existing data
+    db.prepare(`
+      INSERT INTO trip_data (vessel_id, timestamp, harbor_fee, contribution_gained, speed, guards, co2_used, fuel_used, capacity, utilization, dry_rate, ref_rate, fuel_rate, crude_rate, is_drydock_operation)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(vessel_id, timestamp) DO UPDATE SET
+        harbor_fee = COALESCE(excluded.harbor_fee, trip_data.harbor_fee),
+        contribution_gained = COALESCE(excluded.contribution_gained, trip_data.contribution_gained),
+        speed = COALESCE(excluded.speed, trip_data.speed),
+        guards = COALESCE(excluded.guards, trip_data.guards),
+        co2_used = COALESCE(excluded.co2_used, trip_data.co2_used),
+        fuel_used = COALESCE(excluded.fuel_used, trip_data.fuel_used),
+        capacity = COALESCE(excluded.capacity, trip_data.capacity),
+        utilization = COALESCE(excluded.utilization, trip_data.utilization),
+        dry_rate = COALESCE(excluded.dry_rate, trip_data.dry_rate),
+        ref_rate = COALESCE(excluded.ref_rate, trip_data.ref_rate),
+        fuel_rate = COALESCE(excluded.fuel_rate, trip_data.fuel_rate),
+        crude_rate = COALESCE(excluded.crude_rate, trip_data.crude_rate),
+        is_drydock_operation = COALESCE(excluded.is_drydock_operation, trip_data.is_drydock_operation)
+    `).run(
+      vesselId,
+      timestamp,
+      tripData.harborFee,
+      tripData.contributionGained,
+      tripData.speed,
+      tripData.guards,
+      tripData.co2Used,
+      tripData.fuelUsed,
+      tripData.capacity,
+      tripData.utilization,
+      tripData.dryRate,
+      tripData.refRate,
+      tripData.fuelRate,
+      tripData.crudeRate,
+      tripData.isDrydockOperation ? 1 : 0
+    );
 
-    // Merge with existing data (in case of partial updates)
-    allData[key] = {
-      ...(allData[key] || {}),
-      ...tripData
-    };
-
-    await saveTripDataToDisk(userId, allData);
-
-    logger.debug(`[Trip Data Store] Saved data for ${key}: fee=$${tripData.harborFee || 0}, contribution=${tripData.contributionGained || 0}, speed=${tripData.speed || 0}kn`);
+    logger.debug(`[Trip Data Store] Saved data for vessel ${vesselId} at ${timestamp}: fee=$${tripData.harborFee}, contribution=${tripData.contributionGained}, speed=${tripData.speed}kn`);
   } catch (error) {
     logger.error(`[Trip Data Store] Failed to save trip data:`, error.message);
   }
@@ -128,37 +90,77 @@ async function saveTripData(userId, vesselId, timestamp, tripData) {
  * @param {number} userId - User ID
  * @param {number} vesselId - Vessel ID
  * @param {string} timestamp - Trip timestamp
- * @returns {Promise<Object|null>} Trip data or null if not found
+ * @returns {Object|null} Trip data or null if not found
  */
-async function getTripData(userId, vesselId, timestamp) {
-  const allData = await loadTripData(userId);
-  const key = `${vesselId}_${timestamp}`;
-  return allData[key] || null;
+function getTripData(userId, vesselId, timestamp) {
+  try {
+    const db = getDb(userId);
+    const row = db.prepare('SELECT * FROM trip_data WHERE vessel_id = ? AND timestamp = ?').get(vesselId, timestamp);
+
+    if (!row) return null;
+
+    return {
+      harborFee: row.harbor_fee,
+      contributionGained: row.contribution_gained,
+      speed: row.speed,
+      guards: row.guards,
+      co2Used: row.co2_used,
+      fuelUsed: row.fuel_used,
+      capacity: row.capacity,
+      utilization: row.utilization,
+      dryRate: row.dry_rate,
+      refRate: row.ref_rate,
+      fuelRate: row.fuel_rate,
+      crudeRate: row.crude_rate,
+      isDrydockOperation: row.is_drydock_operation === 1
+    };
+  } catch (error) {
+    logger.error(`[Trip Data Store] Failed to get trip data:`, error.message);
+    return null;
+  }
 }
 
 /**
  * Finds trip data with fuzzy timestamp matching
- * @param {Object} allData - All trip data
+ * @param {Object} db - SQLite database instance
  * @param {number} vesselId - Vessel ID to match
  * @param {number} entryTimestamp - Timestamp in milliseconds
  * @returns {Object|null} Matching trip data or null
  */
-function findTripDataFuzzy(allData, vesselId, entryTimestamp) {
-  for (const [key, data] of Object.entries(allData)) {
-    const [storedVesselId, timestamp] = key.split('_');
+function findTripDataFuzzy(db, vesselId, entryTimestamp) {
+  try {
+    // Get all trips for this vessel
+    const rows = db.prepare('SELECT * FROM trip_data WHERE vessel_id = ?').all(vesselId);
 
-    // Check if vessel ID matches
-    if (parseInt(storedVesselId) !== vesselId) continue;
+    for (const row of rows) {
+      // IMPORTANT: Append 'Z' to tell JavaScript the timestamp is UTC (from toISOString)
+      // Without 'Z', new Date() interprets as local time which causes timezone offset
+      const dataTimestamp = new Date(row.timestamp + 'Z').getTime();
+      const diff = Math.abs(entryTimestamp - dataTimestamp);
 
-    // Check if timestamp is within tolerance
-    const dataTimestamp = new Date(timestamp).getTime();
-    const diff = Math.abs(entryTimestamp - dataTimestamp);
-
-    if (diff <= TOLERANCE_MS) {
-      return data;
+      if (diff <= TOLERANCE_MS) {
+        return {
+          harborFee: row.harbor_fee,
+          contributionGained: row.contribution_gained,
+          speed: row.speed,
+          guards: row.guards,
+          co2Used: row.co2_used,
+          fuelUsed: row.fuel_used,
+          capacity: row.capacity,
+          utilization: row.utilization,
+          dryRate: row.dry_rate,
+          refRate: row.ref_rate,
+          fuelRate: row.fuel_rate,
+          crudeRate: row.crude_rate,
+          isDrydockOperation: row.is_drydock_operation === 1
+        };
+      }
     }
+    return null;
+  } catch (error) {
+    logger.debug(`[Trip Data Store] Fuzzy search error: ${error.message}`);
+    return null;
   }
-  return null;
 }
 
 /**
@@ -201,47 +203,47 @@ function findLookupDataFuzzy(lookupEntries, vesselId, entryTimestamp) {
  * @returns {Promise<Array<Object>>} History entries with all trip data added
  */
 async function enrichHistoryWithTripData(userId, historyEntries) {
-  const allData = await loadTripData(userId);
+  const db = getDb(userId);
 
   // Load lookup-store (POD4) as fallback for older trips
   let lookupEntries = [];
   try {
-    const lookupStore = require('../analytics/lookup-store');
+    const { lookupStore } = require('../database/store-adapter');
     lookupEntries = await lookupStore.getEntries(userId);
   } catch (error) {
     logger.debug('[Trip Data Store] Could not load lookup-store for fallback:', error.message);
   }
 
   return historyEntries.map(entry => {
-    // Try exact match first from trip-data-store
-    const exactKey = `${entry.vessel_id}_${entry.created_at}`;
-    let tripData = allData[exactKey];
+    // Try exact match first from trip_data table
+    let tripData = getTripData(userId, entry.vessel_id, entry.created_at);
 
-    // If no exact match, try fuzzy matching in trip-data-store
+    // If no exact match, try fuzzy matching
     if (!tripData) {
       const entryTimestamp = new Date(entry.created_at).getTime();
-      tripData = findTripDataFuzzy(allData, entry.vessel_id, entryTimestamp);
+      tripData = findTripDataFuzzy(db, entry.vessel_id, entryTimestamp);
     }
 
-    // Return entry with trip data merged from trip-data-store
+    // Return entry with trip data merged from trip_data table
     // API provides: fuel_used (kg), route_income, cargo, distance, duration, wear
     // Our store provides: harbor_fee, contribution, speed, guards, co2_used, rates, utilization
+    // Use ?? to preserve existing entry values if tripData field is null/undefined
     if (tripData) {
       return {
         ...entry,
         // fuel_used comes from API (in kg) - never overwrite it
         harbor_fee: tripData.harborFee ?? entry.harbor_fee,
-        contribution_gained: tripData.contributionGained,
-        speed: tripData.speed,
-        guards: tripData.guards,
-        co2_used: tripData.co2Used,
-        capacity: tripData.capacity,
-        utilization: tripData.utilization,
-        dry_rate: tripData.dryRate,
-        ref_rate: tripData.refRate,
-        fuel_rate: tripData.fuelRate,
-        crude_rate: tripData.crudeRate,
-        is_drydock_operation: tripData.isDrydockOperation
+        contribution_gained: tripData.contributionGained ?? entry.contribution_gained,
+        speed: tripData.speed ?? entry.speed,
+        guards: tripData.guards ?? entry.guards,
+        co2_used: tripData.co2Used ?? entry.co2_used,
+        capacity: tripData.capacity ?? entry.capacity,
+        utilization: tripData.utilization ?? entry.utilization,
+        dry_rate: tripData.dryRate ?? entry.dry_rate,
+        ref_rate: tripData.refRate ?? entry.ref_rate,
+        fuel_rate: tripData.fuelRate ?? entry.fuel_rate,
+        crude_rate: tripData.crudeRate ?? entry.crude_rate,
+        is_drydock_operation: tripData.isDrydockOperation ?? entry.is_drydock_operation
       };
     }
 
@@ -253,153 +255,71 @@ async function enrichHistoryWithTripData(userId, historyEntries) {
       return {
         ...entry,
         // pod2_vessel has: harborFee (negative), contributionGained, speed, guards, co2Used, etc.
-        harbor_fee: lookupData.harborFee ? Math.abs(lookupData.harborFee) : null,
-        contribution_gained: lookupData.contributionGained,
-        speed: lookupData.speed,
-        guards: lookupData.guards,
-        co2_used: lookupData.co2Used,
-        capacity: lookupData.capacity,
-        utilization: lookupData.utilization,
-        dry_rate: lookupData.dryRate,
-        ref_rate: lookupData.refRate,
-        fuel_rate: lookupData.fuelRate,
-        crude_rate: lookupData.crudeRate,
-        is_drydock_operation: lookupData.isDrydockOperation
+        // Use ?? to preserve existing entry values if lookupData field is null/undefined
+        harbor_fee: lookupData.harborFee ? Math.abs(lookupData.harborFee) : entry.harbor_fee,
+        contribution_gained: lookupData.contributionGained ?? entry.contribution_gained,
+        speed: lookupData.speed ?? entry.speed,
+        guards: lookupData.guards ?? entry.guards,
+        co2_used: lookupData.co2Used ?? entry.co2_used,
+        capacity: lookupData.capacity ?? entry.capacity,
+        utilization: lookupData.utilization ?? entry.utilization,
+        dry_rate: lookupData.dryRate ?? entry.dry_rate,
+        ref_rate: lookupData.refRate ?? entry.ref_rate,
+        fuel_rate: lookupData.fuelRate ?? entry.fuel_rate,
+        crude_rate: lookupData.crudeRate ?? entry.crude_rate,
+        is_drydock_operation: lookupData.isDrydockOperation ?? entry.is_drydock_operation
       };
     }
 
-    // No match found in either store - keep API values, only add nulls for fields API doesn't provide
+    // No match found in either store - preserve existing values from entry (e.g., from getVesselTrips JOIN)
+    // Only set to null if entry doesn't have a value
     return {
       ...entry,
       // fuel_used comes from API (in kg) - already in entry, don't touch it
       harbor_fee: entry.harbor_fee ?? null,
-      contribution_gained: null,
-      speed: null,
-      guards: null,
-      co2_used: null,
-      capacity: null,
-      utilization: null,
-      dry_rate: null,
-      ref_rate: null,
-      fuel_rate: null,
-      crude_rate: null,
-      is_drydock_operation: null
+      contribution_gained: entry.contribution_gained ?? null,
+      speed: entry.speed ?? null,
+      guards: entry.guards ?? null,
+      co2_used: entry.co2_used ?? null,
+      capacity: entry.capacity ?? null,
+      utilization: entry.utilization ?? null,
+      dry_rate: entry.dry_rate ?? null,
+      ref_rate: entry.ref_rate ?? null,
+      fuel_rate: entry.fuel_rate ?? null,
+      crude_rate: entry.crude_rate ?? null,
+      is_drydock_operation: entry.is_drydock_operation ?? null
     };
   });
 }
 
 /**
- * Migrates data from old separate stores to unified store
- * @param {number} userId - User ID
- * @returns {Promise<boolean>} True if migration was performed
- */
-async function migrateFromOldStores(userId) {
-  await ensureDirectory();
-
-  const unifiedData = await loadTripData(userId);
-  let migrated = false;
-
-  // Migration paths for old stores
-  const oldStores = [
-    {
-      dir: isPkg
-        ? path.join(getAppBaseDir(), 'userdata', 'harbor-fees')
-        : path.join(__dirname, '../../userdata/harbor-fees'),
-      file: `harbor-fees-${userId}.json`,
-      field: 'harborFee'
-    },
-    {
-      dir: isPkg
-        ? path.join(getAppBaseDir(), 'userdata', 'contributions')
-        : path.join(__dirname, '../../userdata/contributions'),
-      file: `contributions-${userId}.json`,
-      field: 'contributionGained'
-    },
-    {
-      dir: isPkg
-        ? path.join(getAppBaseDir(), 'userdata', 'departure-data')
-        : path.join(__dirname, '../../userdata/departure-data'),
-      file: `departure-data-${userId}.json`,
-      isObject: true // This store has object values, not single values
-    }
-  ];
-
-  for (const store of oldStores) {
-    try {
-      const oldFilePath = path.join(store.dir, store.file);
-      const oldData = JSON.parse(await fs.readFile(oldFilePath, 'utf8'));
-
-      for (const [key, value] of Object.entries(oldData)) {
-        if (!unifiedData[key]) {
-          unifiedData[key] = {};
-        }
-
-        if (store.isObject) {
-          // departure-data-store has object values
-          unifiedData[key] = { ...unifiedData[key], ...value };
-        } else {
-          // harbor-fee and contribution stores have single values
-          unifiedData[key][store.field] = value;
-        }
-      }
-
-      migrated = true;
-      logger.info(`[Trip Data Store] Migrated data from ${store.file}`);
-    } catch (error) {
-      if (error.code !== 'ENOENT') {
-        logger.warn(`[Trip Data Store] Could not migrate ${store.file}: ${error.message}`);
-      }
-    }
-  }
-
-  if (migrated) {
-    await saveTripDataToDisk(userId, unifiedData);
-    logger.info(`[Trip Data Store] Migration complete for user ${userId}`);
-  }
-
-  return migrated;
-}
-
-// Migration marker file path
-const MIGRATION_MARKER_FILE = path.join(TRIP_DATA_DIR, '.migration-completed');
-
-/**
- * Checks if migration has already been completed
- * @returns {Promise<boolean>} True if migration was already done
- */
-async function isMigrationCompleted() {
-  try {
-    await fs.access(MIGRATION_MARKER_FILE);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Marks migration as completed
- * @returns {Promise<void>}
- */
-async function markMigrationCompleted() {
-  try {
-    await ensureDirectory();
-    await fs.writeFile(MIGRATION_MARKER_FILE, new Date().toISOString(), 'utf8');
-    logger.info('[Trip Data Store] Migration marked as completed');
-  } catch (error) {
-    logger.error('[Trip Data Store] Failed to mark migration as completed:', error.message);
-  }
-}
-
-/**
- * Saves harbor fee only (compatibility wrapper for migrate-harbor-fees.js)
+ * Saves harbor fee only (compatibility wrapper)
  * @param {number} userId - User ID
  * @param {number} vesselId - Vessel ID
  * @param {string} timestamp - Trip timestamp
  * @param {number} harborFee - Harbor fee amount
- * @returns {Promise<void>}
+ * @returns {void}
  */
-async function saveHarborFee(userId, vesselId, timestamp, harborFee) {
-  await saveTripData(userId, vesselId, timestamp, { harborFee });
+function saveHarborFee(userId, vesselId, timestamp, harborFee) {
+  saveTripData(userId, vesselId, timestamp, { harborFee });
+}
+
+/**
+ * Migration is handled by database/migration.js - these are kept for compatibility
+ * @returns {Promise<boolean>} Always returns false (migration handled elsewhere)
+ */
+async function migrateFromOldStores() {
+  // Migration is now handled by database/migration.js
+  return false;
+}
+
+async function isMigrationCompleted() {
+  // Migration is now handled by database/migration.js
+  return true;
+}
+
+async function markMigrationCompleted() {
+  // Migration is now handled by database/migration.js
 }
 
 module.exports = {

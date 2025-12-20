@@ -17,9 +17,9 @@
 const express = require('express');
 const router = express.Router();
 const aggregator = require('../analytics/aggregator');
-const vesselHistoryStore = require('../analytics/vessel-history-store');
-const lookupStore = require('../analytics/lookup-store');
+const { vesselHistoryStore, lookupStore, portDemandStore } = require('../database/store-adapter');
 const apiStatsStore = require('../analytics/api-stats-store');
+const portDemandSync = require('../services/port-demand-sync');
 const { getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const config = require('../config');
@@ -532,10 +532,53 @@ router.post('/lookup/build', async (req, res) => {
     logger.info(`[Analytics] Building lookup table (days=${days})...`);
 
     const result = await lookupStore.buildLookup(userId, days);
-    res.json({ success: true, ...result });
+
+    // Also rematch existing entries with POD3 (fixes entries created before vessel history sync)
+    const rematchResult = await lookupStore.rematchPOD3(userId);
+
+    res.json({ success: true, ...result, rematch: rematchResult });
   } catch (error) {
     logger.error('[Analytics] Error building lookup:', error);
     res.status(500).json({ error: 'Failed to build lookup' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/all
+ * Get all lookup data in a single request (totals, breakdown, daily, info)
+ * This is much faster than making 4 separate requests since the 78MB+ JSON
+ * file only needs to be loaded once.
+ *
+ * Query params:
+ * - days: Number of days (default: 0 = all)
+ */
+router.get('/lookup/all', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const days = parseInt(req.query.days, 10) || 0;
+
+    // Load store once and calculate all metrics
+    const [totals, breakdown, daily, info] = await Promise.all([
+      lookupStore.getTotals(userId, days),
+      lookupStore.getBreakdownByType(userId, days),
+      lookupStore.getBreakdownByDay(userId, days),
+      lookupStore.getStoreInfo(userId)
+    ]);
+
+    res.json({
+      totals,
+      breakdown,
+      daily,
+      info,
+      days
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup all:', error.message);
+    res.status(500).json({ error: 'Failed to get lookup data' });
   }
 });
 
@@ -585,6 +628,7 @@ router.get('/lookup/entries', async (req, res) => {
 router.get('/lookup/totals', async (req, res) => {
   try {
     const userId = getUserId();
+    logger.debug(`[Analytics] /lookup/totals called, userId=${userId}, days=${req.query.days}`);
     if (!userId) {
       return res.status(401).json({ error: 'Not authenticated' });
     }
@@ -594,7 +638,8 @@ router.get('/lookup/totals', async (req, res) => {
 
     res.json(totals);
   } catch (error) {
-    logger.error('[Analytics] Error getting lookup totals:', error);
+    logger.error('[Analytics] Error getting lookup totals:', error.message);
+    logger.error('[Analytics] Stack:', error.stack);
     res.status(500).json({ error: 'Failed to get lookup totals' });
   }
 });
@@ -752,6 +797,26 @@ router.delete('/lookup/clear', async (req, res) => {
 });
 
 /**
+ * POST /api/analytics/lookup/rematch
+ * Re-match existing lookup entries with POD3 (vessel history)
+ * Call this after vessel history sync to fix entries created before sync
+ */
+router.post('/lookup/rematch', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const result = await lookupStore.rematchPOD3(userId);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    logger.error('[Analytics] Error rematching POD3:', error);
+    res.status(500).json({ error: 'Failed to rematch POD3' });
+  }
+});
+
+/**
  * GET /api/analytics/devel-mode
  * Returns whether developer mode is enabled (undocumented feature)
  */
@@ -854,6 +919,261 @@ router.get('/route-vessels', async (req, res) => {
   } catch (error) {
     logger.error('[Analytics] Error getting route vessels:', error);
     res.status(500).json({ error: 'Failed to get route vessel data' });
+  }
+});
+
+/**
+ * GET /api/analytics/test-vessel-history/:vesselId
+ * Debug endpoint to see what Game API returns for a single vessel
+ */
+router.get('/test-vessel-history/:vesselId', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const vesselId = parseInt(req.params.vesselId, 10);
+    const { apiCallWithRetry } = require('../utils/api');
+    const { getDb } = require('../database/index');
+
+    // Get current oldest entry for this vessel in DB
+    const db = getDb(userId);
+    const oldest = db.prepare('SELECT MIN(timestamp) as ts FROM departures WHERE vessel_id = ?').get(vesselId);
+    const count = db.prepare('SELECT COUNT(*) as c FROM departures WHERE vessel_id = ?').get(vesselId);
+
+    // Query Game API directly
+    const response = await apiCallWithRetry('/vessel/get-vessel-history', 'POST', { vessel_id: vesselId });
+
+    if (response.data?.vessel_history) {
+      const history = response.data.vessel_history;
+      history.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+      res.json({
+        vesselId,
+        vesselName: response.data.user_vessel?.name,
+        database: {
+          entryCount: count.c,
+          oldestEntry: oldest.ts ? new Date(oldest.ts).toISOString() : null
+        },
+        gameApi: {
+          entryCount: history.length,
+          oldestEntry: history.length > 0 ? history[0].created_at : null,
+          newestEntry: history.length > 0 ? history[history.length - 1].created_at : null,
+          sampleEntries: history.slice(0, 3).map(h => ({ created_at: h.created_at, route: `${h.route_origin} -> ${h.route_destination}` }))
+        }
+      });
+    } else {
+      res.json({
+        vesselId,
+        error: 'No history returned',
+        response
+      });
+    }
+  } catch (error) {
+    logger.error('[Analytics] Error testing vessel history:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/analytics/force-resync
+ * Force a complete resync of vessel history from Game API
+ * This fetches the ENTIRE history for all vessels, not just new entries
+ * Use this to fill in missing historical data
+ */
+router.post('/force-resync', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    logger.info('[Analytics] Force resync requested - fetching complete vessel history from Game API');
+
+    // Get current state before resync
+    const infoBefore = await vesselHistoryStore.getStoreInfo(userId);
+
+    // Run force resync - this fetches COMPLETE history for all vessels
+    const syncResult = await vesselHistoryStore.syncVesselHistory(userId, { forceResync: true });
+
+    // Get state after resync
+    const infoAfter = await vesselHistoryStore.getStoreInfo(userId);
+
+    // Rebuild lookup to match new POD3 entries
+    const lookupResult = await lookupStore.buildLookup(userId, 0);
+
+    logger.info(`[Analytics] Force resync complete: ${syncResult.newEntries} new departures, lookup matched POD3=${lookupResult.matchedPod3}`);
+
+    res.json({
+      success: true,
+      message: 'Force resync complete',
+      sync: {
+        newEntries: syncResult.newEntries,
+        totalDepartures: infoAfter.totalDepartures,
+        departuresBefore: infoBefore.totalDepartures,
+        oldestDeparture: infoAfter.oldestDeparture,
+        newestDeparture: infoAfter.newestDeparture
+      },
+      lookup: {
+        newEntries: lookupResult.newEntries,
+        matchedPod2: lookupResult.matchedPod2,
+        matchedPod3: lookupResult.matchedPod3
+      }
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error during force resync:', error);
+    res.status(500).json({ error: 'Failed to force resync vessel history' });
+  }
+});
+
+// ============================================================================
+// PORT DEMAND HISTORY ENDPOINTS
+// ============================================================================
+
+/**
+ * GET /api/analytics/port-demand/status
+ * Returns sync status and store statistics
+ */
+router.get('/port-demand/status', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const syncStatus = portDemandSync.getStatus();
+    const storeStats = await portDemandStore.getStoreStats(userId);
+
+    res.json({
+      sync: syncStatus,
+      store: storeStats
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting port demand status:', error);
+    res.status(500).json({ error: 'Failed to get port demand status' });
+  }
+});
+
+/**
+ * GET /api/analytics/port-demand/history/:portCode
+ * Returns demand history for a specific port
+ *
+ * Query params:
+ * - days: Number of days to look back (default 7)
+ */
+router.get('/port-demand/history/:portCode', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { portCode } = req.params;
+    const days = parseInt(req.query.days, 10);
+    if (isNaN(days)) {
+      return res.status(400).json({ error: 'Invalid days parameter' });
+    }
+
+    const history = await portDemandStore.getPortHistory(userId, portCode, days);
+
+    res.json({
+      portCode,
+      days,
+      entries: history.length,
+      history
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting port demand history:', error);
+    res.status(500).json({ error: 'Failed to get port demand history' });
+  }
+});
+
+/**
+ * GET /api/analytics/port-demand/trends/:portCode
+ * Returns hourly demand trends for a port
+ *
+ * Query params:
+ * - days: Number of days to analyze (default 7)
+ */
+router.get('/port-demand/trends/:portCode', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const { portCode } = req.params;
+    const days = parseInt(req.query.days, 10);
+    if (isNaN(days)) {
+      return res.status(400).json({ error: 'Invalid days parameter' });
+    }
+
+    const trends = await portDemandStore.getPortTrends(userId, portCode, days);
+
+    res.json({
+      portCode,
+      days,
+      trends
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting port demand trends:', error);
+    res.status(500).json({ error: 'Failed to get port demand trends' });
+  }
+});
+
+/**
+ * GET /api/analytics/port-demand/latest
+ * Returns latest demand snapshot for all ports
+ */
+router.get('/port-demand/latest', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const latest = await portDemandStore.getLatestDemand(userId);
+
+    res.json({
+      ports: latest.length,
+      data: latest
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting latest port demand:', error);
+    res.status(500).json({ error: 'Failed to get latest port demand' });
+  }
+});
+
+/**
+ * POST /api/analytics/port-demand/cleanup
+ * Cleans up old entries (admin function)
+ *
+ * Body:
+ * - daysToKeep: Number of days to keep (default 30)
+ */
+router.post('/port-demand/cleanup', express.json(), async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const daysToKeep = parseInt(req.body.daysToKeep, 10);
+    if (isNaN(daysToKeep)) {
+      return res.status(400).json({ error: 'Invalid daysToKeep parameter' });
+    }
+
+    const deleted = await portDemandStore.cleanupOldEntries(userId, daysToKeep);
+
+    res.json({
+      success: true,
+      deleted,
+      daysKept: daysToKeep
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error cleaning up port demand:', error);
+    res.status(500).json({ error: 'Failed to cleanup port demand history' });
   }
 });
 

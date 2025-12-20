@@ -9,12 +9,12 @@
  *
  * @module server/routes/transactions
  * @requires express
- * @requires ../analytics/transaction-store
+ * @requires ../database/store-adapter
  */
 
 const express = require('express');
 const router = express.Router();
-const transactionStore = require('../analytics/transaction-store');
+const { transactionStore } = require('../database/store-adapter');
 const { getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 

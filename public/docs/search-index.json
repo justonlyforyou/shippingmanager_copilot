@@ -295,27 +295,6 @@
   },
   {
     "type": "module",
-    "name": "server/analytics/lookup-store",
-    "longname": "module:server/analytics/lookup-store",
-    "url": "module-server_analytics_lookup-store.html",
-    "description": "<p>Lookup Store (POD4)</p>\n<p>Combines data from all three PODs into a unified lookup table:</p>\n<ul>\n<li>POD1: Game Transactions (transaction-store.js)</li>\n<li>POD2: Audit Log (logbook.js)</li>\n<li>POD3: Vessel History (vessel-history-store.js)</li>\n</ul>\n<p>Matching algorithm:</p>\n<ol>\n<li>Exact: timestamp === pod2.timestamp &amp;&amp; cash === pod2.cash</li>\n<li>Near: |timestamp - pod2.timestamp| &lt;= 2000ms &amp;&amp; cash === pod2.cash</li>\n<li>Tolerant: |timestamp - pod2.timestamp| &lt;= 2000ms &amp;&amp; |cash - pod2.cash| &lt;= cash * 0.10</li>\n</ol>"
-  },
-  {
-    "type": "module",
-    "name": "server/analytics/transaction-store",
-    "longname": "module:server/analytics/transaction-store",
-    "url": "module-server_analytics_transaction-store.html",
-    "description": "<p>Transaction Store</p>\n<p>Fetches and stores game transaction history locally.\nThe game API only provides ~7 days of data via /user/get-weekly-transactions\nThis module stores all transactions persistently for long-term analytics.</p>"
-  },
-  {
-    "type": "module",
-    "name": "server/analytics/vessel-history-store",
-    "longname": "module:server/analytics/vessel-history-store",
-    "url": "module-server_analytics_vessel-history-store.html",
-    "description": "<p>Vessel History Store</p>\n<p>Fetches and caches vessel trip history from the Game API.\nTransforms historical data into &quot;Game Departure&quot; entries compatible\nwith the audit log format for analytics merging.</p>\n<p>Features:</p>\n<ul>\n<li>Incremental sync: tracks per-vessel sync state</li>\n<li>Resumable: saves progress after each vessel</li>\n<li>Auto-start: can run in background on server startup</li>\n<li>Only fetches new entries since last sync per vessel</li>\n</ul>"
-  },
-  {
-    "type": "module",
     "name": "server/automation",
     "longname": "module:server/automation",
     "url": "module-server_automation.html",
@@ -474,6 +453,83 @@
     "longname": "module:server/config",
     "url": "module-server_config.html",
     "description": "<p>Centralized configuration for Shipping Manager application.\nContains all server settings, API endpoints, rate limiting rules, and timing intervals.\nSession cookie is loaded from encrypted sessions.json (secure storage).</p>\n<p>Important configuration notes:</p>\n<ul>\n<li>All settings loaded from userdata/settings/settings.json (NO env vars)</li>\n<li>Rate limits are set conservatively to avoid API detection</li>\n<li>Chat refresh interval is 25 seconds (within the 29-minute price window)</li>\n<li>Session cookie provides full account access - never log or expose it</li>\n</ul>"
+  },
+  {
+    "type": "module",
+    "name": "server/database",
+    "longname": "module:server/database",
+    "url": "module-server_database.html",
+    "description": "<p>SQLite Database Core Module</p>\n<p>Centralized database management with automatic JSON migration.\nUses better-sqlite3 for synchronous, high-performance SQLite operations.</p>\n<p>Features:</p>\n<ul>\n<li>Per-user databases for data isolation</li>\n<li>Automatic schema creation and upgrades</li>\n<li>One-time JSON to SQLite migration</li>\n<li>Transaction support</li>\n<li>WAL mode for better concurrency</li>\n</ul>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/alliance-cache",
+    "longname": "module:server/database/alliance-cache",
+    "url": "module-server_database_alliance-cache.html",
+    "description": "<p>Alliance Pool SQLite Cache</p>\n<p>Fast searchable cache for alliance data.\nReplaces alliance_pool.json with SQLite for faster queries.</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/init",
+    "longname": "module:server/database/init",
+    "url": "module-server_database_init.html",
+    "description": "<p>Database Initialization Module</p>\n<p>Handles automatic migration from JSON to SQLite on first run.\nCall initDatabase() during server startup to ensure data is migrated.</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/json-repair",
+    "longname": "module:server/database/json-repair",
+    "url": "module-server_database_json-repair.html",
+    "description": "<p>JSON File Repair Utility</p>\n<p>Automatically repairs corrupted JSON files before migration.\nHandles common corruption patterns:</p>\n<ul>\n<li>Truncated files (incomplete writes)</li>\n<li>Garbage appended after valid JSON</li>\n<li>Bad control characters</li>\n<li>Incomplete array/object closures</li>\n</ul>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/migration",
+    "longname": "module:server/database/migration",
+    "url": "module-server_database_migration.html",
+    "description": "<p>JSON to SQLite Migration Module</p>\n<p>Handles one-time migration of existing JSON data files to SQLite.\nDesigned to be extremely robust and never lose data.</p>\n<p>Features:</p>\n<ul>\n<li>Transactional imports (all or nothing per file)</li>\n<li>Moves migrated JSON files to userdata/olddata/{subfolder}/</li>\n<li>Logs all operations for debugging</li>\n<li>Handles corrupt/partial JSON files gracefully</li>\n<li>Idempotent - safe to run multiple times</li>\n</ul>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/store-adapter",
+    "longname": "module:server/database/store-adapter",
+    "url": "module-server_database_store-adapter.html",
+    "description": "<p>Store Adapter</p>\n<p>Provides SQLite-based stores for analytics data.\nHandles automatic migration on first access.</p>\n<p>Usage:\nconst { transactionStore, vesselHistoryStore, lookupStore, portDemandStore } = require('./database/store-adapter');</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/stores",
+    "longname": "module:server/database/stores",
+    "url": "module-server_database_stores.html",
+    "description": "<p>SQLite Store Exports</p>\n<p>Central export point for all SQLite-based stores.\nThese are drop-in replacements for the JSON-based stores.</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/stores/lookup-store",
+    "longname": "module:server/database/stores/lookup-store",
+    "url": "module-server_database_stores_lookup-store.html",
+    "description": "<p>SQLite-based Lookup Store (POD4)</p>\n<p>Drop-in replacement for the JSON-based lookup store.\nCombines data from POD1 (transactions), POD2 (autopilot log), POD3 (vessel history).</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/stores/port-demand-store",
+    "longname": "module:server/database/stores/port-demand-store",
+    "url": "module-server_database_stores_port-demand-store.html",
+    "description": "<p>Port Demand History Store</p>\n<p>Tracks port demand changes over time for analytics.\nStores demand and consumed values for container (dry/refrigerated) and tanker (fuel/crude) cargo.</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/stores/transaction-store",
+    "longname": "module:server/database/stores/transaction-store",
+    "url": "module-server_database_stores_transaction-store.html",
+    "description": "<p>SQLite-based Transaction Store</p>\n<p>Drop-in replacement for the JSON-based transaction store.\nAll data is stored in SQLite for better performance and reliability.</p>"
+  },
+  {
+    "type": "module",
+    "name": "server/database/stores/vessel-history-store",
+    "longname": "module:server/database/stores/vessel-history-store",
+    "url": "module-server_database_stores_vessel-history-store.html",
+    "description": "<p>SQLite-based Vessel History Store</p>\n<p>Drop-in replacement for the JSON-based vessel history store.\nStores vessel trip history in SQLite for better performance.</p>"
   },
   {
     "type": "module",
@@ -743,6 +799,13 @@
   },
   {
     "type": "module",
+    "name": "server/services/port-demand-sync",
+    "longname": "module:server/services/port-demand-sync",
+    "url": "module-server_services_port-demand-sync.html",
+    "description": "<p>Port Demand Sync Service</p>\n<p>Continuously syncs port demand data for all ports.\nDistributes API calls evenly over 30 minutes to avoid rate limiting.</p>\n<p>Strategy:</p>\n<ul>\n<li>360 ports / 30 minutes = 12 ports per minute = 1 port every 5 seconds</li>\n<li>Fetches demand via /port/get-ports for each port</li>\n<li>Stores in SQLite for historical analysis</li>\n</ul>"
+  },
+  {
+    "type": "module",
     "name": "server/settings-schema",
     "longname": "module:server/settings-schema",
     "url": "module-server_settings-schema.html",
@@ -788,7 +851,7 @@
     "name": "server/utils/ipo-tracker",
     "longname": "module:server/utils/ipo-tracker",
     "url": "module-server_utils_ipo-tracker.html",
-    "description": "<p>IPO Tracking Module</p>\n<p>This module manages tracking of seen IPOs to detect new ones.\nIt provides persistent storage of the highest seen user ID and\na set of all seen IPO user IDs.</p>\n<p>Key Features:</p>\n<ul>\n<li>Persistent tracking of seen IPO user IDs</li>\n<li>Highest user ID tracking for efficient new IPO detection</li>\n<li>JSON file storage in userdata/settings/</li>\n<li>In-memory cache for performance</li>\n</ul>\n<p>Storage Format:\n{\n&quot;highestSeenUserId&quot;: 123456,\n&quot;seenIpoUserIds&quot;: [123456, 123455, 123454, ...]\n}</p>"
+    "description": "<p>IPO Tracking Module</p>\n<p>This module manages tracking of seen IPOs to detect new ones.\nUses SQLite (alliance_cache.db) for persistent storage.</p>\n<p>Key Features:</p>\n<ul>\n<li>Persistent tracking of seen IPO user IDs</li>\n<li>Highest user ID tracking for efficient new IPO detection</li>\n<li>SQLite storage in alliance_cache.db</li>\n<li>In-memory cache for performance</li>\n<li>Auto-migration from legacy JSON file</li>\n</ul>"
   },
   {
     "type": "module",
@@ -809,7 +872,7 @@
     "name": "server/utils/read-tracker",
     "longname": "module:server/utils/read-tracker",
     "url": "module-server_utils_read-tracker.html",
-    "description": "<p>Alliance Chat Read Tracking Module</p>\n<p>This module manages per-user read timestamps for alliance chat messages.\nIt provides persistent storage of when each user last read the alliance chat,\nenabling accurate unread counts and preventing duplicate notifications.</p>\n<p>Key Features:</p>\n<ul>\n<li>Per-user read timestamp storage</li>\n<li>Persistent JSON file storage in userdata/settings/</li>\n<li>Thread-safe read/write operations</li>\n<li>Automatic file creation if missing</li>\n<li>Graceful error handling</li>\n</ul>\n<p>Why This Exists:</p>\n<ul>\n<li>Game API does not track alliance chat read status (unlike private messages)</li>\n<li>localStorage-based tracking doesn't sync across devices/browsers</li>\n<li>Backend tracking enables consistent state across all connected clients</li>\n<li>Prevents old messages from repeatedly showing as unread</li>\n<li>Stops notification spam from messages user has already seen</li>\n</ul>\n<p>Storage Format:\n{\n&quot;userId1&quot;: {\n&quot;allianceChatLastRead&quot;: 1699876543000  // Unix timestamp in milliseconds\n},\n&quot;userId2&quot;: {\n&quot;allianceChatLastRead&quot;: 1699876600000\n}\n}</p>\n<p>Design Decisions:</p>\n<ul>\n<li>Timestamps in milliseconds (matches JavaScript Date.getTime())</li>\n<li>Per-user storage (multiple users can use same server)</li>\n<li>JSON format for human readability and easy debugging</li>\n<li>Stored in userdata/settings/ alongside other user settings</li>\n<li>Single file for all users (simpler than per-user files)</li>\n</ul>"
+    "description": "<p>Alliance Chat Read Tracking Module</p>\n<p>This module manages per-user read timestamps for alliance chat messages.\nUses SQLite (per-user database metadata table) for persistent storage.</p>\n<p>Key Features:</p>\n<ul>\n<li>Per-user read timestamp storage</li>\n<li>Persistent SQLite storage</li>\n<li>In-memory cache for performance</li>\n<li>Auto-migration from legacy JSON file</li>\n</ul>\n<p>Why This Exists:</p>\n<ul>\n<li>Game API does not track alliance chat read status (unlike private messages)</li>\n<li>Backend tracking enables consistent state across all connected clients</li>\n<li>Prevents old messages from repeatedly showing as unread</li>\n</ul>"
   },
   {
     "type": "module",
@@ -830,7 +893,7 @@
     "name": "server/utils/trip-data-store",
     "longname": "module:server/utils/trip-data-store",
     "url": "module-server_utils_trip-data-store.html",
-    "description": "<p>Unified Trip Data Storage</p>\n<p>Stores all additional trip data for vessel history enrichment:</p>\n<ul>\n<li>Harbor fees</li>\n<li>Contribution gains</li>\n<li>Speed, guards, CO2 used</li>\n<li>Cargo rates and utilization</li>\n</ul>\n<p>Consolidates harbor-fee-store, contribution-store, and departure-data-store\ninto a single unified store.</p>"
+    "description": "<p>Unified Trip Data Storage (SQLite)</p>\n<p>Stores all additional trip data for vessel history enrichment:</p>\n<ul>\n<li>Harbor fees</li>\n<li>Contribution gains</li>\n<li>Speed, guards, CO2 used</li>\n<li>Cargo rates and utilization</li>\n</ul>\n<p>Uses SQLite for reliable ACID-compliant storage.</p>"
   },
   {
     "type": "module",
@@ -858,7 +921,7 @@
     "name": "server/websocket/hijacking-cache",
     "longname": "module:server/websocket/hijacking-cache",
     "url": "module-server_websocket_hijacking-cache.html",
-    "description": "<p>Hijacking Case Caching - File-Based Persistent Cache</p>\n<p>Uses LOCAL FILES to cache hijacking case details - NO API calls for resolved cases!\nStrategy:</p>\n<ul>\n<li>First check: Local file in userdata/hijack_history/{userId}-{caseId}.json</li>\n<li>If file has resolved:true -&gt; Use local data, ZERO API calls</li>\n<li>If no file or not resolved -&gt; API call once, then save locally</li>\n</ul>\n<p>This eliminates ALL API calls for resolved cases, even after server restart!</p>"
+    "description": "<p>Hijacking Case Caching - SQLite-Based Persistent Cache</p>\n<p>Uses SQLite to cache hijacking case details - NO API calls for resolved cases!\nStrategy:</p>\n<ul>\n<li>First check: SQLite database for user</li>\n<li>If resolved -&gt; Use local data, ZERO API calls</li>\n<li>If no record or not resolved -&gt; API call once, then save to SQLite</li>\n</ul>\n<p>This eliminates ALL API calls for resolved cases, even after server restart!</p>"
   },
   {
     "type": "module",
@@ -879,7 +942,7 @@
     "name": "server/websocket/message-cache",
     "longname": "module:server/websocket/message-cache",
     "url": "module-server_websocket_message-cache.html",
-    "description": "<p>Processed DM Message ID Caching</p>\n<p>Manages persistence of processed message IDs to prevent duplicate bot replies.\nEach user has their own cache file stored in userdata/chatbot/.</p>"
+    "description": "<p>Processed DM Message ID Caching (SQLite)</p>\n<p>Manages persistence of processed message IDs to prevent duplicate bot replies.\nUses SQLite for reliable storage with ACID transactions.\nAuto-migrates from legacy JSON files.</p>"
   },
   {
     "type": "module",
@@ -893,7 +956,7 @@
     "name": "server/websocket/messenger-content-cache",
     "longname": "module:server/websocket/messenger-content-cache",
     "url": "module-server_websocket_messenger-content-cache.html",
-    "description": "<p>Messenger Content Cache</p>\n<p>Local file-based cache for messenger message content.\nStores full message history per chat to enable instant loading.</p>\n<p>Cache Strategy:</p>\n<ul>\n<li>Messages are cached when WebSocket refresh detects new messages</li>\n<li>Cache is updated in background, not blocking UI</li>\n<li>When user opens a chat, messages load from cache instantly</li>\n<li>Fresh data is fetched only if cache is empty or stale</li>\n</ul>"
+    "description": "<p>Messenger Content Cache (SQLite)</p>\n<p>SQLite-based cache for messenger message content.\nStores full message history per chat to enable instant loading.</p>\n<p>Cache Strategy:</p>\n<ul>\n<li>Messages are cached when WebSocket refresh detects new messages</li>\n<li>Cache is updated in background, not blocking UI</li>\n<li>When user opens a chat, messages load from cache instantly</li>\n<li>Fresh data is fetched only if cache is empty or stale</li>\n</ul>"
   },
   {
     "type": "module",
@@ -980,11 +1043,18 @@
     "description": "<p>Create the navigation sidebar.</p>"
   },
   {
+    "type": "member",
+    "name": "crypto",
+    "longname": "crypto",
+    "url": "global.html#crypto",
+    "description": "<p>Autopilot Logbook Module</p>\n<p>Manages logging of all autopilot actions (success and errors) for debugging,\ntransparency, and accountability. Logs are stored in SQLite database.</p>\n<p>Features:</p>\n<ul>\n<li>SQLite storage for reliable persistence</li>\n<li>Filter support (status, time range, search)</li>\n<li>Export to TXT, CSV, JSON formats</li>\n<li>Manual deletion</li>\n</ul>"
+  },
+  {
     "type": "function",
     "name": "deleteAllLogs",
     "longname": "deleteAllLogs",
     "url": "global.html#deleteAllLogs",
-    "description": "<p>Delete all logs for a user (manual cleanup)</p>"
+    "description": "<p>Delete all logs for a user</p>"
   },
   {
     "type": "function",
@@ -1012,7 +1082,7 @@
     "name": "flushAllToDisk",
     "longname": "flushAllToDisk",
     "url": "global.html#flushAllToDisk",
-    "description": "<p>Flush all dirty caches to disk</p>"
+    "description": "<p>Flush to disk (no-op for SQLite - writes are immediate)</p>"
   },
   {
     "type": "function",
@@ -1041,13 +1111,6 @@
     "longname": "formatLogsAsTXT",
     "url": "global.html#formatLogsAsTXT",
     "description": "<p>Format logs as TXT (human-readable)</p>"
-  },
-  {
-    "type": "member",
-    "name": "fs",
-    "longname": "fs",
-    "url": "global.html#fs",
-    "description": "<p>Autopilot Logbook Module</p>\n<p>Manages logging of all autopilot actions (success and errors) for debugging,\ntransparency, and accountability. Logs are stored per-user in JSON format.</p>\n<p>Features:</p>\n<ul>\n<li>In-memory cache with periodic disk writes (every 30 seconds)</li>\n<li>Atomic file writes to prevent corruption</li>\n<li>Filter support (status, time range, search)</li>\n<li>Export to TXT, CSV, JSON formats</li>\n<li>Manual deletion (no automatic rotation)</li>\n</ul>"
   },
   {
     "type": "member",
@@ -1086,31 +1149,31 @@
   },
   {
     "type": "function",
-    "name": "getLogEntries",
-    "longname": "getLogEntries",
-    "url": "global.html#getLogEntries",
-    "description": "<p>Get log entries with optional filters</p>"
+    "name": "getLogCount",
+    "longname": "getLogCount",
+    "url": "global.html#getLogCount",
+    "description": "<p>Get log count</p>"
   },
   {
     "type": "function",
-    "name": "getLogFilePath",
-    "longname": "getLogFilePath",
-    "url": "global.html#getLogFilePath",
-    "description": "<p>Get the log file path for a user</p>"
+    "name": "getLogEntries",
+    "longname": "getLogEntries",
+    "url": "global.html#getLogEntries",
+    "description": "<p>Get log entries with optional filters from SQLite</p>"
   },
   {
     "type": "function",
     "name": "getLogFileSize",
     "longname": "getLogFileSize",
     "url": "global.html#getLogFileSize",
-    "description": "<p>Get log file size in bytes</p>"
+    "description": "<p>Get log file size in bytes (legacy compatibility - returns estimated size)</p>"
   },
   {
     "type": "function",
-    "name": "getLogsFromCache",
-    "longname": "getLogsFromCache",
-    "url": "global.html#getLogsFromCache",
-    "description": "<p>Get logs from cache (load from disk if not cached)</p>"
+    "name": "getPublicBaseDir",
+    "longname": "getPublicBaseDir",
+    "url": "global.html#getPublicBaseDir",
+    "description": "<p>Get base directory for public assets.\nSEA: __dirname = directory containing the executable (public/ is next to exe)\nDev: __dirname = server/utils/, go up two levels to project root</p>"
   },
   {
     "type": "function",
@@ -1125,13 +1188,6 @@
     "longname": "getTransactionType",
     "url": "global.html#getTransactionType",
     "description": "<p>Determines transaction type from log entry</p>"
-  },
-  {
-    "type": "function",
-    "name": "initialize",
-    "longname": "initialize",
-    "url": "global.html#initialize",
-    "description": "<p>Initialize the logbook system\nStart periodic disk writes</p>"
   },
   {
     "type": "function",
@@ -1160,13 +1216,6 @@
     "longname": "loadBaseTankerSvg",
     "url": "global.html#loadBaseTankerSvg",
     "description": "<p>Load base tanker SVG template</p>"
-  },
-  {
-    "type": "function",
-    "name": "loadLogsFromDisk",
-    "longname": "loadLogsFromDisk",
-    "url": "global.html#loadLogsFromDisk",
-    "description": "<p>Load logs from disk into memory cache</p>"
   },
   {
     "type": "function",
@@ -1250,7 +1299,7 @@
     "name": "shutdown",
     "longname": "shutdown",
     "url": "global.html#shutdown",
-    "description": "<p>Shutdown the logbook system gracefully</p>"
+    "description": "<p>Shutdown the logbook system gracefully (no-op for SQLite)</p>"
   },
   {
     "type": "function",
@@ -1302,13 +1351,6 @@
     "description": "<p>Unlocks the repair button when repair process completes.\nCalled by WebSocket handler when 'repair_complete' is received.\nUI-ONLY function - state is managed by server via lock_status events.</p>"
   },
   {
-    "type": "function",
-    "name": "writeLogsToDisk",
-    "longname": "writeLogsToDisk",
-    "url": "global.html#writeLogsToDisk",
-    "description": "<p>Write logs to disk atomically (temp file + rename)</p>"
-  },
-  {
     "type": "tutorial",
     "name": "Installation",
     "longname": "01-installation-guide",
@@ -1320,7 +1362,7 @@
     "name": "Build Guide",
     "longname": "02-build-guide",
     "url": "tutorial-02-build-guide.html",
-    "description": "Build Instructions Complete guide for compiling ShippingManager CoPilot into a standalone Windows executable. Prerequisites Required Software Node.js 22+ (https://nodejs.org/) node --version # Should be >= 22.0.0 Python 3.10+ (https://www.python.org/) python --version # Should be >= 3.10 .NET 8.0 SDK (https://dotnet.microsoft.com/download) dotnet --version # Should be >= 8.0 PyInstaller (for Python → .exe compilation) pip install pyinstaller pkg (for Node.js → .exe compilation) npm install -g pkg Python Dependencies Windows: pip install pywin32 cryptography keyring pystray pillow requests urllib3 Linux/Mac: pip install keyring cryptography pystray pillow requests urllib3 Node.js Dependencies npm install Build Process Quick Build (Recommended) The easiest way to build everything is using the automated build script: npm run build This single command will: Check all dependencies (Node.js, Python, PyInstaller, pkg, .NET SDK) Install Node.js dependencies Generate documentation Compile Node.js application to .exe (ShippingManagerCoPilot-Server.exe) Compile Python launcher with embedded Node.js server (ShippingManagerCoPilot.exe) Create deployment package with app-payload.zip Build WPF installer executable Output: dist/ShippingManagerCoPilot-v0.1.0/ (portable folder with single .exe) dist/ShippingManagerCoPilot-Installer-v0.1.0.exe (WPF installer) dist/checksums.txt (SHA256 hashes) public/docs/ (documentation) Options: npm run build -- --skip-deps # Skip npm install npm run build -- --skip-docs # Skip documentation generation npm run build -- --clean # Clean dist folder before build Example: # Fast rebuild without reinstalling dependencies npm run build -- --skip-deps # Clean build from scratch npm run build -- --clean Step-by-Step Build (Advanced) If you want to build components separately: Step 1: Compile Node.js Server to .exe IMPORTANT: This step MUST be done first, as the resulting .exe is embedded in the Python launcher. npm run build:node This creates: dist/ShippingManagerCoPilot-Server.exe (Node.js backend server) This file will be embedded as a resource in the Python launcher in the next step. Step 2: Compile Python Launcher with Embedded Server npm run build:python This creates: dist/ShippingManagerCoPilot.exe (Python launcher with embedded Node.js server) The Node.js server exe from Step 1 is automatically embedded as a resource and extracted to temp folder at runtime. Step 3: Package Everything node build-package.js This organizes all files into: dist/ShippingManagerCoPilot-v0.1.0/ ├── ShippingManagerCoPilot.exe (single-file: Python launcher + embedded Node.js server) ├── sysdata/ │ └── forecast/ (forecast cache, created at runtime) ├── userdata/ (user settings, created at runtime in AppData on first run) ├── public/ │ └── favicon.ico ├── README.md ├── LICENSE └── START_HERE.txt This also creates installer/Resources/app-payload.zip which embeds the entire application into the installer. Note: All helper scripts (get-session-windows, login-dialog, session-selector) are embedded in the main .exe file. Step 4: Build Installer node build-installer.js This creates: dist/ShippingManagerCoPilot-Installer-v0.1.0.exe (WPF installer with embedded app-payload.zip) dist/checksums.txt (SHA256 hash for verification) The installer is a self-contained Windows executable that: Guides users through installation with modern UI Allows custom installation path selection Creates Start Menu and Desktop shortcuts Registers with Windows Programs &amp; Features for uninstallation Extracts app-payload.zip to the chosen location Testing the Build Navigate to dist/ShippingManagerCoPilot-v0.1.0/ Double-click ShippingManagerCoPilot.exe Verify: Server starts at https://localhost:12345 Session extraction works Browser opens automatically All features functional Troubleshooting PyInstaller Issues Error: Module not found # Add missing modules to build-python.spec hiddenimports hiddenimports=['win32crypt', 'win32api', 'cryptography', 'your_missing_module'] Error: Failed to execute script Check Python script runs standalone first: python helper/get-session-windows.py Enable debug mode: Edit .spec file and set debug=True pkg Issues Error: Cannot find module pkg.assets is already configured in package.json (lines 19-38) Includes: public/, server/, sysdata/forecast/, all dependencies If adding new dependencies, add them to pkg.assets array If adding new folders, add them with glob pattern (folder + slash + two asterisks + slash + asterisk) Error: Native module not found Some modules (like keytar ) need native binaries Solution: Bundle as external dependency or use alternative File Size Optimization Current estimated sizes: Node.js Server .exe: ~80-100 MB (embedded) Python Launcher .exe (with embedded Node.js server): ~100-120 MB Total single-file executable: ~100-120 MB Reduce Size (Optional) Enable UPX compression (in build-python.spec): upx=True, upx_exclude=[], Exclude unused modules (in build-python.spec): excludes=['tkinter', 'matplotlib', 'numpy'], pkg compression : pkg . --compress GZip Distribution Portable ZIP cd dist powershell Compress-Archive -Path ShippingManagerCoPilot-v0.1.0 -DestinationPath ShippingManagerCoPilot-v0.1.0-Portable.zip The ZIP file contains the single-file executable and supporting files (README, LICENSE, data folder structure). Version Updates Update version in package.json Rebuild: npm run build Clean Build # Remove all build artifacts rmdir /s /q dist rmdir /s /q build # Rebuild from scratch npm run build -- --clean Creating Releases Release Process Releases are automated via GitHub Actions when you push a version tag: # 1. Update version in package.json npm version 0.1.0 --no-git-tag-version # 2. Commit version bump git add package.json git commit -m &quot;Release v0.1.0&quot; # 3. Create and push tag git tag v0.1.0 git push origin main git push origin v0.1.0 Or push both together: git push origin main --tags What Happens Next When you push a tag matching v* : GitHub Actions Triggers ( .github/workflows/build-multiplatform.yml ) Builds for all platforms in parallel: Windows (full features with Steam integration) macOS Intel (x64) macOS Apple Silicon (arm64) Linux (x64) Creates GitHub Release with all platform builds Uploads Release Assets: ShippingManagerCoPilot-Installer-*.exe (Windows) ShippingManagerCoPilot-macos-x64.dmg (macOS Intel) ShippingManagerCoPilot-macos-arm64.dmg (macOS Apple Silicon) ShippingManagerCoPilot-linux-x64.tar.gz (Linux) Checksums for each platform Testing Before Release Always test locally before creating a release tag: # Full build npm run build:all # Test the installer dist/ShippingManagerCoPilot-Installer-v0.1.0.exe # Verify checksum type dist\\checksums.txt Release Asset Distribution Downloads available per platform: Platform File Notes Windows .exe installer Full features (Steam + Browser login) macOS Intel .dmg Browser login only macOS Apple Silicon .dmg Browser login only (M1/M2/M3) Linux .tar.gz Browser login only SHA256 checksums are provided for verification. Version Management Version is defined in package.json (single source of truth): Used by build-package.js for folder naming Used by build-installer.js for executable naming Synced to installer .csproj AssemblyVersion CI/CD Workflow The GitHub Actions workflow ( .github/workflows/build-multiplatform.yml ) runs on: Trigger: Tag push matching v* or manual dispatch Runners: Windows, macOS (Intel + ARM64), Linux Build Time: ~15-20 minutes (parallel builds) Output: Multi-platform release with all builds attached Build Jobs: build-windows - Windows installer with .NET SDK build-macos - macOS Intel DMG build-macos-arm64 - macOS Apple Silicon DMG build-linux - Linux tarball create-release - Combines all artifacts into GitHub Release Support If you encounter issues: Check this file for troubleshooting steps Verify all prerequisites are installed Try a clean build Check GitHub Issues for known problems Documentation This project includes comprehensive JSDoc documentation for all modules and functions. Generate Documentation # Generate HTML documentation npm run docs The documentation is automatically: Generated before every commit (via git pre-commit hook) Served by the application at https://localhost:12345/docs/index.html Accessible via the 📖 button in the UI (next to settings ⚙️) What's Included The documentation includes: All backend modules (server routes, utilities, middleware) All frontend modules (API, automation, bunker management, chat, coop, messenger, vessel management, etc.) Function signatures, parameters, return values, and examples This build guide and installation instructions (Tutorials section) View Documentation Start the application ( python start.py ) Click the 📖 button in the UI, or Navigate to https://localhost:12345/docs/index.html Documentation Structure Home : README with project overview Tutorials : Build guide and installation instructions Classes : ChatBot and other class documentation Modules : All code modules organized by functionality Global : Global functions and constants Rebuild Documentation Documentation is automatically rebuilt when you commit changes. To manually rebuild: npm run docs Generated files are located in public/docs/ and are included in git commits. Security Tooling All code is automatically scanned for security vulnerabilities before every commit: ESLint Security Plugin : Scans JavaScript/Node.js code for security issues Detects: unsafe regex (ReDoS), eval usage, command injection, hardcoded secrets Run manually: npm run lint Configuration: eslint.config.js Bandit Python Linter : Scans Python code for security vulnerabilities Detects: SQL injection, command injection, insecure YAML, pickle usage Run manually: npm run bandit or python -m bandit -r helper/ -c .bandit Configuration: .bandit (YAML) Pre-commit Hooks : Automated security gates block commits on errors npm audit (HIGH/CRITICAL vulnerabilities) ESLint errors (security issues) Bandit critical issues (Python security) Last updated: 2025-12-05"
+    "description": "Build Instructions Complete guide for compiling ShippingManager CoPilot into a standalone Windows executable. Prerequisites Required Software Node.js 22+ (https://nodejs.org/) node --version # Should be >= 22.0.0 .NET 8.0 SDK (https://dotnet.microsoft.com/download) dotnet --version # Should be >= 8.0 Node.js Dependencies npm install Build Process Quick Build (Recommended) The easiest way to build everything is using the automated build script: npm run build This single command will: Check all dependencies (Node.js, .NET SDK) Install Node.js dependencies Generate documentation Compile Node.js application to .exe (ShippingManagerCoPilot-Server.exe) Compile C# launcher (ShippingManagerCoPilot.exe) Create deployment package with app-payload.zip Build WPF installer executable Output: dist/ShippingManagerCoPilot-v0.1.0/ (portable folder with launcher + server) dist/ShippingManagerCoPilot-Installer-v0.1.0.exe (WPF installer) dist/checksums.txt (SHA256 hashes) public/docs/ (documentation) Options: npm run build -- --skip-deps # Skip npm install npm run build -- --skip-docs # Skip documentation generation npm run build -- --clean # Clean dist folder before build Example: # Fast rebuild without reinstalling dependencies npm run build -- --skip-deps # Clean build from scratch npm run build -- --clean Step-by-Step Build (Advanced) If you want to build components separately: Step 1: Compile Node.js Server to .exe npm run build:node This creates: dist/ShippingManagerCoPilot-Server.exe (Node.js backend server) Step 2: Compile C# Launcher npm run build:launcher This creates: dist/ShippingManagerCoPilot.exe (C# launcher that manages the server) The launcher: Starts the Node.js server Extracts Steam session cookies (Windows only) Opens the browser automatically Provides system tray integration Step 3: Package Everything node build/build-package.js This organizes all files into: dist/ShippingManagerCoPilot-v0.1.0/ ├── ShippingManagerCoPilot.exe (C# launcher) ├── ShippingManagerCoPilot-Server.exe (Node.js server) ├── sysdata/ │ └── forecast/ (forecast cache, created at runtime) ├── userdata/ (user settings, created at runtime in AppData on first run) ├── public/ │ └── favicon.ico ├── README.md ├── LICENSE └── START_HERE.txt This also creates helper/installer/Resources/app-payload.zip which embeds the entire application into the installer. Step 4: Build Installer node build/build-installer.js This creates: dist/ShippingManagerCoPilot-Installer-v0.1.0.exe (WPF installer with embedded app-payload.zip) dist/checksums.txt (SHA256 hash for verification) The installer is a self-contained Windows executable that: Guides users through installation with modern UI Allows custom installation path selection Creates Start Menu and Desktop shortcuts Registers with Windows Programs &amp; Features for uninstallation Extracts app-payload.zip to the chosen location Testing the Build Navigate to dist/ShippingManagerCoPilot-v0.1.0/ Double-click ShippingManagerCoPilot.exe Verify: Server starts at https://localhost:12345 Session extraction works Browser opens automatically All features functional Troubleshooting pkg Issues Error: Cannot find module pkg.assets is already configured in package.json Includes: public/, server/, sysdata/forecast/, all dependencies If adding new dependencies, add them to pkg.assets array If adding new folders, add them with glob pattern Error: Native module not found Some modules (like keytar ) need native binaries Solution: Bundle as external dependency or use alternative .NET Build Issues Error: SDK not found Ensure .NET 8.0 SDK is installed (not just runtime) Verify with: dotnet --list-sdks Error: Project file not found Check that helper/launcher/ directory exists Ensure .csproj file is present File Size Current estimated sizes: Node.js Server .exe: ~80-100 MB C# Launcher .exe: ~1-2 MB Total package: ~100 MB Distribution Portable ZIP cd dist powershell Compress-Archive -Path ShippingManagerCoPilot-v0.1.0 -DestinationPath ShippingManagerCoPilot-v0.1.0-Portable.zip The ZIP file contains the executables and supporting files (README, LICENSE, data folder structure). Version Updates Update version in package.json Rebuild: npm run build Clean Build # Remove all build artifacts rmdir /s /q dist rmdir /s /q build # Rebuild from scratch npm run build -- --clean Creating Releases Release Process Releases are automated via GitHub Actions when you push a version tag: # 1. Update version in package.json npm version 0.1.0 --no-git-tag-version # 2. Commit version bump git add package.json git commit -m &quot;Release v0.1.0&quot; # 3. Create and push tag git tag v0.1.0 git push origin main git push origin v0.1.0 Or push both together: git push origin main --tags What Happens Next When you push a tag matching v* : GitHub Actions Triggers ( .github/workflows/build-multiplatform.yml ) Builds for all platforms in parallel: Windows (full features with Steam integration) macOS Intel (x64) macOS Apple Silicon (arm64) Linux (x64) Creates GitHub Release with all platform builds Uploads Release Assets: ShippingManagerCoPilot-Installer-*.exe (Windows) ShippingManagerCoPilot-macos-x64.dmg (macOS Intel) ShippingManagerCoPilot-macos-arm64.dmg (macOS Apple Silicon) ShippingManagerCoPilot-linux-x64.tar.gz (Linux) Checksums for each platform Testing Before Release Always test locally before creating a release tag: # Full build npm run build:all # Test the installer dist/ShippingManagerCoPilot-Installer-v0.1.0.exe # Verify checksum type dist\\checksums.txt Release Asset Distribution Downloads available per platform: Platform File Notes Windows .exe installer Full features (Steam + Browser login) macOS Intel .dmg Browser login only macOS Apple Silicon .dmg Browser login only (M1/M2/M3) Linux .tar.gz Browser login only SHA256 checksums are provided for verification. Version Management Version is defined in package.json (single source of truth): Used by build-package.js for folder naming Used by build-installer.js for executable naming Synced to installer .csproj AssemblyVersion CI/CD Workflow The GitHub Actions workflow ( .github/workflows/build-multiplatform.yml ) runs on: Trigger: Tag push matching v* or manual dispatch Runners: Windows, macOS (Intel + ARM64), Linux Build Time: ~15-20 minutes (parallel builds) Output: Multi-platform release with all builds attached Build Jobs: build-windows - Windows installer with .NET SDK build-macos - macOS Intel DMG build-macos-arm64 - macOS Apple Silicon DMG build-linux - Linux tarball create-release - Combines all artifacts into GitHub Release Support If you encounter issues: Check this file for troubleshooting steps Verify all prerequisites are installed Try a clean build Check GitHub Issues for known problems Documentation This project includes comprehensive JSDoc documentation for all modules and functions. Generate Documentation # Generate HTML documentation npm run docs The documentation is automatically: Generated before every commit (via git pre-commit hook) Served by the application at https://localhost:12345/docs/index.html Accessible via the docs button in the UI (next to settings) What's Included The documentation includes: All backend modules (server routes, utilities, middleware) All frontend modules (API, automation, bunker management, chat, coop, messenger, vessel management, etc.) Function signatures, parameters, return values, and examples This build guide and installation instructions (Tutorials section) View Documentation Start the application (run ShippingManagerCoPilot.exe ) Click the docs button in the UI, or Navigate to https://localhost:12345/docs/index.html Documentation Structure Home : README with project overview Tutorials : Build guide and installation instructions Classes : ChatBot and other class documentation Modules : All code modules organized by functionality Global : Global functions and constants Rebuild Documentation Documentation is automatically rebuilt when you commit changes. To manually rebuild: npm run docs Generated files are located in public/docs/ and are included in git commits. Security Tooling All code is automatically scanned for security vulnerabilities before every commit: ESLint Security Plugin : Scans JavaScript/Node.js code for security issues Detects: unsafe regex (ReDoS), eval usage, command injection, hardcoded secrets Run manually: npm run lint Configuration: eslint.config.js Pre-commit Hooks : Automated security gates block commits on errors npm audit (HIGH/CRITICAL vulnerabilities) ESLint errors (security issues) Last updated: 2025-12-20"
   },
   {
     "type": "shippingmanager",
@@ -1816,6 +1858,14 @@
   },
   {
     "type": "method",
+    "name": "clearPortDemandChart",
+    "longname": "module:analytics~clearPortDemandChart",
+    "url": "module-analytics.html#~clearPortDemandChart",
+    "description": "<p>Clear port demand charts</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "closeSoldVesselPanel",
     "longname": "module:analytics~closeSoldVesselPanel",
     "url": "module-analytics.html#~closeSoldVesselPanel",
@@ -1860,6 +1910,14 @@
     "longname": "module:analytics~formatPercent",
     "url": "module-analytics.html#~formatPercent",
     "description": "<p>Format percentage</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "getPortDemandChartOptions",
+    "longname": "module:analytics~getPortDemandChartOptions",
+    "url": "module-analytics.html#~getPortDemandChartOptions",
+    "description": "<p>Create chart options (reusable)</p>",
     "parent": "module:analytics"
   },
   {
@@ -1912,6 +1970,14 @@
   },
   {
     "type": "method",
+    "name": "lazyLoadPorts",
+    "longname": "module:analytics~lazyLoadPorts",
+    "url": "module-analytics.html#~lazyLoadPorts",
+    "description": "<p>Lazy load port demand data when Ports tab is clicked</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "lazyLoadRoutes",
     "longname": "module:analytics~lazyLoadRoutes",
     "url": "module-analytics.html#~lazyLoadRoutes",
@@ -1960,10 +2026,26 @@
   },
   {
     "type": "method",
+    "name": "loadPortDemandChart",
+    "longname": "module:analytics~loadPortDemandChart",
+    "url": "module-analytics.html#~loadPortDemandChart",
+    "description": "<p>Load and render port demand chart for a specific port</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "loadRawTransactions",
     "longname": "module:analytics~loadRawTransactions",
     "url": "module-analytics.html#~loadRawTransactions",
     "description": "<p>Load raw transactions (lookup entries) with pagination</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "populatePortDropdown",
+    "longname": "module:analytics~populatePortDropdown",
+    "url": "module-analytics.html#~populatePortDropdown",
+    "description": "<p>Populate port dropdown with available ports (searchable)</p>",
     "parent": "module:analytics"
   },
   {
@@ -2004,6 +2086,14 @@
     "longname": "module:analytics~renderApiStatsTable",
     "url": "module-analytics.html#~renderApiStatsTable",
     "description": "<p>Render API stats endpoint table</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "renderBBLChart",
+    "longname": "module:analytics~renderBBLChart",
+    "url": "module-analytics.html#~renderBBLChart",
+    "description": "<p>Render BBL chart (Tanker demand - Fuel + Crude)\nShows current demand (demand - consumed)</p>",
     "parent": "module:analytics"
   },
   {
@@ -2056,6 +2146,14 @@
   },
   {
     "type": "method",
+    "name": "renderPortDemandCharts",
+    "longname": "module:analytics~renderPortDemandCharts",
+    "url": "module-analytics.html#~renderPortDemandCharts",
+    "description": "<p>Render port demand charts (TEU + BBL if user has tanker)</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
     "name": "renderQuickSummary",
     "longname": "module:analytics~renderQuickSummary",
     "url": "module-analytics.html#~renderQuickSummary",
@@ -2092,6 +2190,14 @@
     "longname": "module:analytics~renderSummary",
     "url": "module-analytics.html#~renderSummary",
     "description": "<p>Render summary cards</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "renderTEUChart",
+    "longname": "module:analytics~renderTEUChart",
+    "url": "module-analytics.html#~renderTEUChart",
+    "description": "<p>Render TEU chart (Container demand - Dry + Refrigerated)\nShows current demand (demand - consumed)</p>",
     "parent": "module:analytics"
   },
   {
@@ -2220,6 +2326,22 @@
     "longname": "module:analytics~updateLoadMoreButton",
     "url": "module-analytics.html#~updateLoadMoreButton",
     "description": "<p>Update hasMore state for lazy loading</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "updatePortDemandStatus",
+    "longname": "module:analytics~updatePortDemandStatus",
+    "url": "module-analytics.html#~updatePortDemandStatus",
+    "description": "<p>Update port demand sync status display</p>",
+    "parent": "module:analytics"
+  },
+  {
+    "type": "method",
+    "name": "updatePortVesselMetrics",
+    "longname": "module:analytics~updatePortVesselMetrics",
+    "url": "module-analytics.html#~updatePortVesselMetrics",
+    "description": "<p>Update vessel metrics for the selected port</p>",
     "parent": "module:analytics"
   },
   {
@@ -2552,6 +2674,14 @@
   },
   {
     "type": "method",
+    "name": "getLookupAll",
+    "longname": "module:api.getLookupAll",
+    "url": "module-api.html#.getLookupAll",
+    "description": "<p>Get all lookup data in a single request (totals, breakdown, daily, info)\nMuch faster than making 4 separate requests</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
     "name": "getLookupBreakdown",
     "longname": "module:api.getLookupBreakdown",
     "url": "module-api.html#.getLookupBreakdown",
@@ -2604,6 +2734,38 @@
     "longname": "module:api.getMaintenanceCost",
     "url": "module-api.html#.getMaintenanceCost",
     "description": "<p>Gets the total maintenance cost for specified vessels.\nUsed before performing bulk repair to show cost to user.</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getPortDemandHistory",
+    "longname": "module:api.getPortDemandHistory",
+    "url": "module-api.html#.getPortDemandHistory",
+    "description": "<p>Get demand history for a specific port</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getPortDemandLatest",
+    "longname": "module:api.getPortDemandLatest",
+    "url": "module-api.html#.getPortDemandLatest",
+    "description": "<p>Get latest demand snapshot for all ports</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getPortDemandStatus",
+    "longname": "module:api.getPortDemandStatus",
+    "url": "module-api.html#.getPortDemandStatus",
+    "description": "<p>Get port demand sync status and store statistics</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
+    "name": "getPortDemandTrends",
+    "longname": "module:api.getPortDemandTrends",
+    "url": "module-api.html#.getPortDemandTrends",
+    "description": "<p>Get hourly demand trends for a port</p>",
     "parent": "module:api"
   },
   {
@@ -5952,6 +6114,14 @@
   },
   {
     "type": "method",
+    "name": "formatPortFullName",
+    "longname": "module:harbor-map/port-panel~formatPortFullName",
+    "url": "module-harbor-map_port-panel.html#~formatPortFullName",
+    "description": "<p>Format port code to full name (Title Case)\ne.g., &quot;new_york&quot; -&gt; &quot;New York&quot;, &quot;taicang&quot; -&gt; &quot;Taicang&quot;</p>",
+    "parent": "module:harbor-map/port-panel"
+  },
+  {
+    "type": "method",
     "name": "loadPortAllianceData",
     "longname": "module:harbor-map/port-panel~loadPortAllianceData",
     "url": "module-harbor-map_port-panel.html#~loadPortAllianceData",
@@ -5996,6 +6166,14 @@
     "longname": "module:harbor-map/port-panel~renderVesselList",
     "url": "module-harbor-map_port-panel.html#~renderVesselList",
     "description": "<p>Renders vessel list for a category (in/to/from port)\nEach vessel is clickable to select it</p>",
+    "parent": "module:harbor-map/port-panel"
+  },
+  {
+    "type": "method",
+    "name": "renderVesselsOverview",
+    "longname": "module:harbor-map/port-panel~renderVesselsOverview",
+    "url": "module-harbor-map_port-panel.html#~renderVesselsOverview",
+    "description": "<p>Renders vessels overview section showing active vessels and capacity</p>",
     "parent": "module:harbor-map/port-panel"
   },
   {
@@ -7000,14 +7178,6 @@
   },
   {
     "type": "method",
-    "name": "getAuditLogPath",
-    "longname": "module:server/analytics/aggregator~getAuditLogPath",
-    "url": "module-server_analytics_aggregator.html#~getAuditLogPath",
-    "description": "<p>Get audit log file path for a user</p>",
-    "parent": "module:server/analytics/aggregator"
-  },
-  {
-    "type": "method",
     "name": "getContributionAnalysis",
     "longname": "module:server/analytics/aggregator~getContributionAnalysis",
     "url": "module-server_analytics_aggregator.html#~getContributionAnalysis",
@@ -7112,14 +7282,6 @@
   },
   {
     "type": "method",
-    "name": "getTripDataPath",
-    "longname": "module:server/analytics/aggregator~getTripDataPath",
-    "url": "module-server_analytics_aggregator.html#~getTripDataPath",
-    "description": "<p>Get trip data file path for a user</p>",
-    "parent": "module:server/analytics/aggregator"
-  },
-  {
-    "type": "method",
     "name": "getVesselNameFromHijackHistory",
     "longname": "module:server/analytics/aggregator~getVesselNameFromHijackHistory",
     "url": "module-server_analytics_aggregator.html#~getVesselNameFromHijackHistory",
@@ -7179,15 +7341,15 @@
     "name": "loadAuditLog",
     "longname": "module:server/analytics/aggregator~loadAuditLog",
     "url": "module-server_analytics_aggregator.html#~loadAuditLog",
-    "description": "<p>Load audit log for a user (cached for 2 seconds to avoid duplicate reads)</p>",
+    "description": "<p>Load audit log for a user from SQLite (cached for 2 seconds)</p>",
     "parent": "module:server/analytics/aggregator"
   },
   {
     "type": "method",
-    "name": "loadTripData",
-    "longname": "module:server/analytics/aggregator~loadTripData",
-    "url": "module-server_analytics_aggregator.html#~loadTripData",
-    "description": "<p>Load trip data for a user (cached for 2 seconds to avoid duplicate reads)</p>",
+    "name": "loadVesselHistory",
+    "longname": "module:server/analytics/aggregator~loadVesselHistory",
+    "url": "module-server_analytics_aggregator.html#~loadVesselHistory",
+    "description": "<p>Load vessel history (departures) from SQLite</p>",
     "parent": "module:server/analytics/aggregator"
   },
   {
@@ -7317,510 +7479,6 @@
     "url": "module-server_analytics_api-stats-store.html#~stopAutoFlush",
     "description": "<p>Stop auto-flush and flush remaining data</p>",
     "parent": "module:server/analytics/api-stats-store"
-  },
-  {
-    "type": "method",
-    "name": "buildLookup",
-    "longname": "module:server/analytics/lookup-store~buildLookup",
-    "url": "module-server_analytics_lookup-store.html#~buildLookup",
-    "description": "<p>Build lookup entries from all three PODs</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "buildPod2Index",
-    "longname": "module:server/analytics/lookup-store~buildPod2Index",
-    "url": "module-server_analytics_lookup-store.html#~buildPod2Index",
-    "description": "<p>Build an index of POD2 entries by context for fast lookup\nFor departures: creates one entry per vessel with vessel-specific brutto</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "buildPod3Index",
-    "longname": "module:server/analytics/lookup-store~buildPod3Index",
-    "url": "module-server_analytics_lookup-store.html#~buildPod3Index",
-    "description": "<p>Build an index of POD3 entries with pre-extracted income per vessel\nNote: Game API vessel history only has income, no harborFee</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "clearStore",
-    "longname": "module:server/analytics/lookup-store~clearStore",
-    "url": "module-server_analytics_lookup-store.html#~clearStore",
-    "description": "<p>Clear the lookup store</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "ensureDir",
-    "longname": "module:server/analytics/lookup-store~ensureDir",
-    "url": "module-server_analytics_lookup-store.html#~ensureDir",
-    "description": "<p>Ensure analytics directory exists</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "extractCashFromEntry",
-    "longname": "module:server/analytics/lookup-store~extractCashFromEntry",
-    "url": "module-server_analytics_lookup-store.html#~extractCashFromEntry",
-    "description": "<p>Extract cash amounts from audit log entry\nFor departures: Returns array of {cash, vessel} per vessel\nFor other actions: Returns array with single {cash, vessel: null}</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "findPod2Match",
-    "longname": "module:server/analytics/lookup-store~findPod2Match",
-    "url": "module-server_analytics_lookup-store.html#~findPod2Match",
-    "description": "<p>Find matching POD2 entry for a POD1 transaction using pre-built index</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "findPod2MatchForGuardFee",
-    "longname": "module:server/analytics/lookup-store~findPod2MatchForGuardFee",
-    "url": "module-server_analytics_lookup-store.html#~findPod2MatchForGuardFee",
-    "description": "<p>Find matching POD2 entry for guard fee by searching departure entries\nMatches by guard count: $700 per guard</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "findPod2MatchForHarborFee",
-    "longname": "module:server/analytics/lookup-store~findPod2MatchForHarborFee",
-    "url": "module-server_analytics_lookup-store.html#~findPod2MatchForHarborFee",
-    "description": "<p>Find matching POD2 entry for harbor fee by searching departure entries</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "findPod2MatchForRouteFee",
-    "longname": "module:server/analytics/lookup-store~findPod2MatchForRouteFee",
-    "url": "module-server_analytics_lookup-store.html#~findPod2MatchForRouteFee",
-    "description": "<p>Find matching POD2 entry for route fee by searching departure entries\nRoute fees are paid when routes are assigned, just before departure\nMatch by finding the closest departure within time window</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "findPod3Match",
-    "longname": "module:server/analytics/lookup-store~findPod3Match",
-    "url": "module-server_analytics_lookup-store.html#~findPod3Match",
-    "description": "<p>Find matching POD3 entry using POD2 vessel's income\nGame history only has income (netto), so we need POD2's vessel income for matching</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "findPod3MatchByCalculation",
-    "longname": "module:server/analytics/lookup-store~findPod3MatchByCalculation",
-    "url": "module-server_analytics_lookup-store.html#~findPod3MatchByCalculation",
-    "description": "<p>Find POD3 match by calculating netto from brutto - harborFee\nUsed when POD2 is not available</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getBreakdownByDay",
-    "longname": "module:server/analytics/lookup-store~getBreakdownByDay",
-    "url": "module-server_analytics_lookup-store.html#~getBreakdownByDay",
-    "description": "<p>Get breakdown by day</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getBreakdownByType",
-    "longname": "module:server/analytics/lookup-store~getBreakdownByType",
-    "url": "module-server_analytics_lookup-store.html#~getBreakdownByType",
-    "description": "<p>Get breakdown by type</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getEntries",
-    "longname": "module:server/analytics/lookup-store~getEntries",
-    "url": "module-server_analytics_lookup-store.html#~getEntries",
-    "description": "<p>Get all lookup entries</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getEntriesByDays",
-    "longname": "module:server/analytics/lookup-store~getEntriesByDays",
-    "url": "module-server_analytics_lookup-store.html#~getEntriesByDays",
-    "description": "<p>Get lookup entries within a time range</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getEntryDetails",
-    "longname": "module:server/analytics/lookup-store~getEntryDetails",
-    "url": "module-server_analytics_lookup-store.html#~getEntryDetails",
-    "description": "<p>Get full entry details by lookup ID</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getStoreInfo",
-    "longname": "module:server/analytics/lookup-store~getStoreInfo",
-    "url": "module-server_analytics_lookup-store.html#~getStoreInfo",
-    "description": "<p>Get store metadata</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getStorePath",
-    "longname": "module:server/analytics/lookup-store~getStorePath",
-    "url": "module-server_analytics_lookup-store.html#~getStorePath",
-    "description": "<p>Get file path for user's lookup store</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "getTotals",
-    "longname": "module:server/analytics/lookup-store~getTotals",
-    "url": "module-server_analytics_lookup-store.html#~getTotals",
-    "description": "<p>Get income/expense totals</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "loadStore",
-    "longname": "module:server/analytics/lookup-store~loadStore",
-    "url": "module-server_analytics_lookup-store.html#~loadStore",
-    "description": "<p>Load stored lookup from disk</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "saveStore",
-    "longname": "module:server/analytics/lookup-store~saveStore",
-    "url": "module-server_analytics_lookup-store.html#~saveStore",
-    "description": "<p>Save lookup to disk</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "valuesMatch",
-    "longname": "module:server/analytics/lookup-store~valuesMatch",
-    "url": "module-server_analytics_lookup-store.html#~valuesMatch",
-    "description": "<p>Check if two values match within tolerance</p>",
-    "parent": "module:server/analytics/lookup-store"
-  },
-  {
-    "type": "method",
-    "name": "ensureDir",
-    "longname": "module:server/analytics/transaction-store~ensureDir",
-    "url": "module-server_analytics_transaction-store.html#~ensureDir",
-    "description": "<p>Ensure transactions directory exists</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "fetchFromAPI",
-    "longname": "module:server/analytics/transaction-store~fetchFromAPI",
-    "url": "module-server_analytics_transaction-store.html#~fetchFromAPI",
-    "description": "<p>Fetch transactions from game API</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "generateTransactionId",
-    "longname": "module:server/analytics/transaction-store~generateTransactionId",
-    "url": "module-server_analytics_transaction-store.html#~generateTransactionId",
-    "description": "<p>Generate deterministic ID for a transaction</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getDailyBreakdown",
-    "longname": "module:server/analytics/transaction-store~getDailyBreakdown",
-    "url": "module-server_analytics_transaction-store.html#~getDailyBreakdown",
-    "description": "<p>Get daily breakdown of transactions</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getStoreInfo",
-    "longname": "module:server/analytics/transaction-store~getStoreInfo",
-    "url": "module-server_analytics_transaction-store.html#~getStoreInfo",
-    "description": "<p>Get store metadata</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getStorePath",
-    "longname": "module:server/analytics/transaction-store~getStorePath",
-    "url": "module-server_analytics_transaction-store.html#~getStorePath",
-    "description": "<p>Get file path for user's transaction store</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getTransactionSummary",
-    "longname": "module:server/analytics/transaction-store~getTransactionSummary",
-    "url": "module-server_analytics_transaction-store.html#~getTransactionSummary",
-    "description": "<p>Get transaction summary grouped by context</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getTransactionTypes",
-    "longname": "module:server/analytics/transaction-store~getTransactionTypes",
-    "url": "module-server_analytics_transaction-store.html#~getTransactionTypes",
-    "description": "<p>Get all available transaction types/contexts</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getTransactions",
-    "longname": "module:server/analytics/transaction-store~getTransactions",
-    "url": "module-server_analytics_transaction-store.html#~getTransactions",
-    "description": "<p>Get all stored transactions</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "getTransactionsByDays",
-    "longname": "module:server/analytics/transaction-store~getTransactionsByDays",
-    "url": "module-server_analytics_transaction-store.html#~getTransactionsByDays",
-    "description": "<p>Get transactions within a time range</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "loadStore",
-    "longname": "module:server/analytics/transaction-store~loadStore",
-    "url": "module-server_analytics_transaction-store.html#~loadStore",
-    "description": "<p>Load stored transactions from disk (cached for 2 seconds)\nMigrates old entries without IDs by generating them</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "saveStore",
-    "longname": "module:server/analytics/transaction-store~saveStore",
-    "url": "module-server_analytics_transaction-store.html#~saveStore",
-    "description": "<p>Save transactions to disk</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "startAutoSync",
-    "longname": "module:server/analytics/transaction-store~startAutoSync",
-    "url": "module-server_analytics_transaction-store.html#~startAutoSync",
-    "description": "<p>Start automatic background sync</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "stopAutoSync",
-    "longname": "module:server/analytics/transaction-store~stopAutoSync",
-    "url": "module-server_analytics_transaction-store.html#~stopAutoSync",
-    "description": "<p>Stop automatic background sync</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "syncTransactions",
-    "longname": "module:server/analytics/transaction-store~syncTransactions",
-    "url": "module-server_analytics_transaction-store.html#~syncTransactions",
-    "description": "<p>Sync transactions from API\nMerges new transactions with existing store</p>",
-    "parent": "module:server/analytics/transaction-store"
-  },
-  {
-    "type": "method",
-    "name": "clearStore",
-    "longname": "module:server/analytics/vessel-history-store~clearStore",
-    "url": "module-server_analytics_vessel-history-store.html#~clearStore",
-    "description": "<p>Clear stored vessel history (for testing or reset)</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "ensureDir",
-    "longname": "module:server/analytics/vessel-history-store~ensureDir",
-    "url": "module-server_analytics_vessel-history-store.html#~ensureDir",
-    "description": "<p>Ensure vessel history directory exists</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "fetchAllVessels",
-    "longname": "module:server/analytics/vessel-history-store~fetchAllVessels",
-    "url": "module-server_analytics_vessel-history-store.html#~fetchAllVessels",
-    "description": "<p>Fetch all user vessels</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "fetchVesselHistory",
-    "longname": "module:server/analytics/vessel-history-store~fetchVesselHistory",
-    "url": "module-server_analytics_vessel-history-store.html#~fetchVesselHistory",
-    "description": "<p>Fetch vessel history for a single vessel</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "generateDepartureId",
-    "longname": "module:server/analytics/vessel-history-store~generateDepartureId",
-    "url": "module-server_analytics_vessel-history-store.html#~generateDepartureId",
-    "description": "<p>Generate deterministic ID for a vessel history departure</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getDepartures",
-    "longname": "module:server/analytics/vessel-history-store~getDepartures",
-    "url": "module-server_analytics_vessel-history-store.html#~getDepartures",
-    "description": "<p>Get all stored departures (Game Departure entries)</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getDeparturesBefore",
-    "longname": "module:server/analytics/vessel-history-store~getDeparturesBefore",
-    "url": "module-server_analytics_vessel-history-store.html#~getDeparturesBefore",
-    "description": "<p>Get departures before a specific timestamp</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getDeparturesByDays",
-    "longname": "module:server/analytics/vessel-history-store~getDeparturesByDays",
-    "url": "module-server_analytics_vessel-history-store.html#~getDeparturesByDays",
-    "description": "<p>Get departures within a time range</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getRouteHijackingRisks",
-    "longname": "module:server/analytics/vessel-history-store~getRouteHijackingRisks",
-    "url": "module-server_analytics_vessel-history-store.html#~getRouteHijackingRisks",
-    "description": "<p>Get stored route hijacking risks\nReturns a Map with route keys (origin&lt;&gt;destination) and their hijacking risk percentages</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getStoreInfo",
-    "longname": "module:server/analytics/vessel-history-store~getStoreInfo",
-    "url": "module-server_analytics_vessel-history-store.html#~getStoreInfo",
-    "description": "<p>Get store metadata</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getStorePath",
-    "longname": "module:server/analytics/vessel-history-store~getStorePath",
-    "url": "module-server_analytics_vessel-history-store.html#~getStorePath",
-    "description": "<p>Get file path for user's vessel history store</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getSyncProgress",
-    "longname": "module:server/analytics/vessel-history-store~getSyncProgress",
-    "url": "module-server_analytics_vessel-history-store.html#~getSyncProgress",
-    "description": "<p>Get current sync progress/status</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "getVesselTrips",
-    "longname": "module:server/analytics/vessel-history-store~getVesselTrips",
-    "url": "module-server_analytics_vessel-history-store.html#~getVesselTrips",
-    "description": "<p>Get all trips for a specific vessel from local store\nReturns trips in Game API format for compatibility with existing code</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "loadStore",
-    "longname": "module:server/analytics/vessel-history-store~loadStore",
-    "url": "module-server_analytics_vessel-history-store.html#~loadStore",
-    "description": "<p>Load stored vessel history from disk (cached for 2 seconds)</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "migrateTankerCargo",
-    "longname": "module:server/analytics/vessel-history-store~migrateTankerCargo",
-    "url": "module-server_analytics_vessel-history-store.html#~migrateTankerCargo",
-    "description": "<p>One-time migration to fix tanker cargo data.\nTanker departures were incorrectly stored with {dry:0, refrigerated:0, total:0}\ninstead of {fuel, crude_oil}. This fetches correct cargo from Game API.</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "parseGameDate",
-    "longname": "module:server/analytics/vessel-history-store~parseGameDate",
-    "url": "module-server_analytics_vessel-history-store.html#~parseGameDate",
-    "description": "<p>Parse game API date string to timestamp</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "saveStore",
-    "longname": "module:server/analytics/vessel-history-store~saveStore",
-    "url": "module-server_analytics_vessel-history-store.html#~saveStore",
-    "description": "<p>Save vessel history to disk</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "startAutoSync",
-    "longname": "module:server/analytics/vessel-history-store~startAutoSync",
-    "url": "module-server_analytics_vessel-history-store.html#~startAutoSync",
-    "description": "<p>Start automatic background sync for vessel history\nUses slow rotation: spreads all vessel syncs over 60 minutes</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "startBackgroundSync",
-    "longname": "module:server/analytics/vessel-history-store~startBackgroundSync",
-    "url": "module-server_analytics_vessel-history-store.html#~startBackgroundSync",
-    "description": "<p>Start background sync on server startup\nRuns incrementally, pauses if server stops</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "stopAutoSync",
-    "longname": "module:server/analytics/vessel-history-store~stopAutoSync",
-    "url": "module-server_analytics_vessel-history-store.html#~stopAutoSync",
-    "description": "<p>Stop automatic background sync</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "stopSync",
-    "longname": "module:server/analytics/vessel-history-store~stopSync",
-    "url": "module-server_analytics_vessel-history-store.html#~stopSync",
-    "description": "<p>Stop the current sync process</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "syncNextVesselInRotation",
-    "longname": "module:server/analytics/vessel-history-store~syncNextVesselInRotation",
-    "url": "module-server_analytics_vessel-history-store.html#~syncNextVesselInRotation",
-    "description": "<p>Sync a single vessel in the slow background rotation</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "syncSpecificVessels",
-    "longname": "module:server/analytics/vessel-history-store~syncSpecificVessels",
-    "url": "module-server_analytics_vessel-history-store.html#~syncSpecificVessels",
-    "description": "<p>Sync history for specific vessel IDs (event-based, after depart)</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "syncVesselHistory",
-    "longname": "module:server/analytics/vessel-history-store~syncVesselHistory",
-    "url": "module-server_analytics_vessel-history-store.html#~syncVesselHistory",
-    "description": "<p>Sync vessel history incrementally - resumable and tracks per-vessel state</p>",
-    "parent": "module:server/analytics/vessel-history-store"
-  },
-  {
-    "type": "method",
-    "name": "transformToAuditEntry",
-    "longname": "module:server/analytics/vessel-history-store~transformToAuditEntry",
-    "url": "module-server_analytics_vessel-history-store.html#~transformToAuditEntry",
-    "description": "<p>Transform vessel history entry to audit log format</p>",
-    "parent": "module:server/analytics/vessel-history-store"
   },
   {
     "type": "method",
@@ -8856,6 +8514,870 @@
   },
   {
     "type": "method",
+    "name": "bulkUpdate",
+    "longname": "module:server/database/alliance-cache~bulkUpdate",
+    "url": "module-server_database_alliance-cache.html#~bulkUpdate",
+    "description": "<p>Bulk update alliances</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "clearCache",
+    "longname": "module:server/database/alliance-cache~clearCache",
+    "url": "module-server_database_alliance-cache.html#~clearCache",
+    "description": "<p>Clear all cached alliances</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "closeDb",
+    "longname": "module:server/database/alliance-cache~closeDb",
+    "url": "module-server_database_alliance-cache.html#~closeDb",
+    "description": "<p>Close database connection</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "deleteAlliance",
+    "longname": "module:server/database/alliance-cache~deleteAlliance",
+    "url": "module-server_database_alliance-cache.html#~deleteAlliance",
+    "description": "<p>Delete an alliance by ID</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getAll",
+    "longname": "module:server/database/alliance-cache~getAll",
+    "url": "module-server_database_alliance-cache.html#~getAll",
+    "description": "<p>Get all alliances</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getById",
+    "longname": "module:server/database/alliance-cache~getById",
+    "url": "module-server_database_alliance-cache.html#~getById",
+    "description": "<p>Get alliance by ID</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getCount",
+    "longname": "module:server/database/alliance-cache~getCount",
+    "url": "module-server_database_alliance-cache.html#~getCount",
+    "description": "<p>Get total alliance count</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getDb",
+    "longname": "module:server/database/alliance-cache~getDb",
+    "url": "module-server_database_alliance-cache.html#~getDb",
+    "description": "<p>Get or create database connection</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getDbPath",
+    "longname": "module:server/database/alliance-cache~getDbPath",
+    "url": "module-server_database_alliance-cache.html#~getDbPath",
+    "description": "<p>Get database path</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getLastUpdate",
+    "longname": "module:server/database/alliance-cache~getLastUpdate",
+    "url": "module-server_database_alliance-cache.html#~getLastUpdate",
+    "description": "<p>Get last update timestamp from meta</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getStats",
+    "longname": "module:server/database/alliance-cache~getStats",
+    "url": "module-server_database_alliance-cache.html#~getStats",
+    "description": "<p>Get cache statistics</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "getTopByContribution",
+    "longname": "module:server/database/alliance-cache~getTopByContribution",
+    "url": "module-server_database_alliance-cache.html#~getTopByContribution",
+    "description": "<p>Get top alliances by contribution</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "importFromJson",
+    "longname": "module:server/database/alliance-cache~importFromJson",
+    "url": "module-server_database_alliance-cache.html#~importFromJson",
+    "description": "<p>Import alliances from JSON file</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "search",
+    "longname": "module:server/database/alliance-cache~search",
+    "url": "module-server_database_alliance-cache.html#~search",
+    "description": "<p>Search alliances with filters (matches alliance-indexer API)</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "upsertAlliance",
+    "longname": "module:server/database/alliance-cache~upsertAlliance",
+    "url": "module-server_database_alliance-cache.html#~upsertAlliance",
+    "description": "<p>Update or insert a single alliance</p>",
+    "parent": "module:server/database/alliance-cache"
+  },
+  {
+    "type": "method",
+    "name": "initAllUserDatabases",
+    "longname": "module:server/database/init~initAllUserDatabases",
+    "url": "module-server_database_init.html#~initAllUserDatabases",
+    "description": "<p>Initialize databases for all users with session data\nCall this during server startup</p>",
+    "parent": "module:server/database/init"
+  },
+  {
+    "type": "method",
+    "name": "initUserDatabase",
+    "longname": "module:server/database/init~initUserDatabase",
+    "url": "module-server_database_init.html#~initUserDatabase",
+    "description": "<p>Initialize database for a specific user\nMigrates JSON data if SQLite database is new</p>",
+    "parent": "module:server/database/init"
+  },
+  {
+    "type": "method",
+    "name": "findLastValidJsonEnd",
+    "longname": "module:server/database/json-repair~findLastValidJsonEnd",
+    "url": "module-server_database_json-repair.html#~findLastValidJsonEnd",
+    "description": "<p>Try to find the last valid JSON position in a string</p>",
+    "parent": "module:server/database/json-repair"
+  },
+  {
+    "type": "method",
+    "name": "removeBadControlChars",
+    "longname": "module:server/database/json-repair~removeBadControlChars",
+    "url": "module-server_database_json-repair.html#~removeBadControlChars",
+    "description": "<p>Remove bad control characters from JSON string</p>",
+    "parent": "module:server/database/json-repair"
+  },
+  {
+    "type": "method",
+    "name": "repairAllUserFiles",
+    "longname": "module:server/database/json-repair~repairAllUserFiles",
+    "url": "module-server_database_json-repair.html#~repairAllUserFiles",
+    "description": "<p>Scan and repair all JSON files for a user</p>",
+    "parent": "module:server/database/json-repair"
+  },
+  {
+    "type": "method",
+    "name": "repairJsonFile",
+    "longname": "module:server/database/json-repair~repairJsonFile",
+    "url": "module-server_database_json-repair.html#~repairJsonFile",
+    "description": "<p>Repair a JSON file in place</p>",
+    "parent": "module:server/database/json-repair"
+  },
+  {
+    "type": "method",
+    "name": "repairJsonString",
+    "longname": "module:server/database/json-repair~repairJsonString",
+    "url": "module-server_database_json-repair.html#~repairJsonString",
+    "description": "<p>Attempt to repair a JSON string</p>",
+    "parent": "module:server/database/json-repair"
+  },
+  {
+    "type": "method",
+    "name": "findAllUsersWithData",
+    "longname": "module:server/database/migration~findAllUsersWithData",
+    "url": "module-server_database_migration.html#~findAllUsersWithData",
+    "description": "<p>Find all users with JSON data files</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "findUserHijackFiles",
+    "longname": "module:server/database/migration~findUserHijackFiles",
+    "url": "module-server_database_migration.html#~findUserHijackFiles",
+    "description": "<p>Find all hijack history files for a user</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "findUserJsonFiles",
+    "longname": "module:server/database/migration~findUserJsonFiles",
+    "url": "module-server_database_migration.html#~findUserJsonFiles",
+    "description": "<p>Find all JSON files for a user across all data directories</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "findUserVesselAppearanceFiles",
+    "longname": "module:server/database/migration~findUserVesselAppearanceFiles",
+    "url": "module-server_database_migration.html#~findUserVesselAppearanceFiles",
+    "description": "<p>Find all vessel appearance files for a user</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "getLegacyOlduserdataDirs",
+    "longname": "module:server/database/migration~getLegacyOlduserdataDirs",
+    "url": "module-server_database_migration.html#~getLegacyOlduserdataDirs",
+    "description": "<p>Get legacy olduserdata directory paths (root level ./olduserdata and development/olduserdata)</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "getOlddataDir",
+    "longname": "module:server/database/migration~getOlddataDir",
+    "url": "module-server_database_migration.html#~getOlddataDir",
+    "description": "<p>Get the olddata directory path</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "getUserdataDir",
+    "longname": "module:server/database/migration~getUserdataDir",
+    "url": "module-server_database_migration.html#~getUserdataDir",
+    "description": "<p>Get userdata directory path</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importAutopilotLog",
+    "longname": "module:server/database/migration~importAutopilotLog",
+    "url": "module-server_database_migration.html#~importAutopilotLog",
+    "description": "<p>Import autopilot log data</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importHijackCase",
+    "longname": "module:server/database/migration~importHijackCase",
+    "url": "module-server_database_migration.html#~importHijackCase",
+    "description": "<p>Import hijack history from JSON file</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importLookup",
+    "longname": "module:server/database/migration~importLookup",
+    "url": "module-server_database_migration.html#~importLookup",
+    "description": "<p>Import lookup data</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importMessengerCache",
+    "longname": "module:server/database/migration~importMessengerCache",
+    "url": "module-server_database_migration.html#~importMessengerCache",
+    "description": "<p>Import messenger cache data</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importProcessedDmMessages",
+    "longname": "module:server/database/migration~importProcessedDmMessages",
+    "url": "module-server_database_migration.html#~importProcessedDmMessages",
+    "description": "<p>Import processed DM messages</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importTransactions",
+    "longname": "module:server/database/migration~importTransactions",
+    "url": "module-server_database_migration.html#~importTransactions",
+    "description": "<p>Import transactions data</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importTripData",
+    "longname": "module:server/database/migration~importTripData",
+    "url": "module-server_database_migration.html#~importTripData",
+    "description": "<p>Import trip data (unified or from old separate stores)</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importVesselAppearance",
+    "longname": "module:server/database/migration~importVesselAppearance",
+    "url": "module-server_database_migration.html#~importVesselAppearance",
+    "description": "<p>Import vessel appearance from JSON file</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "importVesselHistory",
+    "longname": "module:server/database/migration~importVesselHistory",
+    "url": "module-server_database_migration.html#~importVesselHistory",
+    "description": "<p>Import vessel history data</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "migrateAll",
+    "longname": "module:server/database/migration~migrateAll",
+    "url": "module-server_database_migration.html#~migrateAll",
+    "description": "<p>Run migration for all users with data</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "migrateUser",
+    "longname": "module:server/database/migration~migrateUser",
+    "url": "module-server_database_migration.html#~migrateUser",
+    "description": "<p>Run migration for a specific user\nImports data to SQLite (if not done) AND moves remaining JSON files to olddata</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "moveToOldData",
+    "longname": "module:server/database/migration~moveToOldData",
+    "url": "module-server_database_migration.html#~moveToOldData",
+    "description": "<p>Move a successfully migrated file to userdata/olddata/{subfolder}/</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "safeParseJson",
+    "longname": "module:server/database/migration~safeParseJson",
+    "url": "module-server_database_migration.html#~safeParseJson",
+    "description": "<p>Safely parse JSON with error handling</p>",
+    "parent": "module:server/database/migration"
+  },
+  {
+    "type": "method",
+    "name": "ensureUserInitialized",
+    "longname": "module:server/database/store-adapter~ensureUserInitialized",
+    "url": "module-server_database_store-adapter.html#~ensureUserInitialized",
+    "description": "<p>Ensure user's database is initialized before store access</p>",
+    "parent": "module:server/database/store-adapter"
+  },
+  {
+    "type": "method",
+    "name": "wrapStore",
+    "longname": "module:server/database/store-adapter~wrapStore",
+    "url": "module-server_database_store-adapter.html#~wrapStore",
+    "description": "<p>Wrap store functions to ensure database is initialized</p>",
+    "parent": "module:server/database/store-adapter"
+  },
+  {
+    "type": "method",
+    "name": "buildLookup",
+    "longname": "module:server/database/stores/lookup-store~buildLookup",
+    "url": "module-server_database_stores_lookup-store.html#~buildLookup",
+    "description": "<p>Build lookup entries from all three PODs</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "clearStore",
+    "longname": "module:server/database/stores/lookup-store~clearStore",
+    "url": "module-server_database_stores_lookup-store.html#~clearStore",
+    "description": "<p>Clear the lookup store</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "extractAllVesselsFromLog",
+    "longname": "module:server/database/stores/lookup-store~extractAllVesselsFromLog",
+    "url": "module-server_database_stores_lookup-store.html#~extractAllVesselsFromLog",
+    "description": "<p>Extract ALL vessels from log entry (for departure matching)</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "extractCashFromLog",
+    "longname": "module:server/database/stores/lookup-store~extractCashFromLog",
+    "url": "module-server_database_stores_lookup-store.html#~extractCashFromLog",
+    "description": "<p>Extract cash value from log entry</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "extractVesselFromLog",
+    "longname": "module:server/database/stores/lookup-store~extractVesselFromLog",
+    "url": "module-server_database_stores_lookup-store.html#~extractVesselFromLog",
+    "description": "<p>Extract first vessel info from log entry (for non-departure logs)</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getBreakdownByDay",
+    "longname": "module:server/database/stores/lookup-store~getBreakdownByDay",
+    "url": "module-server_database_stores_lookup-store.html#~getBreakdownByDay",
+    "description": "<p>Get breakdown by day</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getBreakdownByType",
+    "longname": "module:server/database/stores/lookup-store~getBreakdownByType",
+    "url": "module-server_database_stores_lookup-store.html#~getBreakdownByType",
+    "description": "<p>Get breakdown by type</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getContextFromAutopilot",
+    "longname": "module:server/database/stores/lookup-store~getContextFromAutopilot",
+    "url": "module-server_database_stores_lookup-store.html#~getContextFromAutopilot",
+    "description": "<p>Get context from autopilot name</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getEntries",
+    "longname": "module:server/database/stores/lookup-store~getEntries",
+    "url": "module-server_database_stores_lookup-store.html#~getEntries",
+    "description": "<p>Get all lookup entries</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getEntriesByDays",
+    "longname": "module:server/database/stores/lookup-store~getEntriesByDays",
+    "url": "module-server_database_stores_lookup-store.html#~getEntriesByDays",
+    "description": "<p>Get lookup entries within a time range</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getEntryDetails",
+    "longname": "module:server/database/stores/lookup-store~getEntryDetails",
+    "url": "module-server_database_stores_lookup-store.html#~getEntryDetails",
+    "description": "<p>Get full details for a lookup entry from all PODs</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getStoreInfo",
+    "longname": "module:server/database/stores/lookup-store~getStoreInfo",
+    "url": "module-server_database_stores_lookup-store.html#~getStoreInfo",
+    "description": "<p>Get store metadata</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getTotals",
+    "longname": "module:server/database/stores/lookup-store~getTotals",
+    "url": "module-server_database_stores_lookup-store.html#~getTotals",
+    "description": "<p>Get income/expense totals</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "rematchPOD3",
+    "longname": "module:server/database/stores/lookup-store~rematchPOD3",
+    "url": "module-server_database_stores_lookup-store.html#~rematchPOD3",
+    "description": "<p>Re-match existing lookup entries with POD3 (vessel history)\nThis fixes entries that were created before vessel history was synced</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "cleanupOldEntries",
+    "longname": "module:server/database/stores/port-demand-store~cleanupOldEntries",
+    "url": "module-server_database_stores_port-demand-store.html#~cleanupOldEntries",
+    "description": "<p>Clean up old entries</p>",
+    "parent": "module:server/database/stores/port-demand-store"
+  },
+  {
+    "type": "method",
+    "name": "getLatestDemand",
+    "longname": "module:server/database/stores/port-demand-store~getLatestDemand",
+    "url": "module-server_database_stores_port-demand-store.html#~getLatestDemand",
+    "description": "<p>Get latest demand for all ports</p>",
+    "parent": "module:server/database/stores/port-demand-store"
+  },
+  {
+    "type": "method",
+    "name": "getPortHistory",
+    "longname": "module:server/database/stores/port-demand-store~getPortHistory",
+    "url": "module-server_database_stores_port-demand-store.html#~getPortHistory",
+    "description": "<p>Get demand history for a specific port</p>",
+    "parent": "module:server/database/stores/port-demand-store"
+  },
+  {
+    "type": "method",
+    "name": "getPortTrends",
+    "longname": "module:server/database/stores/port-demand-store~getPortTrends",
+    "url": "module-server_database_stores_port-demand-store.html#~getPortTrends",
+    "description": "<p>Get demand trends for a port (hourly averages)</p>",
+    "parent": "module:server/database/stores/port-demand-store"
+  },
+  {
+    "type": "method",
+    "name": "getStoreStats",
+    "longname": "module:server/database/stores/port-demand-store~getStoreStats",
+    "url": "module-server_database_stores_port-demand-store.html#~getStoreStats",
+    "description": "<p>Get store statistics</p>",
+    "parent": "module:server/database/stores/port-demand-store"
+  },
+  {
+    "type": "method",
+    "name": "saveDemandSnapshot",
+    "longname": "module:server/database/stores/port-demand-store~saveDemandSnapshot",
+    "url": "module-server_database_stores_port-demand-store.html#~saveDemandSnapshot",
+    "description": "<p>Save demand data for multiple ports\nUses INSERT OR REPLACE to handle duplicates (same timestamp + port_code)</p>",
+    "parent": "module:server/database/stores/port-demand-store"
+  },
+  {
+    "type": "method",
+    "name": "fetchFromAPI",
+    "longname": "module:server/database/stores/transaction-store~fetchFromAPI",
+    "url": "module-server_database_stores_transaction-store.html#~fetchFromAPI",
+    "description": "<p>Fetch transactions from game API</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "generateTransactionId",
+    "longname": "module:server/database/stores/transaction-store~generateTransactionId",
+    "url": "module-server_database_stores_transaction-store.html#~generateTransactionId",
+    "description": "<p>Generate deterministic ID for a transaction</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "getDailyBreakdown",
+    "longname": "module:server/database/stores/transaction-store~getDailyBreakdown",
+    "url": "module-server_database_stores_transaction-store.html#~getDailyBreakdown",
+    "description": "<p>Get daily breakdown of transactions</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "getStoreInfo",
+    "longname": "module:server/database/stores/transaction-store~getStoreInfo",
+    "url": "module-server_database_stores_transaction-store.html#~getStoreInfo",
+    "description": "<p>Get store metadata</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "getTransactionSummary",
+    "longname": "module:server/database/stores/transaction-store~getTransactionSummary",
+    "url": "module-server_database_stores_transaction-store.html#~getTransactionSummary",
+    "description": "<p>Get transaction summary grouped by context</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "getTransactionTypes",
+    "longname": "module:server/database/stores/transaction-store~getTransactionTypes",
+    "url": "module-server_database_stores_transaction-store.html#~getTransactionTypes",
+    "description": "<p>Get all available transaction types/contexts</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "getTransactions",
+    "longname": "module:server/database/stores/transaction-store~getTransactions",
+    "url": "module-server_database_stores_transaction-store.html#~getTransactions",
+    "description": "<p>Get all stored transactions</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "getTransactionsByDays",
+    "longname": "module:server/database/stores/transaction-store~getTransactionsByDays",
+    "url": "module-server_database_stores_transaction-store.html#~getTransactionsByDays",
+    "description": "<p>Get transactions within a time range</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "startAutoSync",
+    "longname": "module:server/database/stores/transaction-store~startAutoSync",
+    "url": "module-server_database_stores_transaction-store.html#~startAutoSync",
+    "description": "<p>Start automatic background sync</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "stopAutoSync",
+    "longname": "module:server/database/stores/transaction-store~stopAutoSync",
+    "url": "module-server_database_stores_transaction-store.html#~stopAutoSync",
+    "description": "<p>Stop automatic background sync</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "syncTransactions",
+    "longname": "module:server/database/stores/transaction-store~syncTransactions",
+    "url": "module-server_database_stores_transaction-store.html#~syncTransactions",
+    "description": "<p>Sync transactions from API</p>",
+    "parent": "module:server/database/stores/transaction-store"
+  },
+  {
+    "type": "method",
+    "name": "clearStore",
+    "longname": "module:server/database/stores/vessel-history-store~clearStore",
+    "url": "module-server_database_stores_vessel-history-store.html#~clearStore",
+    "description": "<p>Clear stored vessel history</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "fetchAllVessels",
+    "longname": "module:server/database/stores/vessel-history-store~fetchAllVessels",
+    "url": "module-server_database_stores_vessel-history-store.html#~fetchAllVessels",
+    "description": "<p>Fetch all user vessels</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "fetchVesselHistory",
+    "longname": "module:server/database/stores/vessel-history-store~fetchVesselHistory",
+    "url": "module-server_database_stores_vessel-history-store.html#~fetchVesselHistory",
+    "description": "<p>Fetch vessel history for a single vessel</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "generateDepartureId",
+    "longname": "module:server/database/stores/vessel-history-store~generateDepartureId",
+    "url": "module-server_database_stores_vessel-history-store.html#~generateDepartureId",
+    "description": "<p>Generate deterministic ID for a vessel history departure</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getDepartures",
+    "longname": "module:server/database/stores/vessel-history-store~getDepartures",
+    "url": "module-server_database_stores_vessel-history-store.html#~getDepartures",
+    "description": "<p>Get all stored departures\nJoins with trip_data to get contribution if available</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getDeparturesBefore",
+    "longname": "module:server/database/stores/vessel-history-store~getDeparturesBefore",
+    "url": "module-server_database_stores_vessel-history-store.html#~getDeparturesBefore",
+    "description": "<p>Get departures before a specific timestamp</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getDeparturesByDays",
+    "longname": "module:server/database/stores/vessel-history-store~getDeparturesByDays",
+    "url": "module-server_database_stores_vessel-history-store.html#~getDeparturesByDays",
+    "description": "<p>Get departures within a time range\nJoins with trip_data to get contribution if available</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getRouteHijackingRisks",
+    "longname": "module:server/database/stores/vessel-history-store~getRouteHijackingRisks",
+    "url": "module-server_database_stores_vessel-history-store.html#~getRouteHijackingRisks",
+    "description": "<p>Get stored route hijacking risks</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getStoreInfo",
+    "longname": "module:server/database/stores/vessel-history-store~getStoreInfo",
+    "url": "module-server_database_stores_vessel-history-store.html#~getStoreInfo",
+    "description": "<p>Get store metadata</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getSyncProgress",
+    "longname": "module:server/database/stores/vessel-history-store~getSyncProgress",
+    "url": "module-server_database_stores_vessel-history-store.html#~getSyncProgress",
+    "description": "<p>Get current sync progress/status</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "getVesselTrips",
+    "longname": "module:server/database/stores/vessel-history-store~getVesselTrips",
+    "url": "module-server_database_stores_vessel-history-store.html#~getVesselTrips",
+    "description": "<p>Get trip history for a specific vessel\nReturns vessel metadata and departure history in Game API compatible format</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "loadSyncProgress",
+    "longname": "module:server/database/stores/vessel-history-store~loadSyncProgress",
+    "url": "module-server_database_stores_vessel-history-store.html#~loadSyncProgress",
+    "description": "<p>Get sync progress from database</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "migrateTankerCargo",
+    "longname": "module:server/database/stores/vessel-history-store~migrateTankerCargo",
+    "url": "module-server_database_stores_vessel-history-store.html#~migrateTankerCargo",
+    "description": "<p>Migrate tanker cargo (legacy - no-op for SQLite)\nThe SQLite migration handles this automatically during JSON import</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "parseGameDate",
+    "longname": "module:server/database/stores/vessel-history-store~parseGameDate",
+    "url": "module-server_database_stores_vessel-history-store.html#~parseGameDate",
+    "description": "<p>Parse game API date string to timestamp</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "saveSyncProgress",
+    "longname": "module:server/database/stores/vessel-history-store~saveSyncProgress",
+    "url": "module-server_database_stores_vessel-history-store.html#~saveSyncProgress",
+    "description": "<p>Save sync progress to database</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "startAutoSync",
+    "longname": "module:server/database/stores/vessel-history-store~startAutoSync",
+    "url": "module-server_database_stores_vessel-history-store.html#~startAutoSync",
+    "description": "<p>Start automatic background sync</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "stopAutoSync",
+    "longname": "module:server/database/stores/vessel-history-store~stopAutoSync",
+    "url": "module-server_database_stores_vessel-history-store.html#~stopAutoSync",
+    "description": "<p>Stop automatic background sync</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "stopSync",
+    "longname": "module:server/database/stores/vessel-history-store~stopSync",
+    "url": "module-server_database_stores_vessel-history-store.html#~stopSync",
+    "description": "<p>Stop the current sync process</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "syncNextVesselInRotation",
+    "longname": "module:server/database/stores/vessel-history-store~syncNextVesselInRotation",
+    "url": "module-server_database_stores_vessel-history-store.html#~syncNextVesselInRotation",
+    "description": "<p>Sync a single vessel in the slow background rotation</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "syncSpecificVessels",
+    "longname": "module:server/database/stores/vessel-history-store~syncSpecificVessels",
+    "url": "module-server_database_stores_vessel-history-store.html#~syncSpecificVessels",
+    "description": "<p>Sync history for specific vessel IDs</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "syncVesselHistory",
+    "longname": "module:server/database/stores/vessel-history-store~syncVesselHistory",
+    "url": "module-server_database_stores_vessel-history-store.html#~syncVesselHistory",
+    "description": "<p>Sync vessel history incrementally</p>",
+    "parent": "module:server/database/stores/vessel-history-store"
+  },
+  {
+    "type": "method",
+    "name": "closeAll",
+    "longname": "module:server/database~closeAll",
+    "url": "module-server_database.html#~closeAll",
+    "description": "<p>Close all database connections</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "closeDb",
+    "longname": "module:server/database~closeDb",
+    "url": "module-server_database.html#~closeDb",
+    "description": "<p>Close database connection for a user</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "createSchema",
+    "longname": "module:server/database~createSchema",
+    "url": "module-server_database.html#~createSchema",
+    "description": "<p>Create database schema</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "ensureDbDir",
+    "longname": "module:server/database~ensureDbDir",
+    "url": "module-server_database.html#~ensureDbDir",
+    "description": "<p>Ensure database directory exists</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getDb",
+    "longname": "module:server/database~getDb",
+    "url": "module-server_database.html#~getDb",
+    "description": "<p>Get or create database connection for a user</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getDbDir",
+    "longname": "module:server/database~getDbDir",
+    "url": "module-server_database.html#~getDbDir",
+    "description": "<p>Get the database directory path</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getDbPath",
+    "longname": "module:server/database~getDbPath",
+    "url": "module-server_database.html#~getDbPath",
+    "description": "<p>Get database file path for a user</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getMetadata",
+    "longname": "module:server/database~getMetadata",
+    "url": "module-server_database.html#~getMetadata",
+    "description": "<p>Get metadata value</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "isMigrationComplete",
+    "longname": "module:server/database~isMigrationComplete",
+    "url": "module-server_database.html#~isMigrationComplete",
+    "description": "<p>Check if migration from JSON has been completed</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "markMigrationComplete",
+    "longname": "module:server/database~markMigrationComplete",
+    "url": "module-server_database.html#~markMigrationComplete",
+    "description": "<p>Mark migration as complete</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "setMetadata",
+    "longname": "module:server/database~setMetadata",
+    "url": "module-server_database.html#~setMetadata",
+    "description": "<p>Set metadata value</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "transaction",
+    "longname": "module:server/database~transaction",
+    "url": "module-server_database.html#~transaction",
+    "description": "<p>Run a function within a transaction</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "fetchUserContribution",
     "longname": "module:server/gameapi/alliance~fetchUserContribution",
     "url": "module-server_gameapi_alliance.html#~fetchUserContribution",
@@ -9651,7 +10173,7 @@
     "name": "loadFromCache",
     "longname": "module:server/services/alliance-indexer~AllianceIndexer#loadFromCache",
     "url": "module-server_services_alliance-indexer-AllianceIndexer.html#loadFromCache",
-    "description": "<p>Load alliances from cache file</p>",
+    "description": "<p>Load alliances from SQLite cache</p>",
     "parent": "module:server/services/alliance-indexer~AllianceIndexer"
   },
   {
@@ -9659,7 +10181,7 @@
     "name": "saveToCache",
     "longname": "module:server/services/alliance-indexer~AllianceIndexer#saveToCache",
     "url": "module-server_services_alliance-indexer-AllianceIndexer.html#saveToCache",
-    "description": "<p>Save alliances to cache file</p>",
+    "description": "<p>Save alliances to SQLite cache</p>",
     "parent": "module:server/services/alliance-indexer~AllianceIndexer"
   },
   {
@@ -9693,6 +10215,54 @@
     "url": "module-server_services_alliance-indexer-AllianceIndexer.html#stop",
     "description": "<p>Stop indexer</p>",
     "parent": "module:server/services/alliance-indexer~AllianceIndexer"
+  },
+  {
+    "type": "method",
+    "name": "fetchAndSavePort",
+    "longname": "module:server/services/port-demand-sync~fetchAndSavePort",
+    "url": "module-server_services_port-demand-sync.html#~fetchAndSavePort",
+    "description": "<p>Fetch demand for a single port and save to history</p>",
+    "parent": "module:server/services/port-demand-sync"
+  },
+  {
+    "type": "method",
+    "name": "getStatus",
+    "longname": "module:server/services/port-demand-sync~getStatus",
+    "url": "module-server_services_port-demand-sync.html#~getStatus",
+    "description": "<p>Get sync status</p>",
+    "parent": "module:server/services/port-demand-sync"
+  },
+  {
+    "type": "method",
+    "name": "initPortCodes",
+    "longname": "module:server/services/port-demand-sync~initPortCodes",
+    "url": "module-server_services_port-demand-sync.html#~initPortCodes",
+    "description": "<p>Initialize port codes from game/index cache or API</p>",
+    "parent": "module:server/services/port-demand-sync"
+  },
+  {
+    "type": "method",
+    "name": "processNextBatch",
+    "longname": "module:server/services/port-demand-sync~processNextBatch",
+    "url": "module-server_services_port-demand-sync.html#~processNextBatch",
+    "description": "<p>Process next port(s) in the sync queue</p>",
+    "parent": "module:server/services/port-demand-sync"
+  },
+  {
+    "type": "method",
+    "name": "startSync",
+    "longname": "module:server/services/port-demand-sync~startSync",
+    "url": "module-server_services_port-demand-sync.html#~startSync",
+    "description": "<p>Start continuous port demand sync</p>",
+    "parent": "module:server/services/port-demand-sync"
+  },
+  {
+    "type": "method",
+    "name": "stopSync",
+    "longname": "module:server/services/port-demand-sync~stopSync",
+    "url": "module-server_services_port-demand-sync.html#~stopSync",
+    "description": "<p>Stop port demand sync</p>",
+    "parent": "module:server/services/port-demand-sync"
   },
   {
     "type": "method",
@@ -10224,18 +10794,18 @@
   },
   {
     "type": "method",
-    "name": "ensureIpoTrackingFile",
-    "longname": "module:server/utils/ipo-tracker~ensureIpoTrackingFile",
-    "url": "module-server_utils_ipo-tracker.html#~ensureIpoTrackingFile",
-    "description": "<p>Ensures the IPO tracking file exists and loads it into memory cache.\nCreates file with default values if it doesn't exist.</p>",
-    "parent": "module:server/utils/ipo-tracker"
-  },
-  {
-    "type": "method",
     "name": "getHighestSeenUserId",
     "longname": "module:server/utils/ipo-tracker~getHighestSeenUserId",
     "url": "module-server_utils_ipo-tracker.html#~getHighestSeenUserId",
     "description": "<p>Gets the highest seen user ID.</p>",
+    "parent": "module:server/utils/ipo-tracker"
+  },
+  {
+    "type": "method",
+    "name": "getLegacyJsonPath",
+    "longname": "module:server/utils/ipo-tracker~getLegacyJsonPath",
+    "url": "module-server_utils_ipo-tracker.html#~getLegacyJsonPath",
+    "description": "<p>Get the path to the legacy JSON file</p>",
     "parent": "module:server/utils/ipo-tracker"
   },
   {
@@ -10272,6 +10842,14 @@
   },
   {
     "type": "method",
+    "name": "loadIpoTracking",
+    "longname": "module:server/utils/ipo-tracker~loadIpoTracking",
+    "url": "module-server_utils_ipo-tracker.html#~loadIpoTracking",
+    "description": "<p>Loads IPO tracking data from SQLite into memory cache.\nAutomatically migrates from legacy JSON file if it exists.</p>",
+    "parent": "module:server/utils/ipo-tracker"
+  },
+  {
+    "type": "method",
     "name": "markIpoAsSeen",
     "longname": "module:server/utils/ipo-tracker~markIpoAsSeen",
     "url": "module-server_utils_ipo-tracker.html#~markIpoAsSeen",
@@ -10280,10 +10858,18 @@
   },
   {
     "type": "method",
-    "name": "saveIpoTrackingFile",
-    "longname": "module:server/utils/ipo-tracker~saveIpoTrackingFile",
-    "url": "module-server_utils_ipo-tracker.html#~saveIpoTrackingFile",
-    "description": "<p>Saves IPO tracking data to disk.</p>",
+    "name": "migrateFromJson",
+    "longname": "module:server/utils/ipo-tracker~migrateFromJson",
+    "url": "module-server_utils_ipo-tracker.html#~migrateFromJson",
+    "description": "<p>Migrate data from legacy JSON file to SQLite.\nOnly runs once per session and deletes the JSON file after successful migration.</p>",
+    "parent": "module:server/utils/ipo-tracker"
+  },
+  {
+    "type": "method",
+    "name": "saveIpoTracking",
+    "longname": "module:server/utils/ipo-tracker~saveIpoTracking",
+    "url": "module-server_utils_ipo-tracker.html#~saveIpoTracking",
+    "description": "<p>Saves IPO tracking data to SQLite.</p>",
     "parent": "module:server/utils/ipo-tracker"
   },
   {
@@ -10300,6 +10886,14 @@
     "longname": "module:server/utils/logger~error",
     "url": "module-server_utils_logger.html#~error",
     "description": "<p>Log error message with timestamp</p>",
+    "parent": "module:server/utils/logger"
+  },
+  {
+    "type": "method",
+    "name": "getUserIdPrefix",
+    "longname": "module:server/utils/logger~getUserIdPrefix",
+    "url": "module-server_utils_logger.html#~getUserIdPrefix",
+    "description": "<p>Get user ID prefix for log messages</p>",
     "parent": "module:server/utils/logger"
   },
   {
@@ -10368,26 +10962,26 @@
   },
   {
     "type": "method",
-    "name": "ensureReadTrackingFile",
-    "longname": "module:server/utils/read-tracker~ensureReadTrackingFile",
-    "url": "module-server_utils_read-tracker.html#~ensureReadTrackingFile",
-    "description": "<p>Ensures the read tracking file exists and loads it into memory cache.\nCreates file with empty object {} if it doesn't exist.</p>\n<p>Why This Function:</p>\n<ul>\n<li>Prevents crashes from missing file</li>\n<li>Initializes cache on first access</li>\n<li>Creates directory structure if needed</li>\n<li>Single source of truth for file operations</li>\n</ul>\n<p>Side Effects:</p>\n<ul>\n<li>Creates userdata/settings/ directory if missing</li>\n<li>Creates read-tracking.json file if missing</li>\n<li>Loads data into readTrackingCache</li>\n</ul>",
-    "parent": "module:server/utils/read-tracker"
-  },
-  {
-    "type": "method",
     "name": "getLastReadTimestamp",
     "longname": "module:server/utils/read-tracker~getLastReadTimestamp",
     "url": "module-server_utils_read-tracker.html#~getLastReadTimestamp",
-    "description": "<p>Gets the last read timestamp for a user's alliance chat.</p>\n<p>Why This Function:</p>\n<ul>\n<li>Used by GET /api/chat to calculate unread count</li>\n<li>Returns current time for new users (treats existing messages as already read)</li>\n<li>Cached lookups are fast (no file I/O after initial load)</li>\n</ul>\n<p>New User Behavior:</p>\n<ul>\n<li>First time a user is seen, auto-initializes timestamp to NOW</li>\n<li>This prevents showing hundreds of old messages as &quot;unread&quot; after fresh install</li>\n<li>Only NEW messages (after first access) will show as unread</li>\n</ul>",
+    "description": "<p>Gets the last read timestamp for a user's alliance chat.\nAutomatically migrates from legacy JSON file if it exists.</p>\n<p>New User Behavior:</p>\n<ul>\n<li>First time a user is seen, auto-initializes timestamp to NOW</li>\n<li>This prevents showing hundreds of old messages as &quot;unread&quot; after fresh install</li>\n</ul>",
     "parent": "module:server/utils/read-tracker"
   },
   {
     "type": "method",
-    "name": "saveReadTrackingFile",
-    "longname": "module:server/utils/read-tracker~saveReadTrackingFile",
-    "url": "module-server_utils_read-tracker.html#~saveReadTrackingFile",
-    "description": "<p>Saves read tracking data to disk.</p>\n<p>Why This Function:</p>\n<ul>\n<li>Persists in-memory cache to disk</li>\n<li>Ensures data survives server restarts</li>\n<li>Atomic write via writeFileSync (no partial writes)</li>\n<li>Pretty-printed JSON for debugging</li>\n</ul>\n<p>Side Effects:</p>\n<ul>\n<li>Writes to read-tracking.json file</li>\n<li>Logs errors if write fails</li>\n</ul>",
+    "name": "getLegacyJsonPath",
+    "longname": "module:server/utils/read-tracker~getLegacyJsonPath",
+    "url": "module-server_utils_read-tracker.html#~getLegacyJsonPath",
+    "description": "<p>Get the path to the legacy JSON file</p>",
+    "parent": "module:server/utils/read-tracker"
+  },
+  {
+    "type": "method",
+    "name": "migrateFromJson",
+    "longname": "module:server/utils/read-tracker~migrateFromJson",
+    "url": "module-server_utils_read-tracker.html#~migrateFromJson",
+    "description": "<p>Migrate data from legacy JSON file to SQLite.\nOnly runs once per session and deletes the JSON file after successful migration.</p>",
     "parent": "module:server/utils/read-tracker"
   },
   {
@@ -10395,7 +10989,7 @@
     "name": "updateLastReadTimestamp",
     "longname": "module:server/utils/read-tracker~updateLastReadTimestamp",
     "url": "module-server_utils_read-tracker.html#~updateLastReadTimestamp",
-    "description": "<p>Updates the last read timestamp for a user's alliance chat.</p>\n<p>Why This Function:</p>\n<ul>\n<li>Called by POST /api/chat/mark-read when user opens chat</li>\n<li>Persists timestamp to disk for reliability</li>\n<li>Updates in-memory cache for performance</li>\n</ul>\n<p>Side Effects:</p>\n<ul>\n<li>Updates readTrackingCache</li>\n<li>Writes to read-tracking.json file</li>\n</ul>",
+    "description": "<p>Updates the last read timestamp for a user's alliance chat.</p>",
     "parent": "module:server/utils/read-tracker"
   },
   {
@@ -10420,6 +11014,14 @@
     "longname": "module:server/utils/session-manager~getAvailableSessions",
     "url": "module-server_utils_session-manager.html#~getAvailableSessions",
     "description": "<p>Get all available sessions with decrypted cookies</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
+    "name": "getFirstValidSession",
+    "longname": "module:server/utils/session-manager~getFirstValidSession",
+    "url": "module-server_utils_session-manager.html#~getFirstValidSession",
+    "description": "<p>Get the first valid session from stored sessions\nValidates each session against the game API and returns the first one that works</p>",
     "parent": "module:server/utils/session-manager"
   },
   {
@@ -10488,6 +11090,22 @@
   },
   {
     "type": "method",
+    "name": "setAutostart",
+    "longname": "module:server/utils/session-manager~setAutostart",
+    "url": "module-server_utils_session-manager.html#~setAutostart",
+    "description": "<p>Set autostart preference for a session</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
+    "name": "validateSessionCookie",
+    "longname": "module:server/utils/session-manager~validateSessionCookie",
+    "url": "module-server_utils_session-manager.html#~validateSessionCookie",
+    "description": "<p>Validate a session cookie by making an API call to the game server</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
     "name": "checkGreenPrices",
     "longname": "module:server/utils/telegram~checkGreenPrices",
     "url": "module-server_utils_telegram.html#~checkGreenPrices",
@@ -10528,14 +11146,6 @@
   },
   {
     "type": "method",
-    "name": "ensureDirectory",
-    "longname": "module:server/utils/trip-data-store~ensureDirectory",
-    "url": "module-server_utils_trip-data-store.html#~ensureDirectory",
-    "description": "<p>Ensures trip data directory exists</p>",
-    "parent": "module:server/utils/trip-data-store"
-  },
-  {
-    "type": "method",
     "name": "findLookupDataFuzzy",
     "longname": "module:server/utils/trip-data-store~findLookupDataFuzzy",
     "url": "module-server_utils_trip-data-store.html#~findLookupDataFuzzy",
@@ -10552,14 +11162,6 @@
   },
   {
     "type": "method",
-    "name": "getFilePath",
-    "longname": "module:server/utils/trip-data-store~getFilePath",
-    "url": "module-server_utils_trip-data-store.html#~getFilePath",
-    "description": "<p>Gets file path for user's trip data</p>",
-    "parent": "module:server/utils/trip-data-store"
-  },
-  {
-    "type": "method",
     "name": "getTripData",
     "longname": "module:server/utils/trip-data-store~getTripData",
     "url": "module-server_utils_trip-data-store.html#~getTripData",
@@ -10568,34 +11170,10 @@
   },
   {
     "type": "method",
-    "name": "isMigrationCompleted",
-    "longname": "module:server/utils/trip-data-store~isMigrationCompleted",
-    "url": "module-server_utils_trip-data-store.html#~isMigrationCompleted",
-    "description": "<p>Checks if migration has already been completed</p>",
-    "parent": "module:server/utils/trip-data-store"
-  },
-  {
-    "type": "method",
-    "name": "loadTripData",
-    "longname": "module:server/utils/trip-data-store~loadTripData",
-    "url": "module-server_utils_trip-data-store.html#~loadTripData",
-    "description": "<p>Loads trip data from disk</p>",
-    "parent": "module:server/utils/trip-data-store"
-  },
-  {
-    "type": "method",
-    "name": "markMigrationCompleted",
-    "longname": "module:server/utils/trip-data-store~markMigrationCompleted",
-    "url": "module-server_utils_trip-data-store.html#~markMigrationCompleted",
-    "description": "<p>Marks migration as completed</p>",
-    "parent": "module:server/utils/trip-data-store"
-  },
-  {
-    "type": "method",
     "name": "migrateFromOldStores",
     "longname": "module:server/utils/trip-data-store~migrateFromOldStores",
     "url": "module-server_utils_trip-data-store.html#~migrateFromOldStores",
-    "description": "<p>Migrates data from old separate stores to unified store</p>",
+    "description": "<p>Migration is handled by database/migration.js - these are kept for compatibility</p>",
     "parent": "module:server/utils/trip-data-store"
   },
   {
@@ -10603,7 +11181,7 @@
     "name": "saveHarborFee",
     "longname": "module:server/utils/trip-data-store~saveHarborFee",
     "url": "module-server_utils_trip-data-store.html#~saveHarborFee",
-    "description": "<p>Saves harbor fee only (compatibility wrapper for migrate-harbor-fees.js)</p>",
+    "description": "<p>Saves harbor fee only (compatibility wrapper)</p>",
     "parent": "module:server/utils/trip-data-store"
   },
   {
@@ -10612,14 +11190,6 @@
     "longname": "module:server/utils/trip-data-store~saveTripData",
     "url": "module-server_utils_trip-data-store.html#~saveTripData",
     "description": "<p>Saves all trip data for a vessel departure</p>",
-    "parent": "module:server/utils/trip-data-store"
-  },
-  {
-    "type": "method",
-    "name": "saveTripDataToDisk",
-    "longname": "module:server/utils/trip-data-store~saveTripDataToDisk",
-    "url": "module-server_utils_trip-data-store.html#~saveTripDataToDisk",
-    "description": "<p>Saves trip data to disk</p>",
     "parent": "module:server/utils/trip-data-store"
   },
   {
@@ -10715,7 +11285,7 @@
     "name": "getCachedHijackingCase",
     "longname": "module:server/websocket/hijacking-cache~getCachedHijackingCase",
     "url": "module-server_websocket_hijacking-cache.html#~getCachedHijackingCase",
-    "description": "<p>Gets hijacking case details - checks LOCAL FILE first, then memory, then API.</p>\n<p>Priority:</p>\n<ol>\n<li>Local file with resolved:true -&gt; Use it, ZERO API calls</li>\n<li>Memory cache (for open cases during session)</li>\n<li>API call (only for new/unknown cases) -&gt; Then save locally</li>\n</ol>",
+    "description": "<p>Gets hijacking case details - checks SQLite first, then memory, then API.</p>\n<p>Priority:</p>\n<ol>\n<li>SQLite with resolved=true -&gt; Use it, ZERO API calls</li>\n<li>Memory cache (for open cases during session)</li>\n<li>API call (only for new/unknown cases) -&gt; Then save to SQLite</li>\n</ol>",
     "parent": "module:server/websocket/hijacking-cache"
   },
   {
@@ -10728,18 +11298,42 @@
   },
   {
     "type": "method",
-    "name": "readLocalCaseFile",
-    "longname": "module:server/websocket/hijacking-cache~readLocalCaseFile",
-    "url": "module-server_websocket_hijacking-cache.html#~readLocalCaseFile",
-    "description": "<p>Reads local history file for a hijacking case.\nFile format: {userId}-{caseId}.json</p>",
+    "name": "markCaseResolved",
+    "longname": "module:server/websocket/hijacking-cache~markCaseResolved",
+    "url": "module-server_websocket_hijacking-cache.html#~markCaseResolved",
+    "description": "<p>Mark case as resolved with payment verification</p>",
     "parent": "module:server/websocket/hijacking-cache"
   },
   {
     "type": "method",
-    "name": "saveLocalCaseFile",
-    "longname": "module:server/websocket/hijacking-cache~saveLocalCaseFile",
-    "url": "module-server_websocket_hijacking-cache.html#~saveLocalCaseFile",
-    "description": "<p>Saves case details to local file for persistent caching.</p>",
+    "name": "readLocalCaseFromDb",
+    "longname": "module:server/websocket/hijacking-cache~readLocalCaseFromDb",
+    "url": "module-server_websocket_hijacking-cache.html#~readLocalCaseFromDb",
+    "description": "<p>Reads hijacking case from SQLite database.</p>",
+    "parent": "module:server/websocket/hijacking-cache"
+  },
+  {
+    "type": "method",
+    "name": "saveLocalCaseToDb",
+    "longname": "module:server/websocket/hijacking-cache~saveLocalCaseToDb",
+    "url": "module-server_websocket_hijacking-cache.html#~saveLocalCaseToDb",
+    "description": "<p>Saves case details to SQLite for persistent caching.</p>",
+    "parent": "module:server/websocket/hijacking-cache"
+  },
+  {
+    "type": "method",
+    "name": "saveNegotiationEvent",
+    "longname": "module:server/websocket/hijacking-cache~saveNegotiationEvent",
+    "url": "module-server_websocket_hijacking-cache.html#~saveNegotiationEvent",
+    "description": "<p>Save negotiation history event to SQLite</p>",
+    "parent": "module:server/websocket/hijacking-cache"
+  },
+  {
+    "type": "method",
+    "name": "updateCaseVesselInfo",
+    "longname": "module:server/websocket/hijacking-cache~updateCaseVesselInfo",
+    "url": "module-server_websocket_hijacking-cache.html#~updateCaseVesselInfo",
+    "description": "<p>Update case with vessel info</p>",
     "parent": "module:server/websocket/hijacking-cache"
   },
   {
@@ -10832,6 +11426,22 @@
   },
   {
     "type": "method",
+    "name": "addProcessedMessageId",
+    "longname": "module:server/websocket/message-cache~addProcessedMessageId",
+    "url": "module-server_websocket_message-cache.html#~addProcessedMessageId",
+    "description": "<p>Add a processed message ID and persist to SQLite</p>",
+    "parent": "module:server/websocket/message-cache"
+  },
+  {
+    "type": "method",
+    "name": "getLegacyJsonPath",
+    "longname": "module:server/websocket/message-cache~getLegacyJsonPath",
+    "url": "module-server_websocket_message-cache.html#~getLegacyJsonPath",
+    "description": "<p>Get legacy JSON file path for a user</p>",
+    "parent": "module:server/websocket/message-cache"
+  },
+  {
+    "type": "method",
     "name": "getProcessedMessageIds",
     "longname": "module:server/websocket/message-cache~getProcessedMessageIds",
     "url": "module-server_websocket_message-cache.html#~getProcessedMessageIds",
@@ -10840,10 +11450,10 @@
   },
   {
     "type": "method",
-    "name": "getProcessedMessagesCachePath",
-    "longname": "module:server/websocket/message-cache~getProcessedMessagesCachePath",
-    "url": "module-server_websocket_message-cache.html#~getProcessedMessagesCachePath",
-    "description": "<p>Get cache file path for processed DM message IDs for a specific user</p>",
+    "name": "isMessageProcessed",
+    "longname": "module:server/websocket/message-cache~isMessageProcessed",
+    "url": "module-server_websocket_message-cache.html#~isMessageProcessed",
+    "description": "<p>Check if a message has been processed</p>",
     "parent": "module:server/websocket/message-cache"
   },
   {
@@ -10851,7 +11461,15 @@
     "name": "loadProcessedMessageCache",
     "longname": "module:server/websocket/message-cache~loadProcessedMessageCache",
     "url": "module-server_websocket_message-cache.html#~loadProcessedMessageCache",
-    "description": "<p>Load processed message IDs from cache file for a specific user</p>",
+    "description": "<p>Load processed message IDs from SQLite for a specific user.\nAutomatically migrates from legacy JSON file if it exists.</p>",
+    "parent": "module:server/websocket/message-cache"
+  },
+  {
+    "type": "method",
+    "name": "migrateFromJson",
+    "longname": "module:server/websocket/message-cache~migrateFromJson",
+    "url": "module-server_websocket_message-cache.html#~migrateFromJson",
+    "description": "<p>Migrate data from legacy JSON file to SQLite for a specific user.\nOnly runs once per user per session and deletes the JSON file after successful migration.</p>",
     "parent": "module:server/websocket/message-cache"
   },
   {
@@ -10859,7 +11477,7 @@
     "name": "saveProcessedMessageCache",
     "longname": "module:server/websocket/message-cache~saveProcessedMessageCache",
     "url": "module-server_websocket_message-cache.html#~saveProcessedMessageCache",
-    "description": "<p>Save processed message IDs to cache file for a specific user</p>",
+    "description": "<p>Save processed message IDs to SQLite (for batch operations)</p>",
     "parent": "module:server/websocket/message-cache"
   },
   {
@@ -10876,22 +11494,6 @@
     "longname": "module:server/websocket/messenger-content-cache~deleteChatFromCache",
     "url": "module-server_websocket_messenger-content-cache.html#~deleteChatFromCache",
     "description": "<p>Delete a chat from cache</p>",
-    "parent": "module:server/websocket/messenger-content-cache"
-  },
-  {
-    "type": "method",
-    "name": "ensureCacheDir",
-    "longname": "module:server/websocket/messenger-content-cache~ensureCacheDir",
-    "url": "module-server_websocket_messenger-content-cache.html#~ensureCacheDir",
-    "description": "<p>Ensure messenger cache directory exists</p>",
-    "parent": "module:server/websocket/messenger-content-cache"
-  },
-  {
-    "type": "method",
-    "name": "flushCache",
-    "longname": "module:server/websocket/messenger-content-cache~flushCache",
-    "url": "module-server_websocket_messenger-content-cache.html#~flushCache",
-    "description": "<p>Force save any pending changes (call on shutdown)</p>",
     "parent": "module:server/websocket/messenger-content-cache"
   },
   {
@@ -10920,14 +11522,6 @@
   },
   {
     "type": "method",
-    "name": "getMessengerCachePath",
-    "longname": "module:server/websocket/messenger-content-cache~getMessengerCachePath",
-    "url": "module-server_websocket_messenger-content-cache.html#~getMessengerCachePath",
-    "description": "<p>Get cache file path for messenger content</p>",
-    "parent": "module:server/websocket/messenger-content-cache"
-  },
-  {
-    "type": "method",
     "name": "hasNewMessages",
     "longname": "module:server/websocket/messenger-content-cache~hasNewMessages",
     "url": "module-server_websocket_messenger-content-cache.html#~hasNewMessages",
@@ -10936,10 +11530,18 @@
   },
   {
     "type": "method",
+    "name": "loadChatListFromDb",
+    "longname": "module:server/websocket/messenger-content-cache~loadChatListFromDb",
+    "url": "module-server_websocket_messenger-content-cache.html#~loadChatListFromDb",
+    "description": "<p>Load chat list from SQLite into memory</p>",
+    "parent": "module:server/websocket/messenger-content-cache"
+  },
+  {
+    "type": "method",
     "name": "loadMessengerCache",
     "longname": "module:server/websocket/messenger-content-cache~loadMessengerCache",
     "url": "module-server_websocket_messenger-content-cache.html#~loadMessengerCache",
-    "description": "<p>Load messenger cache from disk into memory</p>",
+    "description": "<p>Load messenger cache from disk into memory (compatibility - now loads from SQLite)</p>",
     "parent": "module:server/websocket/messenger-content-cache"
   },
   {
@@ -10948,14 +11550,6 @@
     "longname": "module:server/websocket/messenger-content-cache~markChatAsReadInCache",
     "url": "module-server_websocket_messenger-content-cache.html#~markChatAsReadInCache",
     "description": "<p>Mark a chat as read in cache (update metadata)</p>",
-    "parent": "module:server/websocket/messenger-content-cache"
-  },
-  {
-    "type": "method",
-    "name": "saveMessengerCache",
-    "longname": "module:server/websocket/messenger-content-cache~saveMessengerCache",
-    "url": "module-server_websocket_messenger-content-cache.html#~saveMessengerCache",
-    "description": "<p>Save messenger cache to disk (debounced)</p>",
     "parent": "module:server/websocket/messenger-content-cache"
   },
   {
@@ -11619,7 +12213,7 @@
     "name": "saveServerConfig",
     "longname": "module:utils~window.saveServerConfig",
     "url": "module-utils-window.html#.saveServerConfig",
-    "description": "<p>Save server configuration (IP/Port) to backend</p>",
+    "description": "<p>Save server configuration (IP/Port) to backend\nIf config changed, triggers server restart and redirects to new URL</p>",
     "parent": "module:utils~window"
   },
   {

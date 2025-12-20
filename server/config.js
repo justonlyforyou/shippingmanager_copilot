@@ -103,12 +103,10 @@ function getLocalAppDataDir() {
  */
 function getLogDir() {
   const isPkg = isPackaged();
-  console.log(`[DEBUG] getLogDir - process.pkg = ${isPkg}`);
 
   if (isPkg) {
     if (process.platform === 'win32') {
       const appDataPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'logs');
-      console.log(`[DEBUG] Using LocalAppData logs: ${appDataPath}`);
       return appDataPath;
     }
     if (process.platform === 'darwin') {
@@ -120,7 +118,6 @@ function getLogDir() {
   }
   // Running from source - use project directory
   const localPath = path.join(__dirname, '..', 'userdata', 'logs');
-  console.log(`[DEBUG] Using local logs: ${localPath}`);
   return localPath;
 }
 
@@ -179,25 +176,17 @@ function getAppVersionCookie() {
  */
 function getSettingsDir() {
   const isPkg = isPackaged();
-  console.log(`[DEBUG] getSettingsDir - process.pkg = ${isPkg}`);
 
   if (isPkg) {
     if (process.platform === 'win32') {
-      const appDataPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'settings');
-      console.log(`[DEBUG] Using LocalAppData settings: ${appDataPath}`);
-      return appDataPath;
+      return path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'settings');
     }
     if (process.platform === 'darwin') {
-      // macOS: ~/Library/Application Support/ShippingManagerCoPilot/userdata/settings
       return path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot', 'userdata', 'settings');
     }
-    // Linux: ~/.ShippingManagerCoPilot/userdata/settings
     return path.join(os.homedir(), '.ShippingManagerCoPilot', 'userdata', 'settings');
   }
-  // Running from source - use userdata
-  const localPath = path.join(__dirname, '..', 'userdata', 'settings');
-  console.log(`[DEBUG] Using local settings: ${localPath}`);
-  return localPath;
+  return path.join(__dirname, '..', 'userdata', 'settings');
 }
 
 /**
@@ -253,19 +242,18 @@ const startupSettings = loadStartupSettings();
 
 const config = {
   /**
-   * HTTPS server port from systray settings.
-   * NO DEFAULTS - always reads from userdata/settings/settings.json
+   * HTTPS server port.
+   * Priority: process.env.PORT (from launcher) > settings.json
    * @constant {number}
    */
-  PORT: startupSettings.port,
+  PORT: process.env.PORT ? parseInt(process.env.PORT, 10) : startupSettings.port,
 
   /**
-   * Server bind address from systray settings.
-   * NO DEFAULTS - always reads from userdata/settings/settings.json
-   * Default on first run: 127.0.0.1 (localhost-only for security)
+   * Server bind address.
+   * Priority: process.env.HOST (from launcher) > settings.json
    * @constant {string}
    */
-  HOST: startupSettings.host,
+  HOST: process.env.HOST || startupSettings.host,
 
   /**
    * Base URL for Shipping Manager game API. All proxy requests are sent to this endpoint.
@@ -297,7 +285,7 @@ const config = {
    */
   RATE_LIMIT: {
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 1000,
+    max: 10000,
     message: 'Too many requests, please try again later'
   },
 

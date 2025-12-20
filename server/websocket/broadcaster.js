@@ -20,6 +20,10 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   'bunker_update',
   'price_update',
   'price_alert',
+  'fuel_purchase_start',
+  'fuel_purchase_complete',
+  'co2_purchase_start',
+  'co2_purchase_complete',
   // Vessel operations
   'vessels_departed',
   'vessels_failed',
@@ -36,15 +40,27 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   'vessel_purchased',
   'bulk_buy_start',
   'bulk_buy_complete',
+  'purser_purchase',
+  'purser_sell',
   // Repair events
   'repair_start',
   'repair_complete',
+  'repair_count_update',
+  'auto_repair_complete',
+  // Drydock events
+  'drydock_start',
+  'drydock_complete',
+  'vessels_drydocked',
+  'drydock_count_update',
+  // Logbook
+  'logbook_update',
   // Chat/Notifications
   'chat_update',
   'system_notification',
   'generic_notification',
   'user_action_notification',
   'notification',
+  'desktop_notification',
   // Messenger
   'messenger_update',
   // Autopilot events
@@ -52,6 +68,7 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   'campaigns_renewed',
   'auto_coop_no_targets',
   'auto_coop_complete',
+  'coop_send_start',
   'coop_send_complete',
   'coop_update',
   // Lock status
@@ -63,10 +80,23 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   'event_data_update',
   'campaign_status_update',
   'all_data_updated',
+  'settings_update',
   // Harbor map
   'harbor_map_refresh_required',
   // Hijacking
-  'hijacking_update'
+  'hijacking_update',
+  // Staff/IPO updates
+  'staff_update',
+  'ipo_alert_update',
+  'price_alerts',
+  // Anchor events
+  'anchor_update',
+  'anchor_purchase_timer',
+  // Server lifecycle
+  'server_startup',
+  // Alliance events
+  'alliance_changed',
+  'alliance_index_ready'
 ]);
 
 /**
@@ -147,8 +177,9 @@ function broadcast(type, data) {
 
   // Security: Only allow whitelisted message types
   if (!ALLOWED_MESSAGE_TYPES.has(type)) {
-    logger.warn(`[WebSocket] Blocked broadcast of unknown type: ${type}`);
-    return;
+    const error = new Error(`[WebSocket] FATAL: Unknown broadcast type '${type}' - add to ALLOWED_MESSAGE_TYPES in broadcaster.js`);
+    logger.error(error.message);
+    throw error;
   }
 
   // Security: Validate data is serializable and not null/undefined
@@ -230,22 +261,54 @@ function broadcastBunkerUpdate(userId, bunkerData) {
  *   cost: 38000
  * });
  */
-function broadcastToUser(userId, type, data) {
-  // Special handling for bunker_update: ALWAYS include current prices to prevent race condition
-  if (type === 'bunker_update' && data && !data.prices) {
-    const state = require('../state');
-    const currentPrices = state.getPrices(userId);
+// Debounce for bunker_update - max 1 per second
+let lastBunkerUpdate = 0;
+let pendingBunkerData = null;
+let bunkerDebounceTimer = null;
+const BUNKER_UPDATE_COOLDOWN = 1000; // 1 second
 
-    // ONLY add prices if they are valid (not 0) - prevents broadcasting fake default values
-    if (currentPrices.fuel > 0 && currentPrices.co2 > 0) {
-      data.prices = {
-        fuelPrice: currentPrices.fuel,
-        co2Price: currentPrices.co2,
-        eventDiscount: currentPrices.eventDiscount,
-        regularFuel: currentPrices.regularFuel,
-        regularCO2: currentPrices.regularCO2
-      };
+function broadcastToUser(userId, type, data) {
+  // Special handling for bunker_update: debounce + always include prices
+  if (type === 'bunker_update') {
+    const state = require('../state');
+
+    // Add prices if missing
+    if (data && !data.prices) {
+      const currentPrices = state.getPrices(userId);
+      if (currentPrices.fuel > 0 && currentPrices.co2 > 0) {
+        data.prices = {
+          fuelPrice: currentPrices.fuel,
+          co2Price: currentPrices.co2,
+          eventDiscount: currentPrices.eventDiscount,
+          regularFuel: currentPrices.regularFuel,
+          regularCO2: currentPrices.regularCO2
+        };
+      }
     }
+
+    // Debounce: store latest data, send max once per second
+    const now = Date.now();
+    pendingBunkerData = data;
+
+    if (now - lastBunkerUpdate >= BUNKER_UPDATE_COOLDOWN) {
+      // Enough time passed, send immediately
+      lastBunkerUpdate = now;
+      broadcast(type, data);
+      pendingBunkerData = null;
+    } else if (!bunkerDebounceTimer) {
+      // Schedule send after cooldown
+      const delay = BUNKER_UPDATE_COOLDOWN - (now - lastBunkerUpdate);
+      bunkerDebounceTimer = setTimeout(() => {
+        bunkerDebounceTimer = null;
+        if (pendingBunkerData) {
+          lastBunkerUpdate = Date.now();
+          broadcast('bunker_update', pendingBunkerData);
+          pendingBunkerData = null;
+        }
+      }, delay);
+    }
+    // If timer already running, pendingBunkerData will be sent when it fires
+    return;
   }
 
   // In single-user mode, broadcast to all clients

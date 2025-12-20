@@ -598,6 +598,7 @@ function renderStep1() {
               <div class="type-info">2,000 - 27,000 TEU</div>
             </div>
           </label>
+          ${window.USER_COMPANY_TYPE?.includes('tanker') ? `
           <label class="vessel-type-option ${buildState.vesselType === 'tanker' ? 'selected' : ''}">
             <input type="radio" name="vesselType" value="tanker" ${buildState.vesselType === 'tanker' ? 'checked' : ''}>
             <div class="type-card-horizontal">
@@ -606,6 +607,7 @@ function renderStep1() {
               <div class="type-info">148,000 - 1,998,000 BBL</div>
             </div>
           </label>
+          ` : ''}
         </div>
       </div>
 
@@ -1218,6 +1220,8 @@ async function submitBuild() {
 
               if (drydockResponse.ok) {
                 showSideNotification('Fast delivery activated - vessel will arrive in 60 minutes', 'success');
+                // Notify vessel-management to refresh pending view if active
+                window.dispatchEvent(new CustomEvent('drydock-completed'));
               } else {
                 const drydockError = await drydockResponse.json();
                 console.error('[Build] Drydock trigger failed:', drydockError);

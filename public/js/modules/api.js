@@ -1391,6 +1391,23 @@ export async function buildLookup(days = 0) {
 }
 
 /**
+ * Get all lookup data in a single request (totals, breakdown, daily, info)
+ * Much faster than making 4 separate requests
+ * @param {number} days - Number of days (0 = all)
+ * @returns {Promise<Object>} Combined lookup data
+ */
+export async function getLookupAll(days = 0) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/lookup/all?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get lookup data');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting all lookup data:', error);
+    throw error;
+  }
+}
+
+/**
  * Get lookup entries
  * @param {Object} options - Query options
  * @param {number} options.days - Number of days (0 = all)
@@ -1589,4 +1606,73 @@ export async function getApiStatsDates() {
     throw error;
   }
 }
+
+// ============================================================================
+// PORT DEMAND ANALYTICS
+// ============================================================================
+
+/**
+ * Get port demand sync status and store statistics
+ * @returns {Promise<Object>} Sync status and store stats
+ */
+export async function getPortDemandStatus() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/port-demand/status'));
+    if (!response.ok) throw new Error('Failed to get port demand status');
+    return await response.json();
+  } catch (error) {
+    console.error('[Port Demand] Error getting status:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get demand history for a specific port
+ * @param {string} portCode - Port code (e.g., 'hamburg', 'new_york_city')
+ * @param {number} days - Number of days to look back (default 7)
+ * @returns {Promise<Object>} Port demand history
+ */
+export async function getPortDemandHistory(portCode, days = 7) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/port-demand/history/${portCode}?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get port demand history');
+    return await response.json();
+  } catch (error) {
+    console.error('[Port Demand] Error getting history:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get hourly demand trends for a port
+ * @param {string} portCode - Port code
+ * @param {number} days - Number of days to analyze (default 7)
+ * @returns {Promise<Object>} Hourly trends
+ */
+export async function getPortDemandTrends(portCode, days = 7) {
+  try {
+    const response = await fetch(window.apiUrl(`/api/analytics/port-demand/trends/${portCode}?days=${days}`));
+    if (!response.ok) throw new Error('Failed to get port demand trends');
+    return await response.json();
+  } catch (error) {
+    console.error('[Port Demand] Error getting trends:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get latest demand snapshot for all ports
+ * @returns {Promise<Object>} Latest demand data for all ports
+ */
+export async function getPortDemandLatest() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/port-demand/latest'));
+    if (!response.ok) throw new Error('Failed to get latest port demand');
+    return await response.json();
+  } catch (error) {
+    console.error('[Port Demand] Error getting latest:', error);
+    throw error;
+  }
+}
+
 

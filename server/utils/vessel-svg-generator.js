@@ -7,16 +7,27 @@
 const fs = require('fs');
 const path = require('path');
 const logger = require('./logger');
+const { isPackaged } = require('../config');
 
 let baseContainerSvg = null;
 let baseTankerSvg = null;
+
+/**
+ * Get base directory for public assets.
+ * SEA: __dirname = directory containing the executable (public/ is next to exe)
+ * Dev: __dirname = server/utils/, go up two levels to project root
+ * @returns {string} Base directory path
+ */
+function getPublicBaseDir() {
+  return isPackaged() ? __dirname : path.join(__dirname, '..', '..');
+}
 
 /**
  * Load base container SVG template
  */
 function loadBaseContainerSvg() {
   if (!baseContainerSvg) {
-    const svgPath = path.join(__dirname, '../../public/images/vessels/custom_cargo_vessel.svg');
+    const svgPath = path.join(getPublicBaseDir(), 'public', 'images', 'vessels', 'custom_cargo_vessel.svg');
     baseContainerSvg = fs.readFileSync(svgPath, 'utf8');
   }
   return baseContainerSvg;
@@ -27,7 +38,7 @@ function loadBaseContainerSvg() {
  */
 function loadBaseTankerSvg() {
   if (!baseTankerSvg) {
-    const svgPath = path.join(__dirname, '../../public/images/vessels/custom_tanker_vessel.svg');
+    const svgPath = path.join(getPublicBaseDir(), 'public', 'images', 'vessels', 'custom_tanker_vessel.svg');
     baseTankerSvg = fs.readFileSync(svgPath, 'utf8');
   }
   return baseTankerSvg;

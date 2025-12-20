@@ -25,7 +25,7 @@ const autopilot = require('../../autopilot');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../../utils/audit-logger');
 const logger = require('../../utils/logger');
 const { broadcastToUser } = require('../../websocket');
-const { syncSpecificVessels } = require('../../analytics/vessel-history-store');
+const { vesselHistoryStore, lookupStore } = require('../../database/store-adapter');
 
 const router = express.Router();
 
@@ -203,10 +203,22 @@ router.post('/depart', async (req, res) => {
     if (result && result.success && result.departedCount > 0 && result.departedVessels) {
       const departedVesselIds = result.departedVessels.map(v => v.vesselId).filter(Boolean);
       if (departedVesselIds.length > 0) {
+        logger.debug(`[Depart API] Triggering vessel history sync for ${departedVesselIds.length} vessels: ${departedVesselIds.join(', ')}`);
         // Run async, don't block response
-        syncSpecificVessels(userId, departedVesselIds).then(syncResult => {
+        vesselHistoryStore.syncSpecificVessels(userId, departedVesselIds).then(async (syncResult) => {
+          logger.debug(`[Depart API] Vessel history sync result: synced=${syncResult.synced}, newEntries=${syncResult.newEntries}`);
           if (syncResult.newEntries > 0) {
             logger.info(`[Depart API] Synced history for ${departedVesselIds.length} vessels: +${syncResult.newEntries} entries`);
+          } else {
+            logger.debug(`[Depart API] No new entries from vessel history sync (Game API may not have updated yet)`);
+          }
+          // Build lookup to create entries for new transactions, then rematch with POD3
+          const buildResult = await lookupStore.buildLookup(userId, 0);
+          logger.debug(`[Depart API] Lookup build: ${buildResult.newEntries} new entries, POD2=${buildResult.matchedPod2}, POD3=${buildResult.matchedPod3}`);
+          // Re-match any remaining unmatched entries with new POD3 data
+          const rematchResult = await lookupStore.rematchPOD3(userId);
+          if (rematchResult.matched > 0) {
+            logger.info(`[Depart API] Rematched ${rematchResult.matched} lookup entries with POD3`);
           }
         }).catch(err => {
           logger.error('[Depart API] Failed to sync vessel history:', err.message);

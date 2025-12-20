@@ -12,13 +12,13 @@
  * @module analytics
  */
 
-import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupTotals, getLookupBreakdown, getLookupDaily, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsDates } from './api.js';
+import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupAll, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsDates, getPortDemandStatus, getPortDemandHistory } from './api.js';
 import { escapeHtml, showNotification, formatNumber, toGameCode } from './utils.js';
 
 // State
 let analyticsData = null;
 let lookupData = null; // Used for export
-let currentDays = 7;
+let currentDays = null;
 let trendChart = null;
 let isDevelMode = false;
 let apiStatsChart = null;
@@ -30,7 +30,8 @@ const CACHE_TTL = 60000;
 const lazyLoadState = {
   vessels: { loaded: false, loading: false, loadedAt: 0 },
   routes: { loaded: false, loading: false, loadedAt: 0 },
-  overview: { loaded: false, loading: false, loadedAt: 0 }
+  overview: { loaded: false, loading: false, loadedAt: 0 },
+  ports: { loaded: false, loading: false, loadedAt: 0 }
 };
 
 // Sort state for tables
@@ -222,8 +223,9 @@ export function initAnalytics() {
     });
   }
 
-  // Period selector
+  // Period selector - read initial value from DOM
   if (periodSelect) {
+    currentDays = parseInt(periodSelect.value, 10);
     periodSelect.addEventListener('change', async (e) => {
       currentDays = parseInt(e.target.value, 10);
       updateFilterName(periodSelect);
@@ -250,6 +252,14 @@ export function initAnalytics() {
       }
       if (routesTab && !routesTab.classList.contains('hidden')) {
         await lazyLoadRoutes();
+      }
+      // Reload ports chart if tab is active and a port is selected
+      const portsTab = document.getElementById('analytics-ports');
+      if (portsTab && !portsTab.classList.contains('hidden')) {
+        const portSelect = document.getElementById('portDemandPortSelect');
+        if (portSelect && portSelect.value) {
+          await loadPortDemandChart(portSelect.value);
+        }
       }
     });
     // Set initial filter name
@@ -904,6 +914,11 @@ function switchTab(tabId) {
   if (tabId === 'api-stats' && isDevelMode) {
     loadApiStats();
   }
+
+  // Load port demand data when tab becomes visible
+  if (tabId === 'ports') {
+    lazyLoadPorts();
+  }
 }
 
 /**
@@ -1002,6 +1017,18 @@ async function lazyLoadVessels() {
   // If already loading, skip
   if (lazyLoadState.vessels.loading) return;
 
+  // If analyticsData not initialized yet, load overview first
+  if (!analyticsData) {
+    console.log('[Analytics] Overview not loaded yet, loading first...');
+    await loadAnalyticsData();
+    // After loadAnalyticsData, analyticsData should be initialized
+    if (!analyticsData) {
+      console.error('[Analytics] Failed to initialize analyticsData');
+      if (loadingEl) loadingEl.textContent = 'Failed to load analytics data';
+      return;
+    }
+  }
+
   // If cache is still valid, just render from cache
   if (isCacheValid(lazyLoadState.vessels.loadedAt) && analyticsData.vessels) {
     console.log('[Analytics] Using cached vessels data');
@@ -1019,6 +1046,11 @@ async function lazyLoadVessels() {
   lazyLoadState.vessels.loading = true;
   try {
     const data = await getAnalyticsVessels(currentDays);
+    // Check again after async call - analyticsData could have been reset
+    if (!analyticsData) {
+      console.warn('[Analytics] analyticsData was reset during vessel load');
+      return;
+    }
     analyticsData.vessels = data.vessels;
     lazyLoadState.vessels.loaded = true;
     lazyLoadState.vessels.loadedAt = Date.now();
@@ -1050,6 +1082,18 @@ async function lazyLoadRoutes() {
   // If already loading, skip
   if (lazyLoadState.routes.loading) return;
 
+  // If analyticsData not initialized yet, load overview first
+  if (!analyticsData) {
+    console.log('[Analytics] Overview not loaded yet, loading first...');
+    await loadAnalyticsData();
+    // After loadAnalyticsData, analyticsData should be initialized
+    if (!analyticsData) {
+      console.error('[Analytics] Failed to initialize analyticsData');
+      if (loadingEl) loadingEl.textContent = 'Failed to load analytics data';
+      return;
+    }
+  }
+
   // If cache is still valid, just render from cache
   if (isCacheValid(lazyLoadState.routes.loadedAt) && analyticsData.routes) {
     console.log('[Analytics] Using cached routes data');
@@ -1066,6 +1110,11 @@ async function lazyLoadRoutes() {
   lazyLoadState.routes.loading = true;
   try {
     const data = await getAnalyticsRoutes(currentDays);
+    // Check again after async call - analyticsData could have been reset
+    if (!analyticsData) {
+      console.warn('[Analytics] analyticsData was reset during routes load');
+      return;
+    }
     analyticsData.routes = data.routes;
     lazyLoadState.routes.loaded = true;
     lazyLoadState.routes.loadedAt = Date.now();
@@ -1085,6 +1134,625 @@ async function lazyLoadRoutes() {
 }
 
 /**
+ * Lazy load port demand data when Ports tab is clicked
+ */
+async function lazyLoadPorts() {
+  const loadingEl = document.getElementById('portDemandLoading');
+  const contentEl = document.getElementById('portDemandContent');
+
+  // If already loading, skip
+  if (lazyLoadState.ports.loading) return;
+
+  // If cache is still valid, skip reload
+  if (isCacheValid(lazyLoadState.ports.loadedAt)) {
+    console.log('[Analytics] Using cached ports data');
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (contentEl) contentEl.classList.remove('hidden');
+    return;
+  }
+
+  // Show loading, hide content
+  if (loadingEl) loadingEl.classList.remove('hidden');
+  if (contentEl) contentEl.classList.add('hidden');
+
+  lazyLoadState.ports.loading = true;
+  try {
+    // Load status and harbor-map overview (has all ports with country) in parallel
+    const [statusData, harborData] = await Promise.all([
+      getPortDemandStatus(),
+      fetch(window.apiUrl('/api/harbor-map/overview?filter=all_ports')).then(r => r.json())
+    ]);
+
+    // Update sync status display
+    updatePortDemandStatus(statusData);
+
+    // Populate port dropdown with all ports from harbor-map (have code + country)
+    populatePortDropdown(harborData.ports);
+
+    lazyLoadState.ports.loaded = true;
+    lazyLoadState.ports.loadedAt = Date.now();
+
+    // Hide loading, show content
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (contentEl) contentEl.classList.remove('hidden');
+
+  } catch (error) {
+    console.error('[Analytics] Failed to load port demand:', error);
+    if (loadingEl) loadingEl.textContent = 'Failed to load port demand data';
+  } finally {
+    lazyLoadState.ports.loading = false;
+  }
+}
+
+/**
+ * Update port demand sync status display
+ */
+function updatePortDemandStatus(statusData) {
+  const dataPointsEl = document.getElementById('portDemandDataPoints');
+  const syncProgressEl = document.getElementById('portDemandSyncProgress');
+  const lastCycleEl = document.getElementById('portDemandLastCycle');
+  const totalPortsEl = document.getElementById('portDemandTotalPorts');
+
+  if (!statusData) {
+    throw new Error('No status data received');
+  }
+
+  const store = statusData.store;
+  const sync = statusData.sync;
+
+  if (!store || !sync) {
+    throw new Error('Invalid status data structure');
+  }
+
+  if (dataPointsEl) {
+    dataPointsEl.textContent = formatNumber(store.totalEntries);
+  }
+  if (syncProgressEl) {
+    syncProgressEl.textContent = sync.cycleProgress;
+  }
+  if (lastCycleEl) {
+    if (sync.lastFullCycleAt) {
+      const date = new Date(sync.lastFullCycleAt);
+      lastCycleEl.textContent = date.toLocaleTimeString();
+    } else {
+      lastCycleEl.textContent = 'In progress...';
+    }
+  }
+  if (totalPortsEl) {
+    totalPortsEl.textContent = sync.totalPorts;
+  }
+}
+
+// Store ports data for filtering
+let portSearchData = [];
+let portSearchHighlightIndex = -1;
+
+/**
+ * Populate port dropdown with available ports (searchable)
+ */
+function populatePortDropdown(ports) {
+  const searchInput = document.getElementById('portDemandSearch');
+  const hiddenSelect = document.getElementById('portDemandPortSelect');
+  const dropdown = document.getElementById('portDemandDropdown');
+
+  if (!searchInput || !hiddenSelect || !dropdown) return;
+
+  // Handle null/undefined ports
+  if (!ports || !Array.isArray(ports)) {
+    portSearchData = [];
+    return;
+  }
+
+  // Format port name to Title Case (new_york -> New York)
+  const formatName = (code) => {
+    return code.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+  };
+
+  // Sort ports by name and store with display text
+  portSearchData = [...ports].sort((a, b) => {
+    const nameA = formatName(a.code);
+    const nameB = formatName(b.code);
+    return nameA.localeCompare(nameB);
+  }).map(port => ({
+    code: port.code,
+    country: port.country,
+    display: `${formatName(port.code)} (${toGameCode(port.code, port.country)})`
+  }));
+
+  // Render dropdown items
+  function renderDropdown(filter = '') {
+    const filterLower = filter.toLowerCase();
+    const filtered = filter
+      ? portSearchData.filter(p => p.display.toLowerCase().includes(filterLower))
+      : portSearchData;
+
+    if (filtered.length === 0) {
+      dropdown.innerHTML = '<div class="port-search-no-results">No ports found</div>';
+      return;
+    }
+
+    dropdown.innerHTML = filtered.map((port, idx) => `
+      <div class="port-search-item${idx === portSearchHighlightIndex ? ' highlighted' : ''}"
+           data-code="${port.code}" data-display="${port.display}">
+        ${port.display}
+      </div>
+    `).join('');
+  }
+
+  // Select a port
+  function selectPort(code, display) {
+    hiddenSelect.value = code;
+    hiddenSelect.dataset.display = display;
+    searchInput.value = display;
+    dropdown.classList.add('hidden');
+    portSearchHighlightIndex = -1;
+    if (code) {
+      loadPortDemandChart(code);
+    } else {
+      clearPortDemandChart();
+    }
+  }
+
+  // Input handler for filtering
+  searchInput.addEventListener('input', () => {
+    portSearchHighlightIndex = -1;
+    renderDropdown(searchInput.value);
+    dropdown.classList.remove('hidden');
+  });
+
+  // Focus handler - show dropdown
+  searchInput.addEventListener('focus', () => {
+    renderDropdown(searchInput.value);
+    dropdown.classList.remove('hidden');
+  });
+
+  // Keyboard navigation
+  searchInput.addEventListener('keydown', (e) => {
+    const items = dropdown.querySelectorAll('.port-search-item');
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      portSearchHighlightIndex = Math.min(portSearchHighlightIndex + 1, items.length - 1);
+      updateHighlight(items);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      portSearchHighlightIndex = Math.max(portSearchHighlightIndex - 1, 0);
+      updateHighlight(items);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (portSearchHighlightIndex >= 0 && items[portSearchHighlightIndex]) {
+        const item = items[portSearchHighlightIndex];
+        selectPort(item.dataset.code, item.dataset.display);
+      }
+    } else if (e.key === 'Escape') {
+      dropdown.classList.add('hidden');
+      portSearchHighlightIndex = -1;
+    }
+  });
+
+  function updateHighlight(items) {
+    items.forEach((item, idx) => {
+      item.classList.toggle('highlighted', idx === portSearchHighlightIndex);
+      if (idx === portSearchHighlightIndex) {
+        item.scrollIntoView({ block: 'nearest' });
+      }
+    });
+  }
+
+  // Click handler for dropdown items
+  dropdown.addEventListener('click', (e) => {
+    const item = e.target.closest('.port-search-item');
+    if (item) {
+      selectPort(item.dataset.code, item.dataset.display);
+    }
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.port-search-dropdown')) {
+      dropdown.classList.add('hidden');
+      portSearchHighlightIndex = -1;
+    }
+  });
+
+  // Initial render
+  renderDropdown();
+}
+
+/**
+ * Load and render port demand chart for a specific port
+ */
+async function loadPortDemandChart(portCode) {
+  const teuContainer = document.getElementById('portDemandChartContainerTEU');
+  const bblContainer = document.getElementById('portDemandChartContainerBBL');
+  if (!teuContainer) return;
+
+  // Get port name from dropdown
+  const portSelect = document.getElementById('portDemandPortSelect');
+  const portName = portSelect?.dataset?.display ? portSelect.dataset.display : portCode;
+
+  // Show loading in chart areas
+  teuContainer.innerHTML = '<div class="port-demand-chart-placeholder">Loading demand history...</div>';
+  if (bblContainer && window.USER_COMPANY_TYPE?.includes('tanker')) {
+    bblContainer.classList.remove('hidden');
+    bblContainer.innerHTML = '<div class="port-demand-chart-placeholder">Loading demand history...</div>';
+  }
+
+  try {
+    // Fetch both demand history and port vessel data in parallel
+    const [historyData, portData] = await Promise.all([
+      getPortDemandHistory(portCode, currentDays),
+      fetch(window.apiUrl(`/api/harbor-map/port/${portCode}`)).then(r => r.json())
+    ]);
+
+    // Update vessel metrics
+    updatePortVesselMetrics(portData);
+
+    if (!historyData.history || historyData.history.length === 0) {
+      teuContainer.innerHTML = '<div class="port-demand-chart-placeholder">No demand history available for this port yet</div>';
+      if (bblContainer) bblContainer.classList.add('hidden');
+      return;
+    }
+
+    renderPortDemandCharts(historyData.history, portName);
+
+  } catch (error) {
+    console.error('[Analytics] Failed to load port demand chart:', error);
+    teuContainer.innerHTML = '<div class="port-demand-chart-placeholder">Failed to load demand history</div>';
+    if (bblContainer) bblContainer.classList.add('hidden');
+  }
+}
+
+/**
+ * Update vessel metrics for the selected port
+ */
+function updatePortVesselMetrics(portData) {
+  const activeVesselsEl = document.getElementById('portDemandActiveVessels');
+  const maxTEUEl = document.getElementById('portDemandMaxTEU');
+  const maxBBLEl = document.getElementById('portDemandMaxBBL');
+
+  // Hide BBL metric container if user doesn't have tanker
+  const hasTanker = window.USER_COMPANY_TYPE?.includes('tanker');
+  if (maxBBLEl) {
+    const bblContainer = maxBBLEl.closest('.analytics-metric');
+    if (bblContainer) {
+      bblContainer.classList.toggle('hidden', !hasTanker);
+    }
+  }
+
+  // Reset values
+  if (activeVesselsEl) activeVesselsEl.textContent = '-';
+  if (maxTEUEl) maxTEUEl.textContent = '-';
+  if (maxBBLEl) maxBBLEl.textContent = '-';
+
+  if (!portData || !portData.vessels) return;
+
+  // Combine all vessel categories
+  const allVessels = [
+    ...(portData.vessels.inPort || []),
+    ...(portData.vessels.toPort || []),
+    ...(portData.vessels.fromPort || []),
+    ...(portData.vessels.pending || [])
+  ];
+
+  // Count active vessels
+  if (activeVesselsEl) {
+    activeVesselsEl.textContent = formatNumber(allVessels.length);
+  }
+
+  // Calculate max TEU and max BBL
+  let totalTEU = 0;
+  let totalBBL = 0;
+
+  for (const vessel of allVessels) {
+    if (vessel.capacity_type === 'container' && vessel.capacity_max) {
+      const dry = vessel.capacity_max.dry || 0;
+      const ref = vessel.capacity_max.refrigerated || 0;
+      totalTEU += dry + ref;
+    } else if (vessel.capacity_type === 'tanker' && vessel.capacity_max) {
+      const fuel = vessel.capacity_max.fuel || 0;
+      const crude = vessel.capacity_max.crude_oil || 0;
+      totalBBL += fuel + crude;
+    }
+  }
+
+  if (maxTEUEl) {
+    maxTEUEl.textContent = totalTEU > 0 ? formatNumber(totalTEU) : '-';
+  }
+  if (maxBBLEl && hasTanker) {
+    maxBBLEl.textContent = totalBBL > 0 ? formatNumber(totalBBL) : '-';
+  }
+}
+
+// Track port demand series visibility state
+const portDemandSeriesStateTEU = { dry: true, refrigerated: true };
+const portDemandSeriesStateBBL = { fuel: true, crude: true };
+
+// Series colors
+const portDemandColors = {
+  dry: '#2196F3',
+  refrigerated: '#4CAF50',
+  fuel: '#FF9800',
+  crude: '#9C27B0'
+};
+
+// Chart instances
+let portDemandChartTEU = null;
+let portDemandChartBBL = null;
+let portDemandSeriesTEU = {};
+let portDemandSeriesBBL = {};
+
+/**
+ * Create chart options (reusable)
+ */
+function getPortDemandChartOptions() {
+  return {
+    autoSize: true,
+    height: 280,
+    layout: {
+      background: { type: 'solid', color: 'transparent' },
+      textColor: '#9ca3af',
+      attributionLogo: false
+    },
+    grid: {
+      vertLines: { color: 'rgba(255,255,255,0.1)' },
+      horzLines: { color: 'rgba(255,255,255,0.1)' }
+    },
+    crosshair: {
+      mode: LightweightCharts.CrosshairMode.Normal
+    },
+    rightPriceScale: {
+      borderColor: 'rgba(255,255,255,0.2)'
+    },
+    timeScale: {
+      borderColor: 'rgba(255,255,255,0.2)',
+      timeVisible: true,
+      secondsVisible: false
+    },
+    localization: {
+      priceFormatter: (price) => Math.round(price).toLocaleString('en-US')
+    },
+    handleScroll: {
+      mouseWheel: true,
+      pressedMouseMove: true,
+      horzTouchDrag: true,
+      vertTouchDrag: false
+    },
+    handleScale: {
+      axisPressedMouseMove: true,
+      mouseWheel: true,
+      pinch: true
+    }
+  };
+}
+
+/**
+ * Render TEU chart (Container demand - Dry + Refrigerated)
+ * Shows current demand (demand - consumed)
+ */
+function renderTEUChart(container, history, portName) {
+  container.innerHTML = '';
+
+  const sortedHistory = [...history].sort((a, b) => a.timestamp - b.timestamp);
+
+  // Current demand = max - consumed
+  const dryData = sortedHistory.map(e => ({
+    time: e.timestamp,
+    value: Math.max(0, (e.dry_demand || 0) - (e.dry_consumed || 0))
+  }));
+  const refData = sortedHistory.map(e => ({
+    time: e.timestamp,
+    value: Math.max(0, (e.refrigerated_demand || 0) - (e.refrigerated_consumed || 0))
+  }));
+
+  const filterText = currentDays === 0 ? 'All Time' : `${currentDays} Days`;
+  container.innerHTML = `
+    <div class="analytics-chart-header">
+      <span class="analytics-chart-title">${escapeHtml(portName || 'Port')} - Container Demand TEU (${filterText})</span>
+    </div>
+  `;
+
+  const chartDiv = document.createElement('div');
+  chartDiv.style.height = '280px';
+  chartDiv.style.width = '100%';
+  container.appendChild(chartDiv);
+
+  portDemandChartTEU = LightweightCharts.createChart(chartDiv, getPortDemandChartOptions());
+
+  const addLine = (chart, options) => {
+    if (typeof chart.addLineSeries === 'function') {
+      return chart.addLineSeries(options);
+    }
+    return chart.addSeries(LightweightCharts.LineSeries, options);
+  };
+
+  portDemandSeriesTEU.dry = addLine(portDemandChartTEU, {
+    color: portDemandColors.dry,
+    lineWidth: 2,
+    visible: portDemandSeriesStateTEU.dry,
+    priceFormat: { type: 'volume', precision: 0 }
+  });
+  portDemandSeriesTEU.dry.setData(dryData);
+
+  portDemandSeriesTEU.refrigerated = addLine(portDemandChartTEU, {
+    color: portDemandColors.refrigerated,
+    lineWidth: 2,
+    visible: portDemandSeriesStateTEU.refrigerated,
+    priceFormat: { type: 'volume', precision: 0 }
+  });
+  portDemandSeriesTEU.refrigerated.setData(refData);
+
+  portDemandChartTEU.timeScale().fitContent();
+
+  const togglesDiv = document.createElement('div');
+  togglesDiv.className = 'analytics-chart-toggles';
+  togglesDiv.innerHTML = `
+    <button class="analytics-chart-toggle ${portDemandSeriesStateTEU.dry ? 'active' : ''}" data-series="dry" style="border-color: ${portDemandColors.dry}40;">
+      <span class="analytics-chart-legend-dot" style="background: ${portDemandColors.dry};"></span>
+      Dry TEU
+    </button>
+    <button class="analytics-chart-toggle ${portDemandSeriesStateTEU.refrigerated ? 'active' : ''}" data-series="refrigerated" style="border-color: ${portDemandColors.refrigerated}40;">
+      <span class="analytics-chart-legend-dot" style="background: ${portDemandColors.refrigerated};"></span>
+      Ref TEU
+    </button>
+  `;
+  container.appendChild(togglesDiv);
+
+  togglesDiv.querySelectorAll('.analytics-chart-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const seriesKey = btn.dataset.series;
+      const series = portDemandSeriesTEU[seriesKey];
+      if (!series) return;
+      const isActive = btn.classList.toggle('active');
+      portDemandSeriesStateTEU[seriesKey] = isActive;
+      series.applyOptions({ visible: isActive });
+    });
+  });
+}
+
+/**
+ * Render BBL chart (Tanker demand - Fuel + Crude)
+ * Shows current demand (demand - consumed)
+ */
+function renderBBLChart(container, history, portName) {
+  container.innerHTML = '';
+
+  const sortedHistory = [...history].sort((a, b) => a.timestamp - b.timestamp);
+
+  // Current demand = max - consumed
+  const fuelData = sortedHistory.map(e => ({
+    time: e.timestamp,
+    value: Math.max(0, (e.fuel_demand || 0) - (e.fuel_consumed || 0))
+  }));
+  const crudeData = sortedHistory.map(e => ({
+    time: e.timestamp,
+    value: Math.max(0, (e.crude_demand || 0) - (e.crude_consumed || 0))
+  }));
+
+  const filterText = currentDays === 0 ? 'All Time' : `${currentDays} Days`;
+  container.innerHTML = `
+    <div class="analytics-chart-header">
+      <span class="analytics-chart-title">${escapeHtml(portName || 'Port')} - Tanker Demand BBL (${filterText})</span>
+    </div>
+  `;
+
+  const chartDiv = document.createElement('div');
+  chartDiv.style.height = '280px';
+  chartDiv.style.width = '100%';
+  container.appendChild(chartDiv);
+
+  portDemandChartBBL = LightweightCharts.createChart(chartDiv, getPortDemandChartOptions());
+
+  const addLine = (chart, options) => {
+    if (typeof chart.addLineSeries === 'function') {
+      return chart.addLineSeries(options);
+    }
+    return chart.addSeries(LightweightCharts.LineSeries, options);
+  };
+
+  portDemandSeriesBBL.fuel = addLine(portDemandChartBBL, {
+    color: portDemandColors.fuel,
+    lineWidth: 2,
+    visible: portDemandSeriesStateBBL.fuel,
+    priceFormat: { type: 'volume', precision: 0 }
+  });
+  portDemandSeriesBBL.fuel.setData(fuelData);
+
+  portDemandSeriesBBL.crude = addLine(portDemandChartBBL, {
+    color: portDemandColors.crude,
+    lineWidth: 2,
+    visible: portDemandSeriesStateBBL.crude,
+    priceFormat: { type: 'volume', precision: 0 }
+  });
+  portDemandSeriesBBL.crude.setData(crudeData);
+
+  portDemandChartBBL.timeScale().fitContent();
+
+  const togglesDiv = document.createElement('div');
+  togglesDiv.className = 'analytics-chart-toggles';
+  togglesDiv.innerHTML = `
+    <button class="analytics-chart-toggle ${portDemandSeriesStateBBL.fuel ? 'active' : ''}" data-series="fuel" style="border-color: ${portDemandColors.fuel}40;">
+      <span class="analytics-chart-legend-dot" style="background: ${portDemandColors.fuel};"></span>
+      Fuel BBL
+    </button>
+    <button class="analytics-chart-toggle ${portDemandSeriesStateBBL.crude ? 'active' : ''}" data-series="crude" style="border-color: ${portDemandColors.crude}40;">
+      <span class="analytics-chart-legend-dot" style="background: ${portDemandColors.crude};"></span>
+      Crude BBL
+    </button>
+  `;
+  container.appendChild(togglesDiv);
+
+  togglesDiv.querySelectorAll('.analytics-chart-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const seriesKey = btn.dataset.series;
+      const series = portDemandSeriesBBL[seriesKey];
+      if (!series) return;
+      const isActive = btn.classList.toggle('active');
+      portDemandSeriesStateBBL[seriesKey] = isActive;
+      series.applyOptions({ visible: isActive });
+    });
+  });
+}
+
+/**
+ * Render port demand charts (TEU + BBL if user has tanker)
+ */
+function renderPortDemandCharts(history, portName) {
+  const teuContainer = document.getElementById('portDemandChartContainerTEU');
+  const bblContainer = document.getElementById('portDemandChartContainerBBL');
+
+  if (!teuContainer) return;
+
+  // Always render TEU chart
+  renderTEUChart(teuContainer, history, portName);
+
+  // Render BBL chart only if user has tanker
+  const hasTanker = window.USER_COMPANY_TYPE?.includes('tanker');
+  if (hasTanker && bblContainer) {
+    bblContainer.classList.remove('hidden');
+    renderBBLChart(bblContainer, history, portName);
+  } else if (bblContainer) {
+    bblContainer.classList.add('hidden');
+  }
+}
+
+/**
+ * Clear port demand charts
+ */
+function clearPortDemandChart() {
+  const teuContainer = document.getElementById('portDemandChartContainerTEU');
+  const bblContainer = document.getElementById('portDemandChartContainerBBL');
+
+  if (teuContainer) {
+    teuContainer.innerHTML = '<div class="port-demand-chart-placeholder">Select a port to view demand history</div>';
+  }
+  if (bblContainer) {
+    bblContainer.innerHTML = '<div class="port-demand-chart-placeholder">Select a port to view demand history</div>';
+    bblContainer.classList.add('hidden');
+  }
+
+  if (portDemandChartTEU) {
+    portDemandChartTEU.remove();
+    portDemandChartTEU = null;
+    portDemandSeriesTEU = {};
+  }
+  if (portDemandChartBBL) {
+    portDemandChartBBL.remove();
+    portDemandChartBBL = null;
+    portDemandSeriesBBL = {};
+  }
+
+  // Reset vessel metrics
+  const activeVesselsEl = document.getElementById('portDemandActiveVessels');
+  const maxTEUEl = document.getElementById('portDemandMaxTEU');
+  const maxBBLEl = document.getElementById('portDemandMaxBBL');
+  if (activeVesselsEl) activeVesselsEl.textContent = '-';
+  if (maxTEUEl) maxTEUEl.textContent = '-';
+  if (maxBBLEl) maxBBLEl.textContent = '-';
+}
+
+/**
  * Preload all tabs in background (parallel)
  * Data is cached so tabs open instantly when clicked
  */
@@ -1095,6 +1763,8 @@ async function preloadAllTabs() {
       if (analyticsData?.vessels) return; // Already cached
 
       const data = await getAnalyticsVessels(currentDays);
+      // Check again after async call
+      if (!analyticsData) return;
       analyticsData.vessels = data.vessels;
       lazyLoadState.vessels.loaded = true;
       lazyLoadState.vessels.loadedAt = Date.now();
@@ -1113,6 +1783,8 @@ async function preloadAllTabs() {
       if (analyticsData?.routes) return; // Already cached
 
       const data = await getAnalyticsRoutes(currentDays);
+      // Check again after async call
+      if (!analyticsData) return;
       analyticsData.routes = data.routes;
       lazyLoadState.routes.loaded = true;
       lazyLoadState.routes.loadedAt = Date.now();
@@ -1412,7 +2084,7 @@ function renderVesselCharts(vessels, utilizationEntries) {
  * @param {Array|null} vessels - Vessel data (optional, can derive top 10 from entries)
  * @param {Array} vesselRevenueEntries - Individual entries with {time, value, vesselId, vesselName}
  */
-function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
+function renderVesselsRevenueChart(vessels, vesselRevenueEntries, retryCount = 0) {
   const container = document.getElementById('vessels-revenue-chart-container');
   if (!container) return;
 
@@ -1423,6 +2095,13 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
 
   if (typeof LightweightCharts === 'undefined') {
     container.innerHTML = '<div class="no-data">Chart library not loaded</div>';
+    return;
+  }
+
+  // Check if container is visible and has valid dimensions (max 10 retries)
+  const rect = container.getBoundingClientRect();
+  if ((rect.width < 100 || !container.offsetParent) && retryCount < 10) {
+    setTimeout(() => renderVesselsRevenueChart(vessels, vesselRevenueEntries, retryCount + 1), 100);
     return;
   }
 
@@ -1599,7 +2278,7 @@ function renderVesselsRevenueChart(vessels, vesselRevenueEntries) {
  * @param {Array|null} vessels - Vessel data (optional, can derive bottom 10 from entries)
  * @param {Array} vesselRevenueEntries - Time-series revenue entries
  */
-function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
+function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries, retryCount = 0) {
   const container = document.getElementById('vessels-bottom-revenue-chart-container');
   if (!container) return;
 
@@ -1610,6 +2289,13 @@ function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
 
   if (typeof LightweightCharts === 'undefined') {
     container.innerHTML = '<div class="no-data">Chart library not loaded</div>';
+    return;
+  }
+
+  // Check if container is visible and has valid dimensions (max 10 retries)
+  const rect = container.getBoundingClientRect();
+  if ((rect.width < 100 || !container.offsetParent) && retryCount < 10) {
+    setTimeout(() => renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries, retryCount + 1), 100);
     return;
   }
 
@@ -1767,7 +2453,6 @@ function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
       price: 0,
       color: '#ef4444',
       lineWidth: 1,
-      lineStyle: 2, // Dashed
       axisLabelVisible: true
     });
   }
@@ -1799,9 +2484,16 @@ function renderBottomVesselsRevenueChart(vessels, vesselRevenueEntries) {
  * Render Fleet Composition as SVG pie chart
  * @param {Array} vessels - Vessel data
  */
-function renderVesselsCompositionChart(vessels) {
+function renderVesselsCompositionChart(vessels, retryCount = 0) {
   const container = document.getElementById('vessels-composition-chart-container');
   if (!container) return;
+
+  // Check if container is visible and has valid dimensions (max 10 retries)
+  const rect = container.getBoundingClientRect();
+  if ((rect.width < 100 || !container.offsetParent) && retryCount < 10) {
+    setTimeout(() => renderVesselsCompositionChart(vessels, retryCount + 1), 100);
+    return;
+  }
 
   // Calculate total revenue
   const totalRevenue = vessels.reduce((sum, v) => sum + v.totalRevenue, 0);
@@ -2350,7 +3042,7 @@ function renderVesselsCompositionChart(vessels) {
  * Shows individual utilization points with timestamps for zoom capability
  * @param {Array} utilizationEntries - Individual entries with {time, value, vesselName}
  */
-function renderVesselsUtilizationChart(utilizationEntries) {
+function renderVesselsUtilizationChart(utilizationEntries, retryCount = 0) {
   const container = document.getElementById('vessels-utilization-chart-container');
   if (!container) return;
 
@@ -2361,6 +3053,13 @@ function renderVesselsUtilizationChart(utilizationEntries) {
 
   if (typeof LightweightCharts === 'undefined') {
     container.innerHTML = '<div class="no-data">Chart library not loaded</div>';
+    return;
+  }
+
+  // Check if container is visible and has valid dimensions (max 10 retries)
+  const rect = container.getBoundingClientRect();
+  if ((rect.width < 100 || !container.offsetParent) && retryCount < 10) {
+    setTimeout(() => renderVesselsUtilizationChart(utilizationEntries, retryCount + 1), 100);
     return;
   }
 
@@ -3017,18 +3716,14 @@ function destroyChart() {
  */
 async function loadGameLogData() {
   try {
-    // Fetch totals, breakdown, daily, and info in parallel from lookup store
-    const [totalsRes, breakdownRes, dailyRes, info] = await Promise.all([
-      getLookupTotals(currentDays),
-      getLookupBreakdown(currentDays),
-      getLookupDaily(currentDays),
-      getLookupInfo()
-    ]);
+    // Fetch all lookup data in a single request (much faster than 4 separate requests)
+    const allData = await getLookupAll(currentDays);
 
-    // Extract data from response wrappers
-    const totals = totalsRes;
-    const breakdown = breakdownRes.breakdown;
-    const daily = dailyRes.daily;
+    // Extract data from combined response
+    const totals = allData.totals;
+    const breakdown = allData.breakdown;
+    const daily = allData.daily;
+    const info = allData.info;
 
     // Store data for export
     lookupData = { info, totals, breakdown, daily };
@@ -3083,7 +3778,7 @@ let gameLogChart = null;
  * Uses individual transaction timestamps for zoom capability
  * @param {Array} chartEntries - Individual transactions with {time, value, context}
  */
-function renderGameLogChart(chartEntries) {
+function renderGameLogChart(chartEntries, retryCount = 0) {
   const container = document.getElementById('game-log-chart-container');
   if (!container) return;
 
@@ -3103,8 +3798,12 @@ function renderGameLogChart(chartEntries) {
     return;
   }
 
-  // DEBUG: Log first few entries to see data structure
-  console.log('[GameLogChart] First 3 entries:', JSON.stringify(chartEntries.slice(0, 3), null, 2));
+  // Check if container is visible and has valid dimensions (max 10 retries)
+  const rect = container.getBoundingClientRect();
+  if ((rect.width < 100 || !container.offsetParent) && retryCount < 10) {
+    setTimeout(() => renderGameLogChart(chartEntries, retryCount + 1), 100);
+    return;
+  }
 
   // Get all categories and their totals from chartEntries
   const categoryTotals = new Map();
@@ -4218,7 +4917,7 @@ async function showLookupEntryDetails(lookupId) {
     // Helper to format underscore names (harbor_fee_on_depart -> Harbor Fee On Depart)
     const formatName = (name) => {
       if (!name) return '-';
-      return toGameCode(name);
+      return name.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
     };
 
     // Helper to format cash with proper sign placement (-$69.5K not $-69.5K)
@@ -4560,7 +5259,7 @@ function renderApiStatsSummary(stats, hours, dates) {
 /**
  * Render API stats chart using LightweightCharts (minute-level data)
  */
-function renderApiStatsChart(stats) {
+function renderApiStatsChart(stats, retryCount = 0) {
   const container = document.getElementById('apiStatsChartContainer');
   if (!container) return;
 
@@ -4584,6 +5283,13 @@ function renderApiStatsChart(stats) {
     return;
   }
 
+  // Check if container is visible and has valid dimensions (max 10 retries)
+  const rect = container.getBoundingClientRect();
+  if ((rect.width < 100 || !container.offsetParent) && retryCount < 10) {
+    setTimeout(() => renderApiStatsChart(stats, retryCount + 1), 100);
+    return;
+  }
+
   // Prepare data for chart - convert to Unix timestamps
   // minute format is "2025-12-05 01:30" (YYYY-MM-DD HH:mm)
   const data = stats.timeSeries.map(m => {
@@ -4595,15 +5301,6 @@ function renderApiStatsChart(stats) {
       value: m.total
     };
   }).filter(d => !isNaN(d.time)).sort((a, b) => a.time - b.time);
-
-  console.log('[API Stats] Chart data:', data.length, 'points', data.slice(0, 3));
-  console.log('[API Stats] Container size:', container.offsetWidth, 'x', container.offsetHeight);
-
-  // If container not visible yet, wait a bit
-  if (container.offsetWidth === 0) {
-    setTimeout(() => renderApiStatsChart(stats), 100);
-    return;
-  }
 
   // Create chart
   apiStatsChart = LightweightCharts.createChart(container, {

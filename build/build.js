@@ -3,29 +3,28 @@
  * @fileoverview Complete Build Script
  *
  * Automated build process for ShippingManager CoPilot.
- * Handles dependency checks, compilation, and packaging.
+ * Builds Node.js SEA executable and C# installer.
  *
- * Usage: node build.js [options]
+ * Usage: node build/build.js [options]
  * Options:
  *   --skip-deps     Skip dependency installation
- *   --skip-docs     Skip documentation generation
  *   --skip-installer Skip installer creation
  *   --clean         Clean dist folder before build
  */
 
-const { execSync, spawn } = require('child_process');
+const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
 // Configuration
 const config = {
     skipDeps: process.argv.includes('--skip-deps'),
-    skipDocs: process.argv.includes('--skip-docs'),
     skipInstaller: process.argv.includes('--skip-installer'),
     clean: process.argv.includes('--clean'),
 };
 
-const packageJson = require('./package.json');
+const ROOT_DIR = path.join(__dirname, '..');
+const packageJson = require(path.join(ROOT_DIR, 'package.json'));
 const version = packageJson.version;
 
 // Colors for console output
@@ -53,19 +52,15 @@ function step(number, total, text) {
 }
 
 function success(text) {
-    console.log(colors.green + '  ✓ ' + text + colors.reset);
-}
-
-function warning(text) {
-    console.log(colors.yellow + '  ⚠ ' + text + colors.reset);
+    console.log(colors.green + '  OK ' + text + colors.reset);
 }
 
 function error(text) {
-    console.log(colors.red + '  ✗ ' + text + colors.reset);
+    console.log(colors.red + '  ERROR ' + text + colors.reset);
 }
 
 function info(text) {
-    console.log(colors.cyan + '  ℹ ' + text + colors.reset);
+    console.log(colors.cyan + '  ' + text + colors.reset);
 }
 
 // Execute command with output
@@ -74,6 +69,7 @@ function exec(command, options = {}) {
         const output = execSync(command, {
             encoding: 'utf8',
             stdio: options.silent ? 'pipe' : 'inherit',
+            cwd: ROOT_DIR,
             ...options
         });
         return { success: true, output };
@@ -82,24 +78,10 @@ function exec(command, options = {}) {
     }
 }
 
-// Check if command exists
-function commandExists(command) {
-    try {
-        if (process.platform === 'win32') {
-            execSync(`where ${command}`, { stdio: 'pipe' });
-        } else {
-            execSync(`which ${command}`, { stdio: 'pipe' });
-        }
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 // Build steps
 const buildSteps = [];
 
-// Step 1: Check dependencies
+// Step: Check dependencies
 buildSteps.push({
     name: 'Checking dependencies',
     execute: () => {
@@ -107,35 +89,20 @@ buildSteps.push({
 
         // Node.js version
         const nodeVersion = process.version;
-        const requiredNode = packageJson.engines.node;
-        checks.push({ name: 'Node.js', version: nodeVersion, required: requiredNode, ok: true });
+        checks.push({ name: 'Node.js', version: nodeVersion, ok: true });
 
-        // Python
-        const pythonCmd = commandExists('python') ? 'python' : (commandExists('python3') ? 'python3' : null);
-        if (pythonCmd) {
-            const result = exec(`${pythonCmd} --version`, { silent: true });
-            if (result.success) {
-                checks.push({ name: 'Python', version: result.output.trim(), ok: true });
-            }
-        } else {
-            checks.push({ name: 'Python', version: 'Not found', ok: false });
-        }
-
-        // PyInstaller (check both direct command and python module)
-        let pyinstallerCheck = exec('pyinstaller --version', { silent: true });
-        if (!pyinstallerCheck.success && pythonCmd) {
-            pyinstallerCheck = exec(`${pythonCmd} -m PyInstaller --version`, { silent: true });
-        }
-        if (pyinstallerCheck.success) {
-            checks.push({ name: 'PyInstaller', version: pyinstallerCheck.output.trim(), ok: true });
-        } else {
-            checks.push({ name: 'PyInstaller', version: 'Not found', ok: false });
+        // .NET SDK (for installer)
+        try {
+            const dotnetVersion = execSync('dotnet --version', { encoding: 'utf8', stdio: 'pipe' }).trim();
+            checks.push({ name: '.NET SDK', version: dotnetVersion, ok: true });
+        } catch {
+            checks.push({ name: '.NET SDK', version: 'Not found', ok: false, optional: config.skipInstaller });
         }
 
         // Print results
         checks.forEach(check => {
-            const status = check.ok ? '✓' : '✗';
-            const color = check.ok ? colors.green : colors.red;
+            const status = check.ok ? 'OK' : (check.optional ? 'SKIP' : 'MISSING');
+            const color = check.ok ? colors.green : (check.optional ? colors.yellow : colors.red);
             console.log(`  ${color}${status} ${check.name}: ${check.version}${colors.reset}`);
         });
 
@@ -143,18 +110,7 @@ buildSteps.push({
         const criticalFailures = checks.filter(c => !c.ok && !c.optional);
         if (criticalFailures.length > 0) {
             console.log();
-            error('Missing required dependencies:');
-            criticalFailures.forEach(c => {
-                error(`  - ${c.name}`);
-            });
-            console.log();
-            info('Install missing dependencies:');
-            if (criticalFailures.some(c => c.name === 'Python')) {
-                info('  Python: https://www.python.org/downloads/');
-            }
-            if (criticalFailures.some(c => c.name === 'PyInstaller')) {
-                info('  PyInstaller: pip install pyinstaller');
-            }
+            error('Missing required dependencies');
             process.exit(1);
         }
 
@@ -162,12 +118,12 @@ buildSteps.push({
     }
 });
 
-// Step 2: Clean dist folder (optional)
+// Step: Clean dist folder (optional)
 if (config.clean) {
     buildSteps.push({
         name: 'Cleaning dist folder',
         execute: () => {
-            const distPath = path.join(__dirname, 'dist');
+            const distPath = path.join(ROOT_DIR, 'dist');
             if (fs.existsSync(distPath)) {
                 fs.rmSync(distPath, { recursive: true, force: true });
                 success('dist/ folder cleaned');
@@ -179,7 +135,7 @@ if (config.clean) {
     });
 }
 
-// Step 3: Install dependencies
+// Step: Install dependencies
 if (!config.skipDeps) {
     buildSteps.push({
         name: 'Installing dependencies',
@@ -196,62 +152,27 @@ if (!config.skipDeps) {
     });
 }
 
-// Step 4: Generate documentation
-if (!config.skipDocs) {
-    buildSteps.push({
-        name: 'Generating documentation',
-        execute: () => {
-            info('Running JSDoc...');
-            const result = exec('npm run docs');
-            if (!result.success) {
-                error('Documentation generation failed');
-                return { success: false };
-            }
-            success('Documentation generated');
-            return { success: true };
-        }
-    });
-}
-
-// Step 5: Build Node.js executable (MUST BE FIRST - embedded in Python exe)
+// Step: Build Node.js SEA executable
 buildSteps.push({
-    name: 'Building Node.js executable',
+    name: 'Building Node.js SEA executable',
     execute: () => {
-        info('Building Node.js app with SEA (Single Executable Application)...');
-        const result = exec('npm run build:node');
+        info('Building with Single Executable Application (SEA)...');
+        const result = exec('node build/build-sea.js');
         if (!result.success) {
-            error('Node.js build failed');
+            error('SEA build failed');
             return { success: false };
         }
-        success('Server executable built:');
-        success('  - ShippingManagerCoPilot-Server.exe (Node.js)');
+        success('ShippingManagerCoPilot-Server.exe built');
         return { success: true };
     }
 });
 
-// Step 6: Build Python main executable (embeds Server.exe as resource)
-buildSteps.push({
-    name: 'Building Python main executable with embedded server',
-    execute: () => {
-        info('Compiling start.py with embedded Node.js server...');
-        info('This may take several minutes...');
-        const result = exec('npm run build:python');
-        if (!result.success) {
-            error('Python build failed');
-            return { success: false };
-        }
-        success('Single-file executable built:');
-        success('  - ShippingManagerCoPilot.exe (Python + embedded Node.js server)');
-        return { success: true };
-    }
-});
-
-// Step 7: Create package
+// Step: Create deployment package
 buildSteps.push({
     name: 'Creating deployment package',
     execute: () => {
         info('Organizing files into deployment structure...');
-        const result = exec('node build-package.js');
+        const result = exec('node build/build-package.js');
         if (!result.success) {
             error('Package creation failed');
             return { success: false };
@@ -261,6 +182,23 @@ buildSteps.push({
     }
 });
 
+// Step: Build installer (optional)
+if (!config.skipInstaller) {
+    buildSteps.push({
+        name: 'Building installer',
+        execute: () => {
+            info('Building C# self-extracting installer...');
+            const result = exec('node build/build-installer.js');
+            if (!result.success) {
+                error('Installer build failed');
+                return { success: false };
+            }
+            success(`Installer created: dist/ShippingManagerCoPilot-Installer-v${version}.exe`);
+            return { success: true };
+        }
+    });
+}
+
 // Main execution
 async function main() {
     const startTime = Date.now();
@@ -269,7 +207,6 @@ async function main() {
 
     console.log('Build configuration:');
     console.log(`  Skip dependencies: ${config.skipDeps ? 'Yes' : 'No'}`);
-    console.log(`  Skip documentation: ${config.skipDocs ? 'Yes' : 'No'}`);
     console.log(`  Skip installer: ${config.skipInstaller ? 'Yes' : 'No'}`);
     console.log(`  Clean build: ${config.clean ? 'Yes' : 'No'}`);
     console.log();
@@ -289,11 +226,6 @@ async function main() {
             process.exit(1);
         }
 
-        if (result.skipped) {
-            console.log();
-            continue;
-        }
-
         console.log();
     }
 
@@ -302,23 +234,16 @@ async function main() {
 
     header('Build Complete!');
 
-    console.log(colors.bright + colors.green + '✓ All build steps completed successfully' + colors.reset);
+    console.log(colors.bright + colors.green + 'All build steps completed successfully' + colors.reset);
     console.log();
     console.log('Build artifacts:');
-    console.log(`  📦 Package: ${colors.cyan}dist/ShippingManagerCoPilot-v${version}/${colors.reset}`);
-
-    if (!config.skipDocs) {
-        console.log(`  📖 Documentation: ${colors.cyan}public/docs/index.html${colors.reset}`);
+    console.log(`  Server: ${colors.cyan}dist/ShippingManagerCoPilot-Server.exe${colors.reset}`);
+    console.log(`  Package: ${colors.cyan}dist/ShippingManagerCoPilot-v${version}/${colors.reset}`);
+    if (!config.skipInstaller) {
+        console.log(`  Installer: ${colors.cyan}dist/ShippingManagerCoPilot-Installer-v${version}.exe${colors.reset}`);
     }
-
     console.log();
     console.log(`Build time: ${colors.yellow}${duration}s${colors.reset}`);
-    console.log();
-    console.log('Next steps:');
-    console.log('  1. Test the executable:');
-    console.log(`     ${colors.cyan}cd dist/ShippingManagerCoPilot-v${version}${colors.reset}`);
-    console.log(`     ${colors.cyan}.\\ShippingManagerCoPilot.exe${colors.reset}`);
-    console.log('  2. Create installer using MSIX Packaging Tool or Advanced Installer');
     console.log();
 }
 

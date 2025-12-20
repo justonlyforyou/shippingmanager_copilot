@@ -17,10 +17,10 @@ const { apiCall } = require('../utils/api');
 const logger = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
-const { getAppBaseDir } = require('../config');
+const { getAppBaseDir, isPackaged } = require('../config');
+const allianceCache = require('../database/alliance-cache');
 
-// Use AppData when packaged as exe
-const { isPackaged } = require('../config');
+// Legacy JSON path (for initial migration only)
 const isPkg = isPackaged();
 const CACHE_FILE_PATH = isPkg
   ? path.join(getAppBaseDir(), 'userdata', 'cache', 'alliance_pool.json')
@@ -47,29 +47,47 @@ class AllianceIndexer {
   async start() {
     logger.info('[AllianceIndexer] Starting...');
 
-    try {
-      await fs.access(this.cacheFilePath);
-      logger.info('[AllianceIndexer] Cache file exists, loading from disk...');
-      await this.loadFromCache();
+    // Check SQLite cache first
+    const sqliteCount = allianceCache.getCount();
+    if (sqliteCount > 0) {
+      this.totalAlliances = sqliteCount;
+      this.lastUpdate = allianceCache.getLastUpdate();
       this.isReady = true;
-      logger.info(`[AllianceIndexer] Loaded ${this.totalAlliances} alliances from cache`);
-    } catch {
-      logger.info('[AllianceIndexer] Cache file does not exist, building index...');
-      await this.initialIndex();
+      logger.info(`[AllianceIndexer] Loaded ${this.totalAlliances} alliances from SQLite cache`);
+    } else {
+      // Try to migrate from JSON file
+      try {
+        await fs.access(this.cacheFilePath);
+        logger.info('[AllianceIndexer] Migrating from JSON to SQLite...');
+        const result = allianceCache.importFromJson(this.cacheFilePath);
+        if (result.imported > 0) {
+          this.totalAlliances = result.imported;
+          this.lastUpdate = allianceCache.getLastUpdate();
+          this.isReady = true;
+          logger.info(`[AllianceIndexer] Migrated ${result.imported} alliances to SQLite`);
+          // Rename old JSON file
+          await fs.rename(this.cacheFilePath, this.cacheFilePath + '.migrated');
+          logger.info('[AllianceIndexer] Old JSON file renamed to .migrated');
+        } else {
+          logger.info('[AllianceIndexer] JSON migration failed, building fresh index...');
+          await this.initialIndex();
+        }
+      } catch {
+        logger.info('[AllianceIndexer] No cache found, building index...');
+        await this.initialIndex();
+      }
     }
 
     this.startBackgroundRefresh();
   }
 
   /**
-   * Load alliances from cache file
+   * Load alliances from SQLite cache
    */
   async loadFromCache() {
     try {
-      const data = await fs.readFile(this.cacheFilePath, 'utf8');
-      const cache = JSON.parse(data);
-      this.totalAlliances = cache.total || 0;
-      this.lastUpdate = cache.lastUpdate;
+      this.totalAlliances = allianceCache.getCount();
+      this.lastUpdate = allianceCache.getLastUpdate();
       logger.info(`[AllianceIndexer] Cache loaded: ${this.totalAlliances} alliances, last update: ${this.lastUpdate}`);
     } catch (error) {
       logger.error('[AllianceIndexer] Failed to load cache:', error.message);
@@ -78,23 +96,19 @@ class AllianceIndexer {
   }
 
   /**
-   * Save alliances to cache file
+   * Save alliances to SQLite cache
    */
   async saveToCache(alliances) {
     try {
-      const dir = path.dirname(this.cacheFilePath);
-      await fs.mkdir(dir, { recursive: true });
+      const count = allianceCache.bulkUpdate(alliances);
+      this.totalAlliances = allianceCache.getCount();
+      this.lastUpdate = new Date().toISOString();
 
-      const cache = {
-        total: alliances.length,
-        lastUpdate: new Date().toISOString(),
-        alliances: alliances
-      };
+      // Store last update in meta
+      const db = allianceCache.getDb();
+      db.prepare('INSERT OR REPLACE INTO cache_meta (key, value) VALUES (?, ?)').run('last_update', this.lastUpdate);
 
-      await fs.writeFile(this.cacheFilePath, JSON.stringify(cache, null, 2), 'utf8');
-      this.totalAlliances = alliances.length;
-      this.lastUpdate = cache.lastUpdate;
-      logger.info(`[AllianceIndexer] Cache saved: ${this.totalAlliances} alliances`);
+      logger.debug(`[AllianceIndexer] Cache saved: ${count} alliances updated`);
     } catch (error) {
       logger.error('[AllianceIndexer] Failed to save cache:', error.message);
       throw error;
@@ -249,24 +263,19 @@ class AllianceIndexer {
         if (response && response.data && response.data.alliances) {
           const freshAlliances = response.data.alliances;
 
-          const data = await fs.readFile(this.cacheFilePath, 'utf8');
-          const cache = JSON.parse(data);
-          const alliances = cache.alliances || [];
+          // Update SQLite cache directly
+          const validAlliances = freshAlliances.filter(a => a.members > 0);
+          if (validAlliances.length > 0) {
+            allianceCache.bulkUpdate(validAlliances);
+          }
 
-          freshAlliances.forEach(freshAlliance => {
-            const index = alliances.findIndex(a => a.id === freshAlliance.id);
-            if (freshAlliance.members > 0) {
-              if (index !== -1) {
-                alliances[index] = freshAlliance;
-              } else {
-                alliances.push(freshAlliance);
-              }
-            } else if (index !== -1) {
-              alliances.splice(index, 1);
-            }
+          // Remove alliances with 0 members
+          const emptyAlliances = freshAlliances.filter(a => a.members === 0);
+          emptyAlliances.forEach(a => {
+            allianceCache.deleteAlliance(a.id);
           });
 
-          await this.saveToCache(alliances);
+          this.totalAlliances = allianceCache.getCount();
 
           logger.debug(`[AllianceIndexer] Refreshed page ${this.currentRefreshPage + 1}/${totalPages} (${freshAlliances.length} alliances)`);
         }
@@ -298,86 +307,8 @@ class AllianceIndexer {
     }
 
     try {
-      const data = await fs.readFile(this.cacheFilePath, 'utf8');
-      const cache = JSON.parse(data);
-      let results = cache.alliances || [];
-
-    // Text search
-    if (query && query.trim().length > 0) {
-      const searchTerm = query.toLowerCase().trim();
-      results = results.filter(alliance =>
-        alliance.name.toLowerCase().includes(searchTerm) ||
-        (alliance.description && alliance.description.toLowerCase().includes(searchTerm))
-      );
-    }
-
-    // Filter by language
-    if (filters.language) {
-      results = results.filter(a => a.language === filters.language);
-    }
-
-    // Filter by member count
-    if (filters.minMembers !== undefined) {
-      results = results.filter(a => a.members >= filters.minMembers);
-    }
-
-    if (filters.maxMembers !== undefined) {
-      results = results.filter(a => a.members <= filters.maxMembers);
-    }
-
-    // Filter by benefit level
-    if (filters.benefitLevel !== undefined) {
-      results = results.filter(a => a.benefit_level === filters.benefitLevel);
-    }
-
-    // Filter: has open slots
-    if (filters.hasOpenSlots) {
-      results = results.filter(a => a.members < 50);
-    }
-
-    // Sorting
-    const sortBy = filters.sortBy || 'name_asc';
-
-    switch (sortBy) {
-      case 'name_asc':
-        results.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'name_desc':
-        results.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      case 'members_desc':
-        results.sort((a, b) => b.members - a.members);
-        break;
-      case 'members_asc':
-        results.sort((a, b) => a.members - b.members);
-        break;
-      case 'contribution_desc':
-        results.sort((a, b) => (b.stats?.contribution_score_24h || 0) - (a.stats?.contribution_score_24h || 0));
-        break;
-      case 'contribution_asc':
-        results.sort((a, b) => (a.stats?.contribution_score_24h || 0) - (b.stats?.contribution_score_24h || 0));
-        break;
-      case 'departures_desc':
-        results.sort((a, b) => (b.stats?.departures_24h || 0) - (a.stats?.departures_24h || 0));
-        break;
-      case 'departures_asc':
-        results.sort((a, b) => (a.stats?.departures_24h || 0) - (b.stats?.departures_24h || 0));
-        break;
-      case 'share_value_desc':
-        results.sort((a, b) => (b.total_share_value || 0) - (a.total_share_value || 0));
-        break;
-      case 'share_value_asc':
-        results.sort((a, b) => (a.total_share_value || 0) - (b.total_share_value || 0));
-        break;
-      case 'founded_desc':
-        results.sort((a, b) => b.time_founded - a.time_founded);
-        break;
-      case 'founded_asc':
-        results.sort((a, b) => a.time_founded - b.time_founded);
-        break;
-      default:
-        results.sort((a, b) => a.name.localeCompare(b.name));
-    }
+      // Use SQLite search - filtering and sorting is handled by SQLite
+      const results = allianceCache.search(query, filters);
 
       return {
         results,
@@ -417,23 +348,13 @@ class AllianceIndexer {
     }
 
     try {
-      const data = await fs.readFile(this.cacheFilePath, 'utf8');
-      const cache = JSON.parse(data);
-      const alliances = cache.alliances || [];
-
-      const languages = new Set();
-      alliances.forEach(alliance => {
-        if (alliance.language !== undefined && alliance.language !== null) {
-          languages.add(alliance.language);
-        }
-      });
-
-      const result = Array.from(languages).sort();
-      logger.info(`[AllianceIndexer] getAvailableLanguages returning ${result.length} languages:`, result);
-
+      const db = allianceCache.getDb();
+      const rows = db.prepare('SELECT DISTINCT language FROM alliances WHERE language IS NOT NULL ORDER BY language').all();
+      const result = rows.map(r => r.language);
+      logger.info(`[AllianceIndexer] getAvailableLanguages returning ${result.length} languages`);
       return result;
     } catch (error) {
-      logger.error('[AllianceIndexer] Error reading cache for languages:', error.message);
+      logger.error('[AllianceIndexer] Error reading languages:', error.message);
       return [];
     }
   }
@@ -449,11 +370,7 @@ class AllianceIndexer {
     }
 
     try {
-      const data = await fs.readFile(this.cacheFilePath, 'utf8');
-      const cache = JSON.parse(data);
-      const alliances = cache.alliances || [];
-
-      return alliances.find(a => a.id === allianceId) || null;
+      return allianceCache.getById(allianceId);
     } catch (error) {
       logger.error('[AllianceIndexer] Error looking up alliance by ID:', error.message);
       return null;

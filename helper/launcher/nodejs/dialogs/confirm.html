@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Confirm</title>
+</head>
+<body class="launcher-dialog">
+  <div class="launcher-dialog-content" style="text-align: center;">
+    <h1 class="launcher-dialog-title" id="confirm-title">Confirm</h1>
+    <p id="confirm-message" style="color: var(--color-text-secondary); margin-bottom: 24px;"></p>
+
+    <div class="launcher-dialog-buttons">
+      <button class="launcher-btn launcher-btn-secondary" onclick="cancel()">Cancel</button>
+      <button class="launcher-btn launcher-btn-primary" onclick="confirm()">Confirm</button>
+    </div>
+  </div>
+
+  <script>
+    async function init() {
+      try {
+        const dataJson = await getData();
+        const data = JSON.parse(dataJson);
+
+        if (data.title) {
+          document.getElementById('confirm-title').textContent = data.title;
+        }
+        if (data.message) {
+          document.getElementById('confirm-message').textContent = data.message;
+        }
+      } catch (err) {
+        document.getElementById('confirm-message').textContent = 'Are you sure?';
+      }
+    }
+
+    function confirm() {
+      closeDialog('true');
+    }
+
+    function cancel() {
+      closeDialog('false');
+    }
+
+    init();
+  </script>
+</body>
+</html>

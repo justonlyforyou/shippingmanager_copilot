@@ -788,8 +788,8 @@ async function loadVesselHistory(vesselId) {
       return;
     }
 
-    // Store full history (reverse to show newest first)
-    allHistoryData = data.history.reverse();
+    // Store full history (backend already returns newest first - no reverse needed)
+    allHistoryData = data.history;
     displayedHistoryCount = 0;
 
     // Update current trip revenue per nm from newest history entry

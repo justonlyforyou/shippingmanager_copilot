@@ -24,13 +24,13 @@ const platform = platformArg ? platformArg.split('=')[1] : process.platform === 
 
 const isWindows = platform === 'win';
 const isMac = platform === 'mac';
-const isLinux = platform === 'linux';
 
-const OUTPUT_NAME = isWindows ? 'ShippingManagerCoPilot-Server.exe' : 'ShippingManagerCoPilot-Server';
-const NODE_BINARY = isWindows ? 'node.exe' : 'node';
+// On Windows: ShippingManagerCoPilot-Server.exe (Node SEA) + ShippingManagerCoPilot.exe (C# Launcher)
+// On macOS/Linux: ShippingManagerCoPilot-Server (Node SEA directly)
+const SERVER_NAME = isWindows ? 'ShippingManagerCoPilot-Server.exe' : 'ShippingManagerCoPilot-Server';
 
 console.log(`[SEA Build] Platform: ${platform}`);
-console.log(`[SEA Build] Output: ${OUTPUT_NAME}`);
+console.log(`[SEA Build] Server output: ${SERVER_NAME}`);
 
 // Ensure dist directory exists
 if (!fs.existsSync(DIST_DIR)) {
@@ -41,13 +41,18 @@ if (!fs.existsSync(DIST_DIR)) {
 console.log('\n[SEA Build] Step 1: Bundling with esbuild...');
 
 // External packages that shouldn't be bundled:
-// - Native modules (keytar)
+// - Native modules (keytar, koffi)
 // - Browser automation (puppeteer, selenium-webdriver) - have their own binaries
+// - GUI libraries with native bindings (webview-nodejs uses koffi)
 // - Optional dependencies that may not be installed
 const externals = [
   'keytar',
+  'koffi',               // Native FFI library used by webview-nodejs
+  'webview-nodejs',      // GUI library with native dependencies
+  'systray2',            // System tray library with native bindings
   'puppeteer',
   'selenium-webdriver',
+  'better-sqlite3',      // Native SQLite module
   '@aws-sdk/client-s3',  // Optional dependency of unzipper
   'mock-aws-s3',         // Optional test dependency
   'aws-sdk',             // Optional AWS SDK
@@ -78,7 +83,7 @@ try {
 
 // Step 3: Copy Node binary
 console.log('\n[SEA Build] Step 3: Copying Node binary...');
-const outputPath = path.join(DIST_DIR, OUTPUT_NAME);
+const outputPath = path.join(DIST_DIR, SERVER_NAME);
 
 // Find node binary
 let nodePath;
@@ -160,6 +165,17 @@ if (fs.existsSync(sysdataSrc)) {
   console.log('[SEA Build] Copied sysdata/');
 }
 
+// Copy helper/launcher/nodejs/dialogs directory (HTML files for GUI dialogs)
+const dialogsSrc = path.join(ROOT_DIR, 'helper', 'launcher', 'nodejs', 'dialogs');
+const dialogsDest = path.join(DIST_DIR, 'helper', 'launcher', 'nodejs', 'dialogs');
+if (fs.existsSync(dialogsDest)) {
+  fs.rmSync(dialogsDest, { recursive: true });
+}
+if (fs.existsSync(dialogsSrc)) {
+  copyDir(dialogsSrc, dialogsDest);
+  console.log('[SEA Build] Copied helper/launcher/nodejs/dialogs/');
+}
+
 // Copy package.json (for version info)
 fs.copyFileSync(
   path.join(ROOT_DIR, 'package.json'),
@@ -167,16 +183,67 @@ fs.copyFileSync(
 );
 console.log('[SEA Build] Copied package.json');
 
-// Copy native modules (keytar)
-const keytarSrc = path.join(ROOT_DIR, 'node_modules', 'keytar');
-const keytarDest = path.join(DIST_DIR, 'node_modules', 'keytar');
-if (fs.existsSync(keytarSrc)) {
-  if (fs.existsSync(keytarDest)) {
-    fs.rmSync(keytarDest, { recursive: true });
+// Copy native modules and all their dependencies recursively
+fs.mkdirSync(path.join(DIST_DIR, 'node_modules'), { recursive: true });
+
+// Root native modules that need to be copied (dependencies resolved automatically)
+const rootNativeModules = ['keytar', 'koffi', 'webview-nodejs', 'systray2', 'selenium-webdriver', 'undetected-chromedriver-js', 'better-sqlite3'];
+
+// Recursively collect all dependencies of a module
+function collectDependencies(moduleName, collected = new Set(), nodeModulesDir = path.join(ROOT_DIR, 'node_modules')) {
+  if (collected.has(moduleName)) return collected;
+
+  const modPath = path.join(nodeModulesDir, moduleName);
+  if (!fs.existsSync(modPath)) return collected;
+
+  collected.add(moduleName);
+
+  // Read package.json for dependencies
+  const pkgPath = path.join(modPath, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      const deps = Object.keys(pkg.dependencies || {});
+
+      for (const dep of deps) {
+        // Check if dep exists in module's own node_modules (nested)
+        const nestedPath = path.join(modPath, 'node_modules', dep);
+        if (fs.existsSync(nestedPath)) {
+          // Nested dep - will be copied with parent
+          continue;
+        }
+        // Check if dep exists in root node_modules
+        const rootDepPath = path.join(nodeModulesDir, dep);
+        if (fs.existsSync(rootDepPath)) {
+          collectDependencies(dep, collected, nodeModulesDir);
+        }
+      }
+    } catch {
+      console.warn(`[SEA Build] Warning: Could not parse ${pkgPath}`);
+    }
   }
-  fs.mkdirSync(path.join(DIST_DIR, 'node_modules'), { recursive: true });
-  copyDir(keytarSrc, keytarDest);
-  console.log('[SEA Build] Copied node_modules/keytar/');
+
+  return collected;
+}
+
+// Collect all modules to copy
+const allModulesToCopy = new Set();
+for (const mod of rootNativeModules) {
+  collectDependencies(mod, allModulesToCopy);
+}
+
+console.log(`[SEA Build] Found ${allModulesToCopy.size} modules to copy (including dependencies)`);
+
+for (const mod of allModulesToCopy) {
+  const modSrc = path.join(ROOT_DIR, 'node_modules', mod);
+  const modDest = path.join(DIST_DIR, 'node_modules', mod);
+  if (fs.existsSync(modSrc)) {
+    if (fs.existsSync(modDest)) {
+      fs.rmSync(modDest, { recursive: true });
+    }
+    copyDir(modSrc, modDest);
+    console.log(`[SEA Build] Copied node_modules/${mod}/`);
+  }
 }
 
 // Clean up temporary files
@@ -184,8 +251,46 @@ console.log('\n[SEA Build] Cleaning up...');
 fs.unlinkSync(path.join(DIST_DIR, 'bundle.cjs'));
 fs.unlinkSync(path.join(DIST_DIR, 'sea-prep.blob'));
 
-console.log(`\n[SEA Build] SUCCESS! Output: ${outputPath}`);
-console.log(`[SEA Build] Size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)} MB`);
+console.log(`\n[SEA Build] Server built: ${outputPath}`);
+console.log(`[SEA Build] Server size: ${(fs.statSync(outputPath).size / 1024 / 1024).toFixed(2)} MB`);
+
+// Step 7: Build and copy C# Launcher (Windows only)
+if (isWindows) {
+  console.log('\n[SEA Build] Step 7: Building C# Launcher...');
+  const launcherDir = path.join(ROOT_DIR, 'helper', 'launcher', 'csharp');
+  const launcherPublishDir = path.join(launcherDir, 'bin', 'Release', 'net8.0-windows10.0.19041.0', 'win-x64', 'publish');
+  const launcherExe = path.join(launcherPublishDir, 'ShippingManagerCoPilot-Launcher.exe');
+  const launcherDest = path.join(DIST_DIR, 'ShippingManagerCoPilot-Launcher.exe');
+
+  try {
+    execSync('dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true', {
+      cwd: launcherDir,
+      stdio: 'inherit'
+    });
+
+    if (fs.existsSync(launcherExe)) {
+      fs.copyFileSync(launcherExe, launcherDest);
+      console.log(`[SEA Build] Launcher built: ${launcherDest}`);
+      console.log(`[SEA Build] Launcher size: ${(fs.statSync(launcherDest).size / 1024 / 1024).toFixed(2)} MB`);
+    } else {
+      console.error('[SEA Build] Launcher exe not found at:', launcherExe);
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error('[SEA Build] C# Launcher build failed:', err.message);
+    process.exit(1);
+  }
+
+  // Copy icon.ico for tray
+  const iconSrc = path.join(launcherDir, 'icon.ico');
+  const iconDest = path.join(DIST_DIR, 'icon.ico');
+  if (fs.existsSync(iconSrc)) {
+    fs.copyFileSync(iconSrc, iconDest);
+    console.log('[SEA Build] Copied icon.ico');
+  }
+}
+
+console.log('\n[SEA Build] SUCCESS!');
 
 // Helper function to copy directory recursively
 function copyDir(src, dest) {

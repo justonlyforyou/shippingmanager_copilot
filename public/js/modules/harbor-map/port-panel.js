@@ -10,6 +10,15 @@ import { deselectAll, selectVessel, closeAllPanels, getMap } from './map-control
 import { isMobileDevice, escapeHtml, formatNumber, toGameCode } from '../utils.js';
 
 /**
+ * Format port code to full name (Title Case)
+ * e.g., "new_york" -> "New York", "taicang" -> "Taicang"
+ */
+function formatPortFullName(code) {
+  if (!code) return 'Unknown';
+  return code.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+/**
  * Shows port detail panel with port information and vessel lists
  * Displays demand analytics and categorized vessels (in/to/from port + pending)
  *
@@ -53,6 +62,7 @@ export function showPortPanel(port, vessels) {
 
       <div class="port-info-section">
         <h4>Port Information</h4>
+        <p><strong>Name:</strong> ${formatPortFullName(port.code)}</p>
         <p><strong>Code:</strong> ${toGameCode(port.code, port.country)}</p>
         <p><strong>Country:</strong> ${port.full_country || 'Unknown'}</p>
         <p><strong>Location:</strong><br><span class="port-location-indent">Lat ${port.lat}</span><br><span class="port-location-indent">Lon ${port.lon}</span></p>
@@ -60,6 +70,8 @@ export function showPortPanel(port, vessels) {
         <p><strong>Drydock:</strong> ${port.drydock ? 'Yes (' + port.drydock + ')' : 'No'}</p>
         <p><strong>Market Price:</strong> ${port.market_price ? port.market_price + '%' : 'N/A'}</p>
       </div>
+
+      ${renderVesselsOverview(vessels)}
 
       ${renderTypicalDemandSection(port)}
 
@@ -121,6 +133,54 @@ export function showPortPanel(port, vessels) {
     document.body.classList.add('map-fullscreen');
     console.log('[Port Panel] Added map-fullscreen class to body. Classes:', document.body.classList.toString());
   }
+}
+
+/**
+ * Renders vessels overview section showing active vessels and capacity
+ *
+ * @param {Object} vessels - Categorized vessels { inPort: [], toPort: [], fromPort: [], pending: [] }
+ * @returns {string} HTML string for vessels overview section
+ */
+function renderVesselsOverview(vessels) {
+  // Combine all vessel categories
+  const allVessels = [
+    ...(vessels.inPort || []),
+    ...(vessels.toPort || []),
+    ...(vessels.fromPort || []),
+    ...(vessels.pending || [])
+  ];
+
+  const activeCount = allVessels.length;
+
+  // Calculate max TEU and max BBL
+  let totalTEU = 0;
+  let totalBBL = 0;
+
+  for (const vessel of allVessels) {
+    if (vessel.capacity_type === 'container' && vessel.capacity_max) {
+      const dry = vessel.capacity_max.dry || 0;
+      const ref = vessel.capacity_max.refrigerated || 0;
+      totalTEU += dry + ref;
+    } else if (vessel.capacity_type === 'tanker' && vessel.capacity_max) {
+      const fuel = vessel.capacity_max.fuel || 0;
+      const crude = vessel.capacity_max.crude_oil || 0;
+      totalBBL += fuel + crude;
+    }
+  }
+
+  const hasTanker = window.USER_COMPANY_TYPE?.includes('tanker');
+  const bblLine = hasTanker && totalBBL > 0
+    ? `<p><strong>Vessels Max BBL:</strong> ${formatNumber(totalBBL)}</p>`
+    : '';
+
+  return `
+    <div class="port-info-section">
+      <h4>Vessels Overview</h4>
+      <p><strong>Active Vessels:</strong> ${formatNumber(activeCount)}</p>
+      ${totalTEU > 0 ? `<p><strong>Vessels Max TEU:</strong> ${formatNumber(totalTEU)}</p>` : ''}
+      ${bblLine}
+    </div>
+  `;
 }
 
 /**

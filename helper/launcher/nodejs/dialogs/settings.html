@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Settings</title>
+</head>
+<body class="launcher-dialog">
+  <div class="launcher-dialog-content">
+    <h1 class="launcher-dialog-title">Settings</h1>
+
+    <div class="launcher-form-group">
+      <label for="port">Port</label>
+      <input type="number" id="port" min="1024" max="65535" placeholder="12345">
+    </div>
+
+    <div class="launcher-form-group">
+      <label for="host">Host</label>
+      <select id="host">
+        <option value="127.0.0.1">127.0.0.1 (localhost only)</option>
+        <option value="0.0.0.0">0.0.0.0 (all interfaces)</option>
+      </select>
+    </div>
+
+    <div class="launcher-form-group">
+      <label for="logLevel">Log Level</label>
+      <select id="logLevel">
+        <option value="error">Error</option>
+        <option value="warn">Warning</option>
+        <option value="info">Info</option>
+        <option value="debug">Debug</option>
+      </select>
+    </div>
+
+    <div class="launcher-form-group" style="margin-top: 24px;">
+      <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; text-transform: none; font-size: 14px;">
+        <input type="checkbox" id="debugMode" style="width: auto;">
+        <span>Enable Debug Mode</span>
+      </label>
+    </div>
+
+    <div class="launcher-dialog-buttons">
+      <button class="launcher-btn launcher-btn-secondary" onclick="cancel()">Cancel</button>
+      <button class="launcher-btn launcher-btn-primary" onclick="save()">Save & Restart</button>
+    </div>
+  </div>
+
+  <script>
+    let dialogData = {};
+
+    async function init() {
+      try {
+        const dataJson = await getData();
+        dialogData = JSON.parse(dataJson);
+
+        // Populate form with current settings
+        document.getElementById('port').value = dialogData.port || 12345;
+        document.getElementById('host').value = dialogData.host || '127.0.0.1';
+        document.getElementById('logLevel').value = dialogData.logLevel || 'info';
+        document.getElementById('debugMode').checked = dialogData.debugMode || false;
+      } catch (err) {
+        console.error('Init error:', err);
+      }
+    }
+
+    function save() {
+      const settings = {
+        port: parseInt(document.getElementById('port').value, 10) || 12345,
+        host: document.getElementById('host').value,
+        logLevel: document.getElementById('logLevel').value,
+        debugMode: document.getElementById('debugMode').checked
+      };
+
+      // Validate port
+      if (settings.port < 1024 || settings.port > 65535) {
+        alert('Port must be between 1024 and 65535');
+        return;
+      }
+
+      closeDialog(JSON.stringify(settings));
+    }
+
+    function cancel() {
+      closeDialog(null);
+    }
+
+    init();
+  </script>
+</body>
+</html>

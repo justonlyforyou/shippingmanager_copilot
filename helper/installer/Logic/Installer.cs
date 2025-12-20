@@ -65,21 +65,29 @@ namespace ShippingManagerCoPilot.Installer.Logic
                     Directory.CreateDirectory(_installPath);
                 }
 
-                // Step 3: Extract embedded payload
+                // Step 3: Clean up old files (but preserve userdata)
+                if (_isUpdate)
+                {
+                    UpdateStatus("Cleaning up old application files...");
+                    UpdateProgress(15, "Removing old files (preserving userdata)");
+                    CleanupOldFiles();
+                }
+
+                // Step 4: Extract embedded payload
                 UpdateStatus("Extracting application files...");
-                UpdateProgress(20, "Extracting application files");
+                UpdateProgress(25, "Extracting application files");
 
                 ExtractEmbeddedPayload();
 
                 UpdateProgress(50, "Application files extracted successfully");
 
-                // Step 4: Create uninstaller
+                // Step 5: Create uninstaller
                 UpdateStatus("Creating uninstaller...");
                 UpdateProgress(60, "Creating uninstaller");
 
                 CreateUninstaller();
 
-                // Step 5: Create shortcuts
+                // Step 6: Create shortcuts
                 if (_createDesktopShortcut || _createStartMenuShortcut)
                 {
                     UpdateStatus("Creating shortcuts...");
@@ -88,7 +96,7 @@ namespace ShippingManagerCoPilot.Installer.Logic
                     CreateShortcuts();
                 }
 
-                // Step 6: Register in Windows
+                // Step 7: Register in Windows
                 UpdateStatus("Registering application...");
                 UpdateProgress(85, "Registering in Windows");
 
@@ -109,7 +117,7 @@ namespace ShippingManagerCoPilot.Installer.Logic
 
                 RegistryHelper.RegisterUninstallEntry(_installPath, version);
 
-                // Step 7: Complete
+                // Step 8: Complete
                 UpdateStatus("Installation complete!");
                 UpdateProgress(100, "Installation completed successfully");
             }
@@ -206,7 +214,7 @@ namespace ShippingManagerCoPilot.Installer.Logic
         /// </summary>
         private void CreateShortcuts()
         {
-            var exePath = Path.Combine(_installPath, "ShippingManagerCoPilot.exe");
+            var exePath = Path.Combine(_installPath, "ShippingManagerCoPilot-Launcher.exe");
 
             if (!File.Exists(exePath))
             {
@@ -249,33 +257,88 @@ namespace ShippingManagerCoPilot.Installer.Logic
         }
 
         /// <summary>
+        /// Cleans up old application files while preserving userdata directory
+        /// This is called during updates to remove obsolete files (like old Python scripts)
+        /// </summary>
+        private void CleanupOldFiles()
+        {
+            // Directories and files to NEVER delete
+            var protectedNames = new[]
+            {
+                "userdata",     // User data - NEVER delete
+                "Uninstaller"   // Uninstaller - will be recreated
+            };
+
+            // Delete all files in root (except protected)
+            var rootFiles = Directory.GetFiles(_installPath);
+            foreach (var file in rootFiles)
+            {
+                try
+                {
+                    File.Delete(file);
+                }
+                catch
+                {
+                    // Ignore files that can't be deleted (might be in use)
+                }
+            }
+
+            // Delete all directories except protected ones
+            var rootDirs = Directory.GetDirectories(_installPath);
+            foreach (var dir in rootDirs)
+            {
+                var dirName = Path.GetFileName(dir);
+
+                // Skip protected directories
+                if (protectedNames.Contains(dirName, StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Directory.Delete(dir, recursive: true);
+                }
+                catch
+                {
+                    // Ignore directories that can't be deleted
+                }
+            }
+        }
+
+        /// <summary>
         /// Stop the running ShippingManagerCoPilot application if it's running
         /// </summary>
         private void StopRunningApplication()
         {
             try
             {
-                // Find all processes named ShippingManagerCoPilot
-                var processes = Process.GetProcessesByName("ShippingManagerCoPilot");
+                // Find all processes - both the launcher and server
+                var processNames = new[] { "ShippingManagerCoPilot-Launcher", "ShippingManagerCoPilot-Server" };
 
-                foreach (var process in processes)
+                foreach (var processName in processNames)
                 {
-                    try
-                    {
-                        // Try graceful shutdown first
-                        process.CloseMainWindow();
+                    var processes = Process.GetProcessesByName(processName);
 
-                        // Wait up to 3 seconds for graceful shutdown
-                        if (!process.WaitForExit(3000))
-                        {
-                            // Force kill if still running
-                            process.Kill();
-                            process.WaitForExit();
-                        }
-                    }
-                    catch
+                    foreach (var process in processes)
                     {
-                        // Ignore errors for individual processes
+                        try
+                        {
+                            // Try graceful shutdown first
+                            process.CloseMainWindow();
+
+                            // Wait up to 3 seconds for graceful shutdown
+                            if (!process.WaitForExit(3000))
+                            {
+                                // Force kill if still running
+                                process.Kill();
+                                process.WaitForExit();
+                            }
+                        }
+                        catch
+                        {
+                            // Ignore errors for individual processes
+                        }
                     }
                 }
             }

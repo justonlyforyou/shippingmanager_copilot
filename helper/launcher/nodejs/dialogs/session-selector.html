@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Select Session</title>
+</head>
+<body class="launcher-dialog">
+  <div class="launcher-dialog-content">
+    <h1 class="launcher-dialog-title">Select Session</h1>
+    <p class="launcher-dialog-subtitle">Choose which account to use</p>
+
+    <div class="launcher-sessions-container" id="sessions-container">
+      <!-- Sessions will be populated by JS -->
+    </div>
+
+    <div class="launcher-dialog-buttons">
+      <button class="launcher-btn launcher-btn-secondary" onclick="addNew()">Add New Account</button>
+      <button class="launcher-btn launcher-btn-primary" id="continue-btn" onclick="continueWithSelected()" disabled>Continue</button>
+    </div>
+  </div>
+
+  <script>
+    let dialogData = {};
+    let selectedSession = null;
+
+    async function init() {
+      try {
+        const dataJson = await getData();
+        dialogData = JSON.parse(dataJson);
+        renderSessions(dialogData.sessions || []);
+      } catch (err) {
+        console.error('Init error:', err);
+      }
+    }
+
+    function renderSessions(sessions) {
+      const container = document.getElementById('sessions-container');
+      container.innerHTML = '';
+
+      if (sessions.length === 0) {
+        container.innerHTML = '<p style="color: var(--color-text-secondary); text-align: center; padding: 20px;">No saved sessions. Click "Add New Account" to login.</p>';
+        return;
+      }
+
+      sessions.forEach(session => {
+        const card = document.createElement('div');
+        card.className = 'launcher-session-card';
+        if (session.expired) {
+          card.classList.add('expired');
+        }
+        card.dataset.userId = session.userId;
+
+        card.innerHTML = `
+          <div class="launcher-session-company">${escapeHtml(session.companyName)}</div>
+          <div class="launcher-session-info">
+            <span>User ID: ${escapeHtml(String(session.userId))}</span>
+            <span class="launcher-session-method">${escapeHtml(session.loginMethod || 'unknown')}</span>
+            ${session.expired ? '<span style="color: var(--color-danger);">Expired</span>' : ''}
+          </div>
+        `;
+
+        if (!session.expired) {
+          card.onclick = () => selectSession(session, card);
+        }
+
+        container.appendChild(card);
+      });
+    }
+
+    function selectSession(session, card) {
+      // Remove selection from all cards
+      document.querySelectorAll('.launcher-session-card').forEach(c => {
+        c.classList.remove('selected');
+      });
+
+      // Select this card
+      card.classList.add('selected');
+      selectedSession = session;
+
+      // Enable continue button
+      document.getElementById('continue-btn').disabled = false;
+    }
+
+    function continueWithSelected() {
+      if (selectedSession) {
+        closeDialog(JSON.stringify(selectedSession));
+      }
+    }
+
+    function addNew() {
+      closeDialog(JSON.stringify({ action: 'addNew' }));
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    init();
+  </script>
+</body>
+</html>

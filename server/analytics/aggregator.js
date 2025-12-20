@@ -18,10 +18,8 @@
 const fs = require('fs').promises;
 const path = require('path');
 const logger = require('../utils/logger');
-const { getLogDir, getAppBaseDir } = require('../config');
-const transactionStore = require('./transaction-store');
-const vesselHistoryStore = require('./vessel-history-store');
-const lookupStore = require('./lookup-store');
+const { getAppBaseDir } = require('../config');
+const { transactionStore, vesselHistoryStore, lookupStore } = require('../database/store-adapter');
 const { formatPortAbbreviation } = require('../routes/harbor-map-aggregator');
 
 // Short-term cache for local file reads (audit log, trip data)
@@ -164,29 +162,7 @@ HIJACK_HISTORY_DIR = isPkg
   : path.join(__dirname, '../../userdata/hijack_history');
 
 /**
- * Get audit log file path for a user
- * @param {string} userId - User ID
- * @returns {string} File path
- */
-function getAuditLogPath(userId) {
-  const logDir = path.join(getLogDir(), 'autopilot');
-  return path.join(logDir, `${userId}-autopilot-log.json`);
-}
-
-/**
- * Get trip data file path for a user
- * @param {string} userId - User ID
- * @returns {string} File path
- */
-function getTripDataPath(userId) {
-  const tripDataDir = isPkg
-    ? path.join(getAppBaseDir(), 'userdata', 'trip-data')
-    : path.join(__dirname, '../../userdata/trip-data');
-  return path.join(tripDataDir, `trip-data-${userId}.json`);
-}
-
-/**
- * Load audit log for a user (cached for 2 seconds to avoid duplicate reads)
+ * Load audit log for a user from SQLite (cached for 2 seconds)
  * @param {string} userId - User ID
  * @returns {Promise<Array>} Array of log entries
  */
@@ -200,28 +176,28 @@ async function loadAuditLog(userId) {
   }
 
   try {
-    const filePath = getAuditLogPath(userId);
-    const data = await fs.readFile(filePath, 'utf8');
-    const parsed = JSON.parse(data);
+    const { getDb } = require('../database');
+    const db = getDb(userId);
+    const rows = db.prepare('SELECT id, timestamp, autopilot, status, summary, details FROM autopilot_log ORDER BY timestamp DESC').all();
+    const parsed = rows.map(row => ({
+      ...row,
+      details: row.details ? JSON.parse(row.details) : {}
+    }));
     fileCache.set(cacheKey, { data: parsed, timestamp: now });
     return parsed;
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      fileCache.set(cacheKey, { data: [], timestamp: now });
-      return [];
-    }
     logger.error(`[Analytics] Failed to load audit log for user ${userId}:`, error.message);
     return [];
   }
 }
 
 /**
- * Load trip data for a user (cached for 2 seconds to avoid duplicate reads)
+ * Load vessel history (departures) from SQLite
  * @param {string} userId - User ID
- * @returns {Promise<Object>} Trip data map
+ * @returns {Promise<Array>} Array of departure entries
  */
-async function loadTripData(userId) {
-  const cacheKey = `tripData-${userId}`;
+async function loadVesselHistory(userId) {
+  const cacheKey = `vesselHistory-${userId}`;
   const now = Date.now();
   const cached = fileCache.get(cacheKey);
 
@@ -230,18 +206,22 @@ async function loadTripData(userId) {
   }
 
   try {
-    const filePath = getTripDataPath(userId);
-    const data = await fs.readFile(filePath, 'utf8');
-    const parsed = JSON.parse(data);
+    const { getDb } = require('../database');
+    const db = getDb(userId);
+    const rows = db.prepare(`
+      SELECT id, timestamp, vessel_id, vessel_name, origin, destination, route_name,
+             distance, fuel_used, income, wear, duration, cargo, harbor_fee
+      FROM departures ORDER BY timestamp DESC
+    `).all();
+    const parsed = rows.map(row => ({
+      ...row,
+      cargo: row.cargo ? JSON.parse(row.cargo) : {}
+    }));
     fileCache.set(cacheKey, { data: parsed, timestamp: now });
     return parsed;
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      fileCache.set(cacheKey, { data: {}, timestamp: now });
-      return {};
-    }
-    logger.error(`[Analytics] Failed to load trip data for user ${userId}:`, error.message);
-    return {};
+    logger.error(`[Analytics] Failed to load vessel history for user ${userId}:`, error.message);
+    return [];
   }
 }
 
@@ -2627,7 +2607,7 @@ async function getVesselsByRoute(userId, origin, destination, days = 30) {
 
 module.exports = {
   loadAuditLog,
-  loadTripData,
+  loadVesselHistory,
   getWeeklySummary,
   getVesselPerformance,
   getRouteProfitability,

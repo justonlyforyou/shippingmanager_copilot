@@ -51,6 +51,7 @@ namespace ShippingManagerCoPilot.Installer.Logic
                 IShellLink link = (IShellLink)new ShellLink();
 
                 link.SetPath(targetPath);
+                // No arguments needed - C# launcher handles everything
                 link.SetWorkingDirectory(Path.GetDirectoryName(targetPath));
                 link.SetDescription(description);
                 link.SetIconLocation(targetPath, 0);

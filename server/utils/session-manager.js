@@ -15,6 +15,7 @@
 
 const fs = require('fs').promises;
 const path = require('path');
+const https = require('https');
 const { encryptData, decryptData, isEncrypted } = require('./encryption');
 const logger = require('./logger');
 
@@ -25,18 +26,11 @@ const logger = require('./logger');
 function getSessionsPath() {
     const { getAppBaseDir, isPackaged } = require('../config');
     const isPkg = isPackaged();
-    console.log(`[DEBUG] getSessionsPath - isPackaged = ${isPkg}`);
 
     if (isPkg) {
-        // Running as packaged .exe - use AppData
-        const appDataPath = path.join(getAppBaseDir(), 'userdata', 'settings', 'sessions.json');
-        console.log(`[DEBUG] Using APPDATA sessions: ${appDataPath}`);
-        return appDataPath;
+        return path.join(getAppBaseDir(), 'userdata', 'settings', 'sessions.json');
     }
-    // Running from source - use userdata
-    const localPath = path.join(__dirname, '..', '..', 'userdata', 'settings', 'sessions.json');
-    console.log(`[DEBUG] Using local sessions: ${localPath}`);
-    return localPath;
+    return path.join(__dirname, '..', '..', 'userdata', 'settings', 'sessions.json');
 }
 
 /**
@@ -101,14 +95,21 @@ async function getAvailableSessions() {
                     appVersion = await decryptData(session.app_version, accountName);
                 }
 
+                // Handle both old format (timestamp as Unix) and new format (last_updated as ISO)
+                let timestamp = session.timestamp;
+                if (!timestamp && session.last_updated) {
+                    timestamp = Math.floor(new Date(session.last_updated).getTime() / 1000);
+                }
+
                 available.push({
-                    userId: userId,
+                    userId: String(session.user_id || userId),
                     cookie: session.cookie,
                     appPlatform: appPlatform,
                     appVersion: appVersion,
                     companyName: session.company_name || 'Unknown',
                     loginMethod: session.login_method || 'unknown',
-                    timestamp: session.timestamp
+                    timestamp: timestamp,
+                    autostart: session.autostart !== false  // Default true for backwards compatibility
                 });
             }
         } catch (error) {
@@ -159,10 +160,13 @@ async function getSession(userId) {
         return null;
     }
 
+    // Support both old format (cookie) and new format (encrypted_cookie)
+    const encryptedCookie = session.cookie || session.encrypted_cookie;
+
     // Decrypt cookie if encrypted
-    if (session.cookie && isEncrypted(session.cookie)) {
+    if (encryptedCookie && isEncrypted(encryptedCookie)) {
         const accountName = `session_${userId}`;
-        const decryptedCookie = await decryptData(session.cookie, accountName);
+        const decryptedCookie = await decryptData(encryptedCookie, accountName);
 
         if (!decryptedCookie) {
             logger.error(`[SessionManager] Failed to decrypt session for user ${userId}`);
@@ -176,7 +180,10 @@ async function getSession(userId) {
     }
 
     // Return as-is if not encrypted (for backward compatibility during migration)
-    return session;
+    return {
+        ...session,
+        cookie: encryptedCookie
+    };
 }
 
 /**
@@ -287,6 +294,113 @@ async function hasSession(userId) {
     return !!sessions[String(userId)];
 }
 
+/**
+ * Set autostart preference for a session
+ *
+ * @param {string|number} userId - User ID
+ * @param {boolean} autostart - Whether to autostart this session
+ * @returns {Promise<boolean>} True if updated successfully
+ */
+async function setAutostart(userId, autostart) {
+    const sessions = await loadSessions();
+    const userIdStr = String(userId);
+
+    if (!sessions[userIdStr]) {
+        logger.warn(`[SessionManager] Cannot set autostart - session not found for user ${userId}`);
+        return false;
+    }
+
+    sessions[userIdStr].autostart = autostart;
+    await saveSessions(sessions);
+
+    logger.debug(`[SessionManager] Set autostart=${autostart} for user ${userId}`);
+    return true;
+}
+
+/**
+ * Validate a session cookie by making an API call to the game server
+ *
+ * @param {string} cookie - Session cookie to validate
+ * @returns {Promise<object|null>} User data {userId, companyName} if valid, null if invalid/expired
+ */
+function validateSessionCookie(cookie) {
+    return new Promise((resolve) => {
+        const options = {
+            hostname: 'shippingmanager.cc',
+            port: 443,
+            path: '/api/user/get-user-settings',
+            method: 'GET',
+            headers: {
+                'Cookie': `shipping_manager_session=${cookie}`,
+                'Accept': 'application/json'
+            },
+            rejectUnauthorized: true
+        };
+
+        const req = https.request(options, (res) => {
+            let data = '';
+
+            res.on('data', chunk => { data += chunk; });
+            res.on('end', () => {
+                try {
+                    const json = JSON.parse(data);
+                    if (json.user && json.user.id) {
+                        resolve({
+                            userId: json.user.id,
+                            companyName: json.user.company_name || json.user.name || 'Unknown'
+                        });
+                    } else {
+                        resolve(null);
+                    }
+                } catch {
+                    resolve(null);
+                }
+            });
+        });
+
+        req.on('error', () => resolve(null));
+        req.setTimeout(10000, () => {
+            req.destroy();
+            resolve(null);
+        });
+
+        req.end();
+    });
+}
+
+/**
+ * Get the first valid session from stored sessions
+ * Validates each session against the game API and returns the first one that works
+ *
+ * @param {Function} [logFn] - Optional logging function (receives level and message)
+ * @returns {Promise<object|null>} First valid session or null if none valid
+ */
+async function getFirstValidSession(logFn) {
+    const log = logFn || ((level, msg) => logger[level](`[SessionManager] ${msg}`));
+
+    const availableSessions = await getAvailableSessions();
+
+    if (availableSessions.length === 0) {
+        return null;
+    }
+
+    log('info', `Found ${availableSessions.length} stored session(s), validating...`);
+
+    for (const session of availableSessions) {
+        log('debug', `Validating session for ${session.companyName} (${session.userId})...`);
+        const validation = await validateSessionCookie(session.cookie);
+
+        if (validation) {
+            log('info', `Valid session: ${session.companyName} (${session.userId})`);
+            return session;
+        } else {
+            log('warn', `Session expired or invalid: ${session.companyName} (${session.userId})`);
+        }
+    }
+
+    return null;
+}
+
 module.exports = {
     getSession,
     saveSession,
@@ -294,5 +408,8 @@ module.exports = {
     getAllUserIds,
     hasSession,
     migrateToEncrypted,
-    getAvailableSessions
+    getAvailableSessions,
+    setAutostart,
+    validateSessionCookie,
+    getFirstValidSession
 };

@@ -54,6 +54,7 @@ const {
   deleteChatFromCache
 } = require('../websocket/messenger-content-cache');
 const { getCachedHijackingCase } = require('../websocket/hijacking-cache');
+const { getDb } = require('../database');
 
 const router = express.Router();
 
@@ -705,33 +706,45 @@ router.get('/hijacking/history/:caseId', (req, res) => {
   }
 
   const userId = getUserId();
-  // (using fs and path imported at top of file)
-
-  const historyDir = path.join(DATA_DIR, 'hijack_history');
-  const historyFile = path.join(historyDir, `${userId}-${caseId}.json`);
 
   try {
-    if (!fs.existsSync(historyDir)) {
-      fs.mkdirSync(historyDir, { recursive: true });
-    }
+    // Read from SQLite
+    const db = getDb(userId);
+    const rows = db.prepare(`
+      SELECT type, amount, timestamp, autopilot_resolved, resolved_at, payment_verification_json
+      FROM hijack_history
+      WHERE case_id = ?
+      ORDER BY timestamp
+    `).all(parseInt(caseId, 10));
 
-    if (fs.existsSync(historyFile)) {
-      const data = JSON.parse(fs.readFileSync(historyFile, 'utf8'));
+    if (rows.length > 0) {
+      // Build history array (type, amount, timestamp only)
+      const history = rows.map(r => ({
+        type: r.type,
+        amount: r.amount,
+        timestamp: r.timestamp
+      }));
 
-      // Handle both old format (array) and new format (object with history + autopilot_resolved)
-      if (Array.isArray(data)) {
-        res.json({ history: data, autopilot_resolved: false });
-      } else {
-        res.json({
-          history: data.history,
-          autopilot_resolved: data.autopilot_resolved,
-          resolved_at: data.resolved_at,
-          payment_verification: data.payment_verification
-        });
+      // Metadata from first row (all rows have same metadata)
+      const firstRow = rows[0];
+      const response = {
+        history: history,
+        autopilot_resolved: firstRow.autopilot_resolved === 1
+      };
+
+      if (firstRow.resolved_at) {
+        response.resolved_at = firstRow.resolved_at;
       }
-    } else {
-      res.json({ history: [], autopilot_resolved: false });
+
+      if (firstRow.payment_verification_json) {
+        response.payment_verification = JSON.parse(firstRow.payment_verification_json);
+      }
+
+      return res.json(response);
     }
+
+    // No entry in DB - return empty history
+    res.json({ history: [], autopilot_resolved: false });
   } catch (error) {
     logger.error('Error reading hijack history:', error);
     res.json({ history: [], autopilot_resolved: false });
@@ -757,46 +770,39 @@ router.post('/hijacking/history/:caseId', express.json(), (req, res) => {
     return res.status(400).json({ error: 'Case ID too long (max 100 characters)' });
   }
 
-  const { history } = req.body;
+  const { history, autopilot_resolved, resolved_at, payment_verification } = req.body;
   const userId = getUserId();
-  // (using fs and path imported at top of file)
-
-  const historyDir = path.join(DATA_DIR, 'hijack_history');
-  const historyFile = path.join(historyDir, `${userId}-${caseId}.json`);
+  const caseIdInt = parseInt(caseId, 10);
 
   try {
-    if (!fs.existsSync(historyDir)) {
-      fs.mkdirSync(historyDir, { recursive: true });
+    // Save to SQLite
+    const db = getDb(userId);
+
+    // Delete existing entries for this case (replaces old JSON file overwrite behavior)
+    db.prepare('DELETE FROM hijack_history WHERE case_id = ?').run(caseIdInt);
+
+    const insertEvent = db.prepare(`
+      INSERT INTO hijack_history
+      (case_id, type, amount, timestamp, autopilot_resolved, resolved_at, payment_verification_json)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    const autopilotVal = autopilot_resolved ? 1 : 0;
+    const resolvedAtVal = resolved_at || null;
+    const paymentVerificationJson = payment_verification ? JSON.stringify(payment_verification) : null;
+
+    for (const event of history) {
+      insertEvent.run(
+        caseIdInt,
+        event.type,
+        event.amount,
+        event.timestamp,
+        autopilotVal,
+        resolvedAtVal,
+        paymentVerificationJson
+      );
     }
 
-    // Read existing data to preserve metadata fields
-    let dataToSave = history;
-    if (fs.existsSync(historyFile)) {
-      const existingData = JSON.parse(fs.readFileSync(historyFile, 'utf8'));
-      if (!Array.isArray(existingData)) {
-        // Preserve ALL metadata fields from existing data
-        dataToSave = {
-          history: history
-        };
-
-        // Preserve autopilot_resolved if it exists
-        if (existingData.autopilot_resolved !== undefined) {
-          dataToSave.autopilot_resolved = existingData.autopilot_resolved;
-        }
-
-        // Preserve resolved_at if it exists
-        if (existingData.resolved_at) {
-          dataToSave.resolved_at = existingData.resolved_at;
-        }
-
-        // Preserve payment_verification if it exists
-        if (existingData.payment_verification) {
-          dataToSave.payment_verification = existingData.payment_verification;
-        }
-      }
-    }
-
-    fs.writeFileSync(historyFile, JSON.stringify(dataToSave, null, 2), 'utf8');
     res.json({ success: true });
   } catch (error) {
     logger.error('Error saving hijack history:', error);

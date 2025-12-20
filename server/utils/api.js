@@ -80,46 +80,6 @@ let USER_COMPANY_NAME = null;
  */
 const userNameCache = new Map();
 
-/**
- * API Request Statistics Tracker
- * Tracks all requests to shippingmanager.cc for monitoring rate limits and usage patterns
- */
-const apiStats = {
-  totalRequests: 0,
-  requestsByEndpoint: new Map(),
-  startTime: Date.now(),
-  lastResetTime: Date.now(),
-  requestsLastMinute: 0,
-  requestTimestamps: [], // Store timestamps with endpoints for last minute calculation
-  lastMinuteByEndpoint: new Map() // Track requests per endpoint in last minute
-};
-
-// Log statistics every minute
-setInterval(() => {
-  const now = Date.now();
-
-  // Calculate requests in last minute
-  const oneMinuteAgo = now - 60000;
-  apiStats.requestTimestamps = apiStats.requestTimestamps.filter(item => item.time > oneMinuteAgo);
-  const requestsLastMinute = apiStats.requestTimestamps.length;
-
-  // Count requests by endpoint in last minute
-  const lastMinuteByEndpoint = new Map();
-  apiStats.requestTimestamps.forEach(item => {
-    const count = lastMinuteByEndpoint.get(item.endpoint) || 0;
-    lastMinuteByEndpoint.set(item.endpoint, count + 1);
-  });
-
-  // Get top 10 endpoints from last minute only
-  const sortedEndpoints = Array.from(lastMinuteByEndpoint.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 10);
-
-  // Build compact one-line stats
-  const topEndpointsStr = sortedEndpoints.map(([endpoint, count]) => `${endpoint}:${count}x`).join(', ');
-
-  logger.debug(`[API Stats] ${requestsLastMinute} req/min | Top 10: ${topEndpointsStr}`);
-}, 60000); // 1 minute = 60000ms
 
 /**
  * HTTPS agent with Keep-Alive for connection pooling and performance optimization.
@@ -215,12 +175,6 @@ const httpsAgent = new https.Agent({
 async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, retryCount = 0) {
   const maxRetries = 3;
   const startTime = Date.now();
-
-  // Track API request (in-memory stats)
-  apiStats.totalRequests++;
-  apiStats.requestTimestamps.push({ time: Date.now(), endpoint: endpoint });
-  const currentCount = apiStats.requestsByEndpoint.get(endpoint) || 0;
-  apiStats.requestsByEndpoint.set(endpoint, currentCount + 1);
 
   try {
     // Determine if we should send as JSON or form-urlencoded
@@ -328,10 +282,13 @@ async function apiCall(endpoint, method = 'POST', body = {}, timeout = 90000, re
     } else {
       // Network error or timeout
       const isRetryableError = error.code === 'ECONNRESET' ||
+                               error.code === 'ECONNABORTED' ||
                                error.code === 'ETIMEDOUT' ||
+                               error.code === 'ENOTFOUND' ||
                                error.code === 'ECONNREFUSED' ||
                                error.message.includes('socket hang up') ||
-                               error.message.includes('timeout');
+                               error.message.includes('timeout') ||
+                               error.message.includes('ECONNABORTED');
 
       // Retry with exponential backoff for network errors
       if (isRetryableError && retryCount < maxRetries) {
@@ -405,6 +362,7 @@ async function apiCallWithRetry(endpoint, method = 'POST', body = {}, timeout = 
       const isNetworkError = error.message && (
         error.message.includes('socket hang up') ||
         error.message.includes('ECONNRESET') ||
+        error.message.includes('ECONNABORTED') ||
         error.message.includes('ETIMEDOUT') ||
         error.message.includes('ENOTFOUND') ||
         error.message.includes('ECONNREFUSED')

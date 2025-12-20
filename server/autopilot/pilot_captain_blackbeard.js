@@ -43,14 +43,19 @@ function saveToHistory(userId, caseId, entry, metadata = {}) {
 
     let existingData = { history: [] };
     if (fs.existsSync(historyPath)) {
-      existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-      // Handle legacy format where file was just an array
-      if (Array.isArray(existingData)) {
-        existingData = { history: existingData };
-      }
-      // CRITICAL: Ensure history array exists (may be missing if file was created by cache)
-      if (!existingData.history || !Array.isArray(existingData.history)) {
-        existingData.history = [];
+      const parsed = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
+      // Handle null/undefined/invalid data
+      if (!parsed || typeof parsed !== 'object') {
+        existingData = { history: [] };
+      } else if (Array.isArray(parsed)) {
+        // Handle legacy format where file was just an array
+        existingData = { history: parsed };
+      } else {
+        existingData = parsed;
+        // Ensure history array exists (may be missing if file was created by cache)
+        if (!existingData.history || !Array.isArray(existingData.history)) {
+          existingData.history = [];
+        }
       }
     }
 
@@ -92,7 +97,7 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
   const OFFER_PERCENTAGE = 0.25;
   const WAIT_TIME_MS = 2 * 60 * 1000; // 2 minutes
 
-  logger.info(`[Blackbeard] Processing case ${caseId} for ${vesselName}...`);
+  logger.debug(`[Blackbeard] Processing case ${caseId} for ${vesselName}...`);
 
   // FIRST: Check if case is already resolved via cache (no API call needed!)
   const cachedCase = await getCachedHijackingCase(caseId);
@@ -116,7 +121,7 @@ async function processHijackingCase(userId, caseId, vesselName, userVesselId, br
 
   // Check if already resolved
   if (status === 'solved' || status === 'paid') {
-    logger.info(`[Blackbeard] Case ${caseId}: Already resolved`);
+    logger.debug(`[Blackbeard] Case ${caseId}: Already resolved (from API)`);
     return { success: true, reason: 'already_resolved' };
   }
 
@@ -440,6 +445,8 @@ async function autoNegotiateHijacking(autopilotPaused, broadcastToUser, tryUpdat
 
         if (result.success) {
           processed++;
+        } else if (result.reason === 'already_resolved' || result.skipped) {
+          logger.debug(`[Blackbeard] Case ${caseId} skipped: ${result.reason}`);
         } else {
           logger.warn(`[Blackbeard] Case ${caseId} failed: ${result.reason}`);
         }

@@ -804,17 +804,11 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     if (trackContribution) {
       totalContributionGained = allDepartedVessels.reduce((sum, v) => sum + v.contributionGained, 0);
 
-      // Output to console for debugging
+      // Log contribution summary
       if (allDepartedVessels.length > 0 && totalContributionGained > 0) {
         const vesselsWithContribution = allDepartedVessels.filter(v => v.contributionGained !== null);
-        console.log(`\n==================================================`);
-        console.log(`Contribution for last ride: ${allDepartedVessels.length} vessels`);
-        console.log(`Total gained: ${totalContributionGained}`);
-        console.log(`Per vessel breakdown:`);
-        vesselsWithContribution.forEach(v => {
-          console.log(`  - ${v.name}: +${v.contributionGained}`);
-        });
-        console.log(`==================================================\n`);
+        const breakdown = vesselsWithContribution.map(v => `${v.name}: +${v.contributionGained}`).join(', ');
+        logger.info(`[Contribution] ${allDepartedVessels.length} vessels, total +${totalContributionGained} (${breakdown})`);
       }
     }
 

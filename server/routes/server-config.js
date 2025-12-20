@@ -128,14 +128,34 @@ router.post('/server-config', async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Server configuration updated. Please restart the server for changes to take effect.',
+      message: 'Server configuration updated. Server will restart automatically.',
       config: updatedSettings,
-      requiresRestart: true
+      requiresRestart: true,
+      newUrl: `https://${host.trim()}:${portNum}`
     });
   } catch (error) {
     logger.error('[Server Config] Error saving settings:', error);
     res.status(500).json({ error: 'Failed to save server configuration' });
   }
+});
+
+/**
+ * POST /api/server/restart - Request server restart
+ * Exit code 100 signals launcher to restart the server
+ */
+router.post('/server/restart', (req, res) => {
+  logger.info('[Server] Restart requested via API');
+
+  res.json({
+    success: true,
+    message: 'Server restarting...'
+  });
+
+  // Give response time to send, then exit with restart code
+  setTimeout(() => {
+    logger.info('[Server] Exiting with code 100 (restart)');
+    process.exit(100);
+  }, 1000);
 });
 
 /**

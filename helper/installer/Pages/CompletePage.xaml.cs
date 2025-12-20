@@ -26,17 +26,22 @@ namespace ShippingManagerCoPilot.Installer.Pages
             {
                 try
                 {
-                    var exePath = Path.Combine(_installPath, "ShippingManagerCoPilot.exe");
+                    var exePath = Path.Combine(_installPath, "ShippingManagerCoPilot-Launcher.exe");
                     if (File.Exists(exePath))
                     {
-                        Process.Start(new ProcessStartInfo
+                        var startInfo = new ProcessStartInfo
                         {
                             FileName = exePath,
+                            WorkingDirectory = _installPath,
                             UseShellExecute = true
-                        });
+                        };
+                        Process.Start(startInfo);
                     }
                 }
-                catch { }
+                catch (System.Exception ex)
+                {
+                    MessageBox.Show($"Failed to launch app: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
             }
 
             Application.Current.Shutdown();

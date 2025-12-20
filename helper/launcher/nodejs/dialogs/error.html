@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Error</title>
+</head>
+<body class="launcher-dialog">
+  <div class="launcher-dialog-content" style="text-align: center;">
+    <div class="launcher-error-icon">&#10060;</div>
+    <h1 class="launcher-dialog-title" id="error-title">Error</h1>
+    <div class="launcher-error-message" id="error-message"></div>
+
+    <div class="launcher-dialog-buttons" style="margin-top: 24px;">
+      <button class="launcher-btn launcher-btn-primary" onclick="close()">OK</button>
+    </div>
+  </div>
+
+  <script>
+    async function init() {
+      try {
+        const dataJson = await getData();
+        const data = JSON.parse(dataJson);
+
+        if (data.title) {
+          document.getElementById('error-title').textContent = data.title;
+        }
+        if (data.message) {
+          document.getElementById('error-message').textContent = data.message;
+        }
+      } catch (err) {
+        document.getElementById('error-message').textContent = 'An unknown error occurred.';
+      }
+    }
+
+    function close() {
+      closeDialog(null);
+    }
+
+    init();
+  </script>
+</body>
+</html>

@@ -5,6 +5,7 @@
  */
 
 const { logAutopilotAction } = require('../logbook');
+const logger = require('./logger');
 
 /**
  * Audit log categories
@@ -68,8 +69,7 @@ async function auditLog(userId, category, action, summary, details = {}, status 
     details    // Detailed information
   );
 
-  // Console output for debugging
-  console.log(`[AUDIT:${category}:${source}] ${action}: ${summary}`);
+  logger.info(`[AUDIT:${category}:${source}] ${action}: ${summary}`);
 }
 
 module.exports = {

@@ -1,0 +1,188 @@
+<Window x:Class="ShippingManagerCoPilot.Launcher.LoginMethodDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Login Method"
+        Width="500" Height="480"
+        WindowStartupLocation="CenterOwner"
+        Background="#1a1a1a"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Icon="icon.ico">
+
+    <Window.Resources>
+        <!-- Colors matching launcher-dialogs.css -->
+        <SolidColorBrush x:Key="BgPrimary" Color="#1a1a1a"/>
+        <SolidColorBrush x:Key="BgSecondary" Color="#252525"/>
+        <SolidColorBrush x:Key="BgHover" Color="#3a3a3a"/>
+        <SolidColorBrush x:Key="BorderColor" Color="#404040"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#e0e0e0"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#9ca3af"/>
+        <SolidColorBrush x:Key="InfoColor" Color="#3b82f6"/>
+        <SolidColorBrush x:Key="SuccessColor" Color="#10b981"/>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Margin="0,0,0,16">
+            <TextBlock Text="Choose Login Method"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{StaticResource InfoColor}"/>
+            <TextBlock Text="How would you like to authenticate?"
+                       FontSize="13"
+                       Foreground="{StaticResource TextSecondary}"
+                       Margin="0,8,0,0"/>
+        </StackPanel>
+
+        <!-- Method Cards -->
+        <StackPanel Grid.Row="1">
+            <!-- Steam Method -->
+            <Border x:Name="SteamCard"
+                    Background="{StaticResource BgSecondary}"
+                    BorderBrush="{StaticResource BorderColor}"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    Padding="20"
+                    Margin="0,0,0,10"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="SteamCard_Click">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <TextBlock Text="Steam Auto-Extract"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   VerticalAlignment="Center"/>
+                        <Border Background="{StaticResource InfoColor}"
+                                CornerRadius="4"
+                                Padding="8,2"
+                                Margin="8,0,0,0">
+                            <TextBlock Text="Windows only"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                        </Border>
+                    </StackPanel>
+                    <TextBlock Text="Automatically extracts your session from Steam's browser cache. Requires that you have logged into Shipping Manager via Steam's built-in browser."
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondary}"
+                               TextWrapping="Wrap"
+                               LineHeight="18"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Browser Method -->
+            <Border x:Name="BrowserCard"
+                    Background="{StaticResource BgSecondary}"
+                    BorderBrush="{StaticResource BorderColor}"
+                    BorderThickness="2"
+                    CornerRadius="8"
+                    Padding="20"
+                    Cursor="Hand"
+                    MouseLeftButtonDown="BrowserCard_Click">
+                <StackPanel>
+                    <TextBlock Text="Browser Login"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimary}"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Opens a browser window where you can login manually. Works on all platforms (Windows, macOS, Linux)."
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondary}"
+                               TextWrapping="Wrap"
+                               LineHeight="18"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="2" Margin="0,20,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="CancelButton"
+                    Grid.Column="0"
+                    Content="Cancel"
+                    Margin="0,0,5,0"
+                    Click="Cancel_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="{StaticResource BgSecondary}"/>
+                        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                        <Setter Property="BorderBrush" Value="{StaticResource BorderColor}"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Padding" Value="16,12"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="6"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource BgHover}"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+
+            <Button x:Name="ContinueButton"
+                    Grid.Column="1"
+                    Content="Continue"
+                    Margin="5,0,0,0"
+                    IsEnabled="False"
+                    Click="Continue_Click">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="{StaticResource InfoColor}"/>
+                        <Setter Property="Foreground" Value="White"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="Padding" Value="16,12"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}"
+                                            CornerRadius="6"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#2563eb"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#4b5563"/>
+                                <Setter Property="Cursor" Value="Arrow"/>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Button.Style>
+            </Button>
+        </Grid>
+    </Grid>
+</Window>

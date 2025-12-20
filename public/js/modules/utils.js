@@ -817,6 +817,7 @@ export async function loadServerConfig() {
 
 /**
  * Save server configuration (IP/Port) to backend
+ * If config changed, triggers server restart and redirects to new URL
  */
 window.saveServerConfig = async function() {
   const host = document.getElementById('serverHost').value;
@@ -847,9 +848,34 @@ window.saveServerConfig = async function() {
     const data = await response.json();
 
     if (data.success) {
-      statusEl.textContent = data.message || 'Configuration saved! Please restart the server.';
-      statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
-      statusEl.style.color = '#6ee7b7';
+      // Check if config actually changed (need restart)
+      if (data.requiresRestart && data.newUrl) {
+        // Show countdown and trigger restart
+        let countdown = 5;
+        statusEl.style.background = 'rgba(59, 130, 246, 0.2)';
+        statusEl.style.color = '#93c5fd';
+        statusEl.style.display = 'block';
+
+        const updateCountdown = () => {
+          statusEl.textContent = `Configuration saved! Restarting server... Redirecting in ${countdown}s`;
+          if (countdown <= 0) {
+            window.location.href = data.newUrl;
+          } else {
+            countdown--;
+            setTimeout(updateCountdown, 1000);
+          }
+        };
+        updateCountdown();
+
+        // Trigger server restart
+        fetch(window.apiUrl('/api/server/restart'), { method: 'POST' }).catch(() => {});
+
+        return; // Don't reset button, we're redirecting
+      } else {
+        statusEl.textContent = data.message || 'Configuration saved!';
+        statusEl.style.background = 'rgba(16, 185, 129, 0.2)';
+        statusEl.style.color = '#6ee7b7';
+      }
     } else {
       statusEl.textContent = data.error || 'Failed to save configuration';
       statusEl.style.background = 'rgba(239, 68, 68, 0.2)';
@@ -864,7 +890,7 @@ window.saveServerConfig = async function() {
     statusEl.style.display = 'block';
   } finally {
     saveBtn.disabled = false;
-    saveBtn.textContent = '💾 Save Configuration';
+    saveBtn.textContent = 'Save Configuration';
   }
 };
 

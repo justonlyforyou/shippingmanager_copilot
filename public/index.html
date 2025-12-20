@@ -261,6 +261,7 @@
                         <select id="harborFilterPortScope">
                             <option value="my_ports">My Ports</option>
                             <option value="all_ports">All Ports</option>
+                            <option value="my_ports_no_route">Ports No Route</option>
                         </select>
                     </div>
 
@@ -762,10 +763,13 @@
                 <button class="analytics-tab-btn" data-tab="game-log">Game Log</button>
                 <button class="analytics-tab-btn" data-tab="vessels">Vessels</button>
                 <button class="analytics-tab-btn" data-tab="routes">Routes</button>
+                <button class="analytics-tab-btn" data-tab="ports">Ports</button>
                 <div class="analytics-controls">
                     <select id="analyticsPeriodSelect" class="logbook-filter-select">
-                        <option value="1">24h</option>
-                        <option value="7" selected>7 Days</option>
+                        <option value="1" selected>24h</option>
+                        <option value="3">3 Days</option>
+                        <option value="7">7 Days</option>
+                        <option value="14">14 Days</option>
                         <option value="30">30 Days</option>
                         <option value="90">90 Days</option>
                         <option value="180">6 Months</option>
@@ -990,6 +994,60 @@
                             <tbody id="analytics-routes-tbody"></tbody>
                         </table>
                     </div>
+                    </div>
+                </div>
+                <!-- Ports Tab - Port Demand History -->
+                <div id="analytics-ports" class="analytics-tab-content hidden">
+                    <div class="analytics-section">
+                        <div class="port-demand-header">
+                            <h3>Port Demand History</h3>
+                            <div class="port-demand-controls">
+                                <div class="port-search-dropdown">
+                                    <input type="text" id="portDemandSearch" class="port-search-input" placeholder="Search port..." autocomplete="off">
+                                    <input type="hidden" id="portDemandPortSelect" value="">
+                                    <div id="portDemandDropdown" class="port-search-list hidden"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="portDemandLoading" class="analytics-loading hidden">Loading port demand data...</div>
+                        <div id="portDemandContent" class="hidden">
+                            <div class="port-demand-stats">
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Data Points</div>
+                                    <div class="analytics-metric-value" id="portDemandDataPoints">-</div>
+                                </div>
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Sync Progress</div>
+                                    <div class="analytics-metric-value" id="portDemandSyncProgress">-</div>
+                                </div>
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Last Full Cycle</div>
+                                    <div class="analytics-metric-value" id="portDemandLastCycle">-</div>
+                                </div>
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Total Ports</div>
+                                    <div class="analytics-metric-value" id="portDemandTotalPorts">-</div>
+                                </div>
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Active Vessels</div>
+                                    <div class="analytics-metric-value" id="portDemandActiveVessels">-</div>
+                                </div>
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Vessels Max TEU</div>
+                                    <div class="analytics-metric-value" id="portDemandMaxTEU">-</div>
+                                </div>
+                                <div class="analytics-metric">
+                                    <div class="analytics-metric-label">Vessels Max BBL</div>
+                                    <div class="analytics-metric-value" id="portDemandMaxBBL">-</div>
+                                </div>
+                            </div>
+                            <div class="analytics-chart-container" id="portDemandChartContainerTEU">
+                                <div class="port-demand-chart-placeholder">Select a port to view demand history</div>
+                            </div>
+                            <div class="analytics-chart-container hidden" id="portDemandChartContainerBBL">
+                                <div class="port-demand-chart-placeholder">Select a port to view demand history</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <!-- API Stats Tab (develMode only) -->

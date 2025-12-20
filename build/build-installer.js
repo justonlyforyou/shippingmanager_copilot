@@ -44,7 +44,7 @@ console.log(`  [OK] app-payload.zip found (${payloadSizeInMB} MB)`);
 try {
     const dotnetVersion = execSync('dotnet --version', { encoding: 'utf8' }).trim();
     console.log(`  [OK] .NET SDK found (${dotnetVersion})`);
-} catch (error) {
+} catch {
     console.error('  [ERROR] .NET SDK not found!');
     console.error('  Install from: https://dotnet.microsoft.com/download');
     console.error('  Required: .NET 8.0 SDK or later');
@@ -56,7 +56,7 @@ console.log('[2/6] Cleaning previous build artifacts...');
 try {
     execSync('dotnet clean helper/installer -c Release', { stdio: 'inherit' });
     console.log('  [OK] Build artifacts cleaned');
-} catch (error) {
+} catch {
     console.error('  [ERROR] Failed to clean build');
     process.exit(1);
 }
@@ -66,7 +66,7 @@ console.log('[3/6] Restoring .NET dependencies...');
 try {
     execSync('dotnet restore helper/installer', { stdio: 'inherit' });
     console.log('  [OK] Dependencies restored');
-} catch (error) {
+} catch {
     console.error('  [ERROR] Failed to restore dependencies');
     process.exit(1);
 }
@@ -79,7 +79,7 @@ try {
     console.log(`  Running: ${buildCommand}`);
     execSync(buildCommand, { stdio: 'inherit' });
     console.log('  [OK] Installer built successfully');
-} catch (error) {
+} catch {
     console.error('  [ERROR] Failed to build installer');
     process.exit(1);
 }

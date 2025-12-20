@@ -41,12 +41,14 @@ namespace ShippingManagerCoPilot.Installer
                 // Show uninstaller UI
                 var uninstallWindow = new UninstallWindow();
                 uninstallWindow.Show();
+                BringToForeground(uninstallWindow);
             }
             else
             {
                 // Show installer UI
                 var mainWindow = new MainWindow();
                 mainWindow.Show();
+                BringToForeground(mainWindow);
             }
         }
 
@@ -112,6 +114,14 @@ namespace ShippingManagerCoPilot.Installer
             };
 
             Process.Start(startInfo);
+        }
+
+        private void BringToForeground(Window window)
+        {
+            window.Topmost = true;
+            window.Activate();
+            window.Focus();
+            window.Topmost = false;
         }
     }
 }

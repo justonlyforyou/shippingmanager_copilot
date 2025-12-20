@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://localhost:* https://127.0.0.1:*;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Starting Servers...</title>
+  <style>
+    .startup-container {
+      padding: 5px 30px 30px 30px;
+      text-align: center;
+    }
+
+    .startup-title {
+      font-size: 20px;
+      font-weight: 600;
+      color: var(--color-text-primary, #e0e0e0);
+      margin-bottom: 8px;
+    }
+
+    .startup-subtitle {
+      font-size: 13px;
+      color: var(--color-text-secondary, #9ca3af);
+      margin-bottom: 30px;
+    }
+
+    .server-list {
+      margin: 20px 0;
+      text-align: left;
+    }
+
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid var(--color-bg-hover, #3a3a3a);
+      border-top-color: var(--color-info, #3b82f6);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: var(--color-bg-secondary, #252525);
+      border-radius: 3px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--color-info, #3b82f6), var(--color-success, #10b981));
+      border-radius: 3px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-text {
+      font-size: 13px;
+      color: var(--color-text-secondary, #9ca3af);
+      margin-bottom: 10px;
+    }
+
+    /* Session card styles */
+    .session-card {
+      background: var(--color-bg-secondary, #252525);
+      padding: 14px 18px;
+      margin: 10px 0;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      transition: background-color 0.15s, opacity 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .session-card:hover {
+      background: var(--color-bg-hover, #3a3a3a);
+    }
+
+    .session-card.loading {
+      cursor: default;
+    }
+
+    .session-card.failed {
+      opacity: 0.6;
+    }
+
+    .session-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      z-index: 1;
+    }
+
+    .session-icon {
+      font-size: 20px;
+    }
+
+    .session-details {
+      flex: 1;
+    }
+
+    .session-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-text-primary, #e0e0e0);
+    }
+
+    .session-port {
+      font-size: 12px;
+      color: var(--color-text-secondary, #9ca3af);
+      font-family: monospace;
+      margin-top: 2px;
+    }
+
+    .session-status {
+      z-index: 1;
+      font-size: 12px;
+    }
+
+    .status-ready {
+      color: var(--color-success, #10b981);
+      font-weight: 500;
+    }
+
+    .status-loading {
+      color: var(--color-warning, #f59e0b);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-failed {
+      color: var(--color-danger, #ef4444);
+      font-weight: 500;
+    }
+
+    .spinner-small {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--color-bg-hover, #3a3a3a);
+      border-top-color: var(--color-warning, #f59e0b);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(26, 26, 26, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .action-buttons {
+      display: flex;
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: center;
+    }
+
+    .action-btn {
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      transition: background-color 0.15s, opacity 0.15s;
+    }
+
+    .action-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .add-account-btn {
+      background: var(--color-info, #3b82f6);
+      border: none;
+      color: white;
+    }
+
+    .add-account-btn:hover:not(:disabled) {
+      background: var(--color-info-dark, #2563eb);
+    }
+
+    .open-browser-btn {
+      background: var(--color-bg-secondary, #252525);
+      border: 1px solid var(--color-border, #404040);
+      color: var(--color-text-primary, #e0e0e0);
+    }
+
+    .open-browser-btn:hover:not(:disabled) {
+      background: var(--color-bg-hover, #3a3a3a);
+    }
+  </style>
+</head>
+<body class="launcher-dialog launcher-loading-dialog">
+  <div class="startup-container">
+    <div class="startup-title">Starting Servers</div>
+    <div class="startup-subtitle" id="startup-subtitle">Please wait while your servers are starting up...</div>
+
+    <div class="progress-text" id="progress-text">Initializing...</div>
+    <div class="progress-bar-container">
+      <div class="progress-bar" id="progress-bar" style="width: 0%"></div>
+    </div>
+
+    <div class="server-list" id="server-list"></div>
+
+    <div class="action-buttons">
+      <button class="action-btn add-account-btn" onclick="addAccount()">+ Add Account</button>
+      <button class="action-btn open-browser-btn" id="open-all-btn" onclick="openAllServers()" disabled>Open All in Browser</button>
+    </div>
+
+    <div class="launcher-dialog-buttons" style="margin-top: 24px;">
+      <button class="launcher-btn launcher-btn-secondary" onclick="minimizeToTray()">Minimize to Tray</button>
+    </div>
+  </div>
+
+  <script>
+    let dialogData = {};
+    let serverStates = {}; // userId -> { ready, port, companyName, loginMethod }
+
+    async function init() {
+      try {
+        const dataJson = await getData();
+        dialogData = JSON.parse(dataJson);
+
+        // Initialize server states from sessions
+        if (dialogData.sessions && dialogData.sessions.length > 0) {
+          dialogData.sessions.forEach(session => {
+            serverStates[session.userId] = {
+              ready: false,
+              port: session.port,
+              companyName: session.companyName,
+              loginMethod: session.loginMethod
+            };
+          });
+
+          renderSessionCards();
+          startPolling();
+        } else {
+          document.getElementById('progress-text').textContent = 'No servers to start';
+        }
+      } catch (err) {
+        console.error('Init error:', err);
+        document.getElementById('progress-text').textContent = 'Error: ' + err.message;
+      }
+    }
+
+    function renderSessionCards() {
+      const container = document.getElementById('server-list');
+      container.innerHTML = '';
+
+      Object.entries(serverStates).forEach(([userId, state]) => {
+        const url = 'https://localhost:' + state.port;
+        const icon = state.loginMethod === 'steam' ? '&#127918;' : '&#127760;';
+        const isReady = state.ready;
+
+        const item = document.createElement('div');
+        item.className = 'session-card' + (isReady ? '' : ' loading');
+        item.id = 'session-' + userId;
+        item.onclick = function() { openUrl(url); };
+        item.innerHTML =
+          '<div class="session-info">' +
+            '<span class="session-icon">' + icon + '</span>' +
+            '<div class="session-details">' +
+              '<div class="session-name">' + escapeHtml(state.companyName) + '</div>' +
+              '<div class="session-port">' + url + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="session-status">' +
+            (isReady
+              ? '<span class="status-ready">&#10003; Ready</span>'
+              : '<span class="status-loading"><div class="spinner-small"></div> Starting...</span>') +
+          '</div>' +
+          (isReady ? '' : '<div class="loading-overlay"><div class="spinner"></div></div>');
+        container.appendChild(item);
+      });
+
+      updateProgress();
+      updateOpenAllButton();
+    }
+
+    function updateProgress() {
+      const sessions = Object.values(serverStates);
+      const total = sessions.length;
+      const ready = sessions.filter(s => s.ready).length;
+
+      const percent = total > 0 ? Math.round((ready / total) * 100) : 0;
+      document.getElementById('progress-bar').style.width = percent + '%';
+      document.getElementById('progress-text').textContent = ready + ' of ' + total + ' servers ready';
+
+      // Update subtitle based on progress
+      const subtitle = document.getElementById('startup-subtitle');
+      if (ready === total && total > 0) {
+        subtitle.textContent = 'All servers are ready!';
+      } else if (ready > 0) {
+        subtitle.textContent = 'Some servers are ready, others still starting...';
+      }
+    }
+
+    function updateOpenAllButton() {
+      const sessions = Object.values(serverStates);
+      const total = sessions.length;
+      const ready = sessions.filter(s => s.ready).length;
+      const allReady = ready === total && total > 0;
+
+      const btn = document.getElementById('open-all-btn');
+      btn.disabled = !allReady;
+      btn.title = allReady ? 'Open all servers in browser' : 'Waiting for all servers to be ready...';
+    }
+
+    function updateSessionCard(userId, ready) {
+      const card = document.getElementById('session-' + userId);
+      if (!card) return;
+
+      const state = serverStates[userId];
+      if (!state) return;
+
+      if (ready) {
+        card.classList.remove('loading');
+        const statusEl = card.querySelector('.session-status');
+        statusEl.innerHTML = '<span class="status-ready">&#10003; Ready</span>';
+
+        // Remove loading overlay
+        const overlay = card.querySelector('.loading-overlay');
+        if (overlay) overlay.remove();
+      }
+    }
+
+    let pollInterval = null;
+
+    async function pollServerStates() {
+      // Check if getServerStates is available (bound from Node.js)
+      if (typeof getServerStates !== 'function') {
+        console.warn('[Poll] getServerStates not available');
+        return;
+      }
+
+      try {
+        // This call processes Node.js events via setImmediate in the bound function
+        const statesJson = await getServerStates();
+        const states = JSON.parse(statesJson);
+
+        // Update local states from Node.js states
+        let anyChanged = false;
+        Object.entries(states).forEach(([userId, nodeState]) => {
+          if (serverStates[userId] && !serverStates[userId].ready && nodeState.ready) {
+            serverStates[userId].ready = true;
+            updateSessionCard(userId, true);
+            console.log('[Poll] Server ready: ' + serverStates[userId].companyName);
+            anyChanged = true;
+          }
+        });
+
+        if (anyChanged) {
+          updateProgress();
+          updateOpenAllButton();
+        }
+
+        // Check if all ready - stop polling
+        const allReady = Object.values(serverStates).every(s => s.ready);
+        if (allReady) {
+          console.log('[Poll] All servers ready, stopping polling');
+          stopPolling();
+        }
+      } catch (err) {
+        console.error('[Poll] Error:', err);
+      }
+    }
+
+    function startPolling() {
+      // Poll immediately, then every 500ms
+      pollServerStates();
+      pollInterval = setInterval(pollServerStates, 500);
+
+      // Timeout after 90 seconds - mark remaining as failed
+      setTimeout(() => {
+        const notReady = Object.entries(serverStates).filter(([, s]) => !s.ready);
+        if (notReady.length > 0) {
+          console.warn('[Timeout] ' + notReady.length + ' server(s) not ready');
+          notReady.forEach(([userId]) => {
+            const card = document.getElementById('session-' + userId);
+            if (card) {
+              card.classList.add('failed');
+              const statusEl = card.querySelector('.session-status');
+              statusEl.innerHTML = '<span class="status-failed">&#10007; Timeout</span>';
+              const overlay = card.querySelector('.loading-overlay');
+              if (overlay) overlay.remove();
+            }
+          });
+          stopPolling();
+        }
+      }, 90000);
+    }
+
+    function stopPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function openUrl(url) {
+      closeDialog(JSON.stringify({ action: 'open', url: url }));
+    }
+
+    function openAllServers() {
+      const urls = Object.values(serverStates)
+        .filter(s => s.ready)
+        .map(s => 'https://localhost:' + s.port);
+      if (urls.length > 0) {
+        closeDialog(JSON.stringify({ action: 'openAll', urls: urls }));
+      }
+    }
+
+    function minimizeToTray() {
+      closeDialog(JSON.stringify({ action: 'minimize' }));
+    }
+
+    function addAccount() {
+      closeDialog(JSON.stringify({ action: 'addAccount' }));
+    }
+
+    // Initialize on load
+    init();
+  </script>
+</body>
+</html>

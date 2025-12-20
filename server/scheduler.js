@@ -20,6 +20,8 @@ const { getUserId } = require('./utils/api');
 const logger = require('./utils/logger');
 const { isMigrationCompleted } = require('./utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('./utils/migrate-harbor-fees');
+const { initUserDatabase } = require('./database/init');
+const portDemandSync = require('./services/port-demand-sync');
 
 /**
  * Server ready state flag
@@ -99,6 +101,23 @@ function initScheduler() {
         throw new Error('[Scheduler] No settings available');
       }
 
+      // SQLite Database Migration: Automatically migrate JSON data on first run
+      logger.info('[Scheduler] Checking SQLite database migration...');
+      try {
+        const dbResult = await initUserDatabase(userId);
+        if (dbResult.migrated) {
+          logger.info(`[Scheduler] SQLite migration completed: ${dbResult.totals?.vessels || 0} vessels, ${dbResult.totals?.departures || 0} departures, ${dbResult.totals?.transactions || 0} transactions, ${dbResult.totals?.lookupEntries || 0} lookup entries`);
+          logger.info('[Scheduler] JSON files renamed to *_ready_to_delete.json');
+        } else if (dbResult.alreadyInitialized) {
+          logger.debug('[Scheduler] SQLite database already initialized');
+        } else if (dbResult.noDataToMigrate) {
+          logger.debug('[Scheduler] No JSON data to migrate');
+        }
+      } catch (dbError) {
+        logger.error('[Scheduler] SQLite migration failed:', dbError.message);
+        logger.error('[Scheduler] Will continue with existing data stores');
+      }
+
       // Initialize autopilot pause state
       autopilot.initializeAutopilotState(userId);
 
@@ -167,6 +186,10 @@ function initScheduler() {
       // Start event-driven autopilot loop (60s interval)
       logger.info('[Scheduler] Starting event-driven autopilot loop...');
       autopilot.startMainEventLoop();
+
+      // Start port demand sync (continuous, 1 port every 5 seconds)
+      logger.info('[Scheduler] Starting port demand sync...');
+      portDemandSync.startSync();
 
     } catch (error) {
       logger.error('[Scheduler] Initial data load failed:', error);

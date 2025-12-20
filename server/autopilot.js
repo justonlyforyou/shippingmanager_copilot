@@ -28,7 +28,7 @@ const { autoDrydockVessels } = require('./autopilot/pilot_drydock_master');
 const { autoCampaignRenewal } = require('./autopilot/pilot_reputation_chief');
 const { autoCoop } = require('./autopilot/pilot_fair_hand');
 const { autoAnchorPointPurchase, setBroadcastFunction: setHarbormasterBroadcast } = require('./autopilot/pilot_harbormaster');
-const vesselHistoryStore = require('./analytics/vessel-history-store');
+const { vesselHistoryStore } = require('./database/store-adapter');
 const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
 const { autoBuyStock, autoSellStock } = require('./autopilot/pilot_the_purser');
 const { manageStaffMorale } = require('./autopilot/pilot_staff_captain');
@@ -945,10 +945,22 @@ async function fastEventLoop() {
     await updateCampaigns();
 
   } catch (error) {
-    logger.error('[Fast Loop] FATAL ERROR in fast event loop:', error);
-    logger.error('[Fast Loop] Stack trace:', error.stack);
-    logger.error('[Fast Loop] Application will exit due to fatal error in loop');
-    process.exit(1);
+    // Network errors are recoverable - don't crash the app
+    const isNetworkError = error.message && (
+      error.message.includes('ECONNABORTED') ||
+      error.message.includes('ECONNRESET') ||
+      error.message.includes('ETIMEDOUT') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('socket hang up') ||
+      error.message.includes('network')
+    );
+
+    if (isNetworkError) {
+      logger.warn('[Fast Loop] Network error in fast event loop (will retry):', error.message);
+    } else {
+      logger.error('[Fast Loop] Error in fast event loop:', error);
+      logger.error('[Fast Loop] Stack trace:', error.stack);
+    }
   }
 
   setTimeout(fastEventLoop, LOOP_INTERVAL_FAST);
@@ -1004,10 +1016,22 @@ async function slowEventLoop() {
     }
 
   } catch (error) {
-    logger.error('[Slow Loop] FATAL ERROR in slow event loop:', error);
-    logger.error('[Slow Loop] Stack trace:', error.stack);
-    logger.error('[Slow Loop] Application will exit due to fatal error in loop');
-    process.exit(1);
+    // Network errors are recoverable - don't crash the app
+    const isNetworkError = error.message && (
+      error.message.includes('ECONNABORTED') ||
+      error.message.includes('ECONNRESET') ||
+      error.message.includes('ETIMEDOUT') ||
+      error.message.includes('ENOTFOUND') ||
+      error.message.includes('socket hang up') ||
+      error.message.includes('network')
+    );
+
+    if (isNetworkError) {
+      logger.warn('[Slow Loop] Network error in slow event loop (will retry):', error.message);
+    } else {
+      logger.error('[Slow Loop] Error in slow event loop:', error);
+      logger.error('[Slow Loop] Stack trace:', error.stack);
+    }
   }
 
   setTimeout(slowEventLoop, LOOP_INTERVAL_SLOW);
