@@ -81,16 +81,58 @@ jobs:
       - name: Build Node.js SEA for macOS
         run: npm run build:sea:mac
 
+      - name: Create macOS App Bundle
+        run: |
+          # Create .app bundle structure
+          APP_DIR="dist/ShippingManagerCoPilot.app"
+          mkdir -p "$APP_DIR/Contents/MacOS"
+          mkdir -p "$APP_DIR/Contents/Resources"
+
+          # Copy executable
+          cp dist/ShippingManagerCoPilot-Server "$APP_DIR/Contents/MacOS/ShippingManagerCoPilot"
+          chmod +x "$APP_DIR/Contents/MacOS/ShippingManagerCoPilot"
+
+          # Copy resources
+          cp -r dist/public "$APP_DIR/Contents/Resources/"
+          cp -r dist/sysdata "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+          cp -r dist/node_modules "$APP_DIR/Contents/Resources/"
+          cp -r dist/helper "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+          cp dist/package.json "$APP_DIR/Contents/Resources/"
+          cp dist/CHANGELOG.md "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+
+          # Create Info.plist
+          VERSION=$(node -p "require('./package.json').version")
+          cat > "$APP_DIR/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>ShippingManagerCoPilot</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.shippingmanager.copilot</string>
+            <key>CFBundleName</key>
+            <string>ShippingManager CoPilot</string>
+            <key>CFBundleVersion</key>
+            <string>$VERSION</string>
+            <key>CFBundleShortVersionString</key>
+            <string>$VERSION</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>10.15</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
       - name: Create macOS DMG
         run: |
-          # Create a simple DMG from the .app bundle
           mkdir -p dist/dmg-staging
           cp -r dist/ShippingManagerCoPilot.app dist/dmg-staging/
-
-          # Create symlink to Applications folder
           ln -s /Applications dist/dmg-staging/Applications
 
-          # Create DMG
           hdiutil create -volname "ShippingManagerCoPilot" \
             -srcfolder dist/dmg-staging \
             -ov -format UDZO \
@@ -134,6 +176,52 @@ jobs:
 
       - name: Build Node.js SEA for macOS ARM64
         run: npm run build:sea:mac
+
+      - name: Create macOS App Bundle
+        run: |
+          # Create .app bundle structure
+          APP_DIR="dist/ShippingManagerCoPilot.app"
+          mkdir -p "$APP_DIR/Contents/MacOS"
+          mkdir -p "$APP_DIR/Contents/Resources"
+
+          # Copy executable
+          cp dist/ShippingManagerCoPilot-Server "$APP_DIR/Contents/MacOS/ShippingManagerCoPilot"
+          chmod +x "$APP_DIR/Contents/MacOS/ShippingManagerCoPilot"
+
+          # Copy resources
+          cp -r dist/public "$APP_DIR/Contents/Resources/"
+          cp -r dist/sysdata "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+          cp -r dist/node_modules "$APP_DIR/Contents/Resources/"
+          cp -r dist/helper "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+          cp dist/package.json "$APP_DIR/Contents/Resources/"
+          cp dist/CHANGELOG.md "$APP_DIR/Contents/Resources/" 2>/dev/null || true
+
+          # Create Info.plist
+          VERSION=$(node -p "require('./package.json').version")
+          cat > "$APP_DIR/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleExecutable</key>
+            <string>ShippingManagerCoPilot</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.shippingmanager.copilot</string>
+            <key>CFBundleName</key>
+            <string>ShippingManager CoPilot</string>
+            <key>CFBundleVersion</key>
+            <string>$VERSION</string>
+            <key>CFBundleShortVersionString</key>
+            <string>$VERSION</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>10.15</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
 
       - name: Create macOS DMG
         run: |
@@ -179,16 +267,32 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev libsecret-1-dev
+
       - name: Install npm dependencies
         run: npm install
 
       - name: Build Node.js SEA for Linux
         run: npm run build:sea:linux
 
+      - name: Prepare Linux distribution
+        run: |
+          # Rename executable for distribution
+          mv dist/ShippingManagerCoPilot-Server dist/ShippingManagerCoPilot
+          chmod +x dist/ShippingManagerCoPilot
+
       - name: Create tarball
         run: |
           cd dist
-          tar -czvf ShippingManagerCoPilot-linux-x64.tar.gz ShippingManagerCoPilot
+          # Create tarball with all available files
+          FILES="ShippingManagerCoPilot public node_modules package.json"
+          [ -d sysdata ] && FILES="$FILES sysdata"
+          [ -d helper ] && FILES="$FILES helper"
+          [ -f CHANGELOG.md ] && FILES="$FILES CHANGELOG.md"
+          tar -czvf ShippingManagerCoPilot-linux-x64.tar.gz $FILES
 
       - name: Generate checksums
         run: |
