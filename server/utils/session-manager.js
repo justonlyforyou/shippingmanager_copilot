@@ -24,20 +24,20 @@ const logger = require('./logger');
  * @returns {string} Path to sessions.json
  */
 function getSessionsPath() {
-    const { getAppBaseDir, isPackaged } = require('../config');
-    const isPkg = isPackaged();
+    const { getAppBaseDir } = require('../config');
 
-    if (isPkg) {
-        return path.join(getAppBaseDir(), 'userdata', 'settings', 'sessions.json');
+    // Check if running from installed location (AppData)
+    const appDataBase = getAppBaseDir();
+    const isInstalled = process.execPath.toLowerCase().includes('appdata') ||
+                        process.execPath.toLowerCase().includes('shippingmanagercopilot');
+
+    if (isInstalled) {
+        return path.join(appDataBase, 'userdata', 'settings', 'sessions.json');
     }
+
+    // Development: use project folder
     return path.join(__dirname, '..', '..', 'userdata', 'settings', 'sessions.json');
 }
-
-/**
- * Path to sessions file (same for Python and Node.js now)
- * @constant {string}
- */
-const SESSIONS_FILE = getSessionsPath();
 
 /**
  * Load all sessions from file
@@ -45,12 +45,17 @@ const SESSIONS_FILE = getSessionsPath();
  * @returns {Promise<Object>} Sessions object with user IDs as keys
  */
 async function loadSessions() {
+    const sessionsFile = getSessionsPath();
+    logger.debug(`[SessionManager] Loading sessions from: ${sessionsFile}`);
     try {
-        const data = await fs.readFile(SESSIONS_FILE, 'utf8');
-        return JSON.parse(data);
+        const data = await fs.readFile(sessionsFile, 'utf8');
+        const sessions = JSON.parse(data);
+        logger.debug(`[SessionManager] Loaded ${Object.keys(sessions).length} session(s)`);
+        return sessions;
     } catch (error) {
         if (error.code === 'ENOENT') {
             // File doesn't exist yet
+            logger.warn(`[SessionManager] Sessions file not found: ${sessionsFile}`);
             return {};
         }
         logger.error('[SessionManager] Error loading sessions:', error);
@@ -130,13 +135,14 @@ async function getAvailableSessions() {
  * @returns {Promise<void>}
  */
 async function saveSessions(sessions) {
+    const sessionsFile = getSessionsPath();
     try {
         // Ensure directory exists
-        const dir = path.dirname(SESSIONS_FILE);
+        const dir = path.dirname(sessionsFile);
         await fs.mkdir(dir, { recursive: true });
 
         await fs.writeFile(
-            SESSIONS_FILE,
+            sessionsFile,
             JSON.stringify(sessions, null, 2),
             'utf8'
         );

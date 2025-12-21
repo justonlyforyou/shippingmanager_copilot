@@ -8,6 +8,7 @@
 
 import { deselectAll, selectVessel, closeAllPanels, getMap } from './map-controller.js';
 import { isMobileDevice, escapeHtml, formatNumber, toGameCode } from '../utils.js';
+import logger from '../core/logger.js';
 
 /**
  * Format port code to full name (Title Case)
@@ -128,10 +129,10 @@ export function showPortPanel(port, vessels) {
 
   // Enable fullscreen on mobile when panel opens
   const isMobile = isMobileDevice();
-  console.log('[Port Panel] isMobile:', isMobile, 'window.innerWidth:', window.innerWidth);
+  logger.debug('[Port Panel] isMobile:', isMobile, 'window.innerWidth:', window.innerWidth);
   if (isMobile) {
     document.body.classList.add('map-fullscreen');
-    console.log('[Port Panel] Added map-fullscreen class to body. Classes:', document.body.classList.toString());
+    logger.debug('[Port Panel] Added map-fullscreen class to body. Classes:', document.body.classList.toString());
   }
 }
 
@@ -610,9 +611,9 @@ async function loadPortAllianceData(portCode, attempt = 1) {
     }
 
     const result = await response.json();
-    console.log('[Port Panel] Alliance data response:', result);
+    logger.debug('[Port Panel] Alliance data response:', result);
     const { top_alliances, my_alliance } = result.data || {};
-    console.log('[Port Panel] top_alliances:', top_alliances, 'my_alliance:', my_alliance);
+    logger.debug('[Port Panel] top_alliances:', top_alliances, 'my_alliance:', my_alliance);
 
     const section = document.getElementById('top-alliances-section');
     if (!section) return;

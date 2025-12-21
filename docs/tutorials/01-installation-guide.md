@@ -19,7 +19,8 @@ Download the latest release for your platform from [GitHub Releases](https://git
 2. Run the installer
 3. Launch from Start Menu or Desktop shortcut
 4. The application starts as a system tray icon
-5. Open browser to `https://localhost:12345`
+5. Add your account via Steam extraction or Browser login
+6. Open browser to `https://localhost:12345`
 
 ### macOS Installation
 
@@ -59,12 +60,6 @@ node --version  # Must be >= 22.0.0
 npm --version   # Must be >= 9.0.0
 ```
 
-**Python 3.10+** (required for system tray and session management)
-```bash
-python --version  # Must be >= 3.10
-pip --version
-```
-
 **Git**
 ```bash
 git --version
@@ -73,20 +68,16 @@ git --version
 ### Platform-Specific Dependencies
 
 **Windows:**
-```bash
-pip install pywin32
-```
+No additional dependencies required.
 
 **Linux (Debian/Ubuntu):**
 ```bash
-sudo apt install libsecret-1-dev build-essential python3-tk
-pip install SecretStorage
+sudo apt install libsecret-1-dev build-essential
 ```
 
 **Linux (Fedora/RHEL):**
 ```bash
-sudo dnf install libsecret-devel gcc-c++ make python3-tkinter
-pip install SecretStorage
+sudo dnf install libsecret-devel gcc-c++ make
 ```
 
 **macOS:**
@@ -102,22 +93,32 @@ brew install libsecret
    cd shippingmanager_copilot
    ```
 
-2. **Install Node.js dependencies**
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Install Python dependencies**
+3. **Start the application**
    ```bash
-   pip install -r requirements.txt
+   npm start
    ```
 
-4. **Start the application**
-   ```bash
-   python start.py
-   ```
+The application starts as a system tray icon. Add your account and open `https://localhost:12345` in your browser.
 
-The application starts as a system tray icon and automatically opens your browser to `https://localhost:12345`.
+### Alternative Start Methods
+
+```bash
+# Start with GUI (default)
+npm start
+
+# Start in headless mode (no GUI, requires existing sessions)
+npm run start:headless
+
+# CLI session management
+node helper/launcher/nodejs/cli.js --help
+node helper/launcher/nodejs/cli.js --list-sessions
+node helper/launcher/nodejs/cli.js --add-session-interactive
+```
 
 ---
 
@@ -127,12 +128,19 @@ The application needs your Shipping Manager session cookie to authenticate with 
 
 ### Windows (Steam + Browser)
 
-- **Steam extraction**: Automatic - the app extracts session cookies from your local Steam client
+- **Steam extraction**: Automatic - the app extracts session cookies from your local Steam client (Steam must be closed)
 - **Browser login**: Manual login via built-in browser window
 
 ### macOS / Linux (Browser only)
 
-- **Browser login**: Click "Browser Login" in the app to authenticate through the game website
+- **Browser login**: Click "Add Account" > "Browser Login" in the tray menu
+
+### Multiple Accounts
+
+- Add multiple accounts via the tray icon menu
+- Each account runs on a separate port (12345, 12346, ...)
+- Enable/disable autostart per account
+- Use `--list-sessions` to see all accounts
 
 ### Session Storage
 
@@ -140,6 +148,8 @@ All sessions are encrypted using your OS credential manager:
 - **Windows**: Windows DPAPI + Credential Manager
 - **macOS**: Keychain
 - **Linux**: libsecret (GNOME Keyring / KWallet)
+
+The `sessions.json` file only contains encrypted references - actual cookies are stored securely in your OS credential manager and can only be decrypted on the same machine by the same user.
 
 ---
 
@@ -172,6 +182,23 @@ To access from mobile devices on your network:
 
 ---
 
+## CLI Options
+
+```bash
+ShippingManagerCoPilot.exe [options]
+
+Options:
+  --help                          Show help
+  --headless                      Start without GUI (requires existing sessions)
+  --list-sessions                 List all saved accounts with autostart status
+  --add-session-interactive       Add account via terminal (secure input)
+  --remove-session=<userId>       Remove an account
+  --enable-autostart=<userId>     Enable autostart for account
+  --disable-autostart=<userId>    Disable autostart for account
+```
+
+---
+
 ## Troubleshooting
 
 ### Certificate Error on First Access
@@ -190,14 +217,20 @@ netstat -ano | findstr :12345
 lsof -i :12345
 ```
 
-Change the port in settings or stop the conflicting process.
+Check `--list-sessions` for running instances, or change the port in settings.
+
+### Steam Extraction Fails
+
+1. Close Steam completely (check system tray)
+2. Wait a few seconds
+3. Try again via tray icon > Add Account > Steam
 
 ### Session Expired
 
 If you see 401 errors:
 1. Exit the application (right-click tray icon > Exit)
 2. Launch Shipping Manager in Steam and log in
-3. Restart the application
+3. Restart the application and re-add your account
 
 ### WebSocket Connection Failed
 
@@ -228,4 +261,4 @@ See [Build Guide](./02-build-guide.md) for creating standalone executables.
 
 ---
 
-*Last updated: 2025-12-05*
+*Last updated: 2025-12-21*

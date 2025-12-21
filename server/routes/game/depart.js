@@ -212,13 +212,17 @@ router.post('/depart', async (req, res) => {
           } else {
             logger.debug(`[Depart API] No new entries from vessel history sync (Game API may not have updated yet)`);
           }
-          // Build lookup to create entries for new transactions, then rematch with POD3
-          const buildResult = await lookupStore.buildLookup(userId, 0);
-          logger.debug(`[Depart API] Lookup build: ${buildResult.newEntries} new entries, POD2=${buildResult.matchedPod2}, POD3=${buildResult.matchedPod3}`);
-          // Re-match any remaining unmatched entries with new POD3 data
-          const rematchResult = await lookupStore.rematchPOD3(userId);
-          if (rematchResult.matched > 0) {
-            logger.info(`[Depart API] Rematched ${rematchResult.matched} lookup entries with POD3`);
+          // Build lookup using worker thread (non-blocking)
+          const buildResult = await lookupStore.buildLookupAsync(userId, 0, false);
+          if (buildResult.alreadyBuilding) {
+            logger.debug(`[Depart API] Lookup build already in progress, skipping`);
+          } else {
+            logger.debug(`[Depart API] Lookup build: ${buildResult.newEntries} new entries, POD2=${buildResult.matchedPod2}, POD3=${buildResult.matchedPod3}`);
+            // Re-match any remaining unmatched entries with new POD3 data
+            const rematchResult = await lookupStore.rematchPOD3(userId);
+            if (rematchResult.matched > 0) {
+              logger.info(`[Depart API] Rematched ${rematchResult.matched} lookup entries with POD3`);
+            }
           }
         }).catch(err => {
           logger.error('[Depart API] Failed to sync vessel history:', err.message);

@@ -69,6 +69,29 @@ try {
   process.exit(1);
 }
 
+// Prepend SEA native module loader to bundle
+console.log('[SEA Build] Adding native module loader...');
+const bannerCode = `// SEA Native Module Loader
+const __sea_path = require('path');
+const __sea_module = require('module');
+const __sea_execDir = __sea_path.dirname(process.execPath);
+const __sea_createRequire = __sea_module.createRequire || __sea_module.createRequireFromPath;
+const __sea_externalRequire = __sea_createRequire(__sea_path.join(__sea_execDir, 'package.json'));
+const __sea_nativeModules = ['better-sqlite3', 'keytar', 'koffi', 'systray2', 'webview-nodejs'];
+const __original_require = require;
+require = function(id) {
+  if (__sea_nativeModules.some(m => id === m || id.startsWith(m + '/'))) {
+    try { return __sea_externalRequire(id); } catch(e) {}
+  }
+  return __original_require(id);
+};
+// End SEA Native Module Loader
+
+`;
+const bundlePath = path.join(DIST_DIR, 'bundle.cjs');
+const bundleContent = fs.readFileSync(bundlePath, 'utf8');
+fs.writeFileSync(bundlePath, bannerCode + bundleContent);
+
 // Step 2: Generate SEA blob
 console.log('\n[SEA Build] Step 2: Generating SEA blob...');
 try {
@@ -182,6 +205,13 @@ fs.copyFileSync(
   path.join(DIST_DIR, 'package.json')
 );
 console.log('[SEA Build] Copied package.json');
+
+// Copy CHANGELOG.md (for changelog popup)
+const changelogSrc = path.join(ROOT_DIR, 'CHANGELOG.md');
+if (fs.existsSync(changelogSrc)) {
+  fs.copyFileSync(changelogSrc, path.join(DIST_DIR, 'CHANGELOG.md'));
+  console.log('[SEA Build] Copied CHANGELOG.md');
+}
 
 // Copy native modules and all their dependencies recursively
 fs.mkdirSync(path.join(DIST_DIR, 'node_modules'), { recursive: true });

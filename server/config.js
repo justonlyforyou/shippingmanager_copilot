@@ -17,23 +17,47 @@ const path = require('path');
 const os = require('os');
 
 /**
+ * Cached result of isPackaged check
+ * @private
+ */
+let _isPackagedCache = null;
+
+/**
  * Check if running as packaged executable (pkg or SEA)
  * @returns {boolean} True if running as packaged executable
  */
 function isPackaged() {
+  // Return cached result if available
+  if (_isPackagedCache !== null) {
+    return _isPackagedCache;
+  }
+
   // Check for pkg
   if (process.pkg) {
+    _isPackagedCache = true;
     return true;
   }
+
   // Check for Node.js SEA (Single Executable Application)
   try {
     const sea = require('node:sea');
     if (sea && sea.isSea && sea.isSea()) {
+      _isPackagedCache = true;
       return true;
     }
   } catch {
     // node:sea not available, not running as SEA
   }
+
+  // Fallback: Check if running from our compiled .exe
+  // This works when node:sea detection fails after esbuild bundling
+  const execName = path.basename(process.execPath).toLowerCase();
+  if (execName.includes('shippingmanagercopilot')) {
+    _isPackagedCache = true;
+    return true;
+  }
+
+  _isPackagedCache = false;
   return false;
 }
 

@@ -12,6 +12,7 @@
  */
 
 import { showSideNotification } from './utils.js';
+import logger from './core/logger.js';
 
 let currentVesselId = null;
 let currentVesselName = null;
@@ -84,7 +85,7 @@ export function initVesselAppearanceEditor() {
     }
   });
 
-  console.log('[Vessel Appearance] Editor initialized');
+  logger.debug('[Vessel Appearance] Editor initialized');
 }
 
 /**
@@ -135,7 +136,7 @@ export function openAppearanceEditor(vesselId, vesselName, vesselData = null) {
 
   // Show overlay
   overlay.classList.remove('hidden');
-  console.log('[Vessel Appearance] Opened editor for vessel', vesselId, vesselName);
+  logger.debug('[Vessel Appearance] Opened editor for vessel', vesselId, vesselName);
 }
 
 /**
@@ -298,7 +299,7 @@ function closeAppearanceEditor() {
  */
 function handleImageSelection(event) {
   const file = event.target.files?.[0];
-  console.log('[Vessel Appearance] handleImageSelection called, file:', file);
+  logger.debug('[Vessel Appearance] handleImageSelection called, file:', file);
   if (!file) return;
 
   // Validate file type
@@ -309,10 +310,10 @@ function handleImageSelection(event) {
 
   const reader = new FileReader();
   reader.onload = (e) => {
-    console.log('[Vessel Appearance] FileReader onload, result length:', e.target.result?.length);
+    logger.debug('[Vessel Appearance] FileReader onload, result length:', e.target.result?.length);
     const img = new Image();
     img.onload = () => {
-      console.log('[Vessel Appearance] Image loaded, dimensions:', img.width, 'x', img.height);
+      logger.debug('[Vessel Appearance] Image loaded, dimensions:', img.width, 'x', img.height);
       // Check aspect ratio
       const aspectRatio = img.width / img.height;
       const ratioDiff = Math.abs(aspectRatio - TARGET_ASPECT_RATIO);
@@ -350,7 +351,7 @@ function handleImageSelection(event) {
       console.error('[Vessel Appearance] Image load error:', err);
       showSideNotification('Failed to load image', 'error');
     };
-    console.log('[Vessel Appearance] Setting img.src...');
+    logger.debug('[Vessel Appearance] Setting img.src...');
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
@@ -490,7 +491,7 @@ async function saveAppearance() {
 
     // If name changed, rename first
     if (nameChanged) {
-      console.log('[Vessel Appearance] Name changed from', originalVesselName, 'to', newName);
+      logger.debug('[Vessel Appearance] Name changed from', originalVesselName, 'to', newName);
       const renameResponse = await fetch('/api/vessel/rename-vessel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -506,12 +507,12 @@ async function saveAppearance() {
       if (!renameResult.success && !renameResult.data?.success) {
         throw new Error('Failed to rename vessel');
       }
-      console.log('[Vessel Appearance] Renamed vessel successfully');
+      logger.debug('[Vessel Appearance] Renamed vessel successfully');
     }
 
     // Remove custom image if requested
     if (removeCustomImage && hasCustomImage) {
-      console.log('[Vessel Appearance] Removing custom image for vessel', currentVesselId);
+      logger.debug('[Vessel Appearance] Removing custom image for vessel', currentVesselId);
       const deleteResponse = await fetch(window.apiUrl(`/api/vessel/delete-custom-image/${currentVesselId}`), {
         method: 'DELETE'
       });
@@ -522,7 +523,7 @@ async function saveAppearance() {
     }
 
     // Always save appearance data (colors are always sent)
-    console.log('[Vessel Appearance] Saving appearance data for vessel', currentVesselId);
+    logger.debug('[Vessel Appearance] Saving appearance data for vessel', currentVesselId);
 
     {
       const response = await fetch(window.apiUrl('/api/vessel/save-appearance'), {
@@ -537,7 +538,7 @@ async function saveAppearance() {
       }
 
       const result = await response.json();
-      console.log('[Vessel Appearance] Save response:', result);
+      logger.debug('[Vessel Appearance] Save response:', result);
     }
 
     showSideNotification('Saved', 'success');

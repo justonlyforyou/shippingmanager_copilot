@@ -111,6 +111,13 @@ if (!fs.existsSync(logDir)) {
 
 const serverLogPath = path.join(logDir, 'server.log');
 
+// Clear the log file on startup (truncate to empty)
+try {
+  fs.writeFileSync(serverLogPath, '');
+} catch {
+  // Ignore errors if file doesn't exist yet
+}
+
 /**
  * File format (without colors, for log files)
  */

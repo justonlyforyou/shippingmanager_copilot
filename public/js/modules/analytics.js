@@ -12,8 +12,9 @@
  * @module analytics
  */
 
-import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupAll, getLookupInfo, getLookupDetails, checkDevelMode, getApiStats, getApiStatsDates, getPortDemandStatus, getPortDemandHistory } from './api.js';
+import { getAnalyticsOverview, getAnalyticsVessels, getAnalyticsRoutes, getLookupEntries, getLookupAll, getLookupInfo, getLookupBuildStatus, getLookupDetails, checkDevelMode, getApiStats, getApiStatsDates, getPortDemandStatus, getPortDemandHistory } from './api.js';
 import { escapeHtml, showNotification, formatNumber, toGameCode } from './utils.js';
+import logger from './core/logger.js';
 
 // State
 let analyticsData = null;
@@ -104,7 +105,8 @@ function formatPercent(value) {
 /**
  * Check if lookup store needs building and handle the build process
  * Shows full-modal overlay during build, polls for completion
- * @returns {Promise<boolean>} True if build was needed and started
+ * Also checks for background builds (from server startup) and waits for them
+ * @returns {Promise<boolean>} True if build was needed/in-progress
  */
 async function checkAndBuildIndex() {
   const buildingOverlay = document.getElementById('analyticsIndexBuilding');
@@ -114,6 +116,49 @@ async function checkAndBuildIndex() {
   const contentEl = document.getElementById('analyticsContent');
 
   try {
+    // First check if a background build is already in progress (from server startup)
+    const buildStatus = await getLookupBuildStatus();
+
+    if (buildStatus.building) {
+      // Background build in progress - show overlay and poll until complete
+      if (buildingOverlay) buildingOverlay.classList.remove('hidden');
+      if (tabsEl) tabsEl.style.display = 'none';
+      if (loadingEl) loadingEl.classList.add('hidden');
+      if (contentEl) contentEl.classList.add('hidden');
+
+      // Poll for build completion
+      while (true) {
+        const currentStatus = await getLookupBuildStatus();
+
+        if (!currentStatus.building) {
+          // Build complete
+          if (statusEl) statusEl.textContent = 'Index ready!';
+          await new Promise(resolve => setTimeout(resolve, 300));
+          break;
+        }
+
+        // Update progress
+        const percent = currentStatus.total > 0
+          ? Math.round((currentStatus.progress / currentStatus.total) * 100)
+          : 0;
+        if (statusEl) {
+          statusEl.textContent = `Processing ${currentStatus.progress.toLocaleString()} of ${currentStatus.total.toLocaleString()} entries (${percent}%)...`;
+        }
+
+        // Wait before next poll
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      // Hide overlay, show normal UI
+      if (buildingOverlay) buildingOverlay.classList.add('hidden');
+      if (tabsEl) tabsEl.style.display = '';
+
+      // Now load the analytics data
+      await loadAnalyticsData();
+
+      return true;
+    }
+
     // Check if lookup store has data and is up-to-date
     const info = await getLookupInfo();
 
@@ -502,7 +547,7 @@ export function initAnalytics() {
 async function handleVesselClick(vesselId) {
   // Mark that we came from analytics so closing vessel panel returns here
   localStorage.setItem('returnToAnalytics', 'true');
-  console.log('[Analytics] handleVesselClick - set returnToAnalytics=true for vesselId:', vesselId);
+  logger.debug('[Analytics] handleVesselClick - set returnToAnalytics=true for vesselId:', vesselId);
 
   // Check if vessel is sold (look up in analyticsData.vessels)
   let vesselData = null;
@@ -527,7 +572,7 @@ async function handleVesselClick(vesselId) {
 
   // For sold vessels, show special sold vessel panel with history only
   if (isSoldVessel) {
-    console.log('[Analytics] Opening sold vessel panel for:', vesselId);
+    logger.debug('[Analytics] Opening sold vessel panel for:', vesselId);
     try {
       await showSoldVesselPanel(parseInt(vesselId, 10), vesselData.name);
     } catch (error) {
@@ -930,7 +975,7 @@ async function loadAnalyticsData() {
 
   // Check if overview cache is still valid
   if (isCacheValid(lazyLoadState.overview.loadedAt) && analyticsData) {
-    console.log('[Analytics] Using cached overview data');
+    logger.debug('[Analytics] Using cached overview data');
     // Just re-render from cache
     if (loadingEl) loadingEl.classList.add('hidden');
     if (contentEl) contentEl.classList.remove('hidden');
@@ -1019,7 +1064,7 @@ async function lazyLoadVessels() {
 
   // If analyticsData not initialized yet, load overview first
   if (!analyticsData) {
-    console.log('[Analytics] Overview not loaded yet, loading first...');
+    logger.debug('[Analytics] Overview not loaded yet, loading first...');
     await loadAnalyticsData();
     // After loadAnalyticsData, analyticsData should be initialized
     if (!analyticsData) {
@@ -1031,7 +1076,7 @@ async function lazyLoadVessels() {
 
   // If cache is still valid, just render from cache
   if (isCacheValid(lazyLoadState.vessels.loadedAt) && analyticsData.vessels) {
-    console.log('[Analytics] Using cached vessels data');
+    logger.debug('[Analytics] Using cached vessels data');
     if (loadingEl) loadingEl.classList.add('hidden');
     if (contentEl) contentEl.classList.remove('hidden');
     renderVesselTable(sortData(analyticsData.vessels, sortState.vessels));
@@ -1084,7 +1129,7 @@ async function lazyLoadRoutes() {
 
   // If analyticsData not initialized yet, load overview first
   if (!analyticsData) {
-    console.log('[Analytics] Overview not loaded yet, loading first...');
+    logger.debug('[Analytics] Overview not loaded yet, loading first...');
     await loadAnalyticsData();
     // After loadAnalyticsData, analyticsData should be initialized
     if (!analyticsData) {
@@ -1096,7 +1141,7 @@ async function lazyLoadRoutes() {
 
   // If cache is still valid, just render from cache
   if (isCacheValid(lazyLoadState.routes.loadedAt) && analyticsData.routes) {
-    console.log('[Analytics] Using cached routes data');
+    logger.debug('[Analytics] Using cached routes data');
     if (loadingEl) loadingEl.classList.add('hidden');
     if (contentEl) contentEl.classList.remove('hidden');
     renderRouteTable(sortData(analyticsData.routes, sortState.routes));
@@ -1145,7 +1190,7 @@ async function lazyLoadPorts() {
 
   // If cache is still valid, skip reload
   if (isCacheValid(lazyLoadState.ports.loadedAt)) {
-    console.log('[Analytics] Using cached ports data');
+    logger.debug('[Analytics] Using cached ports data');
     if (loadingEl) loadingEl.classList.add('hidden');
     if (contentEl) contentEl.classList.remove('hidden');
     return;
@@ -3920,8 +3965,8 @@ function renderGameLogChart(chartEntries, retryCount = 0) {
   });
 
   // Debug: Check what data we're receiving
-  console.log('[GameLogChart] chartEntries sample:', chartEntries.slice(0, 3));
-  console.log('[GameLogChart] sortedCategories:', sortedCategories);
+  logger.debug('[GameLogChart] chartEntries sample:', chartEntries.slice(0, 3));
+  logger.debug('[GameLogChart] sortedCategories:', sortedCategories);
 
   // Filter and sort entries by time for cumulative calculation
   const minTime = 1577836800; // 2020-01-01
@@ -3930,7 +3975,7 @@ function renderGameLogChart(chartEntries, retryCount = 0) {
     .filter(e => e.time && e.time >= minTime && e.time <= maxTime && typeof e.value === 'number')
     .sort((a, b) => a.time - b.time);
 
-  console.log('[GameLogChart] After filter:', sortedEntries.length, 'entries (was', chartEntries.length, ')');
+  logger.debug('[GameLogChart] After filter:', sortedEntries.length, 'entries (was', chartEntries.length, ')');
 
   // Build daily aggregated data per context
   // Aggregate all transactions per day - show daily totals (not cumulative)
@@ -4843,12 +4888,18 @@ function buildPod2Html(pod2, lookup, formatTs, formatName, formatCash) {
     return html;
   }
 
-  // Stock purchase/sale
-  if (autopilot === 'Manual Stock Purchase' || autopilot === 'Manual Stock Sale') {
+  // Stock purchase/sale (includes The Purser autopilot)
+  if (autopilot === 'Manual Stock Purchase' || autopilot === 'Manual Stock Sale' || autopilot === 'The Purser') {
     html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Summary:</span> ${escapeHtml(pod2.summary || '')}</div>`;
     if (details.stockName) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Stock:</span> ${escapeHtml(details.stockName)}</div>`;
+    if (details.company_name) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Company:</span> ${escapeHtml(details.company_name)}</div>`;
+    if (details.shares) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Shares:</span> ${formatNumber(details.shares)}</div>`;
     if (details.amount) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Amount:</span> ${formatNumber(details.amount)}</div>`;
+    if (details.price_per_share) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Price/Share:</span> $${details.price_per_share.toFixed(2)}</div>`;
     if (details.price) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Price:</span> ${formatCash(details.price)}</div>`;
+    if (details.total_cost) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Stock Value:</span> ${formatCash(-details.total_cost)}</div>`;
+    // Always show broker fee for stock transactions
+    html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Broker Fee:</span> 5% (included in transaction)</div>`;
     return html;
   }
 
@@ -4880,6 +4931,7 @@ function buildPod2Html(pod2, lookup, formatTs, formatName, formatCash) {
     if (details.route_fee) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Route Fee:</span> ${formatCash(-details.route_fee)}</div>`;
     if (details.channel_cost) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Channel Cost:</span> ${formatCash(-details.channel_cost)}</div>`;
     if (details.total_fee) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Total Fee:</span> ${formatCash(-details.total_fee)}</div>`;
+    if (details.staff_discount_percent) html += `<div class="lookup-pod-row"><span class="lookup-pod-label">Staff Discount:</span> ${details.staff_discount_percent}% (CFO Training)</div>`;
     return html;
   }
 

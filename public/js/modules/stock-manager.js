@@ -19,6 +19,7 @@
 import { getStockFinanceOverview, getStockMarket, purchaseStock, getRecentIpos, increaseStockForSale, getStockPurchaseTimes } from './api.js';
 import { showNotification, formatNumber } from './utils.js';
 import { showPurchaseDialog } from './ui-dialogs.js';
+import logger from './core/logger.js';
 
 // State
 let currentChart = null;
@@ -164,7 +165,7 @@ export function initStockManager(userId, hasIPO) {
     closeCompanyBtn.addEventListener('click', closeCompanyDetail);
   }
 
-  console.log('[Stock Manager] Initialized');
+  logger.debug('[Stock Manager] Initialized');
 }
 
 /**
@@ -1420,7 +1421,7 @@ async function loadInvestments(container) {
 
             // Debug: log investment data to understand sell availability
             if (window.DEBUG_MODE) {
-              console.log('[Stock Manager] Investment:', inv.company_name, {
+              logger.debug('[Stock Manager] Investment:', inv.company_name, {
                 shares,
                 availableToSell,
                 nextSaleTime,

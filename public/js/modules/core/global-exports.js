@@ -6,6 +6,8 @@
  * @module core/global-exports
  */
 
+import logger from './logger.js';
+
 /**
  * Export all necessary functions to window object for HTML onclick handlers.
  * This is required because HTML elements cannot directly call module-scoped functions.
@@ -195,6 +197,6 @@ export function exportCacheKeys(cacheKey, prefix) {
 export function exportDebugMode(debugMode) {
   window.DEBUG_MODE = debugMode;
   if (typeof window !== 'undefined') {
-    console.log('[Debug] To enable debug mode, run: window.DEBUG_MODE = true');
+    logger.debug('[Debug] To enable debug mode, run: window.DEBUG_MODE = true');
   }
 }

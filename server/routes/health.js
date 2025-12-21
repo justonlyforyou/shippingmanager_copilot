@@ -20,6 +20,9 @@ const router = express.Router();
 router.get('/', (req, res) => {
   const { isServerReady } = require('../scheduler');
 
+  // Allow cross-origin requests (for launcher dialog health polling)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+
   res.json({
     status: 'ok',
     ready: isServerReady(),

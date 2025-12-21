@@ -7,6 +7,8 @@
  * @module core/websocket-client
  */
 
+import logger from './logger.js';
+
 /**
  * WebSocket connection state tracking.
  * @type {Object}
@@ -60,7 +62,7 @@ export function initAutopilotControls(getStorage, setStorage, showSideNotificati
       const currentlyPaused = cachedPauseState ? JSON.parse(cachedPauseState) : false;
       const newPauseState = !currentlyPaused;
 
-      console.log('[Autopilot Toggle] Switching from', currentlyPaused ? 'PAUSED' : 'RUNNING', 'to', newPauseState ? 'PAUSED' : 'RUNNING');
+      logger.debug('[Autopilot Toggle] Switching from', currentlyPaused ? 'PAUSED' : 'RUNNING', 'to', newPauseState ? 'PAUSED' : 'RUNNING');
 
       // Send toggle request to backend
       const response = await fetch(apiUrl('/api/autopilot/toggle'), {
@@ -129,16 +131,16 @@ export function loadAutopilotState(updateButton, getStorage) {
     const currentUserId = window.USER_STORAGE_PREFIX;
 
     if (!currentUserId) {
-      console.log('[Autopilot UI] Skipping cached state - userId not validated (will use WebSocket state)');
+      logger.debug('[Autopilot UI] Skipping cached state - userId not validated (will use WebSocket state)');
       updateButton(false);
     } else {
       const cachedPauseState = getStorage('autopilotPaused');
       if (cachedPauseState !== null) {
         const isPaused = JSON.parse(cachedPauseState);
-        console.log('[Autopilot UI] Loaded cached pause state:', isPaused ? 'PAUSED' : 'RUNNING');
+        logger.debug('[Autopilot UI] Loaded cached pause state:', isPaused ? 'PAUSED' : 'RUNNING');
         updateButton(isPaused);
       } else {
-        console.log('[Autopilot UI] No cached state found - defaulting to RUNNING');
+        logger.debug('[Autopilot UI] No cached state found - defaulting to RUNNING');
         updateButton(false);
       }
     }
@@ -158,7 +160,7 @@ export async function triggerPriceAlertCheck(debugMode) {
   try {
     fetch('/api/check-price-alerts', { method: 'POST' });
     if (debugMode) {
-      console.log('[Init] Price alert check triggered');
+      logger.debug('[Init] Price alert check triggered');
     }
   } catch (error) {
     console.error('[Init] Failed to trigger price alerts:', error);

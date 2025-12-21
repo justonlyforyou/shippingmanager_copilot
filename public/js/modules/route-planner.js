@@ -6,6 +6,7 @@
  */
 
 import { showSideNotification , toGameCode } from './utils.js';
+import logger from './core/logger.js';
 
 // Drag state
 let isDragging = false;
@@ -23,6 +24,7 @@ let currentHighlightedPorts = null; // Currently filtered/highlighted ports
 let currentVesselData = null; // Vessel data for formula calculations
 let currentRouteDistance = null; // Distance of current route (for Route tab calculations)
 let currentAutoPrices = null; // Auto-price data from game API
+let currentFeeDiscount = { discountPercent: 0, multiplier: 1 }; // Staff training discount
 
 // Planning mode state (exported for map-controller)
 let planningMode = false;
@@ -231,7 +233,7 @@ export function initializeRoutePlanner() {
   document.addEventListener('mousemove', drag);
   document.addEventListener('mouseup', stopDrag);
 
-  console.log('[Route Planner] Initialized');
+  logger.debug('[Route Planner] Initialized');
 }
 
 /**
@@ -246,6 +248,18 @@ export async function openRoutePlanner(vesselId, vesselName) {
   // Set current vessel
   currentVesselId = vesselId;
   currentVesselName = vesselName;
+
+  // Fetch staff discount for route fees (non-blocking)
+  try {
+    const discountResponse = await fetch(window.apiUrl('/api/route/get-fee-discount'));
+    if (discountResponse.ok) {
+      currentFeeDiscount = await discountResponse.json();
+      logger.debug(`[Route Planner] Staff discount: ${currentFeeDiscount.discountPercent}%`);
+    }
+  } catch (err) {
+    logger.debug('[Route Planner] Could not fetch fee discount:', err.message);
+    currentFeeDiscount = { discountPercent: 0, multiplier: 1 };
+  }
 
   // Get vessel data to find origin port and store vessel info for calculations
   let originPort = null;
@@ -405,7 +419,7 @@ export function closeRoutePlanner(keepRouteVisible = false) {
   currentVesselData = null;
   currentRouteDistance = null;
 
-  console.log('[Route Planner] Closed');
+  logger.debug('[Route Planner] Closed');
 }
 
 /**
@@ -430,7 +444,7 @@ export function getPlanningVesselId() {
  */
 export async function restorePlanningState() {
   if (!planningMode || !currentVesselId) {
-    console.log('[Route Planner] No planning state to restore');
+    logger.debug('[Route Planner] No planning state to restore');
     return;
   }
 
@@ -673,7 +687,7 @@ function updateRouteTabWithCurrentRoute(vessel) {
   const priceFuelRow = document.getElementById('routePlannerRoutePricesFuel');
   const priceCrudeRow = document.getElementById('routePlannerRoutePricesCrude');
 
-  console.log('[Route Planner] vessel.prices:', vessel.prices);
+  logger.debug('[Route Planner] vessel.prices:', vessel.prices);
 
   if (isContainer && vessel.prices) {
     if (priceDryRow) {
@@ -744,7 +758,7 @@ async function loadVesselPorts() {
     const data = await response.json();
     vesselPorts = data.data;
 
-    console.log('[Route Planner] Loaded ports:', {
+    logger.debug('[Route Planner] Loaded ports:', {
       local: vesselPorts?.local?.ports?.length,
       all: vesselPorts?.all?.ports?.length,
       metropolis: vesselPorts?.metropolis?.ports?.length
@@ -763,7 +777,7 @@ async function loadVesselPorts() {
 async function applyPortFilter(filter) {
   if (!vesselPorts) {
     console.warn('[Route Planner] No port data loaded - vesselPorts is null/undefined');
-    console.log('[Route Planner] Attempting to reload ports...');
+    logger.debug('[Route Planner] Attempting to reload ports...');
     await loadVesselPorts();
     if (!vesselPorts) {
       console.error('[Route Planner] Still no port data after reload');
@@ -832,7 +846,7 @@ async function loadSuggestedRoute() {
     }
 
     const data = await response.json();
-    console.log('[Route Planner] Suggested route response:', data);
+    logger.debug('[Route Planner] Suggested route response:', data);
 
     // API returns data.suggested.routes[0] structure (based on game code analysis)
     const suggestedRoutes = data.data?.suggested?.routes;
@@ -883,7 +897,7 @@ async function loadSuggestedRoute() {
       await selectPortForRoute(suggestedPort);
       showSideNotification(`Suggested: ${formatPortName(suggestedPort)}`, 'info');
     } else {
-      console.log('[Route Planner] No suggested port in response:', data);
+      logger.debug('[Route Planner] No suggested port in response:', data);
       showSideNotification('No route suggestion available for this vessel', 'warning');
     }
 
@@ -919,7 +933,7 @@ export async function selectPortForRoute(portCode) {
   // Create minimal port object if still not found
   if (!port) {
     port = { code: portCode, name: portCode };
-    console.log('[Route Planner] Using minimal port object for:', portCode);
+    logger.debug('[Route Planner] Using minimal port object for:', portCode);
   }
 
   selectedPort = port;
@@ -965,7 +979,7 @@ async function clearRouteSelection() {
     }
   }
 
-  console.log('[Route Planner] Route selection cleared');
+  logger.debug('[Route Planner] Route selection cleared');
 }
 
 /**
@@ -993,7 +1007,7 @@ async function fetchRouteData(destinationCode) {
     }
 
     const data = await response.json();
-    console.log('[Route Planner] Route data:', data);
+    logger.debug('[Route Planner] Route data:', data);
 
     if (data.routes && data.routes.length > 0) {
       selectedRoute = data.routes[0];
@@ -1064,15 +1078,21 @@ async function updateSelectedPortDisplay() {
     distanceValue.textContent = `${Math.floor(distance).toLocaleString()} nm`;
   }
 
-  // Creation fee - CALCULATED using formula
+  // Creation fee - CALCULATED using formula with staff discount
   const creationValue = infoSection.querySelector('[data-info="creation-fee"]');
   if (creationValue && currentVesselData) {
-    const creationFee = calculateRouteCreationFee(
+    const baseFee = calculateRouteCreationFee(
       currentVesselData.capacity,
       distance,
       currentVesselData.capacityType
     );
-    creationValue.textContent = `$${creationFee.toLocaleString()}`;
+    // Apply staff discount
+    const discountedFee = Math.round(baseFee * currentFeeDiscount.multiplier);
+    if (currentFeeDiscount.discountPercent > 0) {
+      creationValue.textContent = `$${discountedFee.toLocaleString()} (-${currentFeeDiscount.discountPercent}%)`;
+    } else {
+      creationValue.textContent = `$${discountedFee.toLocaleString()}`;
+    }
   }
 
   // Channel fee (from API, not calculated)
@@ -1125,7 +1145,7 @@ async function updateSelectedPortDisplay() {
 
     if (autoPriceResponse.ok) {
       const autoPriceData = await autoPriceResponse.json();
-      console.log('[Route Planner] Auto-price API response:', autoPriceData);
+      logger.debug('[Route Planner] Auto-price API response:', autoPriceData);
 
       // Store auto-prices for later use in createRoute
       currentAutoPrices = autoPriceData.data;
@@ -1138,7 +1158,7 @@ async function updateSelectedPortDisplay() {
       const priceFuel = currentAutoPrices?.fuel;
       const priceCrudeOil = currentAutoPrices?.crude;
 
-      console.log('[Route Planner] Parsed prices:', { priceDry, priceRefrigerated, priceFuel, priceCrudeOil, isContainer, isTanker });
+      logger.debug('[Route Planner] Parsed prices:', { priceDry, priceRefrigerated, priceFuel, priceCrudeOil, isContainer, isTanker });
 
       const priceDryRow = document.getElementById('routePlannerPricesDry');
       const priceRefRow = document.getElementById('routePlannerPricesRef');
@@ -1504,7 +1524,7 @@ async function createRoute() {
     const priceFuel = currentAutoPrices?.fuel;
     const priceCrudeOil = currentAutoPrices?.crude;
 
-    console.log('[Route Planner] Using auto-price values:', { priceDry, priceRefrigerated, priceFuel, priceCrudeOil });
+    logger.debug('[Route Planner] Using auto-price values:', { priceDry, priceRefrigerated, priceFuel, priceCrudeOil });
 
     const response = await fetch('/api/route/create-user-route', {
       method: 'POST',
@@ -1527,7 +1547,7 @@ async function createRoute() {
     });
 
     const data = await response.json();
-    console.log('[Route Planner] API response:', data);
+    logger.debug('[Route Planner] API response:', data);
 
     // Check for error response
     if (data.error) {
@@ -1741,7 +1761,7 @@ async function saveRouteChanges() {
     });
 
     const data = await response.json();
-    console.log('[Route Planner] Update route response:', data);
+    logger.debug('[Route Planner] Update route response:', data);
 
     if (data.error) {
       throw new Error(data.error);

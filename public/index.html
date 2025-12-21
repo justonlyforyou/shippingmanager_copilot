@@ -2327,11 +2327,10 @@
                                     <div>
                                         <label style="color: #9ca3af; font-size: 12px; display: block; margin-bottom: 4px;">Host/IP Address:</label>
                                         <select id="serverHost" style="width: 100%; padding: 8px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 4px; color: #e0e0e0; font-size: 13px;">
-                                            <option value="127.0.0.1">127.0.0.1 (localhost only)</option>
-                                            <option value="0.0.0.0">0.0.0.0 (all interfaces)</option>
+                                            <option value="">Loading interfaces...</option>
                                         </select>
-                                        <p style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px; font-style: italic;">
-                                            127.0.0.1 = local access only | 0.0.0.0 = network access enabled
+                                        <p id="serverHostInfo" style="margin: 4px 0 0 0; color: #6b7280; font-size: 11px; font-style: italic;">
+                                            Select an IP address to bind the server to
                                         </p>
                                     </div>
 
@@ -2773,6 +2772,27 @@
     </div>
 
     <!-- Connection Lost Overlay -->
+    <!-- Changelog Popup - Shows on new versions -->
+    <div id="changelogOverlay" class="overlay hidden">
+        <div class="messenger-window changelog-window">
+            <div class="messenger-header">
+                <h2>What's New in v<span id="changelogVersion"></span></h2>
+                <button id="changelogCloseBtn" class="close-btn" onmouseover="this.querySelector('span').style.animation='pulse-arrow 0.6s ease-in-out infinite'" onmouseout="this.querySelector('span').style.animation='none'"><span>×</span></button>
+            </div>
+            <div id="changelogScrollContainer" class="changelog-scroll-container">
+                <div id="changelogContent" class="changelog-content">
+                    <!-- Content loaded dynamically -->
+                </div>
+            </div>
+            <div class="changelog-footer">
+                <p class="changelog-hint">Scroll to read all</p>
+                <button id="changelogAcknowledgeBtn" class="changelog-btn disabled" disabled>
+                    Got it
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="connectionLostOverlay" class="connection-overlay hidden">
         <div class="connection-message">
             <h2>Connection Lost</h2>

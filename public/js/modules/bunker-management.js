@@ -25,6 +25,7 @@
 import { formatNumber, showSideNotification, getFuelPriceClass, getCO2PriceClass, escapeHtml } from './utils.js';
 import { fetchBunkerPrices, purchaseFuel as apiPurchaseFuel, purchaseCO2 as apiPurchaseCO2 } from './api.js';
 import { showPurchaseDialog } from './ui-dialogs.js';
+import logger from './core/logger.js';
 
 /**
  * Maximum fuel storage capacity in tons.
@@ -169,7 +170,7 @@ export async function updateBunkerStatus(settings) {
         co2Price = cachedPrices.co2;
       }
 
-      console.log('[Bunker Management] Using prices from WebSocket cache - fuel:', fuelPrice, 'co2:', co2Price);
+      logger.debug('[Bunker Management] Using prices from WebSocket cache - fuel:', fuelPrice, 'co2:', co2Price);
     } else {
       console.warn('[Bunker Management] Price cache not available yet, prices may be stale');
     }

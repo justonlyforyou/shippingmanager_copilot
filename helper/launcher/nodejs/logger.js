@@ -63,7 +63,7 @@ function initLogFile() {
 function log(level, message) {
   const now = new Date();
   const timestamp = now.toLocaleString('sv-SE', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).replace(' ', 'T');
-  const line = `[${timestamp}] [${level.toUpperCase()}] [Launcher] ${message}`;
+  const line = `[${timestamp}] [${level.toUpperCase()}] [Startup] ${message}`;
 
   // Always try console
   console.log(line);

@@ -27,10 +27,13 @@ namespace ShippingManagerCoPilot.Launcher
             Hide();
         }
 
+        private List<SessionViewModel> _pendingSessions = new();
+
         public void RefreshSessions()
         {
             var sessions = new List<SessionViewModel>();
 
+            // Add running servers
             foreach (var kvp in App.Instance.ServerManager.Servers)
             {
                 var instance = kvp.Value;
@@ -44,16 +47,88 @@ namespace ShippingManagerCoPilot.Launcher
                     LoginMethod = instance.Session.LoginMethod,
                     Port = instance.Port,
                     Url = $"https://localhost:{instance.Port}",
-                    Icon = isSteam ? "\uE7FC" : "\uE774",
+                    Icon = isSteam ? "\U0001F3AE" : "\U0001F310",  // 🎮 or 🌐 emoji
                     IconColor = isSteam ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0xc0, 0xf4)) : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3b, 0x82, 0xf6)),
                     Autostart = autostart,
-                    AutostartText = autostart ? "Auto" : "Off",
-                    AutostartTooltip = autostart ? "Autostart enabled - click to disable" : "Autostart disabled - click to enable"
+                    AutostartText = autostart ? "Autostart On" : "Autostart Off",
+                    AutostartTooltip = autostart ? "Autostart enabled - click to disable" : "Autostart disabled - click to enable",
+                    Status = "ready"
                 });
             }
 
+            // Add pending sessions (still loading)
+            foreach (var pending in _pendingSessions)
+            {
+                // Skip if already in running servers
+                if (sessions.Any(s => s.UserId == pending.UserId))
+                    continue;
+
+                sessions.Add(pending);
+            }
+
             SessionsList.ItemsSource = sessions;
-            ServerCountText.Text = $"{sessions.Count} server(s) running";
+            UpdateStatusDisplay(sessions);
+        }
+
+        private void UpdateStatusDisplay(List<SessionViewModel> sessions)
+        {
+            var readyCount = sessions.Count(s => s.IsReady);
+            var totalCount = sessions.Count;
+            var loadingCount = sessions.Count(s => s.IsLoading);
+
+            // Update progress bar
+            if (totalCount > 0)
+            {
+                var progressPercent = (double)readyCount / totalCount;
+                ProgressBarFill.Width = progressPercent * 400; // 400 is the container width
+            }
+            else
+            {
+                ProgressBarFill.Width = 0;
+            }
+
+            if (loadingCount > 0)
+            {
+                TitleText.Text = "Starting...";
+                ServerCountText.Text = $"{readyCount} of {totalCount} server(s) ready";
+            }
+            else if (readyCount > 0)
+            {
+                TitleText.Text = "Server Ready!";
+                TitleText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x22, 0xc5, 0x5e)); // SuccessColor
+                ServerCountText.Text = $"{readyCount} server(s) running";
+            }
+            else
+            {
+                TitleText.Text = "Startup Failed";
+                TitleText.Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0xdc, 0x26, 0x26)); // DangerColor
+                ServerCountText.Text = "No servers could be started";
+            }
+        }
+
+        public void SetPendingSessions(List<SessionViewModel> pending)
+        {
+            _pendingSessions = pending;
+            RefreshSessions();
+        }
+
+        public void UpdateSessionStatus(string userId, string status, string? error = null)
+        {
+            var pending = _pendingSessions.FirstOrDefault(s => s.UserId == userId);
+            if (pending != null)
+            {
+                pending.Status = status;
+                pending.ErrorMessage = error;
+
+                // If ready, remove from pending (will be picked up from ServerManager)
+                if (status == "ready")
+                {
+                    _pendingSessions.Remove(pending);
+                }
+            }
+
+            // Refresh on UI thread
+            Dispatcher.Invoke(RefreshSessions);
         }
 
         private void SessionItem_Click(object sender, MouseButtonEventArgs e)
@@ -162,5 +237,16 @@ namespace ShippingManagerCoPilot.Launcher
         public bool Autostart { get; set; } = true;
         public string AutostartText { get; set; } = "Auto";
         public string AutostartTooltip { get; set; } = "";
+
+        // Loading state support
+        public string Status { get; set; } = "ready"; // loading, ready, error
+        public string? ErrorMessage { get; set; }
+        public bool IsLoading => Status == "loading";
+        public bool IsReady => Status == "ready";
+        public bool IsError => Status == "error";
+        public Visibility LoadingVisibility => IsLoading ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility ReadyVisibility => IsReady ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility ErrorVisibility => IsError ? Visibility.Visible : Visibility.Collapsed;
+        public string StatusText => IsLoading ? "Starting..." : (IsError ? (ErrorMessage ?? "Error") : Url);
     }
 }

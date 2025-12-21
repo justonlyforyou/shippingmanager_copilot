@@ -70,7 +70,7 @@ function waitForServerReady(port, timeout = 60000) {
         const options = {
           hostname: '127.0.0.1',
           port: port,
-          path: '/api/health',
+          path: '/health',
           method: 'GET',
           rejectUnauthorized: false // Self-signed cert
         };
@@ -123,14 +123,14 @@ function waitForServerReady(port, timeout = 60000) {
 }
 
 /**
- * Start server for a single session (waits for "UI READY" in stdout)
+ * Start server for a single session (waits for /health endpoint to report ready)
  * @param {object} session - Session object
  * @param {number} port - Port to start on
  * @param {function} [onReady] - Optional callback when server is ready
  * @returns {Promise<void>}
  */
 async function startServerForSession(session, port, onReady) {
-  // Delegate to startServerProcess which waits for "UI READY" in stdout
+  // Delegate to startServerProcess which polls /health for ready state
   return startServerProcess(session, port, onReady);
 }
 
@@ -266,11 +266,11 @@ async function startAllServersQuick() {
 }
 
 /**
- * Start server process and wait for "UI READY" in stdout
+ * Start server process and wait for health endpoint to report ready
  * @param {object} session - Session object
  * @param {number} port - Port to start on
  * @param {function} [onReady] - Optional callback when server is ready
- * @returns {Promise<void>} Resolves when server outputs "UI READY"
+ * @returns {Promise<void>} Resolves when server reports ready via /health
  */
 async function startServerProcess(session, port, onReady) {
   const userId = String(session.userId);
@@ -324,73 +324,48 @@ async function startServerProcess(session, port, onReady) {
     ready: false
   });
 
-  return new Promise((resolve, reject) => {
-    let resolved = false;
-    const timeout = setTimeout(() => {
-      if (!resolved) {
-        resolved = true;
-        log('warn', `Server for ${session.companyName} startup timeout (90s)`);
-        resolve(); // Don't reject, just continue
-      }
-    }, 90000);
-
-    // Watch stdout for "UI READY" message
-    serverProcess.stdout.on('data', (data) => {
-      const output = data.toString();
-      console.log(output.trim());
-
-      // Check for ready message
-      if (!resolved && output.includes('UI READY')) {
-        resolved = true;
-        clearTimeout(timeout);
-        const serverInfo = serverProcesses.get(userId);
-        if (serverInfo) serverInfo.ready = true;
-        log('info', `Server for ${session.companyName} is READY`);
-        if (onReady) onReady(userId, session.companyName, port);
-        resolve();
-      }
-    });
-
-    serverProcess.stderr.on('data', (data) => {
-      const output = data.toString().trim();
-      if (output) {
-        console.error(output);
-      }
-    });
-
-    serverProcess.on('error', (err) => {
-      log('error', `Server for ${session.companyName} error: ${err.message}`);
-      serverProcesses.delete(userId);
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        reject(err);
-      }
-    });
-
-    serverProcess.on('exit', async (code, signal) => {
-      log('info', `Server for ${session.companyName} exited (code ${code}, signal ${signal})`);
-      serverProcesses.delete(userId);
-
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeout);
-        if (code !== 0 && code !== 100) {
-          reject(new Error(`Server exited with code ${code}`));
-          return;
-        }
-        resolve();
-      }
-
-      // Exit code 100 = restart requested
-      if (code === 100) {
-        log('info', `Restart requested for ${session.companyName}, reloading settings and restarting...`);
-        settings = config.loadSettings();
-        await new Promise(r => setTimeout(r, 500));
-        await startAllServers();
-      }
-    });
+  // Forward stdout/stderr to console
+  serverProcess.stdout.on('data', (data) => {
+    console.log(data.toString().trim());
   });
+
+  serverProcess.stderr.on('data', (data) => {
+    const output = data.toString().trim();
+    if (output) {
+      console.error(output);
+    }
+  });
+
+  serverProcess.on('error', (err) => {
+    log('error', `Server for ${session.companyName} error: ${err.message}`);
+    serverProcesses.delete(userId);
+  });
+
+  serverProcess.on('exit', async (code, signal) => {
+    log('info', `Server for ${session.companyName} exited (code ${code}, signal ${signal})`);
+    serverProcesses.delete(userId);
+
+    // Exit code 100 = restart requested
+    if (code === 100) {
+      log('info', `Restart requested for ${session.companyName}, reloading settings and restarting...`);
+      settings = config.loadSettings();
+      await new Promise(r => setTimeout(r, 500));
+      await startAllServers();
+    }
+  });
+
+  // Use health endpoint polling instead of stdout text matching
+  // This is more reliable as stdout chunks can be fragmented
+  const isReady = await waitForServerReady(port, 90000);
+
+  if (isReady) {
+    const serverInfo = serverProcesses.get(userId);
+    if (serverInfo) serverInfo.ready = true;
+    log('info', `Server for ${session.companyName} is READY (port ${port})`);
+    if (onReady) onReady(userId, session.companyName, port);
+  } else {
+    log('warn', `Server for ${session.companyName} startup timeout - continuing anyway`);
+  }
 }
 
 /**

@@ -10,6 +10,7 @@ import { fetchVesselHistory, exportVesselHistory } from './api-client.js';
 import { deselectAll, getMap, getVesselById } from './map-controller.js';
 import { isMobileDevice, escapeHtml, showSideNotification, toGameCode } from '../utils.js';
 import { isDepartInProgress } from '../vessel-management.js';
+import logger from '../core/logger.js';
 
 /**
  * Converts country code to flag emoji
@@ -560,10 +561,10 @@ export async function showVesselPanel(vessel) {
 
   // Enable fullscreen on mobile when panel opens
   const isMobile = isMobileDevice();
-  console.log('[Vessel Panel] isMobile:', isMobile, 'window.innerWidth:', window.innerWidth);
+  logger.debug('[Vessel Panel] isMobile:', isMobile, 'window.innerWidth:', window.innerWidth);
   if (isMobile) {
     document.body.classList.add('map-fullscreen');
-    console.log('[Vessel Panel] Added map-fullscreen class to body. Classes:', document.body.classList.toString());
+    logger.debug('[Vessel Panel] Added map-fullscreen class to body. Classes:', document.body.classList.toString());
   }
 
   // Setup export menu close handler (like logbook)
@@ -1043,7 +1044,7 @@ export async function closeVesselPanel() {
 
   // Check if we came from analytics and should return there
   const returnToAnalytics = localStorage.getItem('returnToAnalytics');
-  console.log('[Vessel Panel] closeVesselPanel - returnToAnalytics:', returnToAnalytics);
+  logger.debug('[Vessel Panel] closeVesselPanel - returnToAnalytics:', returnToAnalytics);
   if (returnToAnalytics === 'true') {
     localStorage.removeItem('returnToAnalytics');
 
@@ -1063,7 +1064,7 @@ export async function closeVesselPanel() {
       document.body.classList.remove('map-fullscreen');
     }
 
-    console.log('[Vessel Panel] Returning to analytics');
+    logger.debug('[Vessel Panel] Returning to analytics');
     return;
   }
 
@@ -1262,7 +1263,7 @@ export async function departVessel(vesselId, vesselName) {
     processDepartureQueue();
   }).then(async (result) => {
     // Success callback
-    console.log('[Vessel Panel] Vessel departed successfully');
+    logger.debug('[Vessel Panel] Vessel departed successfully');
 
     // NOTE: Detailed notification is shown via WebSocket event 'vessels_depart_complete'
     // which includes income, fuel used, CO2 used, harbor fees, etc.
@@ -1279,7 +1280,7 @@ export async function departVessel(vesselId, vesselName) {
     }
 
     // Wait longer for server to process the departure and update status
-    console.log('[Vessel Panel] Waiting for server to process departure...');
+    logger.debug('[Vessel Panel] Waiting for server to process departure...');
     await new Promise(resolve => setTimeout(resolve, 2000));
 
     // Get updated vessel data with retry logic (fetches fresh data from server)
@@ -1293,7 +1294,7 @@ export async function departVessel(vesselId, vesselName) {
         updatedVessel = await window.harborMap.getVesselById(vesselId, true); // skipCache = true
 
         if (updatedVessel && updatedVessel.status !== 'port') {
-          console.log('[Vessel Panel] Vessel status updated to:', updatedVessel.status);
+          logger.debug('[Vessel Panel] Vessel status updated to:', updatedVessel.status);
           break;
         }
 
@@ -1306,7 +1307,7 @@ export async function departVessel(vesselId, vesselName) {
       }
 
       if (updatedVessel) {
-        console.log('[Vessel Panel] Vessel departed successfully, status:', updatedVessel.status);
+        logger.debug('[Vessel Panel] Vessel departed successfully, status:', updatedVessel.status);
         // Re-render the vessel panel with updated data
         await showVesselPanel(updatedVessel);
       } else {
@@ -1489,7 +1490,7 @@ export async function sellVesselFromPanel(vesselId, vesselName) {
     }
 
     const priceData = await priceResponse.json();
-    console.log('[Vessel Panel] Sell price response:', priceData);
+    logger.debug('[Vessel Panel] Sell price response:', priceData);
 
     if (!priceData.data?.selling_price && priceData.data?.selling_price !== 0) {
       throw new Error(`API did not return selling_price. Response: ${JSON.stringify(priceData)}`);

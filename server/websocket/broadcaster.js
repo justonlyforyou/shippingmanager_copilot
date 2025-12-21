@@ -96,7 +96,9 @@ const ALLOWED_MESSAGE_TYPES = new Set([
   'server_startup',
   // Alliance events
   'alliance_changed',
-  'alliance_index_ready'
+  'alliance_index_ready',
+  // Changelog
+  'changelog_acknowledged'
 ]);
 
 /**

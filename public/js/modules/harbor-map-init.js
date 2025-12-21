@@ -11,6 +11,7 @@ import { prefetchHarborMapData, invalidateOverviewCache } from './harbor-map/api
 import { initializeMapIconBar, closeAllModalOverlays } from './map-icon-bar.js';
 import { initializeDepartManager, openDepartManager, updateDepartManagerLockState, refreshDepartManagerIfOpen } from './depart-manager.js';
 import { initializeRoutePlanner, openRoutePlanner, closeRoutePlanner, isPlanningMode, selectPortForRoute, restorePlanningState } from './route-planner.js';
+import logger from './core/logger.js';
 
 let mapInitialized = false;
 let autoUpdateInterval = null;
@@ -57,7 +58,7 @@ export async function forceRefreshMap() {
       mapInstance.invalidateSize();
     }
 
-    console.log('[Harbor Map] Force refreshed');
+    logger.debug('[Harbor Map] Force refreshed');
   } catch (error) {
     console.error('[Harbor Map] Force refresh failed:', error);
   }
@@ -109,7 +110,7 @@ export async function refreshHarborMapIfOpen() {
     if (anyPanelOpen) {
       // Cache already updated above - skip ALL visual refresh to not disrupt user
       // When user closes the panel, deselectAll() will display the cached data
-      console.log('[Harbor Map] Cache updated (panel open, skipping visual refresh)');
+      logger.debug('[Harbor Map] Cache updated (panel open, skipping visual refresh)');
     } else {
       // No panel open - safe to refresh display
       await loadOverview();
@@ -121,7 +122,7 @@ export async function refreshHarborMapIfOpen() {
         map.invalidateSize();
       }
 
-      console.log('[Harbor Map] Map refreshed with new vessel data');
+      logger.debug('[Harbor Map] Map refreshed with new vessel data');
     }
 
     // Update last refresh timestamp
@@ -138,7 +139,7 @@ export async function refreshHarborMapIfOpen() {
  * @returns {void}
  */
 export function startHarborMapAutoUpdate() {
-  console.log('[Harbor Map] Auto-update is now handled by vessel-management.js');
+  logger.debug('[Harbor Map] Auto-update is now handled by vessel-management.js');
   // No longer needed - we piggyback on existing vessel updates
 }
 
@@ -151,7 +152,7 @@ export function stopHarborMapAutoUpdate() {
   if (autoUpdateInterval) {
     clearInterval(autoUpdateInterval);
     autoUpdateInterval = null;
-    console.log('[Harbor Map] Auto-update stopped');
+    logger.debug('[Harbor Map] Auto-update stopped');
   }
 }
 
@@ -207,7 +208,7 @@ export async function initHarborMap() {
  * @deprecated Map is now main content, not an overlay
  */
 export async function openHarborMap() {
-  console.log('[Harbor Map] openHarborMap() called but map is now main content (always visible)');
+  logger.debug('[Harbor Map] openHarborMap() called but map is now main content (always visible)');
 }
 
 /**
@@ -218,7 +219,7 @@ export async function openHarborMap() {
  * @deprecated Map is now main content, not an overlay
  */
 export async function closeHarborMap() {
-  console.log('[Harbor Map] closeHarborMap() called but map is now main content (always visible)');
+  logger.debug('[Harbor Map] closeHarborMap() called but map is now main content (always visible)');
 }
 
 /**
@@ -234,11 +235,11 @@ export async function reloadMap() {
   const isMapOpen = !overlay.classList.contains('hidden');
 
   if (!isMapOpen) {
-    console.log('[Harbor Map] Map is closed, no reload needed');
+    logger.debug('[Harbor Map] Map is closed, no reload needed');
     return;
   }
 
-  console.log('[Harbor Map] Reloading map to apply settings...');
+  logger.debug('[Harbor Map] Reloading map to apply settings...');
 
   // Force re-initialization on next open
   mapInitialized = false;

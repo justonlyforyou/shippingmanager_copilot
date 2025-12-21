@@ -89,7 +89,14 @@ async function performHijackingRefresh() {
     const fetchedCount = cases.length - cachedCount;
 
     // Count open cases (for badge)
-    const openCases = cases.filter(c => c.isOpen).length;
+    // CRITICAL: A case is ONLY open if isOpen=true AND status is not paid/solved
+    // Settled cases must NEVER be counted as open, regardless of game API's "new" flag
+    const openCases = cases.filter(c => {
+      if (!c.isOpen) return false;
+      const status = c.details?.status;
+      if (status === 'paid' || status === 'solved') return false;
+      return true;
+    }).length;
 
     // Count hijacked vessels (status = 'in_progress')
     const hijackedCount = cases.filter(c => {

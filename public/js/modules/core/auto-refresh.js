@@ -5,6 +5,8 @@
  * @module core/auto-refresh
  */
 
+import logger from './logger.js';
+
 /**
  * Active interval IDs for cleanup.
  * @type {Map<string, number>}
@@ -200,13 +202,13 @@ export async function preloadAllImages(debugMode) {
 
     // Load acquirable vessels (buy menu) in background
     const acquirableData = await fetchAcquirableVessels().catch(err => {
-      console.log('[Preload] Acquirable vessels fetch failed:', err);
+      logger.debug('[Preload] Acquirable vessels fetch failed:', err);
       return null;
     });
 
     // Load owned vessels (sell menu) in background
     const ownedData = await fetchVessels().catch(err => {
-      console.log('[Preload] Owned vessels fetch failed:', err);
+      logger.debug('[Preload] Owned vessels fetch failed:', err);
       return null;
     });
 
@@ -214,7 +216,7 @@ export async function preloadAllImages(debugMode) {
       if (ownedData) {
         console.log(`[Preload] Owned vessels cached: ${ownedData.vessels?.length || 0} vessels`);
       } else {
-        console.log('[Preload] Owned vessels fetch returned null');
+        logger.debug('[Preload] Owned vessels fetch returned null');
       }
     }
 
@@ -253,7 +255,7 @@ export async function preloadAllImages(debugMode) {
     const { fetchHarborMapOverview } = await import('../harbor-map/api-client.js');
 
     const harborData = await fetchHarborMapOverview('all_ports').catch(err => {
-      console.log('[Preload] Harbor map fetch failed:', err);
+      logger.debug('[Preload] Harbor map fetch failed:', err);
       return null;
     });
 
@@ -269,9 +271,9 @@ export async function preloadAllImages(debugMode) {
       });
     }
 
-    console.log('[Preload] Background image and data preloading started');
+    logger.debug('[Preload] Background image and data preloading started');
   } catch (error) {
-    console.log('[Preload] Background preloading failed:', error);
+    logger.debug('[Preload] Background preloading failed:', error);
   }
 }
 

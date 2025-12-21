@@ -28,6 +28,7 @@
  * @requires api - Backend API calls for chat data and company names
  */
 
+import logger from './core/logger.js';
 import { escapeHtml, showSideNotification, handleNotifications, showNotification, formatNumber, showChatNotification, getFuelPriceClass } from './utils.js';
 import { getCompanyNameCached, fetchChat, sendChatMessage, fetchAllianceMembers, invalidateVesselCache } from './api.js';
 import { updateEventDiscount } from './forecast-calendar.js';
@@ -39,6 +40,7 @@ import { updateCurrentCash, updateCurrentFuel, updateCurrentCO2 } from './bunker
 import { refreshVesselsForSale } from './vessel-selling.js';
 import { updateBadge, updateButtonState, updateButtonTooltip } from './badge-manager.js';
 import { refreshCurrentTab, getCurrentTab } from './alliance-tabs.js';
+import { handleChangelogAcknowledged } from './changelog-popup.js';
 
 /**
  * Converts UTC timestamp string to local timezone string using browser locale.
@@ -678,7 +680,7 @@ export function initWebSocket() {
     const chatFeed = document.getElementById('chatFeed');
 
     ws.onopen = async () => {
-      console.log('[WebSocket] Connected');
+      logger.debug('[WebSocket] Connected');
       reconnectAttempts = 0; // Reset reconnect counter on successful connection
 
       // Hide connection lost overlay
@@ -698,7 +700,7 @@ export function initWebSocket() {
 
           // Account changed - reload page to get fresh DOM
           if (currentUserId && currentUserId !== newUserId) {
-            console.log(`[WebSocket Reconnect] Account changed from ${currentUserId} to ${newUserId} - reloading page`);
+            logger.debug(`[WebSocket Reconnect] Account changed from ${currentUserId} to ${newUserId} - reloading page`);
             // Force hard reload to bypass cache and get fresh data
             window.location.reload(true);
             return;
@@ -707,7 +709,7 @@ export function initWebSocket() {
           // Even if userId is same, check if this is first reconnect after server restart
           // Server might have restarted but with same account - still need to refresh data
           if (reconnectAttempts === 1) {
-            console.log('[WebSocket Reconnect] First reconnect after disconnect - checking for server restart');
+            logger.debug('[WebSocket Reconnect] First reconnect after disconnect - checking for server restart');
             // Trigger a settings reload to ensure we have latest campaign data
             if (window.handleSettingsUpdate) {
               const userSettingsResponse = await fetch('/api/user/get-settings');
@@ -822,7 +824,7 @@ export function initWebSocket() {
           const c = updateDataCache;
           const stockTrend = c.stock.trend === 'up' ? '↑' : c.stock.trend === 'down' ? '↓' : '→';
           const cashStr = (c.bunker.cash / 1000000).toFixed(1);
-          console.log(`[Autopilot] Update: Ready=${c.vessels.ready}, Anchor=${c.vessels.anchor}, Pending=${c.vessels.pending}, Repair=${c.repair}, Campaigns=${c.campaigns}, Messages=${c.messages}, Fuel=${Math.floor(c.bunker.fuel)}t, CO2=${Math.floor(c.bunker.co2)}t, Cash=$${cashStr}M, Points=${c.bunker.points}, Stock=${c.stock.value.toFixed(2)}${stockTrend}, COOP=${c.coop.available}/${c.coop.cap}`);
+          logger.debug(`[Autopilot] Update: Ready=${c.vessels.ready}, Anchor=${c.vessels.anchor}, Pending=${c.vessels.pending}, Repair=${c.repair}, Campaigns=${c.campaigns}, Messages=${c.messages}, Fuel=${Math.floor(c.bunker.fuel)}t, CO2=${Math.floor(c.bunker.co2)}t, Cash=$${cashStr}M, Points=${c.bunker.points}, Stock=${c.stock.value.toFixed(2)}${stockTrend}, COOP=${c.coop.available}/${c.coop.cap}`);
         }
       } else if (type === 'repair_start') {
         lockRepairButton();
@@ -863,13 +865,16 @@ export function initWebSocket() {
         handlePurserSell(data);
       } else if (type === 'server_startup') {
         // Server restarted - reload page
-        console.log('[WebSocket] Server startup detected - reloading...');
+        logger.debug('[WebSocket] Server startup detected - reloading...');
         setTimeout(() => window.location.reload(true), 500);
+      } else if (type === 'changelog_acknowledged') {
+        // Changelog acknowledged on another tab/device - close popup here too
+        handleChangelogAcknowledged();
       }
     };
 
     ws.onclose = () => {
-      console.log('[WebSocket] Disconnected');
+      logger.debug('[WebSocket] Disconnected');
       attemptReconnect();
     };
 
@@ -906,10 +911,10 @@ function attemptReconnect() {
     MAX_RECONNECT_DELAY
   );
 
-  console.log(`[WebSocket] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts})`);
+  logger.debug(`[WebSocket] Reconnecting in ${delay / 1000}s (attempt ${reconnectAttempts})`);
 
   setTimeout(() => {
-    console.log('[WebSocket] Attempting reconnect...');
+    logger.debug('[WebSocket] Attempting reconnect...');
     initWebSocket();
   }, delay);
 }
@@ -984,9 +989,9 @@ function handlePriceUpdate(data) {
 
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
     if (eventDiscount) {
-      console.log(`[Autopilot] EVENT: ${eventDiscount.percentage}% off ${eventDiscount.type} - Fuel=$${fuel}/t (was $${regularFuel}/t), CO2=$${co2}/t (was $${regularCO2}/t)`);
+      logger.debug(`[Autopilot] EVENT: ${eventDiscount.percentage}% off ${eventDiscount.type} - Fuel=$${fuel}/t (was $${regularFuel}/t), CO2=$${co2}/t (was $${regularCO2}/t)`);
     } else {
-      console.log(`[Autopilot] Price update: Fuel=$${fuel}/t, CO2=$${co2}/t`);
+      logger.debug(`[Autopilot] Price update: Fuel=$${fuel}/t, CO2=$${co2}/t`);
     }
   }
 
@@ -1111,7 +1116,7 @@ async function handlePriceAlert(data) {
   const emoji = type === 'fuel' ? '⛽' : '💨';
   const label = type === 'fuel' ? 'Fuel' : 'CO2';
 
-  console.log(`[Autopilot] Price alert: ${label} = $${price}/t (threshold: $${threshold}/t)`);
+  logger.debug(`[Autopilot] Price alert: ${label} = $${price}/t (threshold: $${threshold}/t)`);
 
   // Show center alert (existing price alert mechanism)
   if (window.showPriceAlert) {
@@ -1120,7 +1125,7 @@ async function handlePriceAlert(data) {
 
   // Show desktop notification
   const settings = window.getSettings ? window.getSettings() : {};
-  console.log('[Autopilot] Desktop notification check:', {
+  logger.debug('[Autopilot] Desktop notification check:', {
     hasSettings: !!window.getSettings,
     enableDesktopNotifications: settings.enableDesktopNotifications,
     notificationPermission: Notification.permission,
@@ -1151,7 +1156,7 @@ Threshold: $${threshold}/t`,
 async function handleFuelPurchased(data) {
   const { amount, price, newTotal, cost } = data;
 
-  console.log(`[Autopilot] Fuel purchased: ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
+  logger.debug(`[Autopilot] Fuel purchased: ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
 
   const settings = window.getSettings ? window.getSettings() : {};
 
@@ -1203,7 +1208,7 @@ ${formatNumber(amount)}t @ $${price}/t
 async function handleCO2Purchased(data) {
   const { amount, price, newTotal, cost } = data;
 
-  console.log(`[Autopilot] CO2 purchased: ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
+  logger.debug(`[Autopilot] CO2 purchased: ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
 
   const settings = window.getSettings ? window.getSettings() : {};
 
@@ -1255,7 +1260,7 @@ ${formatNumber(amount)}t @ $${price}/t
 async function handlePurserPurchase(data) {
   const { companyName, shares, pricePerShare, totalCost, ageDays } = data;
 
-  console.log(`[Autopilot] The Purser purchased: ${shares.toLocaleString()} shares of ${companyName} @ $${pricePerShare}/share = $${totalCost.toLocaleString()}`);
+  logger.debug(`[Autopilot] The Purser purchased: ${shares.toLocaleString()} shares of ${companyName} @ $${pricePerShare}/share = $${totalCost.toLocaleString()}`);
 
   const settings = window.getSettings ? window.getSettings() : {};
 
@@ -1312,7 +1317,7 @@ Total: $${totalCost.toLocaleString()}`,
 async function handlePurserSell(data) {
   const { companyName, shares, pricePerShare, totalRevenue, reason } = data;
 
-  console.log(`[Autopilot] The Purser sold: ${shares.toLocaleString()} shares of ${companyName} @ $${pricePerShare}/share = $${totalRevenue.toLocaleString()} (${reason})`);
+  logger.debug(`[Autopilot] The Purser sold: ${shares.toLocaleString()} shares of ${companyName} @ $${pricePerShare}/share = $${totalRevenue.toLocaleString()} (${reason})`);
 
   const settings = window.getSettings ? window.getSettings() : {};
 
@@ -1370,7 +1375,7 @@ Revenue: +$${totalRevenue.toLocaleString()}`,
 async function handleVesselsDepartBatch(data) {
   const { succeeded } = data;
 
-  console.log(`[Autopilot] Batch update: ${succeeded.count} departed in this batch`);
+  logger.debug(`[Autopilot] Batch update: ${succeeded.count} departed in this batch`);
 
   // Note: NO notification for batch updates to avoid spam
   // Bunker state is updated via separate 'bunker_update' event from backend
@@ -1385,12 +1390,12 @@ async function handleVesselsDepartBatch(data) {
 async function handleVesselsDepartComplete(data) {
   const { succeeded, failed, bunker } = data;
 
-  console.log(`[Autopilot] Depart complete: ${succeeded.count} succeeded, ${failed.count} failed`);
+  logger.debug(`[Autopilot] Depart complete: ${succeeded.count} succeeded, ${failed.count} failed`);
 
   // Log vessel details
   if (succeeded.vessels && succeeded.vessels.length > 0) {
     succeeded.vessels.forEach(v => {
-      console.log(`[Vessel Depart] ${v.name}: income=$${v.income}, harborFee=$${v.harborFee}`);
+      logger.debug(`[Vessel Depart] ${v.name}: income=$${v.income}, harborFee=$${v.harborFee}`);
       const profitability = v.income - v.harborFee;
       if (profitability < 0) {
         console.warn(`[HIGH HARBOR FEE] ${v.name}: Harbor fee exceeds income by $${Math.abs(profitability)}`);
@@ -1694,7 +1699,7 @@ Fuel: ${Math.round(succeeded.totalFuelUsed)}t | CO2: ${Math.round(succeeded.tota
  * Locks the depart button to prevent manual interference during autopilot operation.
  */
 async function handleAutopilotDepartStart(data) {
-  console.log(`[Autopilot] Starting departure for ${data.vesselCount} vessels`);
+  logger.debug(`[Autopilot] Starting departure for ${data.vesselCount} vessels`);
 
   // Lock depart button immediately
   if (window.lockDepartButton) {
@@ -1709,7 +1714,7 @@ async function handleAutopilotDepartStart(data) {
 async function handleVesselsDeparted(data) {
   const { count, vessels, totalIncome, totalFuelUsed, totalCO2Used } = data;
 
-  console.log(`[Autopilot] Vessels departed: ${count} vessels - Income: $${totalIncome.toLocaleString()}`);
+  logger.debug(`[Autopilot] Vessels departed: ${count} vessels - Income: $${totalIncome.toLocaleString()}`);
 
   // Invalidate vessel cache since vessel data changed
   invalidateVesselCache('owned');
@@ -1765,7 +1770,7 @@ async function handleVesselsDeparted(data) {
 async function handleVesselsFailed(data) {
   const { count, vessels, bunker } = data;
 
-  console.log(`[Autopilot] Vessels failed: ${count} vessels`);
+  logger.debug(`[Autopilot] Vessels failed: ${count} vessels`);
 
   // Build bunker info box in same style as success notification
   let bunkerInfoBox = '';
@@ -1823,7 +1828,7 @@ async function handleVesselsFailed(data) {
 async function handleVesselsRepaired(data) {
   const { count, totalCost, vessels } = data;
 
-  console.log(`[Autopilot] Vessels repaired: ${count} vessels - Cost: $${totalCost.toLocaleString()}`);
+  logger.debug(`[Autopilot] Vessels repaired: ${count} vessels - Cost: $${totalCost.toLocaleString()}`);
 
   // Invalidate vessel cache since vessel data changed
   invalidateVesselCache('owned');
@@ -1895,7 +1900,7 @@ ${count} vessel${count > 1 ? 's' : ''} repaired
 async function handleVesselsDrydocked(data) {
   const { count, maintenanceType, speed, vessels, totalCost } = data;
 
-  console.log(`[Autopilot] Vessels sent to drydock: ${count} vessels - Type: ${maintenanceType}, Speed: ${speed}, Cost: $${totalCost}`);
+  logger.debug(`[Autopilot] Vessels sent to drydock: ${count} vessels - Type: ${maintenanceType}, Speed: ${speed}, Cost: $${totalCost}`);
 
   // Build vessel list
   let contentHTML = '';
@@ -1979,7 +1984,7 @@ Type: ${typeLabel}
 async function handleCampaignsRenewed(data) {
   const { campaigns } = data;
 
-  console.log(`[Autopilot] Campaigns renewed:`, campaigns);
+  logger.debug(`[Autopilot] Campaigns renewed:`, campaigns);
 
   // Create list of renewed campaigns
   const campaignList = campaigns.map(c =>
@@ -2026,7 +2031,7 @@ ${campaigns.length} campaign${campaigns.length > 1 ? 's' : ''} renewed
 async function handleAutoCoopComplete(data) {
   const { totalRequested, totalSent, results } = data;
 
-  console.log(`[Auto-COOP] Distribution complete:`, data);
+  logger.debug(`[Auto-COOP] Distribution complete:`, data);
 
   // Build result list
   const successResults = results.filter(r => !r.error);
@@ -2088,7 +2093,7 @@ Sent to ${successResults.length} member${successResults.length > 1 ? 's' : ''}`,
 async function handleAutoCoopNoTargets(data) {
   const { available, reason } = data;
 
-  console.log(`[Auto-COOP] No eligible targets:`, data);
+  logger.debug(`[Auto-COOP] No eligible targets:`, data);
 
   const message = `
     <div style="margin-bottom: 8px;">
@@ -2124,7 +2129,7 @@ function handleBunkerUpdate(data) {
         cashDisplay.textContent = `$${formatNumber(cash)}`;
       }
       if (window.DEBUG_MODE) {
-        console.log(`[Bunker Update] Cash-only update: $${cash.toLocaleString()}`);
+        logger.debug(`[Bunker Update] Cash-only update: $${cash.toLocaleString()}`);
       }
     }
     return; // Don't process fuel/co2 for cash-only updates
@@ -2144,7 +2149,7 @@ function handleBunkerUpdate(data) {
 
   updateDataCache.bunker = { fuel, co2, cash, points };
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Bunker update: Fuel=${Math.floor(fuel)}t, CO2=${Math.floor(co2)}t, Cash=$${Math.floor(cash).toLocaleString()}, Points=${points}`);
+    logger.debug(`[Autopilot] Bunker update: Fuel=${Math.floor(fuel)}t, CO2=${Math.floor(co2)}t, Cash=$${Math.floor(cash).toLocaleString()}, Points=${points}`);
   }
 
   // Update capacity values in bunker-management module
@@ -2227,14 +2232,14 @@ function handleBunkerUpdate(data) {
       co2Fill.style.width = `${co2Percent}%`;
 
       if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-        console.log('[DEBUG] handleBunkerUpdate - CO2 value:', co2, 'maxCO2:', maxCO2, 'co2Percent:', co2Percent, 'co2 <= 0:', (co2 <= 0));
+        logger.debug('[DEBUG] handleBunkerUpdate - CO2 value:', co2, 'maxCO2:', maxCO2, 'co2Percent:', co2Percent, 'co2 <= 0:', (co2 <= 0));
       }
 
       // Determine fill level class based on tank percentage
       let fillClass = '';
       if (co2 <= 0) {
         if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-          console.log('[DEBUG] CO2 <= 0 detected! Value:', co2, '- Setting co2-btn-empty class');
+          logger.debug('[DEBUG] CO2 <= 0 detected! Value:', co2, '- Setting co2-btn-empty class');
         }
         fillClass = 'co2-btn-empty';
         co2Fill.style.width = '0%';
@@ -2250,7 +2255,7 @@ function handleBunkerUpdate(data) {
         co2Fill.style.background = 'linear-gradient(to right, rgba(251, 191, 36, 0.3), rgba(251, 191, 36, 0.5))';
       } else {
         if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-          console.log('[DEBUG] CO2 > 85% - Setting co2-btn-full class. Value:', co2, 'Percent:', co2Percent);
+          logger.debug('[DEBUG] CO2 > 85% - Setting co2-btn-full class. Value:', co2, 'Percent:', co2Percent);
         }
         fillClass = 'co2-btn-full';
         co2Fill.style.background = 'linear-gradient(to right, rgba(74, 222, 128, 0.3), rgba(74, 222, 128, 0.5))';
@@ -2303,7 +2308,7 @@ function handleBunkerUpdate(data) {
   if (window.saveBadgeCache && maxFuel > 0 && maxCO2 > 0 && !(fuel === 0 && co2 === 0)) {
     window.saveBadgeCache({ bunker: { fuel, co2, cash, points, maxFuel, maxCO2 } });
   } else if (fuel === 0 && co2 === 0 && window.DEBUG_MODE) {
-    console.log('[Bunker Update] NOT caching - both fuel and co2 are 0');
+    logger.debug('[Bunker Update] NOT caching - both fuel and co2 are 0');
   }
 }
 
@@ -2319,7 +2324,7 @@ function handleVesselCountUpdate(data) {
   invalidateVesselCache('owned');
 
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Vessel count update: Ready=${readyToDepart}, Anchor=${atAnchor}, Pending=${pending}`);
+    logger.debug(`[Autopilot] Vessel count update: Ready=${readyToDepart}, Anchor=${atAnchor}, Pending=${pending}`);
   }
 
   // Update ready to depart badge using badge-manager
@@ -2367,7 +2372,7 @@ function handleVesselCountUpdate(data) {
   // This is more efficient than polling - we react immediately when vessels become ready
   if (readyToDepart > 0 && window.settings?.autoDepartAll) {
     if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-      console.log(`[Auto-Depart] Event-driven trigger: ${readyToDepart} vessel(s) ready`);
+      logger.debug(`[Auto-Depart] Event-driven trigger: ${readyToDepart} vessel(s) ready`);
     }
     // Notify backend to execute auto-depart with retry on network errors
     const triggerDepart = async (attempt = 1) => {
@@ -2395,7 +2400,7 @@ function handleVesselCountUpdate(data) {
 function handleHarborMapRefreshRequired(data) {
   const { reason } = data;
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Harbor Map] Refresh requested (reason: ${reason})`);
+    logger.debug(`[Harbor Map] Refresh requested (reason: ${reason})`);
   }
 
   // Trigger Harbor Map refresh if open (has built-in 30s cooldown)
@@ -2412,7 +2417,7 @@ function handleRepairCountUpdate(data) {
   const { count } = data;
   updateDataCache.repair = count;
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Repair count update: ${count} vessel${count === 1 ? '' : 's'} need repair`);
+    logger.debug(`[Autopilot] Repair count update: ${count} vessel${count === 1 ? '' : 's'} need repair`);
   }
 
   // Update repair badge using badge-manager
@@ -2449,7 +2454,7 @@ function handleDrydockCountUpdate(data) {
   const { count } = data;
   updateDataCache.drydock = count;
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Drydock count update: ${count} vessel${count === 1 ? '' : 's'} need drydock`);
+    logger.debug(`[Autopilot] Drydock count update: ${count} vessel${count === 1 ? '' : 's'} need drydock`);
   }
 
   // Update drydock badge using badge-manager
@@ -2489,7 +2494,7 @@ function handleCampaignStatusUpdate(data) {
   const { activeCount } = data;
   updateDataCache.campaigns = activeCount;
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Campaign update: ${activeCount} active campaign${activeCount === 1 ? '' : 's'}`);
+    logger.debug(`[Autopilot] Campaign update: ${activeCount} active campaign${activeCount === 1 ? '' : 's'}`);
   }
 
   // Update campaigns badge using badge-manager (only show if < 3 campaigns)
@@ -2576,7 +2581,7 @@ function handleUnreadMessagesUpdate(data) {
   const { count } = data;
   updateDataCache.messages = count;
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Messages update: ${count} unread message${count === 1 ? '' : 's'}`);
+    logger.debug(`[Autopilot] Messages update: ${count} unread message${count === 1 ? '' : 's'}`);
   }
 
   // Update badge using badge-manager
@@ -2598,7 +2603,7 @@ function handleMessengerUpdate(data) {
 
   // Only log in detailed mode or if there are unread messages
   if (AUTOPILOT_LOG_LEVEL === 'detailed' || messages > 0) {
-    console.log(`[Messenger] 20-sec poll: ${messages} unread message${messages === 1 ? '' : 's'}`);
+    logger.debug(`[Messenger] 20-sec poll: ${messages} unread message${messages === 1 ? '' : 's'}`);
   }
 
   // Get previous count for notification comparison
@@ -2630,7 +2635,7 @@ function handleMessengerUpdate(data) {
  */
 function handleGenericNotification(data) {
   const { type, message } = data;
-  console.log(`[Notification] ${type}:`, message);
+  logger.debug(`[Notification] ${type}:`, message);
 
   // Check if this is an "insufficient resource" notification (should not be an alert)
   const isInsufficientResource = message.includes('insufficient') ||
@@ -2659,7 +2664,7 @@ function handleCoopUpdate(data) {
 
   updateDataCache.coop = { available, cap, coop_boost };
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] COOP update: ${available}/${coop_boost || cap} available`);
+    logger.debug(`[Autopilot] COOP update: ${available}/${coop_boost || cap} available`);
   }
 
   // Update badge using badge-manager (red if available > 0, green if all slots used)
@@ -2689,7 +2694,7 @@ function handleCoopUpdate(data) {
 async function handleAllianceChanged(data) {
   const { old_alliance_name, new_alliance_name, old_alliance_id, new_alliance_id } = data;
 
-  console.log(`[Alliance] Alliance changed: ${old_alliance_name || 'None'} -> ${new_alliance_name || 'None'}`);
+  logger.debug(`[Alliance] Alliance changed: ${old_alliance_name || 'None'} -> ${new_alliance_name || 'None'}`);
 
   // Clear current messages
   allMessages = [];
@@ -2842,7 +2847,7 @@ async function handleAllianceChanged(data) {
 async function handleAllianceIndexReady(data) {
   const { total } = data;
 
-  console.log(`[Alliance Search] Index ready: ${total} alliances`);
+  logger.debug(`[Alliance Search] Index ready: ${total} alliances`);
 
   showNotification('Alliance Database Ready', {
     body: `Successfully indexed ${formatNumber(total)} alliances\nYou can now search for alliances in the Search tab`,
@@ -2864,7 +2869,7 @@ function handleCompanyTypeUpdate(data) {
   const { company_type } = data;
   window.USER_COMPANY_TYPE = company_type;
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Autopilot] Company type update:`, company_type);
+    logger.debug(`[Autopilot] Company type update:`, company_type);
   }
 
   // Show/hide tanker filter button in sell vessels dialog
@@ -2885,7 +2890,7 @@ function handleStaffTrainingPointsUpdate(data) {
   const { staff_training_points, ceo_level, experience_points, levelup_experience_points } = data;
 
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Staff] Training points update: ${staff_training_points}, Level: ${ceo_level}, XP: ${experience_points}/${levelup_experience_points}`);
+    logger.debug(`[Staff] Training points update: ${staff_training_points}, Level: ${ceo_level}, XP: ${experience_points}/${levelup_experience_points}`);
   }
 
   // Toggle glow effect on CEO level badge when staff points are available
@@ -2917,7 +2922,7 @@ function handleStaffUpdate(data) {
   const { staff_type, staff, user } = data;
 
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log(`[Staff] Staff update: ${staff_type}, Salary: ${staff.salary}, Morale: ${staff.morale}`);
+    logger.debug(`[Staff] Staff update: ${staff_type}, Salary: ${staff.salary}, Morale: ${staff.morale}`);
   }
 
   // Update company profile overlay if open
@@ -2962,7 +2967,7 @@ function handleHeaderDataUpdate(data) {
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
     const stockMsg = stock ? `Stock=${stock.value.toFixed(2)} (${stock.trend})` : 'Stock=N/A';
     const anchorMsg = anchor ? `Anchor=${anchor.available}/${anchor.max}` : 'Anchor=N/A';
-    console.log(`[Autopilot] Header data update: ${stockMsg}, ${anchorMsg}`);
+    logger.debug(`[Autopilot] Header data update: ${stockMsg}, ${anchorMsg}`);
   }
 
   // Update stock display
@@ -3074,27 +3079,27 @@ async function handleHijackingUpdate(data) {
   // Check if this is a badge/header update (from 30-second polling)
   if (data.openCases !== undefined || data.hijackedCount !== undefined) {
     if (window.DEBUG_MODE) {
-      console.log('[Hijacking] Badge/Header update received:', data);
+      logger.debug('[Hijacking] Badge/Header update received:', data);
     }
 
     // Update hijacking inbox badge
     if (window.updateHijackingBadge) {
       window.updateHijackingBadge(data);
       if (window.DEBUG_MODE) {
-        console.log('[Hijacking] Badge updated');
+        logger.debug('[Hijacking] Badge updated');
       }
     } else if (window.DEBUG_MODE) {
-      console.log('[Hijacking] updateHijackingBadge not yet available, skipping');
+      logger.debug('[Hijacking] updateHijackingBadge not yet available, skipping');
     }
 
     // Update hijacked vessels header display
     if (window.updateHijackedVesselsDisplay) {
       window.updateHijackedVesselsDisplay(data);
       if (window.DEBUG_MODE) {
-        console.log('[Hijacking] Header display updated');
+        logger.debug('[Hijacking] Header display updated');
       }
     } else if (window.DEBUG_MODE) {
-      console.log('[Hijacking] updateHijackedVesselsDisplay not yet available, skipping');
+      logger.debug('[Hijacking] updateHijackedVesselsDisplay not yet available, skipping');
     }
 
     // Save to badge cache for next page load
@@ -3254,7 +3259,7 @@ async function handleIpoAlertUpdate(data) {
   const { freshIpos, newIpos, removedIds, maxAgeDays } = data;
 
   if (window.DEBUG_MODE) {
-    console.log('[IPO Alert] Update received:', { fresh: freshIpos?.length, new: newIpos?.length, removed: removedIds?.length });
+    logger.debug('[IPO Alert] Update received:', { fresh: freshIpos?.length, new: newIpos?.length, removed: removedIds?.length });
   }
 
   // Update the IPO Alert tab if it's currently visible
@@ -3300,7 +3305,7 @@ let cachedEventData = null;
 
 function handleEventDataUpdate(eventData) {
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    console.log('[Event] Event data update received:', eventData);
+    logger.debug('[Event] Event data update received:', eventData);
   }
 
   // Store full event data

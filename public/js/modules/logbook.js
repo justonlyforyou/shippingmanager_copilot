@@ -19,6 +19,7 @@
 
 import { escapeHtml, showNotification } from './utils.js';
 import { fetchLogbookEntries, downloadLogbookExport, deleteAllLogs, fetchLogbookFileSize } from './api.js';
+import logger from './core/logger.js';
 
 /**
  * Current filter state
@@ -157,7 +158,7 @@ export function initLogbook() {
     logbookExportMenu.classList.add('hidden');
   });
 
-  console.log('[Logbook] Module initialized');
+  logger.debug('[Logbook] Module initialized');
 }
 
 /**

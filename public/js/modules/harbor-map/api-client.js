@@ -6,6 +6,8 @@
  * @module harbor-map/api-client
  */
 
+import logger from '../core/logger.js';
+
 // Client-side cache for instant loading
 let cachedOverviewData = null;
 
@@ -17,7 +19,7 @@ let cachedOverviewData = null;
  */
 export function invalidateOverviewCache() {
   cachedOverviewData = null;
-  console.log('[Harbor Map API] Cache invalidated');
+  logger.debug('[Harbor Map API] Cache invalidated');
 }
 
 /**
@@ -29,10 +31,10 @@ export function invalidateOverviewCache() {
  */
 export async function prefetchHarborMapData(filter = 'my_ports') {
   try {
-    console.log('[Harbor Map API] Pre-fetching data...');
+    logger.debug('[Harbor Map API] Pre-fetching data...');
     const data = await fetchHarborMapOverview(filter);
     cachedOverviewData = data;
-    console.log('[Harbor Map API] Pre-fetch complete:', {
+    logger.debug('[Harbor Map API] Pre-fetch complete:', {
       vessels: data.vessels.length,
       ports: data.ports.length,
       cached: true

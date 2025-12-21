@@ -8,6 +8,7 @@
  */
 
 import { escapeHtml , toGameCode } from './utils.js';
+import logger from './core/logger.js';
 
 let currentEventData = null;
 let timerInterval = null;
@@ -281,5 +282,5 @@ export function initEventInfo() {
     // Make openEventModal available globally
     window.openEventModal = openEventModal;
 
-    console.log('[Event Info] Module initialized');
+    logger.debug('[Event Info] Module initialized');
 }

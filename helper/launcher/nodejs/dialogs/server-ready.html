@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https://localhost:* https://127.0.0.1:*;">
   <link rel="stylesheet" href="launcher-dialogs.css">
   <link rel="icon" href="../../../../public/favicon.png" type="image/png">
   <title>Server Ready</title>
@@ -27,6 +27,45 @@
 
     .session-item:hover {
       background: var(--color-bg-hover, #3a3a3a);
+    }
+
+    .session-item.loading {
+      cursor: default;
+      opacity: 0.7;
+    }
+
+    .session-item.loading:hover {
+      background: var(--color-bg-secondary, #252525);
+    }
+
+    .session-item.error {
+      border: 1px solid var(--color-danger, #dc2626);
+    }
+
+    .loading-spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid var(--color-bg-hover, #3a3a3a);
+      border-top-color: var(--color-info, #3b82f6);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .session-status {
+      font-size: 12px;
+      color: var(--color-text-secondary, #9ca3af);
+    }
+
+    .session-status.ready {
+      color: var(--color-success, #22c55e);
+    }
+
+    .session-status.error {
+      color: var(--color-danger, #dc2626);
     }
 
     .session-info {
@@ -231,8 +270,8 @@
   </div>
 
   <div style="text-align: center; margin-bottom: 20px;">
-    <div class="launcher-dialog-title" style="margin-bottom: 8px;">Server Ready!</div>
-    <div class="launcher-dialog-subtitle" id="server-count">1 server(s) running</div>
+    <div class="launcher-dialog-title" style="margin-bottom: 8px;" id="dialog-title">Starting...</div>
+    <div class="launcher-dialog-subtitle" id="server-count">Preparing servers...</div>
     <div class="launcher-dialog-subtitle" id="userdata-path" style="font-size: 11px; color: #666; margin-top: 8px; word-break: break-all;"></div>
   </div>
 
@@ -246,21 +285,102 @@
 
   <script>
     let dialogData = {};
+    let pollingInterval = null;
+    let allReady = false;
 
     async function init() {
       try {
         const dataJson = await getData();
         dialogData = JSON.parse(dataJson);
 
-        document.getElementById('server-count').textContent = dialogData.urls.length + ' server(s) running';
-
         if (dialogData.userdataPath) {
           document.getElementById('userdata-path').textContent = 'Userdata: ' + dialogData.userdataPath;
         }
 
         renderSessions();
+        updateStatusDisplay();
+
+        // Start polling for status updates if any session is loading
+        if (hasLoadingSessions()) {
+          startPolling();
+        }
       } catch (err) {
         console.error('Init error:', err);
+      }
+    }
+
+    function hasLoadingSessions() {
+      return dialogData.sessions && dialogData.sessions.some(s => s.status === 'loading');
+    }
+
+    function startPolling() {
+      if (pollingInterval) return;
+
+      pollingInterval = setInterval(async () => {
+        try {
+          // Poll server health via bound function (uses curl)
+          const statusJson = await getSessionStatus();
+          const statusData = JSON.parse(statusJson);
+
+          if (statusData && statusData.sessions && statusData.sessions.length > 0) {
+            let anyChanged = false;
+
+            // Update session statuses
+            statusData.sessions.forEach(update => {
+              const session = dialogData.sessions.find(s => String(s.userId) === String(update.userId));
+              if (session && session.status !== update.status) {
+                session.status = update.status;
+                session.port = update.port;
+                anyChanged = true;
+              }
+            });
+
+            if (anyChanged) {
+              // Update URLs based on ready sessions
+              dialogData.urls = dialogData.sessions
+                .filter(s => s.status === 'ready')
+                .map(s => 'https://localhost:' + s.port);
+
+              renderSessions();
+              updateStatusDisplay();
+            }
+          }
+
+          // Stop polling when all ready
+          if (!hasLoadingSessions()) {
+            stopPolling();
+          }
+        } catch (err) {
+          console.error('[Dialog] Polling error:', err);
+        }
+      }, 1000);
+    }
+
+    function stopPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+      }
+    }
+
+    function updateStatusDisplay() {
+      const readyCount = dialogData.sessions ? dialogData.sessions.filter(s => s.status === 'ready').length : 0;
+      const totalCount = dialogData.sessions ? dialogData.sessions.length : 0;
+      const loadingCount = dialogData.sessions ? dialogData.sessions.filter(s => s.status === 'loading').length : 0;
+
+      const titleEl = document.getElementById('dialog-title');
+      const countEl = document.getElementById('server-count');
+
+      if (loadingCount > 0) {
+        titleEl.textContent = 'Starting...';
+        countEl.textContent = readyCount + ' of ' + totalCount + ' server(s) ready';
+      } else if (readyCount > 0) {
+        titleEl.textContent = 'Server Ready!';
+        countEl.textContent = readyCount + ' server(s) running';
+        allReady = true;
+      } else {
+        titleEl.textContent = 'Startup Failed';
+        countEl.textContent = 'No servers could be started';
       }
     }
 
@@ -270,7 +390,12 @@
 
       if (dialogData.sessions && dialogData.sessions.length > 0) {
         dialogData.sessions.forEach((session, index) => {
-          const url = dialogData.urls[index] || dialogData.urls[0];
+          const status = session.status || 'ready';
+          const isLoading = status === 'loading';
+          const isError = status === 'error';
+          const isReady = status === 'ready';
+
+          const url = isReady ? 'https://localhost:' + session.port : '';
           const icon = session.loginMethod === 'steam' ? '&#127918;' : '&#127760;';
           const autostart = session.autostart !== false;
           const autostartClass = autostart ? 'enabled' : 'disabled';
@@ -278,34 +403,34 @@
           const autostartTitle = autostart ? 'Autostart enabled - click to disable' : 'Autostart disabled - click to enable';
 
           const item = document.createElement('div');
-          item.className = 'session-item';
+          item.className = 'session-item' + (isLoading ? ' loading' : '') + (isError ? ' error' : '');
+
+          let actionsHtml = '';
+          if (isLoading) {
+            actionsHtml = '<div class="loading-spinner"></div>';
+          } else if (isError) {
+            actionsHtml = '<span class="session-status error">' + escapeHtml(session.error || 'Failed') + '</span>';
+          } else {
+            actionsHtml =
+              '<div class="session-actions">' +
+                '<button class="autostart-btn ' + autostartClass + '" onclick="event.stopPropagation(); toggleAutostart(\'' + session.userId + '\', ' + autostart + ')" title="' + autostartTitle + '">' + autostartText + '</button>' +
+                '<button class="refresh-btn" onclick="event.stopPropagation(); refreshSession(\'' + session.userId + '\', \'' + session.loginMethod + '\')" title="Refresh session">&#8635;</button>' +
+                '<button class="delete-btn" onclick="event.stopPropagation(); showDeleteConfirm(\'' + session.userId + '\', \'' + escapeHtml(session.companyName) + '\')" title="Remove account">&#128465;</button>' +
+              '</div>';
+          }
+
+          const portDisplay = isLoading ? 'Starting...' : (isError ? 'Error' : url);
+          const clickHandler = isReady ? ' onclick="openUrl(\'' + url + '\')"' : '';
+
           item.innerHTML =
-            '<div class="session-info" onclick="openUrl(\'' + url + '\')">' +
+            '<div class="session-info"' + clickHandler + '>' +
               '<span class="session-icon">' + icon + '</span>' +
               '<div class="session-details">' +
                 '<div class="session-name">' + escapeHtml(session.companyName) + '</div>' +
-                '<div class="session-port">' + url + '</div>' +
+                '<div class="session-port">' + portDisplay + '</div>' +
               '</div>' +
             '</div>' +
-            '<div class="session-actions">' +
-              '<button class="autostart-btn ' + autostartClass + '" onclick="event.stopPropagation(); toggleAutostart(\'' + session.userId + '\', ' + autostart + ')" title="' + autostartTitle + '">' + autostartText + '</button>' +
-              '<button class="refresh-btn" onclick="event.stopPropagation(); refreshSession(\'' + session.userId + '\', \'' + session.loginMethod + '\')" title="Refresh session">&#8635;</button>' +
-              '<button class="delete-btn" onclick="event.stopPropagation(); showDeleteConfirm(\'' + session.userId + '\', \'' + escapeHtml(session.companyName) + '\')" title="Remove account">&#128465;</button>' +
-            '</div>';
-          container.appendChild(item);
-        });
-      } else {
-        dialogData.urls.forEach((url, index) => {
-          const item = document.createElement('div');
-          item.className = 'session-item';
-          item.innerHTML =
-            '<div class="session-info" onclick="openUrl(\'' + url + '\')">' +
-              '<span class="session-icon">&#127891;</span>' +
-              '<div class="session-details">' +
-                '<div class="session-name">Server ' + (index + 1) + '</div>' +
-                '<div class="session-port">' + url + '</div>' +
-              '</div>' +
-            '</div>';
+            actionsHtml;
           container.appendChild(item);
         });
       }

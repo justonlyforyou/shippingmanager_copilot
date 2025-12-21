@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace ShippingManagerCoPilot.Launcher
@@ -10,6 +12,15 @@ namespace ShippingManagerCoPilot.Launcher
     {
         private readonly Dictionary<string, ServerInstance> _servers = new();
         private int _basePort = 12345;
+
+        // HTTP client for health checks (ignore SSL errors for self-signed cert)
+        private static readonly HttpClient _httpClient = new(new HttpClientHandler
+        {
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+        })
+        {
+            Timeout = TimeSpan.FromSeconds(5)
+        };
 
         public IReadOnlyDictionary<string, ServerInstance> Servers => _servers;
 
@@ -121,16 +132,79 @@ namespace ShippingManagerCoPilot.Launcher
                 {
                     Logger.Error($"Server for {session.CompanyName} exited immediately (code {process.ExitCode})");
                     _servers.Remove(session.UserId);
+                    return;
+                }
+
+                Logger.Info($"Server process for {session.CompanyName} started, waiting for health endpoint...");
+
+                // Wait for server to be ready by polling /health endpoint
+                var isReady = await WaitForServerReadyAsync(port, 90000);
+
+                if (isReady)
+                {
+                    var serverInfo = _servers.GetValueOrDefault(session.UserId);
+                    if (serverInfo != null)
+                    {
+                        serverInfo.Ready = true;
+                    }
+                    Logger.Info($"Server for {session.CompanyName} is READY (port {port})");
                 }
                 else
                 {
-                    Logger.Info($"Server for {session.CompanyName} started on port {port}");
+                    Logger.Warn($"Server for {session.CompanyName} startup timeout - continuing anyway");
                 }
             }
             catch (Exception ex)
             {
                 Logger.Error($"Failed to start server for {session.CompanyName}: {ex.Message}");
             }
+        }
+
+        /// <summary>
+        /// Wait for server to be ready by polling /health endpoint
+        /// </summary>
+        /// <param name="port">Port number</param>
+        /// <param name="timeoutMs">Timeout in milliseconds</param>
+        /// <returns>True if server is ready, false if timeout</returns>
+        private async Task<bool> WaitForServerReadyAsync(int port, int timeoutMs = 60000)
+        {
+            var startTime = DateTime.Now;
+            var url = $"https://127.0.0.1:{port}/health";
+
+            while ((DateTime.Now - startTime).TotalMilliseconds < timeoutMs)
+            {
+                try
+                {
+                    var response = await _httpClient.GetAsync(url);
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var content = await response.Content.ReadAsStringAsync();
+                        var health = JsonSerializer.Deserialize<HealthResponse>(content);
+
+                        if (health?.ready == true)
+                        {
+                            Logger.Info($"Server ready on port {port}");
+                            return true;
+                        }
+
+                        Logger.Debug($"Server not ready yet (ready: {health?.ready})");
+                    }
+                }
+                catch
+                {
+                    // Server not responding yet, keep trying
+                }
+
+                await Task.Delay(1000);
+            }
+
+            Logger.Error($"Server startup timeout after {timeoutMs}ms");
+            return false;
+        }
+
+        private class HealthResponse
+        {
+            public bool ready { get; set; }
         }
 
         /// <summary>
@@ -242,5 +316,6 @@ namespace ShippingManagerCoPilot.Launcher
         public Process Process { get; set; } = null!;
         public int Port { get; set; }
         public SessionInfo Session { get; set; } = null!;
+        public bool Ready { get; set; } = false;
     }
 }

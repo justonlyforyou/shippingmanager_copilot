@@ -8,6 +8,7 @@
 
 import { saveSettings, updatePageTitle, showNotification, showSideNotification, requestNotificationPermission, escapeHtml } from '../utils.js';
 import { openBuildShipModal } from '../vessel-building.js';
+import logger from './logger.js';
 
 /**
  * Format number with thousand separators.
@@ -464,7 +465,7 @@ export function registerAutoPilotListeners(settings, toggleAutoPilotAgentCheckbo
   if (enableWeatherDataCheckbox) {
     enableWeatherDataCheckbox.addEventListener('change', async function() {
       settings.enableWeatherData = this.checked;
-      console.log('[Settings] Weather Data changed to:', this.checked);
+      logger.debug('[Settings] Weather Data changed to:', this.checked);
       await saveSettings(settings);
       showNotification('Weather data setting saved. Please reload the page (F5) for changes to take effect.', 'info', 6000);
 

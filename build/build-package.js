@@ -139,34 +139,47 @@ const startupGuide = `ShippingManager CoPilot v${version}
 ${'='.repeat(60)}
 
 QUICK START:
-1. Run the installer or extract this folder
-2. Double-click ShippingManagerCoPilot-Server.exe to start
-3. Open https://localhost:12345 in your browser
+1. Run ShippingManagerCoPilot.exe (or use the installer)
+2. The application starts as a system tray icon
+3. Add your account via Steam extraction or Browser login
+4. Open https://localhost:12345 in your browser
+5. Accept the self-signed certificate warning
 
 FIRST RUN:
-- Accept the self-signed certificate warning in your browser
-- Log in via Steam extraction or browser login when prompted
+- Click the tray icon to see options
+- Choose "Add Account" to log in
+- Windows: Steam extraction works automatically (Steam must be closed)
+- All platforms: Browser login available
 
-HEADLESS MODE (no GUI):
-  ShippingManagerCoPilot-Server.exe
-
-  Or with npm (development):
-  npm run start:headless
+MULTIPLE ACCOUNTS:
+- Add multiple accounts via tray icon
+- Enable/disable autostart per account
+- Each account runs on a separate port (12345, 12346, ...)
 
 CLI OPTIONS:
-  --list-sessions           List all saved sessions
-  --add-session-interactive Add a new session via CLI
-  --remove-session=<id>     Remove a session
+  --help                          Show all options
+  --headless                      Start without GUI
+  --list-sessions                 List all saved accounts
+  --add-session-interactive       Add account via terminal
+  --remove-session=<userId>       Remove an account
+  --enable-autostart=<userId>     Enable autostart for account
+  --disable-autostart=<userId>    Disable autostart for account
 
 DATA STORAGE:
-- Windows: %LOCALAPPDATA%/ShippingManagerCoPilot/userdata/
-- Portable: ./userdata/ (if exists)
+- Installed: %LOCALAPPDATA%/ShippingManagerCoPilot/userdata/
+- Portable: ./userdata/ (if folder exists next to exe)
+
+SESSION SECURITY:
+All session cookies are encrypted using Windows DPAPI.
+Cookies can only be decrypted on the same machine by the same user.
 
 TROUBLESHOOTING:
-- Steam session fails: Close Steam completely, restart app
-- Port in use: Set PORT environment variable
+- Steam extraction fails: Close Steam completely, try again
+- Certificate error: Click "Advanced" > "Proceed to localhost"
+- Port in use: Check --list-sessions for running instances
+- Session expired: Re-add account via tray icon
 
-For full documentation, see README.md
+For full documentation: https://localhost:12345 > click Docs icon
 `;
 
 fs.writeFileSync(path.join(outputFolder, 'START_HERE.txt'), startupGuide);

@@ -1,7 +1,9 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace ShippingManagerCoPilot.Launcher
@@ -10,6 +12,7 @@ namespace ShippingManagerCoPilot.Launcher
     {
         private NotifyIcon? _notifyIcon;
         private ContextMenuStrip? _contextMenu;
+        private ToolStripMenuItem? _debugModeItem;
 
         public void Initialize()
         {
@@ -18,6 +21,19 @@ namespace ShippingManagerCoPilot.Launcher
             _contextMenu.Items.Add("Open CoPilot", null, OnOpenClick);
             _contextMenu.Items.Add("-");
             _contextMenu.Items.Add("Restart Servers", null, OnRestartClick);
+            _contextMenu.Items.Add("-");
+
+            // Debug Mode toggle
+            _debugModeItem = new ToolStripMenuItem("Debug Mode")
+            {
+                CheckOnClick = true,
+                Checked = GetDebugMode()
+            };
+            _debugModeItem.Click += OnDebugModeClick;
+            _contextMenu.Items.Add(_debugModeItem);
+
+            // Open Server Log
+            _contextMenu.Items.Add("Open Server Log", null, OnOpenLogClick);
             _contextMenu.Items.Add("-");
             _contextMenu.Items.Add("Exit", null, OnExitClick);
 
@@ -111,6 +127,96 @@ namespace ShippingManagerCoPilot.Launcher
         private void OnExitClick(object? sender, EventArgs e)
         {
             App.Instance.ExitApplication();
+        }
+
+        private void OnDebugModeClick(object? sender, EventArgs e)
+        {
+            var newValue = _debugModeItem?.Checked ?? false;
+            SetDebugMode(newValue);
+            Logger.Info($"Debug mode set to: {newValue}");
+            ShowBalloon("Debug Mode", newValue ? "Debug mode enabled" : "Debug mode disabled");
+        }
+
+        private void OnOpenLogClick(object? sender, EventArgs e)
+        {
+            var logFile = Path.Combine(App.UserDataDirectory, "logs", "server.log");
+            if (File.Exists(logFile))
+            {
+                try
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = logFile,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Failed to open log file: {ex.Message}");
+                }
+            }
+            else
+            {
+                ShowBalloon("Log File", "Server log file not found", ToolTipIcon.Warning);
+            }
+        }
+
+        private bool GetDebugMode()
+        {
+            try
+            {
+                var settingsPath = Path.Combine(App.UserDataDirectory, "settings", "settings.json");
+                if (File.Exists(settingsPath))
+                {
+                    var json = File.ReadAllText(settingsPath);
+                    using var doc = JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("debugMode", out var debugProp))
+                    {
+                        return debugProp.GetBoolean();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"Could not read debug mode: {ex.Message}");
+            }
+            return false;
+        }
+
+        private void SetDebugMode(bool enabled)
+        {
+            try
+            {
+                var settingsPath = Path.Combine(App.UserDataDirectory, "settings", "settings.json");
+                var settingsDir = Path.GetDirectoryName(settingsPath)!;
+                Directory.CreateDirectory(settingsDir);
+
+                // Read existing settings or create new
+                Dictionary<string, object> settings;
+                if (File.Exists(settingsPath))
+                {
+                    var json = File.ReadAllText(settingsPath);
+                    settings = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new();
+                }
+                else
+                {
+                    settings = new Dictionary<string, object>
+                    {
+                        { "port", 12345 },
+                        { "host", "127.0.0.1" },
+                        { "logLevel", "info" }
+                    };
+                }
+
+                settings["debugMode"] = enabled;
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, options));
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to save debug mode: {ex.Message}");
+            }
         }
 
         public void ShowBalloon(string title, string message, ToolTipIcon icon = ToolTipIcon.Info)

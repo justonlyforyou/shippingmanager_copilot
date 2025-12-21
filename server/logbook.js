@@ -280,10 +280,12 @@ async function getLogEntries(userId, filters = {}) {
   // Execute query
   let logs = db.prepare(query).all(...params);
 
-  // Parse details JSON
+  // Parse details JSON and add computed fields
   logs = logs.map(log => ({
     ...log,
-    details: log.details ? JSON.parse(log.details) : {}
+    details: log.details ? JSON.parse(log.details) : {},
+    category: getCategoryFromAction(log.autopilot),
+    source: getSourceFromAction(log.autopilot)
   }));
 
   // Apply transaction filter (post-query because it's computed)

@@ -6,6 +6,11 @@
         WindowStartupLocation="CenterScreen"
         Background="#1a1a1a"
         ResizeMode="CanMinimize"
+        FontFamily="Segoe UI, Roboto, sans-serif"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         Icon="icon.ico">
 
     <Window.Resources>
@@ -19,7 +24,15 @@
         <SolidColorBrush x:Key="InfoColor" Color="#3b82f6"/>
         <SolidColorBrush x:Key="InfoDark" Color="#2563eb"/>
         <SolidColorBrush x:Key="SuccessColor" Color="#22c55e"/>
+        <SolidColorBrush x:Key="SuccessDark" Color="#10b981"/>
+        <SolidColorBrush x:Key="WarningColor" Color="#f59e0b"/>
         <SolidColorBrush x:Key="DangerColor" Color="#dc2626"/>
+
+        <!-- Spinner Animation Storyboard -->
+        <Storyboard x:Key="SpinnerStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                             From="0" To="360" Duration="0:0:0.8"/>
+        </Storyboard>
     </Window.Resources>
 
     <Grid Margin="20">
@@ -32,23 +45,45 @@
         <!-- Header -->
         <StackPanel Grid.Row="0" HorizontalAlignment="Center" Margin="0,0,0,20">
             <TextBlock x:Name="TitleText"
-                       Text="Server Ready!"
+                       Text="Starting..."
                        FontSize="18"
                        FontWeight="SemiBold"
                        Foreground="{StaticResource InfoColor}"
                        HorizontalAlignment="Center"/>
             <TextBlock x:Name="ServerCountText"
-                       Text="0 server(s) running"
+                       Text="Preparing servers..."
                        FontSize="13"
                        Foreground="{StaticResource TextSecondary}"
                        HorizontalAlignment="Center"
                        Margin="0,8,0,0"/>
+
+            <!-- Progress Bar -->
+            <Border x:Name="ProgressBarContainer"
+                    Height="6"
+                    CornerRadius="3"
+                    Background="{StaticResource BgSecondary}"
+                    Margin="0,16,0,0"
+                    Width="400">
+                <Border x:Name="ProgressBarFill"
+                        Height="6"
+                        CornerRadius="3"
+                        HorizontalAlignment="Left"
+                        Width="0">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="#3b82f6" Offset="0"/>
+                            <GradientStop Color="#10b981" Offset="1"/>
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+            </Border>
+
             <TextBlock x:Name="UserdataPathText"
                        Text=""
                        FontSize="11"
                        Foreground="#666666"
                        HorizontalAlignment="Center"
-                       Margin="0,8,0,0"
+                       Margin="0,12,0,0"
                        TextWrapping="Wrap"
                        MaxWidth="460"/>
         </StackPanel>
@@ -72,11 +107,9 @@
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- Icon -->
+                                <!-- Icon (emoji) -->
                                 <TextBlock Grid.Column="0"
                                            Text="{Binding Icon}"
-                                           Foreground="{Binding IconColor}"
-                                           FontFamily="Segoe MDL2 Assets"
                                            FontSize="20"
                                            VerticalAlignment="Center"
                                            Margin="0,0,12,0"/>
@@ -87,15 +120,60 @@
                                                FontSize="14"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource TextPrimary}"/>
-                                    <TextBlock Text="{Binding Url}"
+                                    <TextBlock Text="{Binding StatusText}"
                                                FontSize="12"
                                                Foreground="{StaticResource TextSecondary}"
                                                FontFamily="Consolas"
                                                Margin="0,4,0,0"/>
                                 </StackPanel>
 
-                                <!-- Action Buttons -->
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Loading Spinner (shown when loading) -->
+                                <Grid Grid.Column="2"
+                                      Visibility="{Binding LoadingVisibility}"
+                                      VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <!-- Animated spinner using Path -->
+                                        <Border Width="16" Height="16"
+                                                CornerRadius="8"
+                                                BorderThickness="2"
+                                                BorderBrush="{StaticResource BgHover}"
+                                                RenderTransformOrigin="0.5,0.5">
+                                            <Border.RenderTransform>
+                                                <RotateTransform x:Name="SpinTransform"/>
+                                            </Border.RenderTransform>
+                                            <Border.Triggers>
+                                                <EventTrigger RoutedEvent="Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetName="SpinTransform"
+                                                                             Storyboard.TargetProperty="Angle"
+                                                                             From="0" To="360" Duration="0:0:0.8"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Border.Triggers>
+                                            <!-- Arc segment for spinner -->
+                                            <Border CornerRadius="8" BorderThickness="2,0,0,0" BorderBrush="{StaticResource WarningColor}"/>
+                                        </Border>
+                                        <TextBlock Text="Starting..."
+                                                   Foreground="{StaticResource WarningColor}"
+                                                   FontSize="12"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,0,0"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Error Text (shown when error) -->
+                                <TextBlock Grid.Column="2"
+                                           Visibility="{Binding ErrorVisibility}"
+                                           Text="{Binding ErrorMessage}"
+                                           Foreground="{StaticResource DangerColor}"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"/>
+
+                                <!-- Action Buttons (shown when ready) -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center"
+                                            Visibility="{Binding ReadyVisibility}">
                                     <!-- Autostart Toggle -->
                                     <Button Content="{Binding AutostartText}"
                                             Tag="{Binding UserId}"

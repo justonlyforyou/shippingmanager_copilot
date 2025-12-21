@@ -249,12 +249,52 @@ function showDialog(dialogType, data = {}) {
 }
 
 /**
- * Show server ready dialog
+ * Show server ready dialog with live updates
+ * Uses a separate process so we can send updates while dialog is open
  * @param {object} options - Options
  * @returns {Promise<object>} Dialog result with action
  */
 function showServerReadyDialog(options) {
-  return showDialog('serverReady', options);
+  return new Promise((resolve, reject) => {
+    const dialogScript = path.join(__dirname, 'dialog-live.js');
+    const dataJson = JSON.stringify(options);
+
+    // Spawn dialog process (IPC via shared file, not stdin)
+    const child = spawn(process.execPath, [dialogScript, 'serverReady', dataJson], {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: __dirname
+    });
+
+    let stdout = '';
+
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk.toString();
+    });
+
+    child.stderr.on('data', (chunk) => {
+      // Log stderr for debugging
+      const msg = chunk.toString().trim();
+      if (msg) {
+        logger.debug(`[Dialog] ${msg}`);
+      }
+    });
+
+    child.on('error', (err) => {
+      logger.error(`[Webview] Dialog process error: ${err.message}`);
+      reject(err);
+    });
+
+    child.on('close', () => {
+      // Parse result from stdout
+      try {
+        const result = stdout.trim() ? JSON.parse(stdout.trim()) : null;
+        resolve(result);
+      } catch (err) {
+        logger.error(`[Webview] Failed to parse dialog result: ${err.message}`);
+        resolve(null);
+      }
+    });
+  });
 }
 
 /**

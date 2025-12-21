@@ -20,18 +20,16 @@ namespace ShippingManagerCoPilot.Launcher
         public static string AppDirectory => AppDomain.CurrentDomain.BaseDirectory;
 
         /// <summary>
-        /// Check if running as installed (in Program Files) or development mode
+        /// Check if running as installed (packaged) or development mode.
+        /// Packaged = ShippingManagerCoPilot-Server.exe exists in app directory
         /// </summary>
         public static bool IsPackaged
         {
             get
             {
-                // Installed = running from Program Files
-                var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-                var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-
-                return AppDirectory.StartsWith(programFiles, StringComparison.OrdinalIgnoreCase) ||
-                       AppDirectory.StartsWith(programFilesX86, StringComparison.OrdinalIgnoreCase);
+                // Check if Server.exe exists - definitive way to detect packaged mode
+                var serverExe = Path.Combine(AppDirectory, "ShippingManagerCoPilot-Server.exe");
+                return File.Exists(serverExe);
             }
         }
 
@@ -132,12 +130,52 @@ namespace ShippingManagerCoPilot.Launcher
                     }
                 }
 
-                // Start servers for all sessions
-                Logger.Info($"Starting {sessions.Count} server(s)...");
-                await _serverManager!.StartAllServersAsync(sessions);
+                // Filter to autostart sessions
+                var autostartSessions = sessions.Where(s => s.Autostart).ToList();
 
-                // Show main window
-                ShowMainWindow();
+                if (autostartSessions.Count == 0)
+                {
+                    Logger.Error("No sessions to start");
+                    WpfMessageBox.Show(
+                        "No sessions found. Please add an account.",
+                        "ShippingManager CoPilot",
+                        WpfMessageBoxButton.OK,
+                        WpfMessageBoxImage.Error
+                    );
+                    Shutdown();
+                    return;
+                }
+
+                Logger.Info($"Starting {autostartSessions.Count} server(s) in parallel...");
+
+                // Create pending session view models with loading state
+                var basePort = 12345;
+                var pendingSessions = autostartSessions.Select((session, index) => new SessionViewModel
+                {
+                    UserId = session.UserId,
+                    CompanyName = session.CompanyName,
+                    LoginMethod = session.LoginMethod,
+                    Port = basePort + index,
+                    Url = $"https://localhost:{basePort + index}",
+                    Icon = session.LoginMethod == "steam" ? "\U0001F3AE" : "\U0001F310",
+                    IconColor = session.LoginMethod == "steam"
+                        ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0xc0, 0xf4))
+                        : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3b, 0x82, 0xf6)),
+                    Autostart = session.Autostart,
+                    AutostartText = session.Autostart ? "Autostart On" : "Autostart Off",
+                    AutostartTooltip = session.Autostart ? "Autostart enabled - click to disable" : "Autostart disabled - click to enable",
+                    Status = "loading"
+                }).ToList();
+
+                // Show main window immediately with loading state
+                ShowMainWindowWithPendingSessions(pendingSessions);
+
+                // Start all servers in parallel (fire and forget, update UI as each completes)
+                foreach (var (session, index) in autostartSessions.Select((s, i) => (s, i)))
+                {
+                    var port = basePort + index;
+                    _ = StartServerAndUpdateUIAsync(session, port);
+                }
             }
             catch (Exception ex)
             {
@@ -150,6 +188,33 @@ namespace ShippingManagerCoPilot.Launcher
                 );
                 Shutdown();
             }
+        }
+
+        private async Task StartServerAndUpdateUIAsync(SessionInfo session, int port)
+        {
+            try
+            {
+                await _serverManager!.StartServerAsync(session, port);
+                Logger.Info($"Server {session.CompanyName} is ready on port {port}");
+                _mainWindow?.UpdateSessionStatus(session.UserId, "ready");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Failed to start {session.CompanyName}: {ex.Message}");
+                _mainWindow?.UpdateSessionStatus(session.UserId, "error", ex.Message);
+            }
+        }
+
+        public void ShowMainWindowWithPendingSessions(List<SessionViewModel> pendingSessions)
+        {
+            if (_mainWindow == null)
+            {
+                _mainWindow = new MainWindow();
+            }
+
+            _mainWindow.SetPendingSessions(pendingSessions);
+            _mainWindow.Show();
+            _mainWindow.Activate();
         }
 
         public async Task<SessionInfo?> ShowLoginMethodDialogAsync()

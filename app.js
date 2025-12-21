@@ -76,9 +76,9 @@ const { initWebSocket, broadcastToUser, startChatAutoRefresh, startMessengerAuto
 const { initScheduler } = require('./server/scheduler');
 const autopilot = require('./server/autopilot');
 const sessionManager = require('./server/utils/session-manager');
-const { transactionStore, lookupStore, vesselHistoryStore } = require('./server/database/store-adapter');
+const { transactionStore, vesselHistoryStore } = require('./server/database/store-adapter');
 
-// Parent process monitoring - auto-shutdown if parent (Python) dies
+// Parent process monitoring - auto-shutdown if parent (C# Launcher) dies
 if (process.ppid) {
   const checkParentInterval = setInterval(() => {
     try {
@@ -91,6 +91,23 @@ if (process.ppid) {
       process.exit(0);
     }
   }, 1000); // Check every second
+}
+
+// Graceful shutdown handlers (Ctrl+C, kill, etc.)
+let isShuttingDown = false;
+function gracefulShutdown(signal) {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
+  console.log(`\n[SM-CoPilot] Received ${signal}, shutting down gracefully...`);
+  process.exit(0);
+}
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+// Windows: handle Ctrl+C in console
+if (process.platform === 'win32') {
+  const readline = require('readline');
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  rl.on('SIGINT', () => process.emit('SIGINT'));
 }
 
 // Setup file logging - create new log file on each startup
@@ -410,12 +427,8 @@ const chatBot = require('./server/chatbot');
   vesselHistoryStore.startAutoSync(userId);
   logger.debug('[VesselHistory] Started 5-minute vessel history sync');
 
-  // Build analytics lookup on startup (after transactions are synced)
-  lookupStore.buildLookup(userId, 0).then(result => {
-    logger.info(`[Analytics] Lookup built: ${result.newEntries} new, ${result.totalEntries} total, POD2=${result.matchedPod2}, POD3=${result.matchedPod3}`);
-  }).catch(err => {
-    logger.error('[Analytics] Failed to build lookup on startup:', err.message);
-  });
+  // NOTE: buildLookup is now triggered in scheduler.js AFTER serverReady=true
+  // This prevents SQLite blocking from interfering with initial data load
 
   // Initialize POI cache and start automatic refresh
   await poiRoutes.initializePOICache();

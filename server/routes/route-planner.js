@@ -14,8 +14,42 @@ const express = require('express');
 const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const logbook = require('../logbook');
+const state = require('../state');
 
 const router = express.Router();
+
+/**
+ * Calculate route creation fee
+ * Formula: routeFee = 40 * capacity + 10 * distance
+ * @param {number} capacity - Vessel capacity (TEU or barrels)
+ * @param {number} distance - Route distance (nm)
+ * @returns {number} Route creation fee in dollars
+ */
+function calculateRouteCreationFee(capacity, distance) {
+  if (!capacity || !distance) return 0;
+  return 40 * capacity + 10 * distance;
+}
+
+/**
+ * Get route creation fee discount from staff training
+ * CFO perk 'cheap_route_creation_fee' gives X% discount per level
+ * @param {string} userId - User ID
+ * @returns {number} Discount multiplier (e.g., 0.97 for 3% discount)
+ */
+function getRouteFeeDiscountMultiplier(userId) {
+  const staffData = state.getStaffData(userId);
+  if (!staffData?.staff) return 1;
+
+  const cfo = staffData.staff.find(s => s.type === 'cfo');
+  if (!cfo?.training) return 1;
+
+  const routeFeePerk = cfo.training.find(t => t.perk === 'cheap_route_creation_fee');
+  if (!routeFeePerk || !routeFeePerk.current_effect) return 1;
+
+  // current_effect is the percentage discount (e.g., 3 means 3%)
+  const discountPercent = routeFeePerk.current_effect;
+  return 1 - (discountPercent / 100);
+}
 
 /**
  * POST /api/route/get-vessel-ports
@@ -188,7 +222,21 @@ router.post('/create-user-route', async (req, res) => {
       const userId = getUserId();
       if (userId && data.data?.user_vessel) {
         const vessel = data.data.user_vessel;
-        const feeDisplay = calculated_total_fee ? ` | Fee: $${calculated_total_fee.toLocaleString()}` : '';
+
+        // Calculate route fee from API response if not provided by frontend
+        // Formula: routeFee = 40 * capacity + 10 * distance
+        const serverCalculatedRouteFee = calculateRouteCreationFee(vessel.capacity, vessel.route_distance);
+        const routeFeeToUse = calculated_route_fee || serverCalculatedRouteFee;
+        const channelCostToUse = calculated_channel_cost || 0;
+        const totalFeeToUse = calculated_total_fee || (routeFeeToUse + channelCostToUse);
+
+        // Apply staff training discount to route fee
+        const discountMultiplier = getRouteFeeDiscountMultiplier(userId);
+        const discountedRouteFee = Math.round(routeFeeToUse * discountMultiplier);
+        const discountedTotalFee = Math.round(totalFeeToUse * discountMultiplier);
+        const discountPercent = discountMultiplier < 1 ? Math.round((1 - discountMultiplier) * 100) : 0;
+
+        const feeDisplay = discountedTotalFee ? ` | Fee: $${discountedTotalFee.toLocaleString()}` : '';
         const summary = `${vessel.name} | ${vessel.route_origin} -> ${vessel.route_destination} | ${vessel.route_distance} nm @ ${vessel.route_speed} kn${feeDisplay}`;
         await logbook.logAutopilotAction(userId, 'Manual Route Planner', 'SUCCESS', summary, {
           vessel_id: vessel.id,
@@ -199,12 +247,13 @@ router.post('/create-user-route', async (req, res) => {
           route_speed: vessel.route_speed,
           route_guards: vessel.route_guards,
           route_name: vessel.route_name,
-          route_fee: calculated_route_fee,
-          channel_cost: calculated_channel_cost,
-          total_fee: calculated_total_fee,
+          route_fee: discountedRouteFee,
+          channel_cost: channelCostToUse,
+          total_fee: discountedTotalFee,
+          staff_discount_percent: discountPercent,
           api_response: data.data
         });
-        logger.debug(`[Route Planner] Logged route creation to logbook for vessel ${vessel.name}`);
+        logger.debug(`[Route Planner] Logged route creation for vessel ${vessel.name} (fee: $${discountedTotalFee}, staff discount: ${discountPercent}%)`);
       }
     } catch (logError) {
       logger.error(`[Route Planner] Failed to log route creation: ${logError.message}`);
@@ -252,6 +301,33 @@ router.post('/create-user-route', async (req, res) => {
   } catch (error) {
     logger.error(`[Route Planner] Failed to create route: ${error.message}`);
     res.status(500).json({ error: 'Failed to create route' });
+  }
+});
+
+/**
+ * GET /api/route/get-fee-discount
+ * Returns the current route fee discount percentage from CFO training
+ *
+ * @route GET /api/route/get-fee-discount
+ * @returns {object} { discountPercent: number, multiplier: number }
+ */
+router.get('/get-fee-discount', (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.json({ discountPercent: 0, multiplier: 1 });
+    }
+
+    const multiplier = getRouteFeeDiscountMultiplier(userId);
+    const discountPercent = multiplier < 1 ? Math.round((1 - multiplier) * 100) : 0;
+
+    res.json({
+      discountPercent,
+      multiplier
+    });
+  } catch (error) {
+    logger.error(`[Route Planner] Failed to get fee discount: ${error.message}`);
+    res.json({ discountPercent: 0, multiplier: 1 });
   }
 });
 

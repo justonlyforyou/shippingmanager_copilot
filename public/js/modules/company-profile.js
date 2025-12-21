@@ -10,6 +10,7 @@ import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
 import { showPurchaseDialog } from './ui-dialogs.js';
 import { openNewChat } from './messenger.js';
 import { fetchContacts } from './api.js';
+import logger from './core/logger.js';
 
 let navigationHistory = [];
 let currentView = 'own'; // 'own', 'search', 'profile'
@@ -78,7 +79,7 @@ async function loadCompanyProfile(userId, isOwn = false) {
     if (!response.ok) throw new Error('Failed to load company');
 
     const data = await response.json();
-    console.log('[Company Profile] Loaded data:', data);
+    logger.debug('[Company Profile] Loaded data:', data);
 
     currentUserId = userId;
 
@@ -94,7 +95,7 @@ async function loadCompanyProfile(userId, isOwn = false) {
     const hasIpo = isOwn ? data.user?.ipo : (companyData.stock_total > 0);
     const targetUserId = isOwn ? data.user?.id : (userId || companyData.id || currentUserId);
 
-    console.log('[Company Profile] IPO check:', { isOwn, hasIpo, targetUserId, stockTotal: companyData.stock_total });
+    logger.debug('[Company Profile] IPO check:', { isOwn, hasIpo, targetUserId, stockTotal: companyData.stock_total });
 
     if (hasIpo && targetUserId) {
       loadStockSection(targetUserId, isOwn);
@@ -129,7 +130,7 @@ async function loadStaffData() {
     if (!response.ok) throw new Error('Failed to load staff data');
 
     const staffData = await response.json();
-    console.log('[Company Profile] Staff data:', staffData);
+    logger.debug('[Company Profile] Staff data:', staffData);
 
     // Append staff section to content
     const content = document.getElementById('companyProfileContent');
@@ -208,7 +209,7 @@ async function loadStockSection(userId, isOwnProfile = false) {
     const data = await getStockFinanceOverview(userId);
 
     if (!data || !data.data || !data.data.stock) {
-      console.log('[Company Profile] No stock data available');
+      logger.debug('[Company Profile] No stock data available');
       return;
     }
 
@@ -763,7 +764,7 @@ async function trainPerk(staffType, perkType) {
     }
 
     const result = await response.json();
-    console.log('[Train Perk] Training successful:', result);
+    logger.debug('[Train Perk] Training successful:', result);
 
     // Get perk info for notification
     const staffData = result.data?.staff;
@@ -861,7 +862,7 @@ async function renderCompanyProfile(responseData, isOwn) {
   const content = document.getElementById('companyProfileContent');
 
   // Log full response for debugging
-  console.log('[Company Profile] Full API response:', JSON.stringify(responseData, null, 2));
+  logger.debug('[Company Profile] Full API response:', JSON.stringify(responseData, null, 2));
 
   // Extract all sections from the nested structure
   // Structure: { data: { achievements, company, alliance }, user: {...} }
@@ -1692,7 +1693,7 @@ async function searchPlayers(searchTerm) {
     if (!response.ok) throw new Error('Search failed');
 
     const data = await response.json();
-    console.log('[Company Profile] Search results:', data);
+    logger.debug('[Company Profile] Search results:', data);
 
     // Extract companies from nested structure
     searchResults = data.data?.companies || data.companies || data.users || data.results || [];
@@ -1786,7 +1787,7 @@ export function initCompanyProfile() {
     });
   }
 
-  console.log('[Company Profile] Module initialized');
+  logger.debug('[Company Profile] Module initialized');
 }
 
 /**

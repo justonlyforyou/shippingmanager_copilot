@@ -305,7 +305,8 @@ async function updateSessionInfos(allUrls, sessionInfos) {
       companyName: sInfo.companyName,
       loginMethod: sData?.loginMethod || 'unknown',
       port: sInfo.port,
-      autostart: sData?.autostart !== false
+      autostart: sData?.autostart !== false,
+      status: 'ready'
     });
   }
 }
@@ -349,7 +350,8 @@ async function launchApp() {
       companyName: serverInfo.companyName,
       loginMethod: serverInfo.loginMethod,
       port: serverInfo.port,
-      autostart: sData?.autostart !== false
+      autostart: sData?.autostart !== false,
+      status: 'ready'
     });
   }
 
@@ -564,11 +566,11 @@ async function main() {
     }
   }
 
-  // Start all servers and wait for ready, then show dialog
+  // Start all servers in parallel and show dialog immediately
   try {
     settings = config.loadSettings();
 
-    // Get and validate sessions
+    // Get sessions to start
     const allSessions = await sessionManager.getAvailableSessions();
     const autostartSessions = allSessions.filter(s => s.autostart !== false);
 
@@ -579,46 +581,58 @@ async function main() {
       return;
     }
 
-    log('info', `Starting ${autostartSessions.length} server(s)...`);
+    log('info', `Starting ${autostartSessions.length} server(s) in parallel...`);
 
-    // Start all servers in parallel and wait for all to be ready
-    const startPromises = autostartSessions.map(async (session, index) => {
-      const port = settings.port + index;
+    // Prepare initial session list with loading state
+    const sessionInfos = autostartSessions.map((session, index) => ({
+      userId: String(session.userId),
+      companyName: session.companyName,
+      loginMethod: session.loginMethod,
+      port: settings.port + index,
+      autostart: session.autostart !== false,
+      status: 'loading'
+    }));
 
-      // Validate session first
-      const validation = await sessionManager.validateSessionCookie(session.cookie);
-      if (!validation) {
-        log('warn', `Skipping ${session.companyName} - session expired`);
-        return null;
-      }
-
-      // Start server and wait for ready
-      await serverManager.startServerForSession(session, port);
-      log('info', `Server ${session.companyName} is ready`);
-
-      return {
-        userId: String(session.userId),
-        companyName: session.companyName,
-        loginMethod: session.loginMethod,
-        port: port
-      };
+    // Show dialog - it will poll the status file for updates
+    log('info', 'Showing dialog...');
+    const dialogPromise = webview.showServerReadyDialog({
+      urls: [],
+      sessions: sessionInfos,
+      userdataPath: config.getUserDataDir()
     });
 
-    const results = await Promise.all(startPromises);
-    const sessionInfos = results.filter(r => r !== null);
-    const allUrls = sessionInfos.map(s => `https://localhost:${s.port}`);
+    // Start servers - status updates go to shared file
+    log('info', 'Starting servers in batches of 3...');
+    const BATCH_SIZE = 3;
+    for (let i = 0; i < autostartSessions.length; i += BATCH_SIZE) {
+      const batch = autostartSessions.slice(i, i + BATCH_SIZE);
 
-    if (sessionInfos.length === 0) {
-      log('error', 'No servers started successfully');
-      await webview.showErrorDialog('Startup Failed', 'No servers could be started. Sessions may have expired.');
-      await handleExit();
-      return;
+      // Start batch in parallel - dialog polls /health directly via curl
+      batch.forEach((session, batchIndex) => {
+        const port = settings.port + i + batchIndex;
+
+        serverManager.startServerForSession(session, port, (userId, companyName, readyPort) => {
+          log('info', `Server ${companyName} is ready on port ${readyPort}`);
+        }).catch((err) => {
+          log('error', `Failed to start ${session.companyName}: ${err.message}`);
+        });
+      });
     }
 
-    log('info', `All ${sessionInfos.length} server(s) ready, showing dialog`);
+    // Wait for dialog result and handle it
+    let dialogResult = await dialogPromise;
+    let keepDialogOpen = await handleDialogResult(dialogResult, [], sessionInfos);
 
-    // Show server ready dialog
-    await showServerReadyDialogLoop(allUrls, sessionInfos);
+    // Handle dialog result loop (for refresh, add account, etc.)
+    while (keepDialogOpen) {
+      await updateSessionInfos([], sessionInfos);
+      dialogResult = await webview.showServerReadyDialog({
+        urls: sessionInfos.filter(s => s.status === 'ready').map(s => `https://localhost:${s.port}`),
+        sessions: sessionInfos,
+        userdataPath: config.getUserDataDir()
+      });
+      keepDialogOpen = await handleDialogResult(dialogResult, [], sessionInfos);
+    }
 
   } catch (err) {
     log('error', `Failed to start: ${err.message}`);

@@ -7,6 +7,7 @@ namespace ShippingManagerCoPilot.Launcher
     {
         private static readonly object _lock = new();
         private static string? _logFilePath;
+        private static bool _initialized = false;
 
         private static string LogFilePath
         {
@@ -22,6 +23,25 @@ namespace ShippingManagerCoPilot.Launcher
             }
         }
 
+        /// <summary>
+        /// Initialize logger - clears the log file on first call
+        /// </summary>
+        private static void EnsureInitialized()
+        {
+            if (_initialized) return;
+            _initialized = true;
+
+            try
+            {
+                // Clear the log file on startup
+                File.WriteAllText(LogFilePath, string.Empty);
+            }
+            catch
+            {
+                // Ignore errors during initialization
+            }
+        }
+
         public static void Log(string level, string message)
         {
             var timestamp = DateTime.Now.ToString("yyyy-MM-ddTHH:mm:ss");
@@ -31,6 +51,7 @@ namespace ShippingManagerCoPilot.Launcher
             {
                 try
                 {
+                    EnsureInitialized();
                     File.AppendAllText(LogFilePath, line + Environment.NewLine);
                 }
                 catch

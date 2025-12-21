@@ -341,15 +341,16 @@ async function purchaseCO2(amount, pricePerTon = null, userId = null) {
   }
 
   // Calculate cost ourselves since API doesn't return it
-  // If price not provided, get it from state
+  // IMPORTANT: Game buys 1 ton less than requested due to kg/ton rounding
+  // So we calculate: (amount - 1) * pricePerTon to match game's actual charge
   let cost = 0;
   if (pricePerTon) {
-    cost = amount * pricePerTon;
+    cost = (amount - 1) * pricePerTon;
   } else {
     const state = require('../state');
     const actualUserId = userId || getUserId();
     const prices = state.getPrices(actualUserId);
-    cost = amount * prices.co2;
+    cost = (amount - 1) * prices.co2;
   }
 
   const result = {

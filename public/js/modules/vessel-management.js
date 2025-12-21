@@ -52,6 +52,7 @@ import { selectVessel } from './harbor-map/map-controller.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { getCurrentBunkerState, updateCurrentCash } from './bunker-management.js';
 import { updateBadge, updateButtonState, updateButtonTooltip } from './badge-manager.js';
+import logger from './core/logger.js';
 
 /**
  * Load cart from localStorage (user-specific)
@@ -131,22 +132,6 @@ function getAvailableAnchorSlots() {
 }
 
 /**
- * Refresh vessel cards display if vessels are currently visible
- * This updates button states based on available anchor slots
- * NOTE: This function is no longer called automatically - overlays only refresh when user opens them
- * Keeping function for backward compatibility but it should not be used
- * @deprecated Auto-refresh disabled to prevent filter resets
- */
-function refreshVesselCardsIfVisible() {
-  // Function intentionally disabled - do nothing
-  // Vessel catalog will update when user reopens it
-  console.warn('[Vessel Management] refreshVesselCardsIfVisible() called but auto-refresh is disabled');
-}
-
-// Keep function on window for backward compatibility but it does nothing now
-window.refreshVesselCardsIfVisible = refreshVesselCardsIfVisible;
-
-/**
  * Server-controlled lock states.
  * IMPORTANT: These are READ-ONLY on client side. Only server can modify via WebSocket events.
  * Client receives lock_status updates from server and must never set these directly.
@@ -224,7 +209,7 @@ export function updateLockStateFromServer(locks) {
     updateButtonState('drydockAll', locks.drydock);
   }
 
-  console.log('[Lock State] Updated from server:', serverLockState);
+  logger.debug('[Lock State] Updated from server:', serverLockState);
 }
 
 /**
@@ -343,9 +328,6 @@ export async function updateVesselCount() {
       }
     }
 
-    // Refresh vessel cards to update button states based on new anchor slot availability
-    refreshVesselCardsIfVisible();
-
   } catch (error) {
     console.error('Error updating vessel count:', error);
   }
@@ -403,9 +385,9 @@ export async function departAllVessels() {
 
     if (window.DEBUG_MODE) {
       if (data.success === false) {
-        console.log('[Depart All] Departure failed:', data.reason);
+        logger.debug('[Depart All] Departure failed:', data.reason);
       } else {
-        console.log('[Depart All] Departure succeeded');
+        logger.debug('[Depart All] Departure succeeded');
       }
     }
 
@@ -634,7 +616,7 @@ async function showRepairAndDrydockDialog(settings, repairCount, drydockCount, s
           })
         });
         costData = await costResponse.json();
-        console.log('[Vessel Management] Drydock cost response:', costData);
+        logger.debug('[Vessel Management] Drydock cost response:', costData);
       } catch (error) {
         console.error('[Vessel Management] Failed to fetch drydock costs:', error);
       }
@@ -1238,19 +1220,19 @@ export async function loadAcquirableVessels(preserveFilters = false) {
     const data = await fetchAcquirableVessels();
     allAcquirableVessels = data.data.vessels_for_sale || [];
 
-    if (window.DEBUG_MODE) console.log('[Load Vessels] Loaded', allAcquirableVessels.length, 'vessels');
+    logger.debug('[Load Vessels] Loaded', allAcquirableVessels.length, 'vessels');
 
     // Log first few vessels to understand data structure (only once)
     if (window.DEBUG_MODE && allAcquirableVessels.length > 0 && !filtersPopulated) {
-      console.log('[Load Vessels] Sample vessel data:', allAcquirableVessels[0]);
-      console.log('[Load Vessels] Vessel types in data:', [...new Set(allAcquirableVessels.map(v => v.capacity_type))]);
-      console.log('[Load Vessels] Engine types in data:', [...new Set(allAcquirableVessels.map(v => v.engine_type))]);
-      console.log('[Load Vessels] Year range in data:', Math.min(...allAcquirableVessels.map(v => v.year)), '-', Math.max(...allAcquirableVessels.map(v => v.year)));
+      logger.debug('[Load Vessels] Sample vessel data:', allAcquirableVessels[0]);
+      logger.debug('[Load Vessels] Vessel types in data:', [...new Set(allAcquirableVessels.map(v => v.capacity_type))]);
+      logger.debug('[Load Vessels] Engine types in data:', [...new Set(allAcquirableVessels.map(v => v.engine_type))]);
+      logger.debug('[Load Vessels] Year range in data:', Math.min(...allAcquirableVessels.map(v => v.year)), '-', Math.max(...allAcquirableVessels.map(v => v.year)));
 
       // Check for special properties
       const withPerks = allAcquirableVessels.filter(v => v.perks && v.perks !== null && v.perks !== '');
       const creditsOnly = allAcquirableVessels.filter(v => v.only_for_credits);
-      console.log('[Load Vessels] Special properties:', {
+      logger.debug('[Load Vessels] Special properties:', {
         withPerks: withPerks.length,
         creditsOnly: creditsOnly.length,
         perksExample: withPerks.length > 0 ? { name: withPerks[0].name, perks: withPerks[0].perks, perkType: typeof withPerks[0].perks } : 'None',
@@ -2012,7 +1994,7 @@ export async function purchaseSingleVessel(vessel, quantity = 1) {
   const bunkerState = getCurrentBunkerState();
   const totalCost = vessel.price * quantity;
 
-  if (window.DEBUG_MODE) console.log('[Purchase Vessel] Bunker state:', bunkerState);
+  logger.debug('[Purchase Vessel] Bunker state:', bunkerState);
   if (bunkerState.currentCash === 0) {
     console.warn('[Purchase Vessel] WARNING: currentCash is 0! This may indicate bunker data not loaded yet.');
   }
@@ -2127,7 +2109,7 @@ export async function purchaseBulk() {
   let totalCost = 0;
   let itemNumber = 1;
 
-  if (window.DEBUG_MODE) console.log('[Purchase Bulk] Bunker state:', bunkerState);
+  logger.debug('[Purchase Bulk] Bunker state:', bunkerState);
   if (bunkerState.currentCash === 0) {
     console.warn('[Purchase Bulk] WARNING: currentCash is 0! This may indicate bunker data not loaded yet.');
   }
@@ -2295,7 +2277,7 @@ export function getVesselFilter() {
  */
 export function lockDepartButton() {
   // Icon button always enabled - this function now only logs for debugging
-  if (window.DEBUG_MODE) console.log('[Depart Button] Departure in progress');
+  logger.debug('[Depart Button] Departure in progress');
 }
 
 /**
@@ -2306,7 +2288,7 @@ export function lockDepartButton() {
  */
 export function unlockDepartButton() {
   // Icon button always enabled - this function now only logs for debugging
-  if (window.DEBUG_MODE) console.log('[Depart Button] Departure complete');
+  logger.debug('[Depart Button] Departure complete');
 }
 
 /**
@@ -2328,7 +2310,7 @@ export function isDepartInProgress() {
  */
 export function lockRepairButton() {
   updateButtonState('repairAll', true);
-  if (window.DEBUG_MODE) console.log('[Repair Button] Locked (UI only) - repair in progress');
+  logger.debug('[Repair Button] Locked (UI only) - repair in progress');
 }
 
 /**
@@ -2339,7 +2321,7 @@ export function lockRepairButton() {
  */
 export function unlockRepairButton() {
   updateButtonState('repairAll', false);
-  if (window.DEBUG_MODE) console.log('[Repair Button] Unlocked (UI only) - repair complete');
+  logger.debug('[Repair Button] Unlocked (UI only) - repair complete');
 }
 
 /**
@@ -2353,7 +2335,7 @@ export function lockBulkBuyButton() {
   if (cartBtn) {
     cartBtn.disabled = true;
   }
-  if (window.DEBUG_MODE) console.log('[Bulk Buy Button] Locked (UI only) - bulk purchase in progress');
+  logger.debug('[Bulk Buy Button] Locked (UI only) - bulk purchase in progress');
 }
 
 /**
@@ -2367,7 +2349,7 @@ export function unlockBulkBuyButton() {
   if (cartBtn) {
     cartBtn.disabled = false;
   }
-  if (window.DEBUG_MODE) console.log('[Bulk Buy Button] Unlocked (UI only) - bulk purchase complete');
+  logger.debug('[Bulk Buy Button] Unlocked (UI only) - bulk purchase complete');
 }
 
 /**
@@ -2381,7 +2363,7 @@ export function lockFuelButton() {
   if (fuelBtn) {
     fuelBtn.disabled = true;
   }
-  if (window.DEBUG_MODE) console.log('[Fuel Button] Locked (UI only) - fuel purchase in progress');
+  logger.debug('[Fuel Button] Locked (UI only) - fuel purchase in progress');
 }
 
 /**
@@ -2395,7 +2377,7 @@ export function unlockFuelButton() {
   if (fuelBtn) {
     fuelBtn.disabled = false;
   }
-  if (window.DEBUG_MODE) console.log('[Fuel Button] Unlocked (UI only) - fuel purchase complete');
+  logger.debug('[Fuel Button] Unlocked (UI only) - fuel purchase complete');
 }
 
 /**
@@ -2409,7 +2391,7 @@ export function lockCo2Button() {
   if (co2Btn) {
     co2Btn.disabled = true;
   }
-  if (window.DEBUG_MODE) console.log('[CO2 Button] Locked (UI only) - CO2 purchase in progress');
+  logger.debug('[CO2 Button] Locked (UI only) - CO2 purchase in progress');
 }
 
 /**
@@ -2423,7 +2405,7 @@ export function unlockCo2Button() {
   if (co2Btn) {
     co2Btn.disabled = false;
   }
-  if (window.DEBUG_MODE) console.log('[CO2 Button] Unlocked (UI only) - CO2 purchase complete');
+  logger.debug('[CO2 Button] Unlocked (UI only) - CO2 purchase complete');
 }
 
 /**
@@ -2434,7 +2416,7 @@ export function unlockCo2Button() {
  */
 export function lockDrydockButton() {
   updateButtonState('drydockAll', true);
-  if (window.DEBUG_MODE) console.log('[Drydock Button] Locked (UI only) - drydock in progress');
+  logger.debug('[Drydock Button] Locked (UI only) - drydock in progress');
 }
 
 /**
@@ -2445,7 +2427,7 @@ export function lockDrydockButton() {
  */
 export function unlockDrydockButton() {
   updateButtonState('drydockAll', false);
-  if (window.DEBUG_MODE) console.log('[Drydock Button] Unlocked (UI only) - drydock complete');
+  logger.debug('[Drydock Button] Unlocked (UI only) - drydock complete');
 }
 
 // ===== NEW FILTER SYSTEM =====
@@ -2454,7 +2436,7 @@ export function unlockDrydockButton() {
  * Populate dynamic filter dropdowns based on actual vessel data
  */
 function populateDynamicFilters() {
-  if (window.DEBUG_MODE) console.log('[Filters] Populating dynamic filters from', allAcquirableVessels.length, 'vessels');
+  logger.debug('[Filters] Populating dynamic filters from', allAcquirableVessels.length, 'vessels');
 
   // Price Range: 500k steps up to 10M, then 10M steps to 100M, then 50M steps to 200M
   const priceMin = document.getElementById('priceMin');
@@ -2581,7 +2563,7 @@ function populateDynamicFilters() {
   updateCapacityDropdowns();
 
   if (window.DEBUG_MODE) {
-    console.log('[Filters] Dynamic filters populated:', {
+    logger.debug('[Filters] Dynamic filters populated:', {
       years: years.length,
       engineTypes: engineTypes.length,
       speedRange: `${minSpeed}-${maxSpeed}kn`,
@@ -2650,7 +2632,7 @@ function updateCapacityDropdowns() {
     capacityMinTEU.value = 0;
     capacityMaxTEU.value = 'Infinity';  // Default to "max"
 
-    if (window.DEBUG_MODE) console.log('[Filters] TEU range:', { min: 0, apiMax: apiMaxTEU, steps: finalSteps });
+    logger.debug('[Filters] TEU range:', { min: 0, apiMax: apiMaxTEU, steps: finalSteps });
   } else {
     teuSection.classList.add('hidden');
   }
@@ -2710,7 +2692,7 @@ function updateCapacityDropdowns() {
     capacityMinBBL.value = 0;
     capacityMaxBBL.value = 'Infinity';  // Default to "max"
 
-    if (window.DEBUG_MODE) console.log('[Filters] BBL range:', { min: 0, apiMax: apiMaxBBL, steps: finalSteps });
+    logger.debug('[Filters] BBL range:', { min: 0, apiMax: apiMaxBBL, steps: finalSteps });
   } else {
     bblSection.classList.add('hidden');
   }
@@ -2987,7 +2969,7 @@ function areFiltersDefault() {
  * Apply all selected filters to vessel catalog
  */
 window.applyVesselFilters = function() {
-  if (window.DEBUG_MODE) console.log('[Apply Filters] Collecting filter values from dropdowns...');
+  logger.debug('[Apply Filters] Collecting filter values from dropdowns...');
 
   // Vessel Type checkboxes
   currentFilters.vesselType = [];
@@ -3055,7 +3037,7 @@ window.applyVesselFilters = function() {
     resetBar.classList.remove('hidden');
   }
 
-  if (window.DEBUG_MODE) console.log('[Apply Filters] Collected filters:', currentFilters);
+  logger.debug('[Apply Filters] Collected filters:', currentFilters);
 
   // Apply filters and redisplay
   displayFilteredVessels();
@@ -3118,7 +3100,7 @@ window.resetVesselFilters = function() {
     capacityMaxBBL.value = capacityMaxBBL.options[capacityMaxBBL.options.length - 1].value;
   }
 
-  if (window.DEBUG_MODE) console.log('[Filters] Reset to defaults');
+  logger.debug('[Filters] Reset to defaults');
   applyVesselFilters();
 };
 
@@ -3227,7 +3209,7 @@ function vesselPassesFilters(vessel) {
     // only_for_credits can be: true, 1, "1", or any truthy value
     if (currentFilters.special.includes('credits') && vessel.only_for_credits) {
       matchesSpecialFilter = true;
-      if (window.DEBUG_MODE) console.log('[Filter] Vessel matches "Credits Only":', vessel.name, 'only_for_credits:', vessel.only_for_credits);
+      logger.debug('[Filter] Vessel matches "Credits Only":', vessel.name, 'only_for_credits:', vessel.only_for_credits);
     }
 
     // Check if vessel matches "Has Perks" filter
@@ -3252,7 +3234,7 @@ function vesselPassesFilters(vessel) {
           if (vessel.bulbous_bow === 1) perkDetails.push('bulbous_bow');
           if (vessel.enhanced_thrusters === 1) perkDetails.push('enhanced_thrusters');
           if (vessel.perks) perkDetails.push(`perks:${vessel.perks}`);
-          console.log('[Filter] Vessel matches "Has Perks":', vessel.name, perkDetails.join(', '));
+          logger.debug('[Filter] Vessel matches "Has Perks":', vessel.name, perkDetails.join(', '));
         }
       }
     }
@@ -3260,7 +3242,7 @@ function vesselPassesFilters(vessel) {
     // If no special filter matches, exclude this vessel
     if (!matchesSpecialFilter) {
       if (window.DEBUG_MODE && currentFilters.special.includes('perks')) {
-        console.log('[Filter] Vessel EXCLUDED (no perks):', vessel.name, {
+        logger.debug('[Filter] Vessel EXCLUDED (no perks):', vessel.name, {
           antifouling: vessel.antifouling,
           bulbous_bow: vessel.bulbous_bow,
           enhanced_thrusters: vessel.enhanced_thrusters,
@@ -3287,14 +3269,14 @@ const LAZY_LOAD_BATCH = 12; // Load 12 more when scrolling
  */
 function displayFilteredVessels() {
   if (window.DEBUG_MODE) {
-    console.log('[Filters] displayFilteredVessels called');
-    console.log('[Filters] allAcquirableVessels:', allAcquirableVessels.length);
-    console.log('[Filters] currentFilters:', currentFilters);
+    logger.debug('[Filters] displayFilteredVessels called');
+    logger.debug('[Filters] allAcquirableVessels:', allAcquirableVessels.length);
+    logger.debug('[Filters] currentFilters:', currentFilters);
   }
 
   const filteredVessels = allAcquirableVessels.filter(vesselPassesFilters);
 
-  if (window.DEBUG_MODE) console.log('[Filters] After filter:', filteredVessels.length);
+  logger.debug('[Filters] After filter:', filteredVessels.length);
 
   // Sort by price
   filteredVessels.sort((a, b) => {

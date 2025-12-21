@@ -246,10 +246,12 @@ function startAutoSync(userId) {
       if (result.synced > 0) {
         logger.info(`[TransactionStore/SQLite] Auto-sync: ${result.synced} new transactions`);
 
-        // Rebuild lookup after new transactions
+        // Rebuild lookup after new transactions (using worker thread)
         const lookupStore = require('./lookup-store');
-        const lookupResult = await lookupStore.buildLookup(userId, 0);
-        logger.info(`[TransactionStore/SQLite] Lookup rebuilt: ${lookupResult.newEntries} new, POD2=${lookupResult.matchedPod2}`);
+        const lookupResult = await lookupStore.buildLookupAsync(userId, 0, false);
+        if (!lookupResult.alreadyBuilding) {
+          logger.info(`[TransactionStore/SQLite] Lookup rebuilt: ${lookupResult.newEntries} new, POD2=${lookupResult.matchedPod2}`);
+        }
       }
     } catch (err) {
       logger.error('[TransactionStore/SQLite] Auto-sync failed:', err.message);

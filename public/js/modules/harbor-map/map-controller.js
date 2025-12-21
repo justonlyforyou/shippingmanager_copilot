@@ -8,6 +8,7 @@
 
 import { fetchHarborMapOverview, fetchVesselReachablePorts, getCachedOverview } from './api-client.js';
 import { showVesselPanel, hideVesselPanel } from './vessel-panel.js';
+import logger from '../core/logger.js';
 import { showPortPanel, hidePortPanel } from './port-panel.js';
 import { hideRoutePanel } from './route-vessels-panel.js';
 import { initializePanelDrag } from './panel-drag.js';
@@ -232,7 +233,7 @@ export function initMap(containerId) {
     const overlay = document.querySelector('.harbor-map-overlay');
     if (overlay) {
       overlay.classList.add('mobile-view');
-      console.log('[Harbor Map] Mobile view detected - applying mobile layout');
+      logger.debug('[Harbor Map] Mobile view detected - applying mobile layout');
     }
   }
 
@@ -357,7 +358,7 @@ export function initMap(containerId) {
 
   // Initialize panel dragging
   initializePanelDrag();
-  console.log('[Harbor Map] Panel drag initialized');
+  logger.debug('[Harbor Map] Panel drag initialized');
 }
 
 /**
@@ -524,12 +525,12 @@ function toggleWeatherLayer(type) {
     weatherLayer.addTo(map);
     weatherEnabled = true;
     localStorage.setItem('harborMapWeather', 'true');
-    console.log('[Harbor Map] Rain radar enabled');
+    logger.debug('[Harbor Map] Rain radar enabled');
   } else {
     // Off
     weatherEnabled = false;
     localStorage.setItem('harborMapWeather', 'false');
-    console.log('[Harbor Map] Weather overlay disabled');
+    logger.debug('[Harbor Map] Weather overlay disabled');
   }
 }
 
@@ -784,7 +785,7 @@ function addCustomControls() {
       const startCloudAnimation = () => {
         stopCloudAnimation(); // Clean up any existing animation
 
-        console.log('[Environmental] Adding cloud layer...');
+        logger.debug('[Environmental] Adding cloud layer...');
 
         // Use single OWM clouds layer with higher opacity for better visibility
         const opacity = currentMapStyle === 'standard' ? 0.7 : 0.5;
@@ -799,7 +800,7 @@ function addCustomControls() {
           envLayer = null;
         }
 
-        console.log('[Environmental] Removed cloud layer');
+        logger.debug('[Environmental] Removed cloud layer');
       };
 
       // Function to switch to next layer
@@ -1648,7 +1649,7 @@ export function renderPorts(ports) {
 
   console.log(`[Harbor Map] Rendering ${ports.length} ports`);
   if (ports.length > 0) {
-    console.log('[Harbor Map] First port sample:', {
+    logger.debug('[Harbor Map] First port sample:', {
       code: ports[0].code,
       hasDemand: !!ports[0].demand,
       demand: ports[0].demand
@@ -1837,7 +1838,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
   routeLayer.clearLayers();
 
   if (!route) {
-    console.log('[Harbor Map] No route to draw');
+    logger.debug('[Harbor Map] No route to draw');
     return;
   }
 
@@ -1846,11 +1847,11 @@ export function drawRoute(route, ports = [], autoZoom = true) {
   const destinationPort = route.destination || route.destination_port_code;
 
   if (!originPort || !destinationPort) {
-    console.log('[Harbor Map] No origin or destination for route');
+    logger.debug('[Harbor Map] No origin or destination for route');
     return;
   }
 
-  console.log('[Harbor Map] Drawing route:', {
+  logger.debug('[Harbor Map] Drawing route:', {
     origin: originPort,
     destination: destinationPort,
     pathLength: route.path ? route.path.length : 0
@@ -1868,7 +1869,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
     const destPortData = ports.find(p => p.code === destinationPort);
 
     if (originPortData && destPortData) {
-      console.log('[Harbor Map] Creating straight line route between ports:', originPort, '→', destinationPort);
+      logger.debug('[Harbor Map] Creating straight line route between ports:', originPort, '→', destinationPort);
       latLngs = [
         [parseFloat(originPortData.lat), parseFloat(originPortData.lon)],
         [parseFloat(destPortData.lat), parseFloat(destPortData.lon)]
@@ -1889,7 +1890,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
 
   // Add click handler to open route vessels panel
   polyline.on('click', async () => {
-    console.log('[Harbor Map] Route line clicked:', originPort, '→', destinationPort);
+    logger.debug('[Harbor Map] Route line clicked:', originPort, '→', destinationPort);
 
     // Close any open panels first to prevent overlap
     await closeAllPanels();
@@ -1975,7 +1976,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
     originMarker.on('click', () => selectPort(originPort));
 
     routeLayer.addLayer(originMarker);
-    console.log('[Harbor Map] Added origin port marker:', originName, latLngs[0]);
+    logger.debug('[Harbor Map] Added origin port marker:', originName, latLngs[0]);
   } else {
     console.warn('[Harbor Map] No origin port in route data');
   }
@@ -2038,7 +2039,7 @@ export function drawRoute(route, ports = [], autoZoom = true) {
     destMarker.on('click', () => selectPort(destinationPort));
 
     routeLayer.addLayer(destMarker);
-    console.log('[Harbor Map] Added destination port marker:', destName, latLngs[latLngs.length - 1]);
+    logger.debug('[Harbor Map] Added destination port marker:', destName, latLngs[latLngs.length - 1]);
   } else {
     console.warn('[Harbor Map] No destination port in route data');
   }
@@ -2159,7 +2160,7 @@ function openFilterModal() {
     filterBtn.classList.add('active');
   }
 
-  console.log('[Harbor Map] Filter modal opened');
+  logger.debug('[Harbor Map] Filter modal opened');
 }
 
 /**
@@ -2177,7 +2178,7 @@ function closeFilterModal() {
     filterBtn.classList.remove('active');
   }
 
-  console.log('[Harbor Map] Filter modal closed');
+  logger.debug('[Harbor Map] Filter modal closed');
 }
 
 /**
@@ -2426,8 +2427,8 @@ async function applyFilterModalSelections() {
   localStorage.setItem('harborMapDemandMax', currentDemandMaxFilter);
   localStorage.setItem('harborMapDemandCurrent', currentDemandCurrentFilter);
 
-  console.log('[Harbor Map] Filter modal applied - Route:', currentRouteFilter, 'Vessel:', currentVesselFilter);
-  console.log('[Harbor Map] Port Scope:', currentPortScope, 'Demand Max:', currentDemandMaxFilter, 'Demand Current:', currentDemandCurrentFilter);
+  logger.debug('[Harbor Map] Filter modal applied - Route:', currentRouteFilter, 'Vessel:', currentVesselFilter);
+  logger.debug('[Harbor Map] Port Scope:', currentPortScope, 'Demand Max:', currentDemandMaxFilter, 'Demand Current:', currentDemandCurrentFilter);
 
   // Close panels and apply filters
   await closeAllPanels();
@@ -2458,7 +2459,7 @@ async function resetAllFilters() {
   localStorage.setItem('harborMapDemandMax', '');
   localStorage.setItem('harborMapDemandCurrent', '');
 
-  console.log('[Harbor Map] All filters reset to defaults');
+  logger.debug('[Harbor Map] All filters reset to defaults');
 
   // Close panels and apply filters
   await closeAllPanels();
@@ -2543,7 +2544,7 @@ async function applyFiltersAndRender(forceRender = false) {
                              routePlannerOpen || departManagerOpen;
 
   if (hasActiveSelection && !forceRender) {
-    console.log('[Harbor Map] Active selection detected - skipping render to preserve current view');
+    logger.debug('[Harbor Map] Active selection detected - skipping render to preserve current view');
 
     // IMPORTANT: Update previousMapState with filtered data
     // This ensures when user closes panel, it shows the CURRENT filter, not the old one
@@ -2659,7 +2660,7 @@ export async function loadOverview() {
     const cachedData = getCachedOverview();
 
     if (cachedData) {
-      console.log('[Harbor Map] Loading from cache (no API call)');
+      logger.debug('[Harbor Map] Loading from cache (no API call)');
 
       // Store RAW data (unfiltered)
       rawVessels = cachedData.vessels;
@@ -2672,10 +2673,10 @@ export async function loadOverview() {
     }
 
     // No cache available - fetch ALL data once (no filter parameter)
-    console.log('[Harbor Map] No cache available, fetching ALL data...');
+    logger.debug('[Harbor Map] No cache available, fetching ALL data...');
     const data = await fetchHarborMapOverview('all_ports');
 
-    console.log('[Harbor Map] Overview data:', {
+    logger.debug('[Harbor Map] Overview data:', {
       vessels: data.vessels.length,
       ports: data.ports.length,
       sampleVessel: data.vessels[0]
@@ -3244,7 +3245,7 @@ export function updateWeatherDataSetting(enabled) {
   // This function is called when settings change
   // Weather controls are only initialized/removed on page load (not dynamically)
   // User must reload page for changes to take effect
-  console.log('[Harbor Map] Weather data setting updated to:', enabled, '(reload required)');
+  logger.debug('[Harbor Map] Weather data setting updated to:', enabled, '(reload required)');
 }
 
 /**
@@ -3304,7 +3305,7 @@ export async function updateVesselMarker(vesselId) {
   // Re-render all vessels to update the marker
   // This keeps the vessel visible on the map with updated status
   renderVessels(currentVessels);
-  console.log('[Harbor Map] Vessel marker updated:', vesselId);
+  logger.debug('[Harbor Map] Vessel marker updated:', vesselId);
 }
 
 /**
@@ -3322,7 +3323,7 @@ function updateRouteDropdown() {
 
   // Use port-pair groups from API response
   if (!currentPortPairGroups || !currentPortPairGroups.groups) {
-    console.log('[Harbor Map] No port-pair groups available');
+    logger.debug('[Harbor Map] No port-pair groups available');
     return;
   }
 
@@ -3334,7 +3335,7 @@ function updateRouteDropdown() {
   if (currentRouteFilter && !pairKeys.includes(currentRouteFilter)) {
     currentRouteFilter = null;
     localStorage.removeItem('harborMapRouteFilter');
-    console.log('[Harbor Map] Current route filter no longer valid, resetting');
+    logger.debug('[Harbor Map] Current route filter no longer valid, resetting');
   }
 }
 
@@ -3532,7 +3533,7 @@ export function highlightPorts(ports, vesselId) {
  * @returns {void}
  */
 export function resetPortDisplay() {
-  console.log('[Harbor Map] Resetting port display');
+  logger.debug('[Harbor Map] Resetting port display');
 
   // Clear and re-render all ports
   portLocationClusterGroup.clearLayers();

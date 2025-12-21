@@ -4,6 +4,7 @@
  */
 
 import { showSideNotification } from './utils.js';
+import logger from './core/logger.js';
 
 // Module-level variables for timer synchronization across tabs
 let moduleNextBuild = null;
@@ -437,12 +438,12 @@ export function showAnchorTimer(anchorNextBuild, pendingAmount = 1) {
   moduleNextBuild = anchorNextBuild;
   modulePendingAmount = pendingAmount;
 
-  console.log('[Anchor Timer] Timer broadcast received, timestamp:', anchorNextBuild, 'amount:', pendingAmount);
+  logger.debug('[Anchor Timer] Timer broadcast received, timestamp:', anchorNextBuild, 'amount:', pendingAmount);
 
   // If dialog is currently open, trigger a refresh to show the timer
   const overlay = document.getElementById('anchorPurchaseOverlay');
   if (overlay && !overlay.classList.contains('hidden')) {
-    console.log('[Anchor Timer] Dialog is open, refreshing to show timer');
+    logger.debug('[Anchor Timer] Dialog is open, refreshing to show timer');
     showAnchorPurchaseDialog();  // Refresh the dialog to show timer
   }
 }

@@ -8,6 +8,7 @@
 import { isDepartInProgress } from './vessel-management.js';
 import { isLocalDepartInProgress } from './harbor-map/vessel-panel.js';
 import { escapeHtml } from './utils.js';
+import logger from './core/logger.js';
 
 let isDragging = false;
 let dragOffsetX = 0;
@@ -374,7 +375,7 @@ export function initializeDepartManager() {
     searchClearBtn.addEventListener('click', clearSearch);
   }
 
-  console.log('[Depart Manager] Initialized');
+  logger.debug('[Depart Manager] Initialized');
 }
 
 /**

@@ -8,6 +8,7 @@
 
 import { getMap, selectVessel } from './map-controller.js';
 import { isMobileDevice, escapeHtml } from '../utils.js';
+import logger from '../core/logger.js';
 
 /**
  * Shows the route vessels panel with a list of vessels
@@ -108,7 +109,7 @@ export function hideRoutePanel() {
   // DON'T remove fullscreen here - only in closeRoutePanel()
   // This allows seamless transitions between panels on mobile
 
-  console.log('[Route Panel] Panel hidden');
+  logger.debug('[Route Panel] Panel hidden');
 }
 
 /**
@@ -170,7 +171,7 @@ export async function closeRoutePanel() {
       document.body.classList.remove('map-fullscreen');
     }
 
-    console.log('[Route Panel] Returning to analytics');
+    logger.debug('[Route Panel] Returning to analytics');
     return;
   }
 

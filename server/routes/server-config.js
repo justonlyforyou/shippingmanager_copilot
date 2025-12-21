@@ -12,11 +12,15 @@ const router = express.Router();
 const fs = require('fs').promises;
 const fss = require('fs');
 const path = require('path');
+const os = require('os');
 const archiver = require('archiver');
 const unzipper = require('unzipper');
 const multer = require('multer');
 const logger = require('../utils/logger');
 const { isPackaged } = require('../config');
+const { marked } = require('marked');
+const { getUserId } = require('../utils/api');
+const { getMetadata, setMetadata } = require('../database');
 
 // Get Python settings directory - matches start.py logic
 const isPkg = isPackaged();
@@ -78,6 +82,57 @@ router.get('/server-config', async (req, res) => {
     } else {
       res.status(500).json({ error: 'Failed to read server configuration' });
     }
+  }
+});
+
+/**
+ * GET /api/server-config/interfaces - Get all available network interfaces
+ */
+router.get('/server-config/interfaces', (req, res) => {
+  try {
+    const interfaces = os.networkInterfaces();
+    const addresses = [];
+
+    // Always add localhost first
+    addresses.push({
+      name: 'Localhost',
+      address: '127.0.0.1',
+      family: 'IPv4',
+      internal: true
+    });
+
+    // Add all external IPv4 addresses
+    for (const [name, nets] of Object.entries(interfaces)) {
+      for (const net of nets) {
+        // Skip internal/loopback and IPv6
+        if (net.family === 'IPv4' && !net.internal) {
+          addresses.push({
+            name: name,
+            address: net.address,
+            family: net.family,
+            internal: false
+          });
+        }
+      }
+    }
+
+    // Add 0.0.0.0 option at the end with list of all IPs
+    const externalIPs = addresses.filter(a => !a.internal).map(a => a.address);
+    addresses.push({
+      name: 'All Interfaces',
+      address: '0.0.0.0',
+      family: 'IPv4',
+      internal: false,
+      allIPs: ['127.0.0.1', ...externalIPs]
+    });
+
+    res.json({
+      success: true,
+      interfaces: addresses
+    });
+  } catch (error) {
+    logger.error('[Server Config] Error getting network interfaces:', error);
+    res.status(500).json({ error: 'Failed to get network interfaces' });
   }
 });
 
@@ -354,5 +409,110 @@ async function getDirectoryStats(dirPath) {
     lastModified: lastModified > 0 ? new Date(lastModified).toISOString() : null
   };
 }
+
+// =============================================================================
+// Changelog Endpoints
+// =============================================================================
+
+/**
+ * GET /api/changelog - Get changelog and acknowledgment status
+ * Returns current version, changelog HTML, and whether user has acknowledged
+ */
+router.get('/changelog', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get the exe directory (for packaged mode) or project root (for dev mode)
+    // In SEA mode: package.json and CHANGELOG.md are in same dir as exe
+    // In dev mode: they're in project root
+    const baseDir = isPkg
+      ? path.dirname(process.execPath)
+      : path.join(__dirname, '../..');
+
+    // Get version from package.json
+    const packageJsonPath = path.join(baseDir, 'package.json');
+
+    let version = '0.0.0';
+    try {
+      const packageData = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+      version = packageData.version;
+    } catch (err) {
+      logger.warn('[Changelog] Could not read package.json at', packageJsonPath, ':', err.message);
+    }
+
+    // Get changelog content
+    const changelogPath = path.join(baseDir, 'CHANGELOG.md');
+
+    let changelogHtml = '<p>No changelog available.</p>';
+    try {
+      const changelogMd = await fs.readFile(changelogPath, 'utf8');
+      changelogHtml = marked(changelogMd);
+    } catch (err) {
+      logger.warn('[Changelog] Could not read CHANGELOG.md at', changelogPath, ':', err.message);
+    }
+
+    // Check if current version is acknowledged (stored in database)
+    const acknowledgedVersion = getMetadata(userId, 'changelog_acknowledged_version');
+    const acknowledged = acknowledgedVersion === version;
+
+    res.json({
+      success: true,
+      version,
+      changelog: changelogHtml,
+      acknowledged
+    });
+  } catch (error) {
+    logger.error('[Changelog] Error getting changelog:', error.message);
+    res.status(500).json({ error: 'Failed to get changelog' });
+  }
+});
+
+/**
+ * POST /api/changelog/acknowledge - Acknowledge current version's changelog
+ * Saves the current version to database so popup won't show again
+ */
+router.post('/changelog/acknowledge', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    // Get version from package.json
+    const baseDir = isPkg
+      ? path.dirname(process.execPath)
+      : path.join(__dirname, '../..');
+    const packageJsonPath = path.join(baseDir, 'package.json');
+
+    let version = '0.0.0';
+    try {
+      const packageData = JSON.parse(await fs.readFile(packageJsonPath, 'utf8'));
+      version = packageData.version;
+    } catch (err) {
+      logger.warn('[Changelog] Could not read package.json:', err.message);
+    }
+
+    // Save acknowledged version to database
+    setMetadata(userId, 'changelog_acknowledged_version', version);
+
+    logger.info(`[Changelog] User ${userId} acknowledged version ${version}`);
+
+    // Broadcast to all connected clients via WebSocket
+    const { broadcast } = require('../websocket/broadcaster');
+    broadcast('changelog_acknowledged', { version });
+
+    res.json({
+      success: true,
+      message: 'Changelog acknowledged',
+      version
+    });
+  } catch (error) {
+    logger.error('[Changelog] Error acknowledging changelog:', error.message);
+    res.status(500).json({ error: 'Failed to acknowledge changelog' });
+  }
+});
 
 module.exports = router;

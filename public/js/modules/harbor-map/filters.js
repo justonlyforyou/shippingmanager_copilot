@@ -11,6 +11,8 @@
  * @module harbor-map/filters
  */
 
+import logger from '../core/logger.js';
+
 /**
  * Filters vessels based on selected criteria
  *
@@ -21,7 +23,7 @@
 export function filterVessels(vessels, filterType) {
   if (!vessels || vessels.length === 0) return [];
 
-  console.log('[Filter] Filtering ' + vessels.length + ' vessels with filter: ' + filterType);
+  logger.debug('[Filter] Filtering ' + vessels.length + ' vessels with filter: ' + filterType);
 
   switch (filterType) {
     case 'all_vessels':
@@ -39,39 +41,39 @@ export function filterVessels(vessels, filterType) {
         const matches = etaMinutes > 0 && etaMinutes < 10;
 
         if (v.status === 'enroute' && etaMinutes < 60) {
-          console.log('[Filter] Vessel ' + v.id + ' (' + v.name + ') - ETA: ' + etaMinutes + ' min, Matches: ' + matches);
+          logger.debug('[Filter] Vessel ' + v.id + ' (' + v.name + ') - ETA: ' + etaMinutes + ' min, Matches: ' + matches);
         }
         return matches;
       });
-      console.log('[Filter] Found ' + arrivingSoon.length + ' vessels arriving in <10 min');
+      logger.debug('[Filter] Found ' + arrivingSoon.length + ' vessels arriving in <10 min');
       return arrivingSoon;
     }
 
     case 'enroute_vessels': {
       // Vessels that are currently enroute (have active routes)
       const enrouteVessels = vessels.filter(v => v.status === 'enroute');
-      console.log('[Filter] Found ' + enrouteVessels.length + ' vessels enroute');
+      logger.debug('[Filter] Found ' + enrouteVessels.length + ' vessels enroute');
       return enrouteVessels;
     }
 
     case 'arrived_vessels': {
       // Vessels that have arrived at port (status: 'port') and are ready to depart (not parked)
       const arrivedVessels = vessels.filter(v => v.status === 'port' && !v.is_parked);
-      console.log('[Filter] Found ' + arrivedVessels.length + ' arrived vessels (excluding parked)');
+      logger.debug('[Filter] Found ' + arrivedVessels.length + ' arrived vessels (excluding parked)');
       return arrivedVessels;
     }
 
     case 'anchored_vessels': {
       // Vessels that are anchored (status: 'anchor')
       const anchoredVessels = vessels.filter(v => v.status === 'anchor');
-      console.log('[Filter] Found ' + anchoredVessels.length + ' anchored vessels');
+      logger.debug('[Filter] Found ' + anchoredVessels.length + ' anchored vessels');
       return anchoredVessels;
     }
 
     case 'moored_vessels': {
       // Vessels that are moored/parked at port (status: 'port' && is_parked)
       const mooredVessels = vessels.filter(v => v.status === 'port' && v.is_parked === true);
-      console.log('[Filter] Found ' + mooredVessels.length + ' moored vessels');
+      logger.debug('[Filter] Found ' + mooredVessels.length + ' moored vessels');
       return mooredVessels;
     }
 
@@ -81,26 +83,26 @@ export function filterVessels(vessels, filterType) {
         v.status === 'maintenance' ||
         (v.status === 'enroute' && v.route_dry_operation === 1)
       );
-      console.log('[Filter] Found ' + drydockVessels.length + ' vessels in drydock (maintenance + enroute drydock trips)');
+      logger.debug('[Filter] Found ' + drydockVessels.length + ' vessels in drydock (maintenance + enroute drydock trips)');
       return drydockVessels;
     }
 
     case 'vessels_in_delivery': {
       // Vessels being delivered (status: 'delivery' or 'pending')
       const deliveryVessels = vessels.filter(v => v.status === 'delivery' || v.status === 'pending');
-      console.log('[Filter] Found ' + deliveryVessels.length + ' vessels in delivery (delivery + pending)');
+      logger.debug('[Filter] Found ' + deliveryVessels.length + ' vessels in delivery (delivery + pending)');
       return deliveryVessels;
     }
 
     case 'tanker_only': {
       const tankers = vessels.filter(v => v.capacity_type === 'tanker');
-      console.log('[Filter] Found ' + tankers.length + ' tanker vessels');
+      logger.debug('[Filter] Found ' + tankers.length + ' tanker vessels');
       return tankers;
     }
 
     case 'container_only': {
       const containers = vessels.filter(v => v.capacity_type === 'container');
-      console.log('[Filter] Found ' + containers.length + ' container vessels');
+      logger.debug('[Filter] Found ' + containers.length + ' container vessels');
       return containers;
     }
 
@@ -113,15 +115,15 @@ export function filterVessels(vessels, filterType) {
 
       const lowUtil = vessels.filter(v => {
         if (!v.capacity || !v.capacity_max) {
-          console.log('[Filter] Vessel ' + v.id + ' has no capacity data');
+          logger.debug('[Filter] Vessel ' + v.id + ' has no capacity data');
           return false;
         }
         const utilization = calculateVesselUtilization(v);
         const matches = utilization < minUtilization;
-        console.log('[Filter] Vessel ' + v.id + ' (' + v.name + ') - Type: ' + v.capacity_type + ', Utilization: ' + utilization.toFixed(1) + '%, Threshold: ' + minUtilization + '%, Matches: ' + matches);
+        logger.debug('[Filter] Vessel ' + v.id + ' (' + v.name + ') - Type: ' + v.capacity_type + ', Utilization: ' + utilization.toFixed(1) + '%, Threshold: ' + minUtilization + '%, Matches: ' + matches);
         return matches;
       });
-      console.log('[Filter] Found ' + lowUtil.length + ' vessels with utilization <' + minUtilization + '%');
+      logger.debug('[Filter] Found ' + lowUtil.length + ' vessels with utilization <' + minUtilization + '%');
       return lowUtil;
     }
 
@@ -184,7 +186,7 @@ export function filterPorts(ports, vessels, filterType) {
     case 'my_ports_no_route': {
       // Ports that are NOT assigned to me (opposite of my_ports)
       const filtered = ports.filter(p => !p.isAssigned);
-      console.log('[Filter] Ports not assigned: ' + filtered.length);
+      logger.debug('[Filter] Ports not assigned: ' + filtered.length);
       return filtered;
     }
 
@@ -215,7 +217,7 @@ export function filterPorts(ports, vessels, filterType) {
         if (p.demand.container.refrigerated !== undefined && p.consumed.container.refrigerated !== undefined) {
           actualCargo += p.demand.container.refrigerated - p.consumed.container.refrigerated;
         }
-        console.log('[Filter] Port ' + p.code + ' actual cargo demand: ' + actualCargo + ' TEU');
+        logger.debug('[Filter] Port ' + p.code + ' actual cargo demand: ' + actualCargo + ' TEU');
         return actualCargo > 0 && actualCargo <= 50000;
       });
 
@@ -248,7 +250,7 @@ export function filterPorts(ports, vessels, filterType) {
         }
         const matches = actualOil > 0 && actualOil <= 50000;
         if (p.isAssigned && p.demand.tanker) {
-          console.log('[Filter] Port ' + p.code + ' actual oil demand: ' + actualOil + ' bbl, Matches: ' + matches);
+          logger.debug('[Filter] Port ' + p.code + ' actual oil demand: ' + actualOil + ' bbl, Matches: ' + matches);
         }
         return matches;
       });
@@ -448,7 +450,7 @@ export function filterVesselsByPortPair(vessels, pairKey) {
     return vesselPairKey === pairKey;
   });
 
-  console.log('[Filter] Filtered by port-pair ' + pairKey + ': ' + filtered.length + ' vessels');
+  logger.debug('[Filter] Filtered by port-pair ' + pairKey + ': ' + filtered.length + ' vessels');
   return filtered;
 }
 
@@ -467,7 +469,7 @@ export function filterPortsByPortPair(ports, pairKey) {
   if (portCodes.length !== 2) return ports;
 
   const filtered = ports.filter(p => portCodes.includes(p.code));
-  console.log('[Filter] Filtered ports by port-pair ' + pairKey + ': ' + filtered.length + ' ports');
+  logger.debug('[Filter] Filtered ports by port-pair ' + pairKey + ': ' + filtered.length + ' ports');
   return filtered;
 }
 

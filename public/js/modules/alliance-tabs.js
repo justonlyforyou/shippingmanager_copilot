@@ -19,6 +19,7 @@ import { fetchCoopData, lockCoopButtons, unlockCoopButtons } from './coop.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { openPlayerProfile } from './company-profile.js';
 import { initBroadcastForManagement } from './broadcast.js';
+import logger from './core/logger.js';
 
 // Tab state management
 let currentTab = 'allianz';
@@ -196,7 +197,7 @@ async function fetchAllianceMembers() {
   // DEBUG: Log first member's stats to see what API returns
   if (data.members && data.members.length > 0) {
     const firstMember = data.members[0];
-    console.log('[Alliance Members API] First member stats:', {
+    logger.debug('[Alliance Members API] First member stats:', {
       name: firstMember.company_name,
       stats: {
         last_24h: firstMember.stats?.last_24h,
@@ -204,8 +205,8 @@ async function fetchAllianceMembers() {
         lifetime: firstMember.stats?.lifetime
       }
     });
-    console.log('[Alliance Members API] Lifetime contribution:', firstMember.stats?.lifetime?.contribution);
-    console.log('[Alliance Members API] Lifetime departures:', firstMember.stats?.lifetime?.departures);
+    logger.debug('[Alliance Members API] Lifetime contribution:', firstMember.stats?.lifetime?.contribution);
+    logger.debug('[Alliance Members API] Lifetime departures:', firstMember.stats?.lifetime?.departures);
   }
 
   return data;
@@ -3212,7 +3213,7 @@ async function renderSearchTab() {
       }
 
       availableLanguages = languagesData.data.languages;
-      console.log('[Search] Loaded languages:', availableLanguages);
+      logger.debug('[Search] Loaded languages:', availableLanguages);
     } catch (error) {
       console.error('[Search] Failed to load languages:', error);
       availableLanguages = null;
@@ -3233,7 +3234,7 @@ async function renderSearchTab() {
     });
     if (applicationsResponse.ok) {
       const applicationsData = await applicationsResponse.json();
-      console.log('[Search] Applications API response:', applicationsData);
+      logger.debug('[Search] Applications API response:', applicationsData);
 
       // Extract direct applications
       directApplications = applicationsData.data?.pool_state?.direct || [];
@@ -3241,8 +3242,8 @@ async function renderSearchTab() {
       // Extract "any alliance" pool application (if exists)
       anyPoolApplication = applicationsData.data?.pool_state?.any || null;
 
-      console.log('[Search] Direct applications:', directApplications);
-      console.log('[Search] Any pool application:', anyPoolApplication);
+      logger.debug('[Search] Direct applications:', directApplications);
+      logger.debug('[Search] Any pool application:', anyPoolApplication);
     } else {
       console.error('[Search] Applications API failed with status:', applicationsResponse.status);
     }
@@ -3471,7 +3472,7 @@ function attachSearchEventListeners() {
   if (openSlotsFilter) {
     openSlotsFilter.addEventListener('change', async () => {
       searchState.filters.hasOpenSlots = openSlotsFilter.value === 'open';
-      console.log('[Search Filter] Open Slots changed:', searchState.filters.hasOpenSlots, 'filters:', searchState.filters);
+      logger.debug('[Search Filter] Open Slots changed:', searchState.filters.hasOpenSlots, 'filters:', searchState.filters);
       searchState.offset = 0;
       searchState.results = [];
       await performSearch(true);
@@ -3598,7 +3599,7 @@ async function performSearch(reset) {
 
     const data = await response.json();
 
-    console.log('[Search] API Response:', {
+    logger.debug('[Search] API Response:', {
       query: searchState.query,
       filters: searchState.filters,
       total: data.data.total,
@@ -3608,7 +3609,7 @@ async function performSearch(reset) {
     });
 
     if (data.data.results.length > 0) {
-      console.log('[Search] Sample alliance:', data.data.results[0]);
+      logger.debug('[Search] Sample alliance:', data.data.results[0]);
     }
 
     if (reset) {
@@ -3629,7 +3630,7 @@ async function performSearch(reset) {
         if (allianceLazyLoadObserver) {
           allianceLazyLoadObserver.disconnect();
         }
-        console.log('[Alliance Lazy Load] No more results, stopped loading');
+        logger.debug('[Alliance Lazy Load] No more results, stopped loading');
         return;
       }
 
@@ -3693,7 +3694,7 @@ function renderSearchResults() {
       allianceLazyLoadObserver = new IntersectionObserver((entries) => {
         entries.forEach(entry => {
           if (entry.isIntersecting && !searchState.isLoading && searchState.hasMore) {
-            console.log('[Alliance Lazy Load] Sentinel visible, loading more...');
+            logger.debug('[Alliance Lazy Load] Sentinel visible, loading more...');
             performSearch(false);
           }
         });

@@ -64,6 +64,13 @@
   },
   {
     "type": "module",
+    "name": "changelog-popup",
+    "longname": "module:changelog-popup",
+    "url": "module-changelog-popup.html",
+    "description": "<p>Changelog Popup Module</p>\n<p>Shows a modal popup with changelog/release notes on new versions.\nUser must scroll to bottom and acknowledge before it dismisses.\nAcknowledgment is stored server-side so it syncs across devices.</p>"
+  },
+  {
+    "type": "module",
     "name": "chat",
     "longname": "module:chat",
     "url": "module-chat.html",
@@ -124,6 +131,13 @@
     "longname": "module:core/global-exports",
     "url": "module-core_global-exports.html",
     "description": "<p>Global exports module.\nExposes functions globally via window object for HTML onclick handlers\nand cross-module communication.</p>"
+  },
+  {
+    "type": "module",
+    "name": "core/logger",
+    "longname": "module:core/logger",
+    "url": "module-core_logger.html",
+    "description": "<p>Frontend Logger Utility</p>\n<p>Centralized logging for frontend modules with log level support.\nRespects window.DEBUG_MODE setting from server config.</p>\n<p>Log Levels:</p>\n<ul>\n<li>debug: Only shown when DEBUG_MODE is true (verbose/development)</li>\n<li>info: Always shown (important status messages)</li>\n<li>warn: Always shown (warnings)</li>\n<li>error: Always shown (errors)</li>\n</ul>"
   },
   {
     "type": "module",
@@ -291,7 +305,7 @@
     "name": "server/analytics/api-stats-store",
     "longname": "module:server/analytics/api-stats-store",
     "url": "module-server_analytics_api-stats-store.html",
-    "description": "<p>API Stats Time-Series Store</p>\n<p>Stores API call statistics in time-series format for analytics.\nData is aggregated per minute to keep file sizes manageable.</p>\n<p>Storage format:</p>\n<ul>\n<li>One file per day: api-stats-YYYY-MM-DD.json</li>\n<li>Each file contains minute-by-minute stats per endpoint</li>\n</ul>"
+    "description": "<p>API Stats Time-Series Store (SQLite)</p>\n<p>Stores API call statistics in SQLite for reliability and performance.\nData is aggregated per minute and automatically cleaned after 7 days.</p>"
   },
   {
     "type": "module",
@@ -1079,6 +1093,41 @@
   },
   {
     "type": "function",
+    "name": "extractAllVesselsFromLog",
+    "longname": "extractAllVesselsFromLog",
+    "url": "global.html#extractAllVesselsFromLog",
+    "description": "<p>Extract ALL vessels from log entry</p>"
+  },
+  {
+    "type": "function",
+    "name": "extractCashFromLog",
+    "longname": "extractCashFromLog",
+    "url": "global.html#extractCashFromLog",
+    "description": "<p>Extract cash value from log entry</p>"
+  },
+  {
+    "type": "function",
+    "name": "extractPerItemPriceFromLog",
+    "longname": "extractPerItemPriceFromLog",
+    "url": "global.html#extractPerItemPriceFromLog",
+    "description": "<p>Extract per-item price from log entry</p>"
+  },
+  {
+    "type": "function",
+    "name": "extractPriceFromLog",
+    "longname": "extractPriceFromLog",
+    "url": "global.html#extractPriceFromLog",
+    "description": "<p>Extract price per unit from log entry</p>"
+  },
+  {
+    "type": "function",
+    "name": "extractVesselFromLog",
+    "longname": "extractVesselFromLog",
+    "url": "global.html#extractVesselFromLog",
+    "description": "<p>Extract first vessel info from log entry</p>"
+  },
+  {
+    "type": "function",
     "name": "flushAllToDisk",
     "longname": "flushAllToDisk",
     "url": "global.html#flushAllToDisk",
@@ -1146,6 +1195,13 @@
     "longname": "getCategoryFromAction",
     "url": "global.html#getCategoryFromAction",
     "description": "<p>Get category from action name</p>"
+  },
+  {
+    "type": "function",
+    "name": "getContextsFromAutopilot",
+    "longname": "getContextsFromAutopilot",
+    "url": "global.html#getContextsFromAutopilot",
+    "description": "<p>Get contexts from autopilot name</p>"
   },
   {
     "type": "function",
@@ -1355,7 +1411,7 @@
     "name": "Installation",
     "longname": "01-installation-guide",
     "url": "tutorial-01-installation-guide.html",
-    "description": "Installation Guide Complete guide for installing and running ShippingManager CoPilot. Quick Start (Pre-built Downloads) Download the latest release for your platform from GitHub Releases : Platform Download Login Method Windows ShippingManagerCoPilot-Installer-*.exe Steam + Browser macOS (Intel) ShippingManagerCoPilot-macos-x64.dmg Browser only macOS (Apple Silicon) ShippingManagerCoPilot-macos-arm64.dmg Browser only Linux ShippingManagerCoPilot-linux-x64.tar.gz Browser only Windows Installation Download ShippingManagerCoPilot-Installer-*.exe Run the installer Launch from Start Menu or Desktop shortcut The application starts as a system tray icon Open browser to https://localhost:12345 macOS Installation Download the appropriate DMG for your Mac: Intel Macs: ShippingManagerCoPilot-macos-x64.dmg Apple Silicon (M1/M2/M3): ShippingManagerCoPilot-macos-arm64.dmg Open the DMG file Drag ShippingManagerCoPilot.app to Applications folder First launch: Right-click &gt; Open (to bypass Gatekeeper) Open browser to https://localhost:12345 Linux Installation Download ShippingManagerCoPilot-linux-x64.tar.gz Extract: tar -xzf ShippingManagerCoPilot-linux-x64.tar.gz Run: ./ShippingManagerCoPilot Open browser to https://localhost:12345 Linux Dependencies: # Debian/Ubuntu sudo apt install libsecret-1-dev # Fedora/RHEL sudo dnf install libsecret-devel Running from Source (Developers) Prerequisites Node.js 22.0+ (required) node --version # Must be >= 22.0.0 npm --version # Must be >= 9.0.0 Python 3.10+ (required for system tray and session management) python --version # Must be >= 3.10 pip --version Git git --version Platform-Specific Dependencies Windows: pip install pywin32 Linux (Debian/Ubuntu): sudo apt install libsecret-1-dev build-essential python3-tk pip install SecretStorage Linux (Fedora/RHEL): sudo dnf install libsecret-devel gcc-c++ make python3-tkinter pip install SecretStorage macOS: brew install libsecret Installation Steps Clone the repository git clone https://github.com/justonlyforyou/shippingmanager_copilot.git cd shippingmanager_copilot Install Node.js dependencies npm install Install Python dependencies pip install -r requirements.txt Start the application python start.py The application starts as a system tray icon and automatically opens your browser to https://localhost:12345 . Session Authentication The application needs your Shipping Manager session cookie to authenticate with the game API. Windows (Steam + Browser) Steam extraction : Automatic - the app extracts session cookies from your local Steam client Browser login : Manual login via built-in browser window macOS / Linux (Browser only) Browser login : Click &quot;Browser Login&quot; in the app to authenticate through the game website Session Storage All sessions are encrypted using your OS credential manager: Windows : Windows DPAPI + Credential Manager macOS : Keychain Linux : libsecret (GNOME Keyring / KWallet) Configuration Settings are stored in: Windows (exe) : %LOCALAPPDATA%\\ShippingManagerCoPilot\\userdata\\settings\\settings.json Windows/Linux/Mac (source) : userdata/settings/settings.json Key settings: { &quot;port&quot;: 12345, &quot;host&quot;: &quot;127.0.0.1&quot; } port : Server port (default: 12345) host : Bind address 127.0.0.1 = localhost only (secure, default) 0.0.0.0 = allow LAN access from other devices LAN Access To access from mobile devices on your network: Change host to 0.0.0.0 in settings Find your IP: ipconfig (Windows) or ip addr (Linux) or ifconfig (Mac) Access via https://YOUR_IP:12345 Accept the self-signed certificate warning on each device Troubleshooting Certificate Error on First Access The app uses a self-signed HTTPS certificate. On first access: Click &quot;Advanced&quot; or &quot;Show Details&quot; Click &quot;Proceed to localhost (unsafe)&quot; or &quot;Accept Risk&quot; Port Already in Use # Windows netstat -ano | findstr :12345 # Linux/Mac lsof -i :12345 Change the port in settings or stop the conflicting process. Session Expired If you see 401 errors: Exit the application (right-click tray icon &gt; Exit) Launch Shipping Manager in Steam and log in Restart the application WebSocket Connection Failed Ensure you're using https:// not http:// Accept the certificate warning first Check browser console for errors Linux: libsecret Error # Install the required library sudo apt install libsecret-1-dev # Debian/Ubuntu sudo dnf install libsecret-devel # Fedora Building from Source See Build Guide for creating standalone executables. Security Notice The session cookie provides full access to your Shipping Manager account Never share your cookie or commit it to version control This tool likely violates Shipping Manager Terms of Service Use at your own risk Last updated: 2025-12-05"
+    "description": "Installation Guide Complete guide for installing and running ShippingManager CoPilot. Quick Start (Pre-built Downloads) Download the latest release for your platform from GitHub Releases : Platform Download Login Method Windows ShippingManagerCoPilot-Installer-*.exe Steam + Browser macOS (Intel) ShippingManagerCoPilot-macos-x64.dmg Browser only macOS (Apple Silicon) ShippingManagerCoPilot-macos-arm64.dmg Browser only Linux ShippingManagerCoPilot-linux-x64.tar.gz Browser only Windows Installation Download ShippingManagerCoPilot-Installer-*.exe Run the installer Launch from Start Menu or Desktop shortcut The application starts as a system tray icon Add your account via Steam extraction or Browser login Open browser to https://localhost:12345 macOS Installation Download the appropriate DMG for your Mac: Intel Macs: ShippingManagerCoPilot-macos-x64.dmg Apple Silicon (M1/M2/M3): ShippingManagerCoPilot-macos-arm64.dmg Open the DMG file Drag ShippingManagerCoPilot.app to Applications folder First launch: Right-click &gt; Open (to bypass Gatekeeper) Open browser to https://localhost:12345 Linux Installation Download ShippingManagerCoPilot-linux-x64.tar.gz Extract: tar -xzf ShippingManagerCoPilot-linux-x64.tar.gz Run: ./ShippingManagerCoPilot Open browser to https://localhost:12345 Linux Dependencies: # Debian/Ubuntu sudo apt install libsecret-1-dev # Fedora/RHEL sudo dnf install libsecret-devel Running from Source (Developers) Prerequisites Node.js 22.0+ (required) node --version # Must be >= 22.0.0 npm --version # Must be >= 9.0.0 Git git --version Platform-Specific Dependencies Windows: No additional dependencies required. Linux (Debian/Ubuntu): sudo apt install libsecret-1-dev build-essential Linux (Fedora/RHEL): sudo dnf install libsecret-devel gcc-c++ make macOS: brew install libsecret Installation Steps Clone the repository git clone https://github.com/justonlyforyou/shippingmanager_copilot.git cd shippingmanager_copilot Install dependencies npm install Start the application npm start The application starts as a system tray icon. Add your account and open https://localhost:12345 in your browser. Alternative Start Methods # Start with GUI (default) npm start # Start in headless mode (no GUI, requires existing sessions) npm run start:headless # CLI session management node helper/launcher/nodejs/cli.js --help node helper/launcher/nodejs/cli.js --list-sessions node helper/launcher/nodejs/cli.js --add-session-interactive Session Authentication The application needs your Shipping Manager session cookie to authenticate with the game API. Windows (Steam + Browser) Steam extraction : Automatic - the app extracts session cookies from your local Steam client (Steam must be closed) Browser login : Manual login via built-in browser window macOS / Linux (Browser only) Browser login : Click &quot;Add Account&quot; &gt; &quot;Browser Login&quot; in the tray menu Multiple Accounts Add multiple accounts via the tray icon menu Each account runs on a separate port (12345, 12346, ...) Enable/disable autostart per account Use --list-sessions to see all accounts Session Storage All sessions are encrypted using your OS credential manager: Windows : Windows DPAPI + Credential Manager macOS : Keychain Linux : libsecret (GNOME Keyring / KWallet) The sessions.json file only contains encrypted references - actual cookies are stored securely in your OS credential manager and can only be decrypted on the same machine by the same user. Configuration Settings are stored in: Windows (exe) : %LOCALAPPDATA%\\ShippingManagerCoPilot\\userdata\\settings\\settings.json Windows/Linux/Mac (source) : userdata/settings/settings.json Key settings: { &quot;port&quot;: 12345, &quot;host&quot;: &quot;127.0.0.1&quot; } port : Server port (default: 12345) host : Bind address 127.0.0.1 = localhost only (secure, default) 0.0.0.0 = allow LAN access from other devices LAN Access To access from mobile devices on your network: Change host to 0.0.0.0 in settings Find your IP: ipconfig (Windows) or ip addr (Linux) or ifconfig (Mac) Access via https://YOUR_IP:12345 Accept the self-signed certificate warning on each device CLI Options ShippingManagerCoPilot.exe [options] Options: --help Show help --headless Start without GUI (requires existing sessions) --list-sessions List all saved accounts with autostart status --add-session-interactive Add account via terminal (secure input) --remove-session=&lt;userId> Remove an account --enable-autostart=&lt;userId> Enable autostart for account --disable-autostart=&lt;userId> Disable autostart for account Troubleshooting Certificate Error on First Access The app uses a self-signed HTTPS certificate. On first access: Click &quot;Advanced&quot; or &quot;Show Details&quot; Click &quot;Proceed to localhost (unsafe)&quot; or &quot;Accept Risk&quot; Port Already in Use # Windows netstat -ano | findstr :12345 # Linux/Mac lsof -i :12345 Check --list-sessions for running instances, or change the port in settings. Steam Extraction Fails Close Steam completely (check system tray) Wait a few seconds Try again via tray icon &gt; Add Account &gt; Steam Session Expired If you see 401 errors: Exit the application (right-click tray icon &gt; Exit) Launch Shipping Manager in Steam and log in Restart the application and re-add your account WebSocket Connection Failed Ensure you're using https:// not http:// Accept the certificate warning first Check browser console for errors Linux: libsecret Error # Install the required library sudo apt install libsecret-1-dev # Debian/Ubuntu sudo dnf install libsecret-devel # Fedora Building from Source See Build Guide for creating standalone executables. Security Notice The session cookie provides full access to your Shipping Manager account Never share your cookie or commit it to version control This tool likely violates Shipping Manager Terms of Service Use at your own risk Last updated: 2025-12-21"
   },
   {
     "type": "tutorial",
@@ -1853,7 +1909,7 @@
     "name": "checkAndBuildIndex",
     "longname": "module:analytics~checkAndBuildIndex",
     "url": "module-analytics.html#~checkAndBuildIndex",
-    "description": "<p>Check if lookup store needs building and handle the build process\nShows full-modal overlay during build, polls for completion</p>",
+    "description": "<p>Check if lookup store needs building and handle the build process\nShows full-modal overlay during build, polls for completion\nAlso checks for background builds (from server startup) and waits for them</p>",
     "parent": "module:analytics"
   },
   {
@@ -2690,6 +2746,14 @@
   },
   {
     "type": "method",
+    "name": "getLookupBuildStatus",
+    "longname": "module:api.getLookupBuildStatus",
+    "url": "module-api.html#.getLookupBuildStatus",
+    "description": "<p>Get lookup build status (for background builds)</p>",
+    "parent": "module:api"
+  },
+  {
+    "type": "method",
     "name": "getLookupDaily",
     "longname": "module:api.getLookupDaily",
     "url": "module-api.html#.getLookupDaily",
@@ -3247,6 +3311,46 @@
     "url": "module-bunker-management.html#.updateCurrentFuel",
     "description": "<p>Updates the current fuel inventory and refreshes the UI display.\nUsed by other modules to update fuel after vessel departures or refueling.</p>\n<p>Side Effects:</p>\n<ul>\n<li>Updates module-level currentFuel variable</li>\n<li>Updates DOM element with formatted fuel value showing current/max</li>\n</ul>",
     "parent": "module:bunker-management"
+  },
+  {
+    "type": "method",
+    "name": "checkAndShowChangelog",
+    "longname": "module:changelog-popup.checkAndShowChangelog",
+    "url": "module-changelog-popup.html#.checkAndShowChangelog",
+    "description": "<p>Check if changelog needs to be shown and display popup if needed\nCalled on app initialization</p>",
+    "parent": "module:changelog-popup"
+  },
+  {
+    "type": "method",
+    "name": "handleChangelogAcknowledged",
+    "longname": "module:changelog-popup.handleChangelogAcknowledged",
+    "url": "module-changelog-popup.html#.handleChangelogAcknowledged",
+    "description": "<p>Handle WebSocket broadcast when changelog is acknowledged\nCloses popup on all connected tabs/devices</p>",
+    "parent": "module:changelog-popup"
+  },
+  {
+    "type": "method",
+    "name": "initChangelogPopup",
+    "longname": "module:changelog-popup.initChangelogPopup",
+    "url": "module-changelog-popup.html#.initChangelogPopup",
+    "description": "<p>Initialize changelog popup module\nSets up WebSocket listener for cross-tab sync</p>",
+    "parent": "module:changelog-popup"
+  },
+  {
+    "type": "method",
+    "name": "closeChangelogPopup",
+    "longname": "module:changelog-popup~closeChangelogPopup",
+    "url": "module-changelog-popup.html#~closeChangelogPopup",
+    "description": "<p>Close the changelog popup</p>",
+    "parent": "module:changelog-popup"
+  },
+  {
+    "type": "method",
+    "name": "showChangelogPopup",
+    "longname": "module:changelog-popup~showChangelogPopup",
+    "url": "module-changelog-popup.html#~showChangelogPopup",
+    "description": "<p>Show the changelog popup</p>",
+    "parent": "module:changelog-popup"
   },
   {
     "type": "method",
@@ -4551,6 +4655,38 @@
     "url": "module-core_global-exports.html#.exportVersionFunctions",
     "description": "<p>Export version check functions globally.</p>",
     "parent": "module:core/global-exports"
+  },
+  {
+    "type": "method",
+    "name": "debug",
+    "longname": "module:core/logger~logger.debug",
+    "url": "module-core_logger.html#~logger#.debug",
+    "description": "<p>Debug level - only logs when window.DEBUG_MODE is true\nUse for verbose development/debugging output</p>",
+    "parent": "module:core/logger~logger"
+  },
+  {
+    "type": "method",
+    "name": "error",
+    "longname": "module:core/logger~logger.error",
+    "url": "module-core_logger.html#~logger#.error",
+    "description": "<p>Error level - always logs</p>",
+    "parent": "module:core/logger~logger"
+  },
+  {
+    "type": "method",
+    "name": "info",
+    "longname": "module:core/logger~logger.info",
+    "url": "module-core_logger.html#~logger#.info",
+    "description": "<p>Info level - always logs\nUse for important status messages that should always be visible</p>",
+    "parent": "module:core/logger~logger"
+  },
+  {
+    "type": "method",
+    "name": "warn",
+    "longname": "module:core/logger~logger.warn",
+    "url": "module-core_logger.html#~logger#.warn",
+    "description": "<p>Warning level - always logs</p>",
+    "parent": "module:core/logger~logger"
   },
   {
     "type": "method",
@@ -7386,10 +7522,10 @@
   },
   {
     "type": "method",
-    "name": "ensureDir",
-    "longname": "module:server/analytics/api-stats-store~ensureDir",
-    "url": "module-server_analytics_api-stats-store.html#~ensureDir",
-    "description": "<p>Ensure stats directory exists</p>",
+    "name": "closeDb",
+    "longname": "module:server/analytics/api-stats-store~closeDb",
+    "url": "module-server_analytics_api-stats-store.html#~closeDb",
+    "description": "<p>Close database connection</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -7397,7 +7533,7 @@
     "name": "flushBuffer",
     "longname": "module:server/analytics/api-stats-store~flushBuffer",
     "url": "module-server_analytics_api-stats-store.html#~flushBuffer",
-    "description": "<p>Flush buffer to disk</p>",
+    "description": "<p>Flush buffer to database</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -7405,7 +7541,7 @@
     "name": "getAvailableDates",
     "longname": "module:server/analytics/api-stats-store~getAvailableDates",
     "url": "module-server_analytics_api-stats-store.html#~getAvailableDates",
-    "description": "<p>Get list of available stat files (for data retention UI)</p>",
+    "description": "<p>Get list of available dates (for compatibility)</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -7414,6 +7550,22 @@
     "longname": "module:server/analytics/api-stats-store~getCurrentMinuteKey",
     "url": "module-server_analytics_api-stats-store.html#~getCurrentMinuteKey",
     "description": "<p>Get current minute key (YYYY-MM-DD HH:mm)</p>",
+    "parent": "module:server/analytics/api-stats-store"
+  },
+  {
+    "type": "method",
+    "name": "getDb",
+    "longname": "module:server/analytics/api-stats-store~getDb",
+    "url": "module-server_analytics_api-stats-store.html#~getDb",
+    "description": "<p>Get or create database connection</p>",
+    "parent": "module:server/analytics/api-stats-store"
+  },
+  {
+    "type": "method",
+    "name": "getDbPath",
+    "longname": "module:server/analytics/api-stats-store~getDbPath",
+    "url": "module-server_analytics_api-stats-store.html#~getDbPath",
+    "description": "<p>Get database path</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -7434,18 +7586,10 @@
   },
   {
     "type": "method",
-    "name": "getStorePathForDate",
-    "longname": "module:server/analytics/api-stats-store~getStorePathForDate",
-    "url": "module-server_analytics_api-stats-store.html#~getStorePathForDate",
-    "description": "<p>Get file path for a specific date</p>",
-    "parent": "module:server/analytics/api-stats-store"
-  },
-  {
-    "type": "method",
-    "name": "loadDayStats",
-    "longname": "module:server/analytics/api-stats-store~loadDayStats",
-    "url": "module-server_analytics_api-stats-store.html#~loadDayStats",
-    "description": "<p>Load stats for a specific date</p>",
+    "name": "migrateFromJson",
+    "longname": "module:server/analytics/api-stats-store~migrateFromJson",
+    "url": "module-server_analytics_api-stats-store.html#~migrateFromJson",
+    "description": "<p>Migrate existing JSON files to SQLite</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -7458,18 +7602,10 @@
   },
   {
     "type": "method",
-    "name": "saveDayStats",
-    "longname": "module:server/analytics/api-stats-store~saveDayStats",
-    "url": "module-server_analytics_api-stats-store.html#~saveDayStats",
-    "description": "<p>Save stats for a specific date</p>",
-    "parent": "module:server/analytics/api-stats-store"
-  },
-  {
-    "type": "method",
     "name": "startAutoFlush",
     "longname": "module:server/analytics/api-stats-store~startAutoFlush",
     "url": "module-server_analytics_api-stats-store.html#~startAutoFlush",
-    "description": "<p>Start auto-flush interval and run initial cleanup</p>",
+    "description": "<p>Start auto-flush interval and run initial cleanup/migration</p>",
     "parent": "module:server/analytics/api-stats-store"
   },
   {
@@ -8869,7 +9005,23 @@
     "name": "buildLookup",
     "longname": "module:server/database/stores/lookup-store~buildLookup",
     "url": "module-server_database_stores_lookup-store.html#~buildLookup",
-    "description": "<p>Build lookup entries from all three PODs</p>",
+    "description": "<p>Build lookup entries from all three PODs (non-blocking, chunked)</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "buildLookupAsync",
+    "longname": "module:server/database/stores/lookup-store~buildLookupAsync",
+    "url": "module-server_database_stores_lookup-store.html#~buildLookupAsync",
+    "description": "<p>Build lookup using a Worker Thread (non-blocking)\nThis runs the heavy SQLite operations in a separate thread so the main event loop stays responsive.</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "cancelBuild",
+    "longname": "module:server/database/stores/lookup-store~cancelBuild",
+    "url": "module-server_database_stores_lookup-store.html#~cancelBuild",
+    "description": "<p>Cancel an in-progress build</p>",
     "parent": "module:server/database/stores/lookup-store"
   },
   {
@@ -8893,7 +9045,23 @@
     "name": "extractCashFromLog",
     "longname": "module:server/database/stores/lookup-store~extractCashFromLog",
     "url": "module-server_database_stores_lookup-store.html#~extractCashFromLog",
-    "description": "<p>Extract cash value from log entry</p>",
+    "description": "<p>Extract cash value from log entry\nPriority:</p>\n<ol>\n<li>details.totalCost (most reliable for bulk operations)</li>\n<li>details.cost (fallback)</li>\n<li>details.actualCost (for fuel/co2 purchases)</li>\n<li>Parse from summary text (last resort)</li>\n</ol>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "extractPerItemPriceFromLog",
+    "longname": "module:server/database/stores/lookup-store~extractPerItemPriceFromLog",
+    "url": "module-server_database_stores_lookup-store.html#~extractPerItemPriceFromLog",
+    "description": "<p>Extract per-item price from log entry (for bulk vessel purchases)</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "extractPriceFromLog",
+    "longname": "module:server/database/stores/lookup-store~extractPriceFromLog",
+    "url": "module-server_database_stores_lookup-store.html#~extractPriceFromLog",
+    "description": "<p>Extract price per unit from log entry (for CO2/Fuel tolerance matching)</p>",
     "parent": "module:server/database/stores/lookup-store"
   },
   {
@@ -8922,10 +9090,18 @@
   },
   {
     "type": "method",
-    "name": "getContextFromAutopilot",
-    "longname": "module:server/database/stores/lookup-store~getContextFromAutopilot",
-    "url": "module-server_database_stores_lookup-store.html#~getContextFromAutopilot",
-    "description": "<p>Get context from autopilot name</p>",
+    "name": "getBuildStatus",
+    "longname": "module:server/database/stores/lookup-store~getBuildStatus",
+    "url": "module-server_database_stores_lookup-store.html#~getBuildStatus",
+    "description": "<p>Get current build status for a user</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "getContextsFromAutopilot",
+    "longname": "module:server/database/stores/lookup-store~getContextsFromAutopilot",
+    "url": "module-server_database_stores_lookup-store.html#~getContextsFromAutopilot",
+    "description": "<p>Get contexts from autopilot name\nReturns array of possible game transaction contexts for an autopilot\n(some autopilots handle multiple transaction types)</p>",
     "parent": "module:server/database/stores/lookup-store"
   },
   {
@@ -8966,6 +9142,14 @@
     "longname": "module:server/database/stores/lookup-store~getTotals",
     "url": "module-server_database_stores_lookup-store.html#~getTotals",
     "description": "<p>Get income/expense totals</p>",
+    "parent": "module:server/database/stores/lookup-store"
+  },
+  {
+    "type": "method",
+    "name": "loadPaged",
+    "longname": "module:server/database/stores/lookup-store~loadPaged",
+    "url": "module-server_database_stores_lookup-store.html#~loadPaged",
+    "description": "<p>Load data in pages to avoid blocking event loop</p>",
     "parent": "module:server/database/stores/lookup-store"
   },
   {
@@ -10023,6 +10207,22 @@
     "url": "module-server_routes_poi.html#~startAutomaticCacheRefresh",
     "description": "<p>Starts automatic cache refresh every 4 hours</p>",
     "parent": "module:server/routes/poi"
+  },
+  {
+    "type": "method",
+    "name": "calculateRouteCreationFee",
+    "longname": "module:server/routes/route-planner~calculateRouteCreationFee",
+    "url": "module-server_routes_route-planner.html#~calculateRouteCreationFee",
+    "description": "<p>Calculate route creation fee\nFormula: routeFee = 40 * capacity + 10 * distance</p>",
+    "parent": "module:server/routes/route-planner"
+  },
+  {
+    "type": "method",
+    "name": "getRouteFeeDiscountMultiplier",
+    "longname": "module:server/routes/route-planner~getRouteFeeDiscountMultiplier",
+    "url": "module-server_routes_route-planner.html#~getRouteFeeDiscountMultiplier",
+    "description": "<p>Get route creation fee discount from staff training\nCFO perk 'cheap_route_creation_fee' gives X% discount per level</p>",
+    "parent": "module:server/routes/route-planner"
   },
   {
     "type": "method",
@@ -12186,6 +12386,14 @@
   },
   {
     "type": "method",
+    "name": "updateHostInfo",
+    "longname": "module:utils~updateHostInfo",
+    "url": "module-utils.html#~updateHostInfo",
+    "description": "<p>Update host info text based on selected option</p>",
+    "parent": "module:utils"
+  },
+  {
+    "type": "method",
     "name": "createBackup",
     "longname": "module:utils~window.createBackup",
     "url": "module-utils-window.html#.createBackup",
@@ -12622,14 +12830,6 @@
     "longname": "module:vessel-management~populateDynamicFilters",
     "url": "module-vessel-management.html#~populateDynamicFilters",
     "description": "<p>Populate dynamic filter dropdowns based on actual vessel data</p>",
-    "parent": "module:vessel-management"
-  },
-  {
-    "type": "method",
-    "name": "refreshVesselCardsIfVisible",
-    "longname": "module:vessel-management~refreshVesselCardsIfVisible",
-    "url": "module-vessel-management.html#~refreshVesselCardsIfVisible",
-    "description": "<p>Refresh vessel cards display if vessels are currently visible\nThis updates button states based on available anchor slots\nNOTE: This function is no longer called automatically - overlays only refresh when user opens them\nKeeping function for backward compatibility but it should not be used</p>",
     "parent": "module:vessel-management"
   },
   {

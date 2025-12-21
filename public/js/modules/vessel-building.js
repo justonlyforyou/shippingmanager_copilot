@@ -11,6 +11,7 @@
 import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { getCurrentBunkerState } from './bunker-management.js';
+import logger from './core/logger.js';
 
 // ============================================================================
 // CONSTANTS
@@ -1158,8 +1159,8 @@ async function submitBuild() {
     }
 
     // Offer fast delivery via Bug-Using if we have the vessel ID
-    console.log('[Build] Response data:', data);
-    console.log('[Build] Vessel ID from response:', data.vessel_id);
+    logger.debug('[Build] Response data:', data);
+    logger.debug('[Build] Vessel ID from response:', data.vessel_id);
 
     if (!data.vessel_id) {
       console.warn('[Build] No vessel_id returned - fast delivery check skipped');
@@ -1179,14 +1180,14 @@ async function submitBuild() {
           })
         });
 
-        console.log('[Build] Drydock status response:', drydockStatusResponse.status);
+        logger.debug('[Build] Drydock status response:', drydockStatusResponse.status);
 
         if (drydockStatusResponse.ok) {
           const drydockStatus = await drydockStatusResponse.json();
-          console.log('[Build] Drydock status:', drydockStatus);
+          logger.debug('[Build] Drydock status:', drydockStatus);
           const vesselDrydock = drydockStatus.vessels?.[0];
           const drydockCost = vesselDrydock?.cost;
-          console.log('[Build] Drydock cost:', drydockCost, 'Vessel data:', vesselDrydock);
+          logger.debug('[Build] Drydock cost:', drydockCost, 'Vessel data:', vesselDrydock);
 
           if (drydockCost > 0) {
             // Ask user if they want fast delivery
@@ -1314,5 +1315,5 @@ export function initBuildShipModal() {
     submitBtn.addEventListener('click', submitBuild);
   }
 
-  console.log('[Build] Vessel building module initialized');
+  logger.debug('[Build] Vessel building module initialized');
 }

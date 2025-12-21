@@ -7,6 +7,7 @@
  */
 
 import { isMobileDevice } from '../utils.js';
+import logger from '../core/logger.js';
 
 /**
  * Makes all detail panels draggable
@@ -20,7 +21,7 @@ import { isMobileDevice } from '../utils.js';
 export function initializePanelDrag() {
   // Disable panel drag on mobile
   if (isMobileDevice()) {
-    console.log('[Panel Drag] Disabled on mobile device');
+    logger.debug('[Panel Drag] Disabled on mobile device');
     return;
   }
 
@@ -216,7 +217,7 @@ export function initializePanelDrag() {
         panel.style.transition = '';
       }, 300);
 
-      console.log('[Panel Drag] Reset to original position');
+      logger.debug('[Panel Drag] Reset to original position');
     }
   });
 }

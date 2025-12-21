@@ -12,6 +12,7 @@
 
 import { formatNumber, escapeHtml, showSideNotification } from './utils.js';
 import { updateBadge } from './badge-manager.js';
+import logger from './core/logger.js';
 
 /**
  * Fetches coop data from the backend API
@@ -471,7 +472,7 @@ export function lockCoopButtons() {
   coopButtons.forEach(btn => {
     btn.disabled = true;
   });
-  console.log('[COOP Buttons] Locked - coop send in progress');
+  logger.debug('[COOP Buttons] Locked - coop send in progress');
 }
 
 /**
@@ -489,5 +490,5 @@ export function unlockCoopButtons() {
       btn.disabled = false;
     }
   });
-  console.log('[COOP Buttons] Unlocked - coop send complete');
+  logger.debug('[COOP Buttons] Unlocked - coop send complete');
 }

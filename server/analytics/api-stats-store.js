@@ -1,26 +1,34 @@
 /**
- * @fileoverview API Stats Time-Series Store
+ * @fileoverview API Stats Time-Series Store (SQLite)
  *
- * Stores API call statistics in time-series format for analytics.
- * Data is aggregated per minute to keep file sizes manageable.
- *
- * Storage format:
- * - One file per day: api-stats-YYYY-MM-DD.json
- * - Each file contains minute-by-minute stats per endpoint
+ * Stores API call statistics in SQLite for reliability and performance.
+ * Data is aggregated per minute and automatically cleaned after 7 days.
  *
  * @module server/analytics/api-stats-store
  */
 
-const fs = require('fs').promises;
 const path = require('path');
+const fs = require('fs');
 const logger = require('../utils/logger');
-const { getAppBaseDir } = require('../config');
+const { getAppBaseDir, isPackaged } = require('../config');
 
-const { isPackaged } = require('../config');
-const isPkg = isPackaged();
-const DATA_DIR = isPkg
-  ? path.join(getAppBaseDir(), 'userdata', 'api-stats')
-  : path.join(__dirname, '../../userdata/api-stats');
+// Get native binding path for better-sqlite3
+function getNativeBindingPath() {
+  const isPkg = isPackaged();
+  if (isPkg) {
+    return path.join(getAppBaseDir(), 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node');
+  }
+  return undefined;
+}
+
+const nativeBinding = getNativeBindingPath();
+const Database = require('better-sqlite3');
+
+// Database connection
+let db = null;
+
+// Retention: 7 days
+const RETENTION_DAYS = 7;
 
 // In-memory buffer for current minute's stats
 let currentMinuteBuffer = {
@@ -33,67 +41,76 @@ const FLUSH_INTERVAL = 60000;
 let flushInterval = null;
 
 /**
+ * Get database path
+ * @returns {string} Path to api stats database
+ */
+function getDbPath() {
+  const isPkg = isPackaged();
+  const baseDir = isPkg
+    ? path.join(getAppBaseDir(), 'userdata', 'database')
+    : path.join(__dirname, '..', '..', 'userdata', 'database');
+
+  if (!fs.existsSync(baseDir)) {
+    fs.mkdirSync(baseDir, { recursive: true });
+  }
+
+  return path.join(baseDir, 'api_stats.db');
+}
+
+/**
+ * Get or create database connection
+ * @returns {Database} SQLite database instance
+ */
+function getDb() {
+  if (db) return db;
+
+  const dbPath = getDbPath();
+  const dbOptions = nativeBinding ? { nativeBinding } : {};
+  db = new Database(dbPath, dbOptions);
+
+  // Enable WAL mode for better performance
+  db.pragma('journal_mode = WAL');
+  db.pragma('synchronous = NORMAL');
+
+  // Create schema
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS api_stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      minute_key TEXT NOT NULL,
+      endpoint TEXT NOT NULL,
+      count INTEGER DEFAULT 0,
+      total_duration INTEGER DEFAULT 0,
+      errors INTEGER DEFAULT 0,
+      created_at INTEGER DEFAULT (strftime('%s', 'now')),
+      UNIQUE(minute_key, endpoint)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_api_stats_minute ON api_stats(minute_key);
+    CREATE INDEX IF NOT EXISTS idx_api_stats_endpoint ON api_stats(endpoint);
+  `);
+
+  logger.info('[APIStatsStore] SQLite database initialized');
+  return db;
+}
+
+/**
+ * Close database connection
+ */
+function closeDb() {
+  if (db) {
+    db.close();
+    db = null;
+    logger.debug('[APIStatsStore] Database closed');
+  }
+}
+
+/**
  * Get current minute key (YYYY-MM-DD HH:mm)
  * @returns {string} Minute key
  */
 function getCurrentMinuteKey() {
   const now = new Date();
   return now.toISOString().slice(0, 16).replace('T', ' ');
-}
-
-/**
- * Get file path for a specific date
- * @param {string} dateKey - Date in YYYY-MM-DD format
- * @returns {string} File path
- */
-function getStorePathForDate(dateKey) {
-  return path.join(DATA_DIR, `api-stats-${dateKey}.json`);
-}
-
-/**
- * Ensure stats directory exists
- */
-async function ensureDir() {
-  try {
-    await fs.mkdir(DATA_DIR, { recursive: true });
-  } catch (err) {
-    if (err.code !== 'EEXIST') {
-      logger.error('[APIStatsStore] Failed to create directory:', err);
-    }
-  }
-}
-
-/**
- * Load stats for a specific date
- * @param {string} dateKey - Date in YYYY-MM-DD format
- * @returns {Promise<Object>} Stats data
- */
-async function loadDayStats(dateKey) {
-  try {
-    const filePath = getStorePathForDate(dateKey);
-    const data = await fs.readFile(filePath, 'utf8');
-    return JSON.parse(data);
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      return {
-        date: dateKey,
-        minutes: {} // minute -> { endpoints: { endpoint -> stats } }
-      };
-    }
-    logger.error('[APIStatsStore] Failed to load stats:', err);
-    return { date: dateKey, minutes: {} };
-  }
-}
-
-/**
- * Save stats for a specific date
- * @param {string} dateKey - Date in YYYY-MM-DD format
- * @param {Object} data - Stats data
- */
-async function saveDayStats(dateKey, data) {
-  await ensureDir();
-  const filePath = getStorePathForDate(dateKey);
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf8');
 }
 
 /**
@@ -127,7 +144,7 @@ function recordCall(endpoint, duration = 0, success = true) {
 }
 
 /**
- * Flush buffer to disk
+ * Flush buffer to database
  */
 async function flushBuffer() {
   if (!currentMinuteBuffer.minute || currentMinuteBuffer.endpoints.size === 0) {
@@ -135,27 +152,26 @@ async function flushBuffer() {
   }
 
   const minuteKey = currentMinuteBuffer.minute;
-  const dateKey = minuteKey.slice(0, 10);
 
   try {
-    const dayStats = await loadDayStats(dateKey);
+    const database = getDb();
 
-    // Convert Map to object for storage
-    const endpointStats = {};
-    for (const [endpoint, stats] of currentMinuteBuffer.endpoints) {
-      endpointStats[endpoint] = {
-        count: stats.count,
-        avgDuration: stats.count > 0 ? Math.round(stats.totalDuration / stats.count) : 0,
-        errors: stats.errors
-      };
-    }
+    const upsert = database.prepare(`
+      INSERT INTO api_stats (minute_key, endpoint, count, total_duration, errors)
+      VALUES (?, ?, ?, ?, ?)
+      ON CONFLICT(minute_key, endpoint) DO UPDATE SET
+        count = count + excluded.count,
+        total_duration = total_duration + excluded.total_duration,
+        errors = errors + excluded.errors
+    `);
 
-    dayStats.minutes[minuteKey] = {
-      total: Array.from(currentMinuteBuffer.endpoints.values()).reduce((sum, s) => sum + s.count, 0),
-      endpoints: endpointStats
-    };
+    const insertMany = database.transaction((entries) => {
+      for (const [endpoint, stats] of entries) {
+        upsert.run(minuteKey, endpoint, stats.count, stats.totalDuration, stats.errors);
+      }
+    });
 
-    await saveDayStats(dateKey, dayStats);
+    insertMany(currentMinuteBuffer.endpoints);
 
     logger.debug(`[APIStatsStore] Flushed ${currentMinuteBuffer.endpoints.size} endpoints for ${minuteKey}`);
   } catch (err) {
@@ -171,67 +187,89 @@ async function flushBuffer() {
 
 /**
  * Get stats for a time range
- * @param {number} hours - Hours to look back (0 = today only)
+ * @param {number} hours - Hours to look back (0 = all)
  * @returns {Promise<Object>} Aggregated stats
  */
 async function getStats(hours = 24) {
   // Flush current buffer first
   await flushBuffer();
 
+  const database = getDb();
+
   const result = {
     timeRange: { hours },
     totalCalls: 0,
     totalErrors: 0,
     byEndpoint: {},
-    timeSeries: [] // Array of { minute, total, endpoints }
+    timeSeries: []
   };
 
-  // Calculate which days to load
+  // Calculate cutoff time
   const now = new Date();
-  const startTime = new Date(now.getTime() - hours * 60 * 60 * 1000);
-  const days = new Set();
+  const startTime = hours > 0 ? new Date(now.getTime() - hours * 60 * 60 * 1000) : null;
+  const startMinuteKey = startTime ? startTime.toISOString().slice(0, 16).replace('T', ' ') : null;
 
-  for (let d = new Date(startTime); d <= now; d.setDate(d.getDate() + 1)) {
-    days.add(d.toISOString().slice(0, 10));
+  // Query all stats within time range
+  let rows;
+  if (startMinuteKey) {
+    rows = database.prepare(`
+      SELECT minute_key, endpoint, count, total_duration, errors
+      FROM api_stats
+      WHERE minute_key >= ?
+      ORDER BY minute_key ASC
+    `).all(startMinuteKey);
+  } else {
+    rows = database.prepare(`
+      SELECT minute_key, endpoint, count, total_duration, errors
+      FROM api_stats
+      ORDER BY minute_key ASC
+    `).all();
   }
 
-  // Load each day's stats
-  for (const dateKey of days) {
-    try {
-      const dayStats = await loadDayStats(dateKey);
+  // Group by minute for time series
+  const minuteData = new Map();
 
-      for (const [minuteKey, minuteData] of Object.entries(dayStats.minutes)) {
-        const minuteTime = new Date(minuteKey.replace(' ', 'T') + ':00Z');
-        if (minuteTime < startTime || minuteTime > now) continue;
+  for (const row of rows) {
+    // Build time series
+    if (!minuteData.has(row.minute_key)) {
+      minuteData.set(row.minute_key, { total: 0, endpoints: {} });
+    }
+    const minute = minuteData.get(row.minute_key);
+    minute.total += row.count;
+    minute.endpoints[row.endpoint] = {
+      count: row.count,
+      avgDuration: row.count > 0 ? Math.round(row.total_duration / row.count) : 0,
+      errors: row.errors
+    };
 
-        result.timeSeries.push({
-          minute: minuteKey,
-          total: minuteData.total,
-          endpoints: minuteData.endpoints
-        });
+    result.totalCalls += row.count;
+    result.totalErrors += row.errors;
 
-        result.totalCalls += minuteData.total;
-
-        // Aggregate by endpoint
-        for (const [endpoint, stats] of Object.entries(minuteData.endpoints)) {
-          if (!result.byEndpoint[endpoint]) {
-            result.byEndpoint[endpoint] = { count: 0, errors: 0, avgDuration: 0, durations: [] };
-          }
-          result.byEndpoint[endpoint].count += stats.count;
-          result.byEndpoint[endpoint].errors += stats.errors;
-          if (stats.avgDuration > 0) {
-            result.byEndpoint[endpoint].durations.push({ count: stats.count, avg: stats.avgDuration });
-          }
-          result.totalErrors += stats.errors;
-        }
-      }
-    } catch (err) {
-      logger.error(`[APIStatsStore] Failed to load stats for ${dateKey}:`, err);
+    // Aggregate by endpoint
+    if (!result.byEndpoint[row.endpoint]) {
+      result.byEndpoint[row.endpoint] = { count: 0, errors: 0, avgDuration: 0, durations: [] };
+    }
+    result.byEndpoint[row.endpoint].count += row.count;
+    result.byEndpoint[row.endpoint].errors += row.errors;
+    if (row.total_duration > 0) {
+      result.byEndpoint[row.endpoint].durations.push({
+        count: row.count,
+        avg: Math.round(row.total_duration / row.count)
+      });
     }
   }
 
+  // Convert minute map to time series array
+  for (const [minute, data] of minuteData) {
+    result.timeSeries.push({
+      minute,
+      total: data.total,
+      endpoints: data.endpoints
+    });
+  }
+
   // Calculate weighted average duration per endpoint
-  for (const [_endpoint, stats] of Object.entries(result.byEndpoint)) {
+  for (const [, stats] of Object.entries(result.byEndpoint)) {
     if (stats.durations.length > 0) {
       const totalWeight = stats.durations.reduce((sum, d) => sum + d.count, 0);
       const weightedSum = stats.durations.reduce((sum, d) => sum + d.count * d.avg, 0);
@@ -239,9 +277,6 @@ async function getStats(hours = 24) {
     }
     delete stats.durations;
   }
-
-  // Sort time series by minute
-  result.timeSeries.sort((a, b) => a.minute.localeCompare(b.minute));
 
   return result;
 }
@@ -284,60 +319,130 @@ async function getHourlyStats(hours = 24) {
 }
 
 /**
- * Get list of available stat files (for data retention UI)
+ * Get list of available dates (for compatibility)
  * @returns {Promise<Array>} List of available dates
  */
 async function getAvailableDates() {
-  await ensureDir();
-  try {
-    const files = await fs.readdir(DATA_DIR);
-    return files
-      .filter(f => f.startsWith('api-stats-') && f.endsWith('.json'))
-      .map(f => f.replace('api-stats-', '').replace('.json', ''))
-      .sort()
-      .reverse();
-  } catch (err) {
-    logger.error('[APIStatsStore] Failed to list files:', err);
-    return [];
-  }
+  const database = getDb();
+
+  const rows = database.prepare(`
+    SELECT DISTINCT substr(minute_key, 1, 10) as date_key
+    FROM api_stats
+    ORDER BY date_key DESC
+  `).all();
+
+  return rows.map(r => r.date_key);
 }
 
 /**
  * Delete stats older than N days
  * @param {number} daysToKeep - Number of days to keep
- * @returns {Promise<number>} Number of files deleted
+ * @returns {Promise<number>} Number of rows deleted
  */
-async function cleanupOldStats(daysToKeep = 30) {
+async function cleanupOldStats(daysToKeep = 7) {
+  const database = getDb();
+
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
-  const cutoffKey = cutoffDate.toISOString().slice(0, 10);
+  const cutoffKey = cutoffDate.toISOString().slice(0, 16).replace('T', ' ');
 
-  let deleted = 0;
-  const dates = await getAvailableDates();
+  const result = database.prepare(`
+    DELETE FROM api_stats WHERE minute_key < ?
+  `).run(cutoffKey);
 
-  for (const dateKey of dates) {
-    if (dateKey < cutoffKey) {
-      try {
-        await fs.unlink(getStorePathForDate(dateKey));
-        deleted++;
-        logger.info(`[APIStatsStore] Deleted old stats: ${dateKey}`);
-      } catch (err) {
-        logger.error(`[APIStatsStore] Failed to delete ${dateKey}:`, err);
-      }
+  if (result.changes > 0) {
+    logger.info(`[APIStatsStore] Deleted ${result.changes} old stat entries (>${daysToKeep} days)`);
+  }
+
+  return result.changes;
+}
+
+/**
+ * Migrate existing JSON files to SQLite
+ * @returns {Promise<Object>} Migration result
+ */
+async function migrateFromJson() {
+  const isPkg = isPackaged();
+  const jsonDir = isPkg
+    ? path.join(getAppBaseDir(), 'userdata', 'api-stats')
+    : path.join(__dirname, '../../userdata/api-stats');
+
+  if (!fs.existsSync(jsonDir)) {
+    return { migrated: 0, files: 0 };
+  }
+
+  const files = fs.readdirSync(jsonDir)
+    .filter(f => {
+      // Only migrate clean api-stats-YYYY-MM-DD.json files
+      if (!f.startsWith('api-stats-')) return false;
+      if (!f.endsWith('.json')) return false;
+      if (f.includes('corrupted')) return false;
+      if (f.includes('.new.')) return false;
+      if (f.includes('.migrated.')) return false;
+      // Check format: api-stats-YYYY-MM-DD.json (exactly 25 chars)
+      return f.length === 25;
+    });
+
+  if (files.length === 0) {
+    return { migrated: 0, files: 0 };
+  }
+
+  logger.info(`[APIStatsStore] Migrating ${files.length} JSON files to SQLite...`);
+
+  const database = getDb();
+  let totalMigrated = 0;
+
+  const upsert = database.prepare(`
+    INSERT INTO api_stats (minute_key, endpoint, count, total_duration, errors)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(minute_key, endpoint) DO UPDATE SET
+      count = count + excluded.count,
+      total_duration = total_duration + excluded.total_duration,
+      errors = errors + excluded.errors
+  `);
+
+  for (const file of files) {
+    const filePath = path.join(jsonDir, file);
+    try {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+
+      if (!data.minutes) continue;
+
+      const insertMany = database.transaction((minutes) => {
+        for (const [minuteKey, minuteData] of Object.entries(minutes)) {
+          if (!minuteData.endpoints) continue;
+
+          for (const [endpoint, stats] of Object.entries(minuteData.endpoints)) {
+            const totalDuration = stats.avgDuration * stats.count;
+            upsert.run(minuteKey, endpoint, stats.count, totalDuration, stats.errors);
+            totalMigrated++;
+          }
+        }
+      });
+
+      insertMany(data.minutes);
+      logger.debug(`[APIStatsStore] Migrated ${file}`);
+
+      // Rename file to mark as migrated
+      const migratedPath = filePath.replace('.json', '.migrated.json');
+      fs.renameSync(filePath, migratedPath);
+    } catch (err) {
+      logger.error(`[APIStatsStore] Failed to migrate ${file}:`, err.message);
     }
   }
 
-  return deleted;
+  logger.info(`[APIStatsStore] Migration complete: ${totalMigrated} entries from ${files.length} files`);
+  return { migrated: totalMigrated, files: files.length };
 }
 
-// File retention: keep only 7 days of stats
-const RETENTION_DAYS = 7;
-
 /**
- * Start auto-flush interval and run initial cleanup
+ * Start auto-flush interval and run initial cleanup/migration
  */
 function startAutoFlush() {
   if (flushInterval) return;
+
+  // Ensure database is initialized
+  getDb();
 
   flushInterval = setInterval(() => {
     flushBuffer().catch(err => {
@@ -345,12 +450,17 @@ function startAutoFlush() {
     });
   }, FLUSH_INTERVAL);
 
-  // Run cleanup on startup (7 day retention)
-  cleanupOldStats(RETENTION_DAYS).then(deleted => {
-    if (deleted > 0) {
-      logger.info(`[APIStatsStore] Cleaned up ${deleted} old stat files (>${RETENTION_DAYS} days)`);
+  // Run migration from JSON on startup (one-time)
+  migrateFromJson().then(result => {
+    if (result.files > 0) {
+      logger.info(`[APIStatsStore] Migrated ${result.migrated} entries from ${result.files} JSON files`);
     }
   }).catch(err => {
+    logger.error('[APIStatsStore] Migration failed:', err);
+  });
+
+  // Run cleanup on startup (7 day retention)
+  cleanupOldStats(RETENTION_DAYS).catch(err => {
     logger.error('[APIStatsStore] Cleanup failed:', err);
   });
 
@@ -366,6 +476,7 @@ async function stopAutoFlush() {
     flushInterval = null;
   }
   await flushBuffer();
+  closeDb();
   logger.info('[APIStatsStore] Stopped auto-flush');
 }
 
@@ -377,5 +488,6 @@ module.exports = {
   getAvailableDates,
   cleanupOldStats,
   startAutoFlush,
-  stopAutoFlush
+  stopAutoFlush,
+  migrateFromJson
 };

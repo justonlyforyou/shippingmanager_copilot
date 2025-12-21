@@ -7,6 +7,7 @@
  */
 
 import { updatePageTitle } from '../utils.js';
+import logger from './logger.js';
 
 /**
  * Format number with thousand separators.
@@ -80,7 +81,7 @@ export function handleSettingsUpdate(newSettings, settingsRef, onRepairCountUpda
   // Update company_type from cached settings
   if (newSettings.company_type !== undefined) {
     window.USER_COMPANY_TYPE = newSettings.company_type;
-    console.log('[Settings] Updated company_type from cache:', newSettings.company_type);
+    logger.debug('[Settings] Updated company_type from cache:', newSettings.company_type);
 
     // Show/hide tanker filter button in sell vessels dialog
     const sellTankerBtn = document.getElementById('sellFilterTankerBtn');

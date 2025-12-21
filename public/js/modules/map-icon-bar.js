@@ -6,6 +6,8 @@
  * @module map-icon-bar
  */
 
+import logger from './core/logger.js';
+
 /**
  * Initialize map icon bar
  * - Wire up click handlers to call functions directly
@@ -32,7 +34,7 @@ export function initializeMapIconBar() {
     });
   });
 
-  console.log('[Map Icon Bar] Initialized');
+  logger.debug('[Map Icon Bar] Initialized');
 }
 
 /**

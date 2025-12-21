@@ -7,6 +7,7 @@
 
 import { loadSettings, registerServiceWorker, initCustomTooltips, updatePageTitle, requestNotificationPermission } from '../utils.js';
 import { setUserStoragePrefix, getStorage, setStorage } from './storage-manager.js';
+import logger from './logger.js';
 import { loadCache, saveBadgeCache, updateCoopDisplay } from './badge-cache.js';
 import { createDebouncedFunction } from './debounced-api.js';
 import { handleSettingsUpdate, toggleAutoPilotAgentCheckboxes } from './settings-sync.js';
@@ -35,6 +36,7 @@ import { showSideNotification, showNotification, escapeHtml } from '../utils.js'
 import { initStockManager, showStockManager } from '../stock-manager.js';
 import { initBroadcast } from '../broadcast.js';
 import { initAnalytics } from '../analytics.js';
+import { checkAndShowChangelog } from '../changelog-popup.js';
 
 /**
  * Format number with thousand separators.
@@ -68,7 +70,7 @@ export async function initializeApp(apiPrefix) {
   exportStorageFunctions({ getStorage, setStorage });
 
   // STEP 1: Load Settings
-  console.log('[Init] Loading settings...');
+  logger.debug('[Init] Loading settings...');
   const settings = await loadSettings();
   window.settings = settings;
 
@@ -76,7 +78,7 @@ export async function initializeApp(apiPrefix) {
   if (settings.debugMode !== undefined) {
     window.DEBUG_MODE = settings.debugMode;
     if (window.DEBUG_MODE) {
-      console.log('[Debug] Debug Mode ENABLED - verbose logging active');
+      logger.debug('[Debug] Debug Mode ENABLED - verbose logging active');
     }
   }
 
@@ -175,11 +177,11 @@ export async function initializeApp(apiPrefix) {
 
   // STEP 10: Load cached data
   if (window.DEBUG_MODE) {
-    console.log('[Init] Loading cached values...');
+    logger.debug('[Init] Loading cached values...');
   }
   loadCache(settings);
   if (window.DEBUG_MODE) {
-    console.log('[Init] Cached values displayed - waiting for WebSocket to send fresh data');
+    logger.debug('[Init] Cached values displayed - waiting for WebSocket to send fresh data');
   }
 
   // Trigger price alert check
@@ -212,6 +214,9 @@ export async function initializeApp(apiPrefix) {
   if ("Notification" in window && Notification.permission === "default") {
     await requestNotificationPermission();
   }
+
+  // STEP 19: Check and show changelog popup if new version
+  checkAndShowChangelog();
 
   // Export overlay functions
   exportOverlayFunctions({
@@ -594,16 +599,16 @@ async function loadInitialData() {
   const feedContent = chatFeed.innerHTML;
   if (feedContent.includes('Loading chat...')) {
     if (window.DEBUG_MODE) {
-      console.log('[Init] No initial WebSocket data - making fallback API call');
+      logger.debug('[Init] No initial WebSocket data - making fallback API call');
     }
     await loadMessages(chatFeed);
   } else if (window.DEBUG_MODE) {
-    console.log('[Init] Chat data received via WebSocket');
+    logger.debug('[Init] Chat data received via WebSocket');
   }
 
   updateUnreadBadge();
   if (window.DEBUG_MODE) {
-    console.log('[Init] Unread badge updated!');
+    logger.debug('[Init] Unread badge updated!');
   }
 }
 

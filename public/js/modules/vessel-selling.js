@@ -12,6 +12,7 @@
 import { showConfirmDialog } from './ui-dialogs.js';
 import { showSideNotification, formatNumber } from './utils.js';
 import { selectVessel } from './harbor-map/map-controller.js';
+import logger from './core/logger.js';
 
 let currentSellVessels = [];
 let selectedSellVessels = [];
@@ -47,11 +48,11 @@ function loadSellCartFromCache() {
 
       if (needsMigration) {
         saveSellCartToCache();
-        console.log('[Vessel Selling] Migrated cart to new format');
+        logger.debug('[Vessel Selling] Migrated cart to new format');
       }
 
       updateBulkSellButton();
-      console.log('[Vessel Selling] Loaded', selectedSellVessels.length, 'items from cache');
+      logger.debug('[Vessel Selling] Loaded', selectedSellVessels.length, 'items from cache');
     }
   } catch (error) {
     console.error('[Vessel Selling] Failed to load cart from cache:', error);
@@ -123,7 +124,7 @@ export async function refreshVesselsForSale() {
     return;
   }
 
-  console.log('[Vessel Selling] Refreshing vessels due to departure');
+  logger.debug('[Vessel Selling] Refreshing vessels due to departure');
   await loadUserVesselsForSale();
 }
 

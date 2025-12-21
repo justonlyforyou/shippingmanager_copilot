@@ -798,20 +798,92 @@ export function isMobileDevice() {
   return isMobileWidth || isMobileUA;
 }
 
+// Store network interfaces for redirect logic
+let networkInterfaces = [];
+
 /**
  * Load server configuration (IP/Port) from backend
  */
 export async function loadServerConfig() {
   try {
-    const response = await fetch(window.apiUrl('/api/server-config'));
-    const data = await response.json();
+    // Fetch both config and interfaces in parallel
+    const [configResponse, interfacesResponse] = await Promise.all([
+      fetch(window.apiUrl('/api/server-config')),
+      fetch(window.apiUrl('/api/server-config/interfaces'))
+    ]);
 
-    if (data.success && data.config) {
-      document.getElementById('serverHost').value = data.config.host || '127.0.0.1';
-      document.getElementById('serverPort').value = data.config.port || 12345;
+    const configData = await configResponse.json();
+    const interfacesData = await interfacesResponse.json();
+
+    const hostSelect = document.getElementById('serverHost');
+
+    // Populate interfaces dropdown
+    if (interfacesData.success && interfacesData.interfaces) {
+      networkInterfaces = interfacesData.interfaces;
+      hostSelect.innerHTML = '';
+
+      for (const iface of interfacesData.interfaces) {
+        const option = document.createElement('option');
+        option.value = iface.address;
+
+        if (iface.address === '127.0.0.1') {
+          option.textContent = `127.0.0.1 (Localhost only)`;
+        } else if (iface.address === '0.0.0.0') {
+          option.textContent = `0.0.0.0 (All interfaces)`;
+        } else {
+          option.textContent = `${iface.address} (${iface.name})`;
+        }
+
+        // Store allIPs for 0.0.0.0 option
+        if (iface.allIPs) {
+          option.dataset.allIps = JSON.stringify(iface.allIPs);
+        }
+
+        hostSelect.appendChild(option);
+      }
+
+      // Add change handler to update info text
+      hostSelect.addEventListener('change', updateHostInfo);
+    }
+
+    // Set current config values
+    if (configData.success && configData.config) {
+      hostSelect.value = configData.config.host || '127.0.0.1';
+      document.getElementById('serverPort').value = configData.config.port || 12345;
+      updateHostInfo();
     }
   } catch (error) {
     console.error('[Server Config] Error loading configuration:', error);
+  }
+}
+
+/**
+ * Update host info text based on selected option
+ */
+function updateHostInfo() {
+  const hostSelect = document.getElementById('serverHost');
+  const hostInfo = document.getElementById('serverHostInfo');
+  const selectedOption = hostSelect.options[hostSelect.selectedIndex];
+
+  if (!selectedOption || !hostInfo) return;
+
+  const address = selectedOption.value;
+
+  if (address === '127.0.0.1') {
+    hostInfo.textContent = 'Only accessible from this computer';
+    hostInfo.style.color = '#6b7280';
+  } else if (address === '0.0.0.0') {
+    const allIPs = selectedOption.dataset.allIps ? JSON.parse(selectedOption.dataset.allIps) : [];
+    if (allIPs.length > 0) {
+      hostInfo.innerHTML = `Accessible on: <strong style="color: #93c5fd;">${allIPs.join(', ')}</strong>`;
+      hostInfo.style.color = '#6b7280';
+    } else {
+      hostInfo.textContent = 'Accessible on all network interfaces';
+      hostInfo.style.color = '#6b7280';
+    }
+  } else {
+    hostInfo.textContent = `Accessible on network via ${address}`;
+    hostInfo.style.color = '#6b7280';
   }
 }
 
@@ -850,6 +922,17 @@ window.saveServerConfig = async function() {
     if (data.success) {
       // Check if config actually changed (need restart)
       if (data.requiresRestart && data.newUrl) {
+        // Determine redirect URL - use actual IP instead of 0.0.0.0
+        let redirectUrl = data.newUrl;
+        if (host === '0.0.0.0') {
+          // Find first non-internal IP, or fallback to 127.0.0.1
+          const externalIP = networkInterfaces.find(iface =>
+            iface.address !== '127.0.0.1' && iface.address !== '0.0.0.0'
+          );
+          const redirectHost = externalIP ? externalIP.address : '127.0.0.1';
+          redirectUrl = `https://${redirectHost}:${port}`;
+        }
+
         // Show countdown and trigger restart
         let countdown = 5;
         statusEl.style.background = 'rgba(59, 130, 246, 0.2)';
@@ -857,9 +940,9 @@ window.saveServerConfig = async function() {
         statusEl.style.display = 'block';
 
         const updateCountdown = () => {
-          statusEl.textContent = `Configuration saved! Restarting server... Redirecting in ${countdown}s`;
+          statusEl.innerHTML = `Configuration saved! Restarting server...<br>Redirecting to <strong>${redirectUrl}</strong> in ${countdown}s`;
           if (countdown <= 0) {
-            window.location.href = data.newUrl;
+            window.location.href = redirectUrl;
           } else {
             countdown--;
             setTimeout(updateCountdown, 1000);

@@ -440,10 +440,21 @@ function initWebSocket() {
             })
           );
           const cases = casesWithDetails.filter(c => c !== null);
-          const openCases = cases.filter(c => c.isOpen).length;
+
+          // CRITICAL: A case is ONLY open if isOpen=true AND status is not paid/solved
+          // Settled cases must NEVER be counted as open, regardless of game API's "new" flag
+          const openCases = cases.filter(c => {
+            if (!c.isOpen) return false;
+            const status = c.details?.status;
+            if (status === 'paid' || status === 'solved') return false;
+            return true;
+          }).length;
+
           const hijackedCount = cases.filter(c => {
             const status = c.details?.status;
-            return status === 'in_progress' || (c.isOpen && status !== 'solved');
+            // Only count truly in-progress cases, not settled ones
+            if (status === 'paid' || status === 'solved') return false;
+            return status === 'in_progress' || c.isOpen;
           }).length;
 
           ws.send(JSON.stringify({

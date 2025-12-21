@@ -22,6 +22,7 @@ const { isMigrationCompleted } = require('./utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('./utils/migrate-harbor-fees');
 const { initUserDatabase } = require('./database/init');
 const portDemandSync = require('./services/port-demand-sync');
+const { lookupStore, vesselHistoryStore } = require('./database/store-adapter');
 
 /**
  * Server ready state flag
@@ -142,29 +143,13 @@ function initScheduler() {
       broadcast('server_startup', { timestamp: Date.now() });
       logger.info('[Scheduler] Broadcasted server_startup to all clients');
 
-      // Harbor Fee Migration: Run once automatically on first startup
-      logger.info('[Scheduler] Checking harbor fee migration status...');
-      try {
-        const migrationCompleted = await isMigrationCompleted();
-        if (!migrationCompleted) {
-          logger.info('[Scheduler] Starting automatic harbor fee migration...');
-          logger.info('[Scheduler] This is a one-time migration of historical data from logbook');
-          logger.info('[Scheduler] To re-run migration, delete: userdata/harbor-fees/.migration-completed');
+      // All background tasks use setTimeout to truly not block the event loop
+      // This allows HTTP requests to be served immediately after UI READY
 
-          const stats = await migrateHarborFeesForUser(userId);
-
-          if (stats.migrated > 0) {
-            logger.info(`[Scheduler] Harbor fee migration completed: ${stats.migrated}/${stats.total} fees migrated`);
-          } else {
-            logger.info('[Scheduler] Harbor fee migration: No fees to migrate');
-          }
-        } else {
-          logger.debug('[Scheduler] Harbor fee migration already completed (skip)');
-        }
-      } catch (error) {
-        logger.error('[Scheduler] Harbor fee migration failed:', error.message);
-        logger.error('[Scheduler] Migration can be re-run by deleting: userdata/harbor-fees/.migration-completed');
-      }
+      // Lookup store build is NOT run at startup - it's too heavy and blocks the UI
+      // It will be triggered on-demand when user opens analytics page
+      // Harbor fee migration also deferred - not critical for startup
+      logger.debug('[Scheduler] Skipping lookup build at startup (will run on-demand)');
 
       // Run Auto-Anchor once on startup
       logger.info('[Scheduler] Running Auto-Anchor on startup...');

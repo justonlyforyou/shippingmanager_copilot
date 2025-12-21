@@ -49,6 +49,7 @@ const logger = require('../utils/logger');
 const {
   getCachedChatList,
   getCachedChatMessages,
+  updateChatList,
   updateChatMessages,
   markChatAsReadInCache,
   deleteChatFromCache
@@ -262,7 +263,12 @@ router.get('/messenger/get-chats', async (req, res) => {
 
     // Cache is stale or empty - fetch fresh data
     const data = await apiCall('/messenger/get-chats', 'POST', {});
-    const chats = data?.data;
+    const chats = data?.data || [];
+
+    // Update local cache with fresh data from game API
+    if (chats.length > 0) {
+      updateChatList(userId, chats);
+    }
 
     res.json({
       chats: chats,
@@ -572,15 +578,30 @@ router.post('/messenger/delete-chat', express.json(), async (req, res) => {
   }
 
   try {
+    logger.info(`[Messenger] Deleting chats: chat_ids=${JSON.stringify(chat_ids)}, system_message_ids=${JSON.stringify(system_message_ids)}`);
+
+    // Game API expects arrays as JSON strings, not actual arrays
     const data = await apiCall('/messenger/delete-chat', 'POST', {
-      chat_ids,
-      system_message_ids
+      chat_ids: JSON.stringify(chat_ids),
+      system_message_ids: JSON.stringify(system_message_ids)
     });
+
+    logger.info(`[Messenger] Delete API response: ${JSON.stringify(data)}`);
 
     // Remove deleted chats from cache
     const userId = getUserId();
+
+    // Delete regular chats by chat_id
     for (const chatId of chat_ids) {
       deleteChatFromCache(userId, chatId);
+      logger.debug(`[Messenger] Deleted chat ${chatId} from local cache`);
+    }
+
+    // Delete system messages by system_message_id
+    // For system messages, their ID in the chat list IS the system_message_id
+    for (const systemMsgId of system_message_ids) {
+      deleteChatFromCache(userId, systemMsgId);
+      logger.debug(`[Messenger] Deleted system message ${systemMsgId} from local cache`);
     }
 
     // If case_id is provided, delete the corresponding history file

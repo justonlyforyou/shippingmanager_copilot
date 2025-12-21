@@ -40,6 +40,7 @@
 
 // Import the main initialization function
 import { initializeApp } from './modules/core/app-initializer.js';
+import logger from './modules/core/logger.js';
 
 // =============================================================================
 // Security Check
@@ -104,13 +105,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize the application
     const settings = await initializeApp(API_PREFIX);
 
-    console.log('[Init] Application initialized successfully');
+    logger.debug('[Init] Application initialized successfully');
 
     if (window.DEBUG_MODE) {
-      console.log('[Init] Loaded settings:', settings);
-      console.log('[Init] API Prefix:', API_PREFIX);
-      console.log('[Init] User ID:', window.USER_STORAGE_PREFIX);
-      console.log('[Init] Cache Key:', window.CACHE_KEY);
+      logger.debug('[Init] Loaded settings:', settings);
+      logger.debug('[Init] API Prefix:', API_PREFIX);
+      logger.debug('[Init] User ID:', window.USER_STORAGE_PREFIX);
+      logger.debug('[Init] Cache Key:', window.CACHE_KEY);
     }
   } catch (error) {
     console.error('[Init] Application initialization failed:', error);

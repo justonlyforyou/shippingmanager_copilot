@@ -8,6 +8,8 @@
  * @module api
  */
 
+import logger from './core/logger.js';
+
 // Vessel data cache - only invalidated on actual changes (purchase, sale, WebSocket updates)
 const vesselDataCache = {
   acquirable: { data: null, valid: false },
@@ -137,13 +139,13 @@ export async function fetchVessels(useCache = true) {
   // Return cached data if valid
   if (useCache && vesselDataCache.owned.valid && vesselDataCache.owned.data) {
     if (window.DEBUG_MODE) {
-      console.log('[API Cache] fetchVessels - returning from cache');
+      logger.debug('[API Cache] fetchVessels - returning from cache');
     }
     return vesselDataCache.owned.data;
   }
 
   if (window.DEBUG_MODE) {
-    console.log('[API Cache] fetchVessels - cache miss, fetching from API (valid:', vesselDataCache.owned.valid, ', hasData:', !!vesselDataCache.owned.data, ')');
+    logger.debug('[API Cache] fetchVessels - cache miss, fetching from API (valid:', vesselDataCache.owned.valid, ', hasData:', !!vesselDataCache.owned.data, ')');
   }
 
   try {
@@ -156,7 +158,7 @@ export async function fetchVessels(useCache = true) {
     vesselDataCache.owned.valid = true;
 
     if (window.DEBUG_MODE) {
-      console.log('[API Cache] fetchVessels - cached', data.vessels?.length || 0, 'vessels');
+      logger.debug('[API Cache] fetchVessels - cached', data.vessels?.length || 0, 'vessels');
     }
 
     return data;
@@ -431,7 +433,7 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
   const retryDelay = 2000; // 2 seconds
 
   if (window.DEBUG_MODE) {
-    console.log('[API DEBUG] sendPrivateMessage called with:');
+    logger.debug('[API DEBUG] sendPrivateMessage called with:');
     console.log('  targetUserId:', targetUserId, 'type:', typeof targetUserId);
     console.log('  subject:', subject);
     console.log('  message:', message);
@@ -445,7 +447,7 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
   };
 
   if (window.DEBUG_MODE) {
-    console.log('[API DEBUG] Payload to send:', JSON.stringify(payload, null, 2));
+    logger.debug('[API DEBUG] Payload to send:', JSON.stringify(payload, null, 2));
   }
 
   try {
@@ -456,7 +458,7 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
     });
 
     if (window.DEBUG_MODE) {
-      console.log('[API DEBUG] Response status:', response.status, response.statusText);
+      logger.debug('[API DEBUG] Response status:', response.status, response.statusText);
     }
 
     // Handle rate limiting with retry
@@ -469,7 +471,7 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
     if (!response.ok) {
       const error = await response.json();
       if (window.DEBUG_MODE) {
-        console.log('[API DEBUG] Error response:', JSON.stringify(error, null, 2));
+        logger.debug('[API DEBUG] Error response:', JSON.stringify(error, null, 2));
       }
       const errorMessage = typeof error.error === 'string' ? error.error : (error.message || JSON.stringify(error));
       throw new Error(errorMessage);
@@ -477,12 +479,12 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
 
     const result = await response.json();
     if (window.DEBUG_MODE) {
-      console.log('[API DEBUG] Success response:', result);
+      logger.debug('[API DEBUG] Success response:', result);
     }
     return result;
   } catch (error) {
     if (window.DEBUG_MODE) {
-      console.log('[API DEBUG] Exception caught:', error.message);
+      logger.debug('[API DEBUG] Exception caught:', error.message);
     }
     throw error;
   }
@@ -504,8 +506,8 @@ export async function markChatAsRead(chatId, isSystemChat = false) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_ids: isSystemChat ? '[]' : `[${chatId}]`,
-        system_message_ids: isSystemChat ? `[${chatId}]` : '[]'
+        chat_ids: isSystemChat ? [] : [chatId],
+        system_message_ids: isSystemChat ? [chatId] : []
       })
     });
 
@@ -538,8 +540,8 @@ export async function deleteChat(chatId, isSystemChat = false, caseId = null) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_ids: isSystemChat ? '[]' : `[${chatId}]`,
-        system_message_ids: isSystemChat ? `[${chatId}]` : '[]',
+        chat_ids: isSystemChat ? [] : [chatId],
+        system_message_ids: isSystemChat ? [chatId] : [],
         case_id: caseId
       })
     });
@@ -1506,6 +1508,21 @@ export async function getLookupInfo() {
     return await response.json();
   } catch (error) {
     console.error('[Lookup API] Error getting info:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get lookup build status (for background builds)
+ * @returns {Promise<Object>} Build status { building: boolean, progress: number, total: number }
+ */
+export async function getLookupBuildStatus() {
+  try {
+    const response = await fetch(window.apiUrl('/api/analytics/lookup/build-status'));
+    if (!response.ok) throw new Error('Failed to get build status');
+    return await response.json();
+  } catch (error) {
+    console.error('[Lookup API] Error getting build status:', error);
     throw error;
   }
 }

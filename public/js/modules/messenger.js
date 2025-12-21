@@ -30,6 +30,7 @@
  * @requires ui-dialogs - Confirmation dialogs
  */
 
+import logger from './core/logger.js';
 import { escapeHtml, showSideNotification, showNotification } from './utils.js';
 import { fetchMessengerChats, fetchMessengerMessages, sendPrivateMessage as apiSendPrivateMessage, deleteChat as apiDeleteChat, markChatAsRead as apiMarkChatAsRead, fetchContacts, searchUsers } from './api.js';
 import { showConfirmDialog } from './ui-dialogs.js';
@@ -358,7 +359,7 @@ export async function openExistingChat(targetCompanyName, targetUserId, chat, ow
   if (chat.new) {
     try {
       await apiMarkChatAsRead(chat.id, isSystemChat);
-      console.log(`[Messenger] Marked chat ${chat.id} as read (system: ${isSystemChat})`);
+      logger.debug(`[Messenger] Marked chat ${chat.id} as read (system: ${isSystemChat})`);
     } catch (error) {
       console.error('[Messenger] Failed to mark chat as read:', error);
     }
@@ -525,11 +526,11 @@ async function displaySystemMessage(chat) {
         const data = await response.json();
         if (response.ok && data.data) {
           caseDetails = data.data;
-          console.log('[Hijacking] Case details loaded from API:', caseDetails);
+          logger.debug('[Hijacking] Case details loaded from API:', caseDetails);
 
           // Check if API says case is already resolved (paid_amount exists)
           if (caseDetails.paid_amount !== null && caseDetails.paid_amount !== undefined) {
-            console.log('[Hijacking] API says case is resolved, updating local state');
+            logger.debug('[Hijacking] API says case is resolved, updating local state');
             resolvedAt = Date.now() / 1000;
             paymentVerification = {
               actual_paid: caseDetails.paid_amount,
@@ -592,7 +593,7 @@ async function displaySystemMessage(chat) {
       }
     } else {
       // Case is resolved - build caseDetails from local history only (no API call needed)
-      console.log('[Hijacking] Case already resolved, using cached history');
+      logger.debug('[Hijacking] Case already resolved, using cached history');
       // CRITICAL: Set paid_amount from payment_verification to mark as resolved
       const paidAmount = paymentVerification?.actual_paid || paymentVerification?.expected_amount || chat.values.requested_amount;
       caseDetails = {
@@ -1180,7 +1181,7 @@ export async function showAllChats() {
     }
 
     if (window.DEBUG_MODE) {
-      console.log('[MESSENGER DEBUG] Built name-to-ID map with', nameToIdMap.size, 'entries');
+      logger.debug('[MESSENGER DEBUG] Built name-to-ID map with', nameToIdMap.size, 'entries');
     }
 
     const sortedChats = chats.sort((a, b) => (b.time_last_message || 0) - (a.time_last_message || 0));
@@ -1220,24 +1221,24 @@ export async function showAllChats() {
             const selectedChat = sortedChats[chatIndex];
 
             if (window.DEBUG_MODE) {
-              console.log('[MESSENGER DEBUG] Opening chat from showAllChats:');
-              console.log('  selectedChat:', selectedChat);
-              console.log('  participants_string:', selectedChat.participants_string);
-              console.log('  own_user_id:', data.own_user_id);
+              logger.debug('[MESSENGER DEBUG] Opening chat from showAllChats:');
+              logger.debug('  selectedChat:', selectedChat);
+              logger.debug('  participants_string:', selectedChat.participants_string);
+              logger.debug('  own_user_id:', data.own_user_id);
             }
 
             const targetCompanyName = selectedChat.participants_string;
             let targetUserId = nameToIdMap.get(targetCompanyName);
 
             if (window.DEBUG_MODE) {
-              console.log('  targetUserId from map:', targetUserId, 'type:', typeof targetUserId);
-              console.log('  targetCompanyName:', targetCompanyName);
+              logger.debug('  targetUserId from map:', targetUserId, 'type:', typeof targetUserId);
+              logger.debug('  targetCompanyName:', targetCompanyName);
             }
 
             // If not found in contact list and not a system chat, try user search
             if (!targetUserId && !selectedChat.system_chat && targetCompanyName) {
               if (window.DEBUG_MODE) {
-                console.log('[MESSENGER DEBUG] User not in contacts, searching via /user/search...');
+                logger.debug('[MESSENGER DEBUG] User not in contacts, searching via /user/search...');
               }
               try {
                 const searchResults = await searchUsers(targetCompanyName);
@@ -1247,7 +1248,7 @@ export async function showAllChats() {
                   if (exactMatch) {
                     targetUserId = exactMatch.id;
                     if (window.DEBUG_MODE) {
-                      console.log('[MESSENGER DEBUG] Found user via search:', targetUserId);
+                      logger.debug('[MESSENGER DEBUG] Found user via search:', targetUserId);
                     }
                   } else if (window.DEBUG_MODE) {
                     console.warn('[MESSENGER DEBUG] No exact match in search results');
@@ -1395,7 +1396,7 @@ ${notificationBody}`,
     // Retry up to 2 times with exponential backoff
     if (isNetworkError && retryCount < 2) {
       const delay = Math.pow(2, retryCount) * 1000; // 1s, 2s
-      console.log(`[Messenger] Network error, retrying in ${delay}ms (attempt ${retryCount + 1}/2)`);
+      logger.debug(`[Messenger] Network error, retrying in ${delay}ms (attempt ${retryCount + 1}/2)`);
       setTimeout(() => updateUnreadBadge(retryCount + 1), delay);
     } else {
       console.error('Error checking unread messages:', error);
@@ -1404,17 +1405,17 @@ ${notificationBody}`,
 }
 
 export async function sendPrivateMessage() {
-  console.log('[Messenger] sendPrivateMessage called');
+  logger.debug('[Messenger] sendPrivateMessage called');
   const messageInput = document.getElementById('messengerInput');
   const subjectInput = document.getElementById('subjectInput');
   const sendBtn = document.getElementById('sendPrivateMessageBtn');
   const message = messageInput.value.trim();
 
-  console.log('[Messenger] Message:', message, 'Length:', message.length);
-  console.log('[Messenger] currentPrivateChat:', JSON.stringify(currentPrivateChat));
+  logger.debug('[Messenger] Message:', message, 'Length:', message.length);
+  logger.debug('[Messenger] currentPrivateChat:', JSON.stringify(currentPrivateChat));
 
   if (!message || message.length > 1000) {
-    console.log('[Messenger] Invalid message length, aborting');
+    logger.debug('[Messenger] Invalid message length, aborting');
     alert('Invalid message length.');
     return;
   }
@@ -1438,12 +1439,12 @@ export async function sendPrivateMessage() {
   messageInput.disabled = true;
 
   try {
-    console.log('[Messenger] Sending to API...');
-    console.log('[Messenger] targetUserId:', currentPrivateChat.targetUserId, 'type:', typeof currentPrivateChat.targetUserId);
-    console.log('[Messenger] subject:', subject);
-    console.log('[Messenger] message length:', message.length);
+    logger.debug('[Messenger] Sending to API...');
+    logger.debug('[Messenger] targetUserId:', currentPrivateChat.targetUserId, 'type:', typeof currentPrivateChat.targetUserId);
+    logger.debug('[Messenger] subject:', subject);
+    logger.debug('[Messenger] message length:', message.length);
     await apiSendPrivateMessage(currentPrivateChat.targetUserId, subject, message);
-    console.log('[Messenger] API call successful');
+    logger.debug('[Messenger] API call successful');
 
     // Show success notification
     showSideNotification(`📬 <strong>Message sent</strong><br><br>Sent to ${escapeHtml(currentPrivateChat.targetCompanyName)}`, 'success', 3000);
@@ -1457,12 +1458,12 @@ export async function sendPrivateMessage() {
 
     // Reload messages to show the new message in the chat
     if (currentPrivateChat.chatId) {
-      console.log('[Messenger] Reloading messages for chatId:', currentPrivateChat.chatId);
+      logger.debug('[Messenger] Reloading messages for chatId:', currentPrivateChat.chatId);
       // Existing chat - reload messages with force refresh to bypass cache
       await loadPrivateMessages(currentPrivateChat.chatId, true);
-      console.log('[Messenger] Messages reloaded');
+      logger.debug('[Messenger] Messages reloaded');
     } else {
-      console.log('[Messenger] New chat - reopening messenger');
+      logger.debug('[Messenger] New chat - reopening messenger');
       // New chat - refresh to get the chat ID
       const savedCompanyName = currentPrivateChat.targetCompanyName;
       const savedUserId = currentPrivateChat.targetUserId;
@@ -1629,7 +1630,7 @@ window.acceptHijackingPrice = async function(caseId, amount) {
         return;
       }
       actualAmount = caseData.data.requested_amount;
-      console.log(`[Hijacking] Current price from API: $${actualAmount} (cached was: $${amount})`);
+      logger.debug(`[Hijacking] Current price from API: $${actualAmount} (cached was: $${amount})`);
     }
   } catch (error) {
     console.error('[Hijacking] Failed to get current price, using cached:', error);
@@ -1674,7 +1675,7 @@ window.acceptHijackingPrice = async function(caseId, amount) {
     });
 
     const data = await response.json();
-    console.log('[Hijacking] Pay ransom response:', data);
+    logger.debug('[Hijacking] Pay ransom response:', data);
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to pay ransom');
@@ -1691,7 +1692,7 @@ window.acceptHijackingPrice = async function(caseId, amount) {
     });
 
     const caseData = await caseResponse.json();
-    console.log('[Hijacking] Get case after accept:', caseData);
+    logger.debug('[Hijacking] Get case after accept:', caseData);
 
     if (!caseResponse.ok || !caseData.data) {
       throw new Error('Failed to reload case details');
@@ -1711,7 +1712,7 @@ window.acceptHijackingPrice = async function(caseId, amount) {
             payment_verification: paymentVerification
           })
         });
-        console.log('[Hijacking] Saved payment verification to local history');
+        logger.debug('[Hijacking] Saved payment verification to local history');
       } catch (error) {
         console.error('[Hijacking] Failed to save payment verification:', error);
       }
@@ -1879,7 +1880,7 @@ window.proposeHijackingPrice = async function(caseId, requestedAmount) {
     });
 
     const data = await response.json();
-    console.log('[Hijacking] Submit offer response:', data);
+    logger.debug('[Hijacking] Submit offer response:', data);
 
     if (!response.ok) {
       throw new Error(data.error || 'Failed to submit offer');
@@ -1925,7 +1926,7 @@ window.proposeHijackingPrice = async function(caseId, requestedAmount) {
         body: JSON.stringify(dataToSave)
       });
 
-      console.log('[Hijacking] User offer saved to history:', offerAmount);
+      logger.debug('[Hijacking] User offer saved to history:', offerAmount);
     } catch (error) {
       console.error('[Hijacking] Failed to save user offer to history:', error);
     }
@@ -1935,8 +1936,8 @@ window.proposeHijackingPrice = async function(caseId, requestedAmount) {
 
     // Get counter-offer from API response (immediate, no waiting!)
     const pirateCounterOffer = data.data?.requested_amount;
-    console.log('[Hijacking] Submit offer response:', data);
-    console.log('[Hijacking] Pirate counter-offer:', pirateCounterOffer);
+    logger.debug('[Hijacking] Submit offer response:', data);
+    logger.debug('[Hijacking] Pirate counter-offer:', pirateCounterOffer);
 
     if (!pirateCounterOffer) {
       throw new Error('API did not return counter-offer');
@@ -1981,14 +1982,14 @@ window.proposeHijackingPrice = async function(caseId, requestedAmount) {
         body: JSON.stringify(dataToSave)
       });
 
-      console.log('[Hijacking] Pirate counter-offer saved to history:', pirateCounterOffer);
+      logger.debug('[Hijacking] Pirate counter-offer saved to history:', pirateCounterOffer);
     } catch (error) {
       console.error('[Hijacking] Failed to save pirate counter-offer to history:', error);
     }
 
     // Count how many user offers have been made (max 2 before auto-accept bug on 3rd)
     const userOfferCount = negotiationHistory.filter(h => h.type === 'user').length;
-    console.log('[Hijacking] User has made', userOfferCount, 'offers');
+    logger.debug('[Hijacking] User has made', userOfferCount, 'offers');
 
     // Reload the hijacking message to show updated negotiation history
     // displaySystemMessage already renders everything correctly, no need for showCounterOfferUI
@@ -2018,7 +2019,7 @@ window.proposeHijackingPrice = async function(caseId, requestedAmount) {
  */
 function stopHijackingPolling() {
   if (hijackingPollingInterval) {
-    console.log('[Hijacking] Stopping polling');
+    logger.debug('[Hijacking] Stopping polling');
     clearInterval(hijackingPollingInterval);
     hijackingPollingInterval = null;
   }

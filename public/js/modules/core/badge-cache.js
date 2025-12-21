@@ -10,6 +10,7 @@ import { updateBadge, updateButtonState, updateButtonTooltip, updateButtonVisibi
 import { updateEventDiscount } from '../forecast-calendar.js';
 import { updateEventData } from '../event-info.js';
 import { getFuelPriceClass, getCO2PriceClass } from '../utils.js';
+import logger from './logger.js';
 
 /**
  * Updates COOP display in header with proper color coding.
@@ -78,7 +79,7 @@ export function loadCache(settings) {
 
     const cached = localStorage.getItem(window.CACHE_KEY);
     if (!cached) {
-      console.log('[Cache] No cached badges found (key: ' + window.CACHE_KEY + ')');
+      logger.debug('[Cache] No cached badges found (key: ' + window.CACHE_KEY + ')');
       // Ensure event banner stays hidden when no cache exists
       updateEventData(null);
       return;
@@ -86,7 +87,7 @@ export function loadCache(settings) {
 
     const data = JSON.parse(cached);
     if (window.DEBUG_MODE) {
-      console.log('[Cache] Loaded cached badges:', data);
+      logger.debug('[Cache] Loaded cached badges:', data);
     }
 
     // Vessel badges and button states
@@ -380,7 +381,7 @@ function loadBunkerStatus(data) {
   // Real data will have at least some fuel or CO2 in tanks
   if (fuel === 0 && co2 === 0) {
     if (window.DEBUG_MODE) {
-      console.log('[Cache] Bunker cache skipped - both fuel and co2 are 0');
+      logger.debug('[Cache] Bunker cache skipped - both fuel and co2 are 0');
     }
     return;
   }

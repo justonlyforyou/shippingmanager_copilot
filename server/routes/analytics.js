@@ -529,9 +529,14 @@ router.post('/lookup/build', async (req, res) => {
     }
 
     const days = parseInt(req.query.days, 10) || 0;
-    logger.info(`[Analytics] Building lookup table (days=${days})...`);
+    logger.info(`[Analytics] Building lookup table (days=${days}) using worker thread...`);
 
-    const result = await lookupStore.buildLookup(userId, days);
+    const result = await lookupStore.buildLookupAsync(userId, days, false);
+
+    // If already building, return status
+    if (result.alreadyBuilding) {
+      return res.json({ success: true, building: true, status: result.status });
+    }
 
     // Also rematch existing entries with POD3 (fixes entries created before vessel history sync)
     const rematchResult = await lookupStore.rematchPOD3(userId);
@@ -763,8 +768,13 @@ router.post('/lookup/rebuild', async (req, res) => {
     const syncResult = await vesselHistoryStore.syncVesselHistory(userId);
     logger.info(`[Analytics] Vessel history sync: ${syncResult.newEntries} new entries`);
 
-    // 3. Now rebuild lookup
-    const result = await lookupStore.buildLookup(userId, days);
+    // 3. Now rebuild lookup using worker thread
+    const result = await lookupStore.buildLookupAsync(userId, days, false);
+
+    // If already building, return status
+    if (result.alreadyBuilding) {
+      return res.json({ success: true, building: true, status: result.status });
+    }
 
     res.json({
       success: true,
@@ -1000,8 +1010,20 @@ router.post('/force-resync', async (req, res) => {
     // Get state after resync
     const infoAfter = await vesselHistoryStore.getStoreInfo(userId);
 
-    // Rebuild lookup to match new POD3 entries
-    const lookupResult = await lookupStore.buildLookup(userId, 0);
+    // Rebuild lookup to match new POD3 entries (using worker thread)
+    const lookupResult = await lookupStore.buildLookupAsync(userId, 0, false);
+
+    // If already building, return status
+    if (lookupResult.alreadyBuilding) {
+      return res.json({
+        success: true,
+        building: true,
+        status: lookupResult.status,
+        syncResult,
+        infoBefore,
+        infoAfter
+      });
+    }
 
     logger.info(`[Analytics] Force resync complete: ${syncResult.newEntries} new departures, lookup matched POD3=${lookupResult.matchedPod3}`);
 
@@ -1174,6 +1196,36 @@ router.post('/port-demand/cleanup', express.json(), async (req, res) => {
   } catch (error) {
     logger.error('[Analytics] Error cleaning up port demand:', error);
     res.status(500).json({ error: 'Failed to cleanup port demand history' });
+  }
+});
+
+/**
+ * GET /api/analytics/lookup/build-status
+ * Returns the current lookup store build status
+ * Used by UI to show rebuild progress indicator
+ */
+router.get('/lookup/build-status', async (req, res) => {
+  try {
+    const userId = getUserId();
+    if (!userId) {
+      return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    const status = lookupStore.getBuildStatus(userId);
+    const storeInfo = await lookupStore.getStoreInfo(userId);
+
+    res.json({
+      building: status.building,
+      progress: status.progress,
+      total: status.total,
+      stage: status.stage,
+      needsRebuild: storeInfo.needsRebuild,
+      version: storeInfo.version,
+      currentVersion: storeInfo.currentVersion
+    });
+  } catch (error) {
+    logger.error('[Analytics] Error getting lookup status:', error);
+    res.status(500).json({ error: 'Failed to get lookup status' });
   }
 });
 
