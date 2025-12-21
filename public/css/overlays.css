@@ -2300,6 +2300,38 @@ input[type="range"]::-moz-range-track {
   font-size: var(--font-size-12);
 }
 
+.changelog-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: var(--spacing-12) 0;
+  font-size: var(--font-size-12);
+}
+
+.changelog-content table th,
+.changelog-content table td {
+  border: 1px solid var(--color-border);
+  padding: var(--spacing-8) var(--spacing-12);
+  text-align: left;
+}
+
+.changelog-content table th {
+  background: var(--color-bg-tertiary);
+  color: var(--color-info);
+  font-weight: var(--font-weight-semibold);
+}
+
+.changelog-content table td {
+  color: var(--color-text-secondary);
+}
+
+.changelog-content table tr:nth-child(even) td {
+  background: var(--color-bg-secondary);
+}
+
+.changelog-content table tr:hover td {
+  background: var(--color-bg-tertiary);
+}
+
 .changelog-footer {
   padding: var(--spacing-12) var(--spacing-16);
   border-top: 1px solid var(--color-border);
