@@ -331,7 +331,16 @@ function copyDir(src, dest) {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
 
-    if (entry.isDirectory()) {
+    if (entry.isSymbolicLink()) {
+      // Copy symlink as symlink
+      const linkTarget = fs.readlinkSync(srcPath);
+      try {
+        fs.symlinkSync(linkTarget, destPath);
+      } catch (e) {
+        // Ignore if symlink already exists
+        if (e.code !== 'EEXIST') throw e;
+      }
+    } else if (entry.isDirectory()) {
       copyDir(srcPath, destPath);
     } else {
       fs.copyFileSync(srcPath, destPath);
