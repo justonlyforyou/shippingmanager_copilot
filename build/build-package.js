@@ -120,7 +120,8 @@ if (fs.existsSync(packageJsonSrc)) {
 console.log('[5/6] Copying documentation...');
 const docs = [
     { src: 'README.md', required: false },
-    { src: 'LICENSE', required: false }
+    { src: 'LICENSE', required: false },
+    { src: 'CHANGELOG.md', required: false }
 ];
 
 for (const doc of docs) {

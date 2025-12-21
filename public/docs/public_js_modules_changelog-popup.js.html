@@ -422,7 +422,6 @@ function showChangelogPopup(version, changelogHtml) {
   const versionSpan = document.getElementById('changelogVersion');
   const acknowledgeBtn = document.getElementById('changelogAcknowledgeBtn');
   const scrollContainer = document.getElementById('changelogScrollContainer');
-  const closeBtn = document.getElementById('changelogCloseBtn');
 
   if (!overlay || !content || !versionSpan || !acknowledgeBtn || !scrollContainer) {
     logger.warn('[Changelog] Popup elements not found in DOM');
@@ -434,17 +433,9 @@ function showChangelogPopup(version, changelogHtml) {
   versionSpan.textContent = version;
   content.innerHTML = changelogHtml;
 
-  // Disable button initially
+  // Disable button initially - user must scroll and click "Got it" to dismiss
   acknowledgeBtn.disabled = true;
   acknowledgeBtn.classList.add('disabled');
-
-  // Close button just hides (doesn't acknowledge - popup will show again next time)
-  if (closeBtn) {
-    closeBtn.onclick = () => {
-      closeChangelogPopup();
-      logger.debug('[Changelog] Popup closed without acknowledging');
-    };
-  }
 
   // Show overlay
   overlay.classList.remove('hidden');
