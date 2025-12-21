@@ -2234,18 +2234,18 @@ input[type="range"]::-moz-range-track {
    ============================================ */
 
 .changelog-window {
-  width: 550px;
-  max-width: 550px;
-  min-height: 300px;
-  max-height: 70vh;
+  width: 800px;
+  max-width: 800px;
+  height: 600px;
+  max-height: 600px;
 }
 
 .changelog-scroll-container {
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-16);
-  min-height: 150px;
-  max-height: 45vh;
+  min-height: 400px;
+  max-height: 480px;
 }
 
 .changelog-content {
