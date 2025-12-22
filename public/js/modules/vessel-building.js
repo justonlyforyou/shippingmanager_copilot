@@ -599,7 +599,6 @@ function renderStep1() {
               <div class="type-info">2,000 - 27,000 TEU</div>
             </div>
           </label>
-          ${window.USER_COMPANY_TYPE?.includes('tanker') ? `
           <label class="vessel-type-option ${buildState.vesselType === 'tanker' ? 'selected' : ''}">
             <input type="radio" name="vesselType" value="tanker" ${buildState.vesselType === 'tanker' ? 'checked' : ''}>
             <div class="type-card-horizontal">
@@ -608,7 +607,6 @@ function renderStep1() {
               <div class="type-info">148,000 - 1,998,000 BBL</div>
             </div>
           </label>
-          ` : ''}
         </div>
       </div>
 
@@ -644,8 +642,33 @@ function renderStep1() {
 
   const radios = content.querySelectorAll('input[name="vesselType"]');
   radios.forEach(radio => {
-    radio.addEventListener('change', (e) => {
-      buildState.vesselType = e.target.value;
+    radio.addEventListener('change', async (e) => {
+      const selectedType = e.target.value;
+
+      // Show bug warning when selecting tanker without tanker ops
+      if (selectedType === 'tanker' && !window.USER_COMPANY_TYPE?.includes('tanker')) {
+        const confirmed = await showConfirmDialog({
+          title: 'Tanker Building - Bug Exploit',
+          message: 'You have not unlocked Tanker Operations yet. However, due to a bug in the game, you can still build tankers without this achievement.',
+          details: [
+            { label: 'Status', value: 'Tanker Ops NOT unlocked' },
+            { label: 'Bug', value: 'Build menu allows tanker construction' }
+          ],
+          infoPopup: 'This is an unintended game behavior. Normally, you would need to unlock "Tanker Operations" before building tankers. The game allows building but not buying tankers without this achievement. Use at your own discretion.',
+          confirmText: 'Build Tanker Anyway',
+          cancelText: 'Stay with Container'
+        });
+
+        if (!confirmed) {
+          // User cancelled - revert to container
+          e.target.checked = false;
+          const containerRadio = content.querySelector('input[value="container"]');
+          if (containerRadio) containerRadio.checked = true;
+          return;
+        }
+      }
+
+      buildState.vesselType = selectedType;
 
       const config = CAPACITY_RANGES[buildState.vesselType];
       buildState.capacity = config.min;
@@ -1250,11 +1273,27 @@ async function submitBuild() {
 /**
  * Open build ship modal
  */
-export function openBuildShipModal() {
+export async function openBuildShipModal() {
   const overlay = document.getElementById('buildShipOverlay');
   if (!overlay) {
     console.error('[Build] Modal overlay not found');
     return;
+  }
+
+  // Ensure company_type is loaded (needed for tanker bug warning dialog)
+  if (!window.USER_COMPANY_TYPE) {
+    try {
+      const response = await fetch(window.apiUrl('/api/vessel/get-vessels'));
+      if (response.ok) {
+        const data = await response.json();
+        if (data.company_type) {
+          window.USER_COMPANY_TYPE = data.company_type;
+          logger.debug('[Build] Loaded company_type:', data.company_type);
+        }
+      }
+    } catch (err) {
+      logger.warn('[Build] Failed to fetch company_type:', err.message);
+    }
   }
 
   buildState.currentStep = 1;

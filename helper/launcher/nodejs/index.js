@@ -42,6 +42,73 @@ const { startServerForSession, stopAllServers, restartAllServers, stopServerForU
 // Set log function for server-manager
 serverManager.setLogFunction(log);
 
+// Set up global event emitter for launcher events (session_invalid, etc.)
+const { EventEmitter } = require('events');
+if (!global.launcherEvents) {
+  global.launcherEvents = new EventEmitter();
+}
+
+// Listen for session_invalid events and show renewal dialog
+global.launcherEvents.on('session_invalid', async (data) => {
+  log('error', `Session invalid for ${data.companyName} (user ${data.userId}): ${data.error.message}`);
+
+  // Show dialog to user offering session renewal
+  try {
+    const result = await webview.showSessionExpiredDialog({
+      companyName: data.companyName,
+      userId: data.userId,
+      errorMessage: data.error.message
+    });
+
+    if (result && result.action === 'renew') {
+      log('info', `User chose to renew session for ${data.companyName}`);
+
+      // Stop the failed server
+      await stopServerForUser(data.userId);
+
+      // Show login dialog
+      const loginResult = await webview.showLoginMethodDialog({
+        steamAvailable: steamExtractor.isAvailable(),
+        renewFor: data.companyName
+      });
+
+      if (loginResult) {
+        let newCookie = null;
+
+        if (loginResult.method === 'steam') {
+          const steamResult = await steamExtractor.steamLogin();
+          if (steamResult) newCookie = steamResult.cookie;
+        } else if (loginResult.method === 'browser') {
+          const browserResult = await webview.showBrowserLoginDialog();
+          if (browserResult) newCookie = browserResult.cookie;
+        }
+
+        if (newCookie) {
+          const validation = await validateSessionCookie(newCookie);
+          if (validation && String(validation.userId) === String(data.userId)) {
+            // Update session and restart server
+            await sessionManager.saveSession(data.userId, newCookie, validation.companyName, loginResult.method);
+            const sessions = await sessionManager.getAvailableSessions();
+            const session = sessions.find(s => String(s.userId) === String(data.userId));
+            if (session) {
+              await startServerForSession(session, data.port);
+              log('info', `Session renewed and server restarted for ${data.companyName}`);
+            }
+          } else {
+            log('error', 'Session renewal failed - user ID mismatch or validation failed');
+          }
+        }
+      }
+    } else if (result && result.action === 'remove') {
+      log('info', `User chose to remove account ${data.companyName}`);
+      await sessionManager.deleteSession(data.userId);
+      await stopServerForUser(data.userId);
+    }
+  } catch (err) {
+    log('error', `Failed to handle session_invalid: ${err.message}`);
+  }
+});
+
 /**
  * Restart a single server by user ID
  * @param {string} userId - User ID of server to restart

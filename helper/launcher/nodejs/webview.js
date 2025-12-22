@@ -78,6 +78,18 @@ function showDialogDirect(dialogType, data = {}) {
         title: data.title || 'Confirm',
         width: 400,
         height: 200
+      },
+      sessionExpired: {
+        htmlFile: 'session-expired.html',
+        title: 'Session Expired',
+        width: 400,
+        height: 300
+      },
+      browserLogin: {
+        htmlFile: 'login-method.html',
+        title: 'Browser Login',
+        width: 800,
+        height: 535
       }
     };
 
@@ -345,11 +357,30 @@ async function showConfirmDialog(title, message) {
   return result === true;
 }
 
+/**
+ * Show session expired dialog
+ * @param {object} options - Options with companyName, userId, errorMessage
+ * @returns {Promise<{action: 'renew'|'remove'|'ignore'}|null>} User action or null
+ */
+function showSessionExpiredDialog(options) {
+  return showDialog('sessionExpired', options);
+}
+
+/**
+ * Show browser login dialog
+ * @returns {Promise<{cookie: string}|null>} Cookie or null if cancelled
+ */
+function showBrowserLoginDialog() {
+  return showDialog('browserLogin', {});
+}
+
 module.exports = {
   showServerReadyDialog,
   showLoadingDialog,
   showLoginMethodDialog,
   showSettingsDialog,
   showErrorDialog,
-  showConfirmDialog
+  showConfirmDialog,
+  showSessionExpiredDialog,
+  showBrowserLoginDialog
 };

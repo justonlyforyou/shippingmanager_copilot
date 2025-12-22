@@ -169,8 +169,8 @@ function renderVesselsOverview(vessels) {
     }
   }
 
-  const hasTanker = window.USER_COMPANY_TYPE?.includes('tanker');
-  const bblLine = hasTanker && totalBBL > 0
+  // Always show BBL if available (tanker building works without tanker ops due to game bug)
+  const bblLine = totalBBL > 0
     ? `<p><strong>Vessels Max BBL:</strong> ${formatNumber(totalBBL)}</p>`
     : '';
 

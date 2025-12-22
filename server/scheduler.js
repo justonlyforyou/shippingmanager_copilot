@@ -31,6 +31,12 @@ const { lookupStore, vesselHistoryStore } = require('./database/store-adapter');
 let serverReady = false;
 
 /**
+ * Initialization error (if any)
+ * Contains error message and code when startup fails
+ */
+let initError = null;
+
+/**
  * Initializes all schedulers.
  * Called once during server startup.
  */
@@ -178,6 +184,22 @@ function initScheduler() {
 
     } catch (error) {
       logger.error('[Scheduler] Initial data load failed:', error);
+
+      // Determine error type for launcher to handle
+      const errorMessage = error.message || String(error);
+      const is401 = errorMessage.includes('401') ||
+                    errorMessage.includes('Unauthorized') ||
+                    errorMessage.includes('Session validation failed') ||
+                    errorMessage.includes('No session user found');
+
+      initError = {
+        message: errorMessage,
+        code: is401 ? 'SESSION_INVALID' : 'INIT_FAILED',
+        is401: is401,
+        timestamp: Date.now()
+      };
+
+      logger.error(`[Scheduler] Init error set: ${initError.code} - ${initError.message}`);
     }
   }, 10000);
 }
@@ -190,7 +212,16 @@ function isServerReady() {
   return serverReady;
 }
 
+/**
+ * Get initialization error if any
+ * @returns {Object|null} Error object with message, code, is401, timestamp
+ */
+function getInitError() {
+  return initError;
+}
+
 module.exports = {
   initScheduler,
-  isServerReady
+  isServerReady,
+  getInitError
 };

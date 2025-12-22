@@ -9,7 +9,7 @@
 import { showSideNotification, formatNumber, escapeHtml } from './utils.js';
 import { showPurchaseDialog } from './ui-dialogs.js';
 import { openNewChat } from './messenger.js';
-import { fetchContacts } from './api.js';
+import { fetchContacts, fetchVessels } from './api.js';
 import logger from './core/logger.js';
 
 let navigationHistory = [];
@@ -997,6 +997,19 @@ async function renderCompanyProfile(responseData, isOwn) {
       return '';
     }).join('');
     companyTypeHtml = typeEmojis;
+
+    // Check for bug-using: has tanker vessels but no tanker ops (own profile only)
+    if (isOwn && !companyType.includes('tanker')) {
+      try {
+        const vesselData = await fetchVessels();
+        const hasTankerVessels = vesselData?.vessels?.some(v => v.capacity_type === 'tanker');
+        if (hasTankerVessels) {
+          companyTypeHtml += '<span class="emoji-tooltip emoji-blurred" data-tooltip="Bug-Using: Account has no tanker ops but tankers :D">🛢️</span>';
+        }
+      } catch (error) {
+        logger.debug('[Company Profile] Failed to check tanker vessels:', error);
+      }
+    }
   }
 
   // Generate difficulty emoji

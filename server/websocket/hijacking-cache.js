@@ -153,6 +153,16 @@ function saveLocalCaseToDb(caseId, details, isOpen) {
       Date.now()
     );
 
+    // Save offers from API response to history table
+    if (details.offers && Array.isArray(details.offers)) {
+      for (const offer of details.offers) {
+        saveNegotiationEvent(caseId, offer.type, offer.amount, offer.timestamp);
+      }
+    } else if (details.requested_amount && details.registered_at) {
+      // Fallback: save initial pirate request if no offers array
+      saveNegotiationEvent(caseId, 'pirate', details.requested_amount, details.registered_at);
+    }
+
     logger.debug(`[Hijacking Cache] Saved case ${caseId} to SQLite (resolved: ${!isOpen})`);
   } catch (error) {
     logger.error(`[Hijacking Cache] Failed to save case ${caseId} to SQLite: ${error.message}`);
@@ -267,9 +277,12 @@ async function getCachedHijackingCase(caseId) {
 
     if (localData) {
       // Only use SQLite if case is RESOLVED - open cases need fresh API data
+      // Also check status field for 'successful', 'solved', 'paid' as resolved indicators
+      const statusResolved = ['successful', 'solved', 'paid'].includes(localData.case_details?.status);
       const isResolved = localData.resolved === true ||
                          localData.autopilot_resolved === true ||
-                         localData.resolved_at !== undefined;
+                         localData.resolved_at !== undefined ||
+                         statusResolved;
 
       logger.debug(`[Hijacking Cache] Case ${caseId} - isResolved check: ${isResolved}`);
 
@@ -352,7 +365,8 @@ async function getCachedHijackingCase(caseId) {
 
     const isOpen = details.paid_amount === null &&
                    details.status !== 'solved' &&
-                   details.status !== 'paid';
+                   details.status !== 'paid' &&
+                   details.status !== 'successful';
 
     // Store in memory cache
     hijackingCaseDetailsCache.set(caseId, {

@@ -56,7 +56,7 @@ function isPortAvailable(port) {
  * Checks the /api/health endpoint for ready: true
  * @param {number} port - Port number
  * @param {number} [timeout=60000] - Timeout in ms
- * @returns {Promise<boolean>}
+ * @returns {Promise<{ready: boolean, error?: Object}>} Result with ready state and optional error
  */
 function waitForServerReady(port, timeout = 60000) {
   return new Promise((resolve) => {
@@ -81,9 +81,17 @@ function waitForServerReady(port, timeout = 60000) {
           res.on('end', () => {
             try {
               const health = JSON.parse(data);
+
+              // Check for initialization error (e.g., 401 session invalid)
+              if (health.error) {
+                log('error', `Server init error: ${health.error.code} - ${health.error.message}`);
+                resolve({ ready: false, error: health.error });
+                return;
+              }
+
               if (health.ready === true) {
                 log('info', `Server ready on port ${port}`);
-                resolve(true);
+                resolve({ ready: true });
               } else {
                 log('debug', `Server not ready yet (ready: ${health.ready})`);
                 scheduleNextCheck();
@@ -112,7 +120,7 @@ function waitForServerReady(port, timeout = 60000) {
     const scheduleNextCheck = () => {
       if (Date.now() - startTime > timeout) {
         log('error', `Server startup timeout after ${timeout}ms`);
-        resolve(false);
+        resolve({ ready: false, error: { code: 'TIMEOUT', message: 'Server startup timeout' } });
       } else {
         setTimeout(checkHealth, 1000);
       }
@@ -356,13 +364,37 @@ async function startServerProcess(session, port, onReady) {
 
   // Use health endpoint polling instead of stdout text matching
   // This is more reliable as stdout chunks can be fragmented
-  const isReady = await waitForServerReady(port, 90000);
+  const result = await waitForServerReady(port, 90000);
 
-  if (isReady) {
+  if (result.ready) {
     const serverInfo = serverProcesses.get(userId);
     if (serverInfo) serverInfo.ready = true;
     log('info', `Server for ${session.companyName} is READY (port ${port})`);
     if (onReady) onReady(userId, session.companyName, port);
+  } else if (result.error) {
+    const serverInfo = serverProcesses.get(userId);
+    if (serverInfo) {
+      serverInfo.ready = false;
+      serverInfo.error = result.error;
+    }
+
+    // Handle session invalid error - emit event for UI to handle
+    if (result.error.code === 'SESSION_INVALID' || result.error.is401) {
+      log('error', `Server for ${session.companyName} has INVALID SESSION - needs renewal`);
+      // Emit event so tray/UI can show dialog
+      const { EventEmitter } = require('events');
+      if (!global.launcherEvents) {
+        global.launcherEvents = new EventEmitter();
+      }
+      global.launcherEvents.emit('session_invalid', {
+        userId,
+        companyName: session.companyName,
+        port,
+        error: result.error
+      });
+    } else {
+      log('warn', `Server for ${session.companyName} startup failed: ${result.error.message}`);
+    }
   } else {
     log('warn', `Server for ${session.companyName} startup timeout - continuing anyway`);
   }

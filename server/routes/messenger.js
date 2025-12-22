@@ -54,7 +54,7 @@ const {
   markChatAsReadInCache,
   deleteChatFromCache
 } = require('../websocket/messenger-content-cache');
-const { getCachedHijackingCase } = require('../websocket/hijacking-cache');
+const { getCachedHijackingCase, saveNegotiationEvent, markCaseResolved } = require('../websocket/hijacking-cache');
 const { getDb } = require('../database');
 
 const router = express.Router();
@@ -934,6 +934,14 @@ router.post('/hijacking/submit-offer', express.json(), async (req, res) => {
         'SUCCESS',
         SOURCES.MANUAL
       );
+
+      // Save user offer to SQLite history
+      saveNegotiationEvent(case_id, 'user', amount, Date.now() / 1000);
+
+      // If pirate counter-offer returned, save it too
+      if (pirateCounter) {
+        saveNegotiationEvent(case_id, 'pirate', pirateCounter, Date.now() / 1000);
+      }
     }
 
     res.json(data);
@@ -1040,45 +1048,19 @@ router.post('/hijacking/pay', express.json(), async (req, res) => {
       );
     }
 
-    // Save verification data to history
+    // Save resolution to SQLite database
     try {
-      const historyDir = path.join(DATA_DIR, 'hijack_history');
-      const historyPath = path.join(historyDir, `${userId}-${case_id}.json`);
-
-      if (!fs.existsSync(historyDir)) {
-        fs.mkdirSync(historyDir, { recursive: true });
-      }
-
-      // Load existing history
-      let historyData = [];
-      let resolvedAt = null;
-      if (fs.existsSync(historyPath)) {
-        const existingData = JSON.parse(fs.readFileSync(historyPath, 'utf8'));
-        historyData = Array.isArray(existingData) ? existingData : existingData.history;
-        resolvedAt = existingData.resolved_at;
-      }
-
-      // Update history with payment verification (manual payment)
-      const updatedHistory = {
-        history: historyData,
-        autopilot_resolved: false,  // Manual payment = not autopilot
-        resolved: true,             // Case is resolved (used by cache to skip API calls)
-        final_status: 'paid',       // Final status for cache
-        resolved_at: resolvedAt || Date.now() / 1000,
-        vessel_name: vesselName,
-        user_vessel_id: userVesselId,
-        payment_verification: {
-          verified: verified,
-          expected_amount: expectedAmount,
-          actual_paid: actualPaid,
-          cash_before: cashBefore,
-          cash_after: cashAfter
-        }
-      };
-
-      fs.writeFileSync(historyPath, JSON.stringify(updatedHistory, null, 2));
+      markCaseResolved(case_id, {
+        autopilot_resolved: false,
+        resolved_at: Date.now() / 1000,
+        actual_paid: actualPaid,
+        cash_before: cashBefore,
+        cash_after: cashAfter,
+        verified: verified
+      });
+      logger.debug(`[Hijacking Payment] Case ${case_id}: Marked as resolved in SQLite`);
     } catch (error) {
-      logger.error(`[Hijacking Payment] Case ${case_id}: Failed to save verification:`, error);
+      logger.error(`[Hijacking Payment] Case ${case_id}: Failed to save resolution:`, error);
     }
 
     // Invalidate hijacking cache for this case and trigger immediate refresh

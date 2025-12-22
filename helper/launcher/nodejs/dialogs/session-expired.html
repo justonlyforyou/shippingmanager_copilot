@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en" style="background: #1a1a1a;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:;">
+  <link rel="stylesheet" href="launcher-dialogs.css">
+  <link rel="icon" href="../../../../public/favicon.png" type="image/png">
+  <title>Session Expired</title>
+</head>
+<body class="launcher-dialog">
+  <div class="launcher-dialog-content" style="text-align: center;">
+    <div class="launcher-error-icon" style="color: #f59e0b;">&#9888;</div>
+    <h1 class="launcher-dialog-title">Session Expired</h1>
+    <div class="launcher-error-message" id="message">
+      The session for <strong id="company-name"></strong> has expired or is invalid.
+    </div>
+    <div class="launcher-error-details" id="error-details" style="margin-top: 12px; font-size: 12px; color: #888;"></div>
+
+    <div class="launcher-dialog-buttons" style="margin-top: 24px; display: flex; flex-direction: column; gap: 8px;">
+      <button class="launcher-btn launcher-btn-primary" onclick="renew()">Renew Session</button>
+      <button class="launcher-btn launcher-btn-danger" onclick="remove()">Remove Account</button>
+      <button class="launcher-btn" onclick="ignore()">Ignore</button>
+    </div>
+  </div>
+
+  <script>
+    let dialogData = {};
+
+    async function init() {
+      try {
+        const dataJson = await getData();
+        dialogData = JSON.parse(dataJson);
+
+        if (dialogData.companyName) {
+          document.getElementById('company-name').textContent = dialogData.companyName;
+        }
+        if (dialogData.errorMessage) {
+          document.getElementById('error-details').textContent = dialogData.errorMessage;
+        }
+      } catch (err) {
+        document.getElementById('error-details').textContent = 'Failed to load error details.';
+      }
+    }
+
+    function renew() {
+      closeDialog(JSON.stringify({ action: 'renew' }));
+    }
+
+    function remove() {
+      closeDialog(JSON.stringify({ action: 'remove' }));
+    }
+
+    function ignore() {
+      closeDialog(JSON.stringify({ action: 'ignore' }));
+    }
+
+    init();
+  </script>
+</body>
+</html>

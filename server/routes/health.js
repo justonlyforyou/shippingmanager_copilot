@@ -15,17 +15,21 @@ const router = express.Router();
  * Returns server status and ready state
  *
  * @route GET /health
- * @returns {Object} { status: "ok", ready: boolean, timestamp: ISO8601 }
+ * @returns {Object} { status: "ok"|"error", ready: boolean, error?: Object, timestamp: ISO8601 }
  */
 router.get('/', (req, res) => {
-  const { isServerReady } = require('../scheduler');
+  const { isServerReady, getInitError } = require('../scheduler');
 
   // Allow cross-origin requests (for launcher dialog health polling)
   res.setHeader('Access-Control-Allow-Origin', '*');
 
+  const initError = getInitError();
+  const ready = isServerReady();
+
   res.json({
-    status: 'ok',
-    ready: isServerReady(),
+    status: initError ? 'error' : 'ok',
+    ready: ready,
+    error: initError,
     timestamp: new Date().toISOString()
   });
 });

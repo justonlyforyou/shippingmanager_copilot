@@ -333,11 +333,10 @@ export function registerVesselCatalogEventListeners(handlers, settings) {
   window.showBuyVesselsOverlay = async () => {
     await updateBunkerStatus(settings);
 
-    // Set tanker checkbox based on company type (only check if user has tanker ops)
+    // Always enable tanker filter (tanker building works without tanker ops due to game bug)
     const tankerCheckbox = document.querySelector('#filterDropdownMenu input[value="tanker"]');
     if (tankerCheckbox) {
-      const hasTanker = window.USER_COMPANY_TYPE && window.USER_COMPANY_TYPE.includes('tanker');
-      tankerCheckbox.checked = hasTanker;
+      tankerCheckbox.checked = true;
     }
 
     document.getElementById('buyVesselsOverlay').classList.remove('hidden');

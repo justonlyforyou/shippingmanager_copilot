@@ -1419,7 +1419,7 @@ async function loadPortDemandChart(portCode) {
 
   // Show loading in chart areas
   teuContainer.innerHTML = '<div class="port-demand-chart-placeholder">Loading demand history...</div>';
-  if (bblContainer && window.USER_COMPANY_TYPE?.includes('tanker')) {
+  if (bblContainer) {
     bblContainer.classList.remove('hidden');
     bblContainer.innerHTML = '<div class="port-demand-chart-placeholder">Loading demand history...</div>';
   }
@@ -1457,12 +1457,11 @@ function updatePortVesselMetrics(portData) {
   const maxTEUEl = document.getElementById('portDemandMaxTEU');
   const maxBBLEl = document.getElementById('portDemandMaxBBL');
 
-  // Hide BBL metric container if user doesn't have tanker
-  const hasTanker = window.USER_COMPANY_TYPE?.includes('tanker');
+  // Always show BBL metric (tanker building works without tanker ops due to game bug)
   if (maxBBLEl) {
     const bblContainer = maxBBLEl.closest('.analytics-metric');
     if (bblContainer) {
-      bblContainer.classList.toggle('hidden', !hasTanker);
+      bblContainer.classList.remove('hidden');
     }
   }
 
@@ -1505,7 +1504,7 @@ function updatePortVesselMetrics(portData) {
   if (maxTEUEl) {
     maxTEUEl.textContent = totalTEU > 0 ? formatNumber(totalTEU) : '-';
   }
-  if (maxBBLEl && hasTanker) {
+  if (maxBBLEl) {
     maxBBLEl.textContent = totalBBL > 0 ? formatNumber(totalBBL) : '-';
   }
 }
@@ -1752,13 +1751,10 @@ function renderPortDemandCharts(history, portName) {
   // Always render TEU chart
   renderTEUChart(teuContainer, history, portName);
 
-  // Render BBL chart only if user has tanker
-  const hasTanker = window.USER_COMPANY_TYPE?.includes('tanker');
-  if (hasTanker && bblContainer) {
+  // Always render BBL chart (tanker building works without tanker ops due to game bug)
+  if (bblContainer) {
     bblContainer.classList.remove('hidden');
     renderBBLChart(bblContainer, history, portName);
-  } else if (bblContainer) {
-    bblContainer.classList.add('hidden');
   }
 }
 
@@ -1774,7 +1770,6 @@ function clearPortDemandChart() {
   }
   if (bblContainer) {
     bblContainer.innerHTML = '<div class="port-demand-chart-placeholder">Select a port to view demand history</div>';
-    bblContainer.classList.add('hidden');
   }
 
   if (portDemandChartTEU) {
