@@ -104,19 +104,29 @@ namespace ShippingManagerCoPilot.Launcher
         public static string? GetPassword(string accountName)
         {
             var targetName = GetTargetName(accountName);
+            Logger.Debug($"[CredentialManager] Looking for credential: {targetName}");
 
             try
             {
                 // Enumerate all credentials for our service
-                if (!CredEnumerate($"{SERVICE_NAME}*", 0, out uint count, out IntPtr credentialsPtr))
+                var filter = $"{SERVICE_NAME}*";
+                Logger.Debug($"[CredentialManager] Enumerating with filter: {filter}");
+
+                if (!CredEnumerate(filter, 0, out uint count, out IntPtr credentialsPtr))
                 {
                     var error = Marshal.GetLastWin32Error();
                     if (error != 1168) // ERROR_NOT_FOUND
                     {
                         Logger.Error($"[CredentialManager] CredEnumerate failed with error {error}");
                     }
+                    else
+                    {
+                        Logger.Debug($"[CredentialManager] No credentials found matching filter: {filter}");
+                    }
                     return null;
                 }
+
+                Logger.Debug($"[CredentialManager] Found {count} credential(s) matching filter");
 
                 try
                 {
@@ -126,6 +136,7 @@ namespace ShippingManagerCoPilot.Launcher
                         var cred = Marshal.PtrToStructure<CREDENTIAL>(credPtr);
 
                         var credTargetName = Marshal.PtrToStringUni(cred.TargetName);
+                        Logger.Debug($"[CredentialManager] Checking credential [{i}]: {credTargetName}");
 
                         if (credTargetName == targetName)
                         {
@@ -208,6 +219,168 @@ namespace ShippingManagerCoPilot.Launcher
             catch (Exception ex)
             {
                 Logger.Error($"[CredentialManager] DeletePassword error: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Migrate old format credentials to new keytar-compatible format.
+        /// Old format: TargetName = "ShippingManagerCoPilot", UserName = "session_XXXXX"
+        /// New format: TargetName = "ShippingManagerCoPilot/session_XXXXX", UserName = "session_XXXXX"
+        /// </summary>
+        public static void MigrateOldCredentials()
+        {
+            Logger.Info("[CredentialManager] Checking for old format credentials to migrate...");
+
+            try
+            {
+                var filter = $"{SERVICE_NAME}*";
+                if (!CredEnumerate(filter, 0, out uint count, out IntPtr credentialsPtr))
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    if (error == 1168) // ERROR_NOT_FOUND
+                    {
+                        Logger.Debug("[CredentialManager] No credentials found");
+                    }
+                    return;
+                }
+
+                try
+                {
+                    // First pass: collect old format entries and check for new format
+                    var oldFormatEntries = new System.Collections.Generic.List<(string UserName, byte[] Blob, bool NewFormatExists)>();
+                    var newFormatTargets = new System.Collections.Generic.HashSet<string>();
+
+                    // Collect all new format targets first
+                    for (int i = 0; i < count; i++)
+                    {
+                        var credPtr = Marshal.ReadIntPtr(credentialsPtr, i * IntPtr.Size);
+                        var cred = Marshal.PtrToStructure<CREDENTIAL>(credPtr);
+                        var credTargetName = Marshal.PtrToStringUni(cred.TargetName);
+
+                        if (credTargetName != null && credTargetName.StartsWith($"{SERVICE_NAME}/"))
+                        {
+                            newFormatTargets.Add(credTargetName);
+                        }
+                    }
+
+                    // Now find old format entries
+                    for (int i = 0; i < count; i++)
+                    {
+                        var credPtr = Marshal.ReadIntPtr(credentialsPtr, i * IntPtr.Size);
+                        var cred = Marshal.PtrToStructure<CREDENTIAL>(credPtr);
+                        var credTargetName = Marshal.PtrToStringUni(cred.TargetName);
+                        var credUserName = Marshal.PtrToStringUni(cred.UserName);
+
+                        // Old format: TargetName is exactly SERVICE_NAME (no slash)
+                        if (credTargetName == SERVICE_NAME && !string.IsNullOrEmpty(credUserName))
+                        {
+                            Logger.Info($"[CredentialManager] Found old format credential: Target={credTargetName}, User={credUserName}");
+
+                            var newTargetName = $"{SERVICE_NAME}/{credUserName}";
+                            var newFormatExists = newFormatTargets.Contains(newTargetName);
+
+                            if (cred.CredentialBlobSize > 0 && cred.CredentialBlob != IntPtr.Zero)
+                            {
+                                var blob = new byte[cred.CredentialBlobSize];
+                                Marshal.Copy(cred.CredentialBlob, blob, 0, (int)cred.CredentialBlobSize);
+                                oldFormatEntries.Add((credUserName, blob, newFormatExists));
+                            }
+                        }
+                    }
+
+                    // Process old format entries
+                    foreach (var (userName, blob, newFormatExists) in oldFormatEntries)
+                    {
+                        if (newFormatExists)
+                        {
+                            // New format exists - just delete old
+                            Logger.Info($"[CredentialManager] New format exists for {userName}, deleting old format...");
+                            DeleteOldFormatCredential(userName);
+                        }
+                        else
+                        {
+                            // Migrate: create new format, then delete old
+                            Logger.Info($"[CredentialManager] Migrating {userName} to new format...");
+
+                            // Decode password (handle UTF-16)
+                            string password;
+                            bool isUtf16 = blob.Length > 2 && blob[1] == 0x00 && blob[3] == 0x00 && blob[0] != 0x00;
+                            if (isUtf16)
+                            {
+                                var sb = new StringBuilder();
+                                for (int j = 0; j < blob.Length; j += 2)
+                                {
+                                    if (blob[j] != 0) sb.Append((char)blob[j]);
+                                }
+                                password = sb.ToString();
+                                Logger.Info($"[CredentialManager] Converted UTF-16 to UTF-8 ({blob.Length} -> {password.Length} chars)");
+                            }
+                            else
+                            {
+                                password = Encoding.UTF8.GetString(blob);
+                            }
+
+                            // Save in new format
+                            if (SetPassword(userName, password))
+                            {
+                                Logger.Info($"[CredentialManager] Saved in new format: {SERVICE_NAME}/{userName}");
+                                // Delete old format
+                                DeleteOldFormatCredential(userName);
+                            }
+                            else
+                            {
+                                Logger.Error($"[CredentialManager] Failed to save in new format for {userName}");
+                            }
+                        }
+                    }
+
+                    if (oldFormatEntries.Count == 0)
+                    {
+                        Logger.Debug("[CredentialManager] No old format credentials found");
+                    }
+                    else
+                    {
+                        Logger.Info($"[CredentialManager] Migration complete: processed {oldFormatEntries.Count} old format credential(s)");
+                    }
+                }
+                finally
+                {
+                    CredFree(credentialsPtr);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[CredentialManager] Migration error: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Delete old format credential (TargetName = SERVICE_NAME exactly)
+        /// </summary>
+        private static bool DeleteOldFormatCredential(string userName)
+        {
+            try
+            {
+                // Old format has TargetName = SERVICE_NAME (no slash)
+                var result = CredDelete(SERVICE_NAME, CRED_TYPE_GENERIC, 0);
+                if (result)
+                {
+                    Logger.Info($"[CredentialManager] Deleted old format credential for {userName}");
+                }
+                else
+                {
+                    var error = Marshal.GetLastWin32Error();
+                    if (error != 1168)
+                    {
+                        Logger.Error($"[CredentialManager] Failed to delete old format: error {error}");
+                    }
+                }
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"[CredentialManager] DeleteOldFormatCredential error: {ex.Message}");
                 return false;
             }
         }

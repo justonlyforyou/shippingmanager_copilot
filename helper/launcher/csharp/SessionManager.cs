@@ -27,10 +27,15 @@ namespace ShippingManagerCoPilot.Launcher
             try
             {
                 Logger.Info($"[SessionManager] Looking for sessions at: {SessionsFilePath}");
+                Logger.Info($"[SessionManager] UserDataDirectory: {App.UserDataDirectory}");
+                Logger.Info($"[SessionManager] IsPackaged: {App.IsPackaged}");
 
                 if (!File.Exists(SessionsFilePath))
                 {
-                    Logger.Warn($"[SessionManager] Sessions file not found!");
+                    Logger.Warn($"[SessionManager] Sessions file not found at: {SessionsFilePath}");
+                    // Also check if directory exists
+                    var dir = Path.GetDirectoryName(SessionsFilePath);
+                    Logger.Info($"[SessionManager] Directory exists: {Directory.Exists(dir)}");
                     return sessions;
                 }
 

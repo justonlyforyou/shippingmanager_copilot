@@ -1,4 +1,4 @@
-# 🚢 Cheat Sheet / Glitch Guide
+# 🚢 Shippingmanager.cc - Cheat Sheet / Glitch Guide
 
 ## ⚡ Faster Delivery Glitch
 
@@ -301,7 +301,7 @@ const MAPBOX_TOKEN = 'sk.eyJ1Ijoic2hqb3J0aCIsImEiOiJjbGV0cHdodGwxaWZnM3NydnlvNHc
 | City | `https://api.mapbox.com/styles/v1/shjorth/ck6hrwoqh0uuy1iqvq5jmcch2/tiles/256/{z}/{x}/{y}@2x?access_token=TOKEN` |
 | Sky | `https://api.mapbox.com/styles/v1/shjorth/ck6hzf3qq11wg1ijsrtfaouxb/tiles/256/{z}/{x}/{y}@2x?access_token=TOKEN` |
 
-## Hidden VIP Vessels (Direct Purchase)
+## VIP Vessels (Direct Purchase)
 
 The game has hidden VIP vessels that aren't shown in the shop UI but can be purchased directly via API if you know their vessel ID. Prices range from 2,500 to 8,000 anchor points. All come with +50% cargo revenue boost.
 
@@ -427,5 +427,165 @@ fetch('/api/vessel/purchase-vessel',{method:'POST',headers:{'Content-Type':'appl
 **Buy Ventura (Container, ID 63) - 8,000 pts:**
 ```javascript
 fetch('/api/vessel/purchase-vessel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vessel_id:63})}).then(r=>r.json()).then(d=>console.log(d.data?.vessel?.name||'Failed',d))
+```
+
+## Race Condition Exploit (Buy Without Enough Points)
+
+There's a timing bug in the purchase API that allows you to buy a VIP vessel even if you don't have enough anchor points. By firing many purchase requests simultaneously, one request can slip through before the server validates your point balance.
+
+### How It Works
+
+1. The server has a lock (`already_posting_purchase_vessel`) to prevent duplicate purchases
+2. But the point balance check happens AFTER the lock is acquired
+3. If you fire enough simultaneous requests, one can complete the purchase before the balance is validated
+4. Result: You get the vessel but your points go NEGATIVE
+
+### Warning
+
+- **No guarantee!** This is a timing-based race condition - success depends on server load and luck
+- **You will go into negative points!** Example: 2,132 pts - 8,000 pts = -5,868 pts
+- **You cannot buy anything else** until you earn enough points to get back to positive
+- Only works if you currently have POSITIVE points (even if not enough for the vessel)
+
+### Browser Console Script
+
+Execute this in the browser console (F12) while logged into shippingmanager.cc:
+
+```javascript
+// Race Condition Purchase - fires 100 simultaneous requests
+// Change vessel_id to the VIP vessel you want (59-63)
+(async function raceConditionBuy(vesselId = 63, numRequests = 100) {
+  console.log(`Starting race condition attack on vessel ID ${vesselId} with ${numRequests} requests...`);
+
+  const promises = [];
+  for (let i = 0; i < numRequests; i++) {
+    promises.push(
+      fetch('/api/vessel/purchase-vessel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vessel_id: vesselId })
+      }).then(r => r.json()).catch(e => ({ error: e.message }))
+    );
+  }
+
+  const results = await Promise.all(promises);
+
+  const successes = results.filter(r => r.data?.vessel?.name);
+  const errors = {};
+  results.forEach(r => {
+    const err = r.error || 'unknown';
+    errors[err] = (errors[err] || 0) + 1;
+  });
+
+  console.log('='.repeat(50));
+  console.log('RESULTS:');
+  console.log(`Successes: ${successes.length}`);
+  successes.forEach(s => console.log(`  GOT: ${s.data.vessel.name} (Points: ${s.user?.points})`));
+  console.log('Errors:', errors);
+
+  if (successes.length > 0) {
+    console.log(`>>> SUCCESS! Got ${successes.length} vessel(s)! <<<`);
+    console.log(`Your points are now: ${successes[0].user?.points} (probably negative)`);
+  } else {
+    console.log('No luck this time. Try again or increase numRequests.');
+  }
+
+  return successes;
+})();
+```
+
+### Quick One-Liner (100 requests for Ventura)
+
+```javascript
+(async(id=63,n=100)=>{const r=await Promise.all([...Array(n)].map(()=>fetch('/api/vessel/purchase-vessel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({vessel_id:id})}).then(r=>r.json()).catch(e=>({error:e}))));const s=r.filter(x=>x.data?.vessel);console.log(`Success: ${s.length}/${n}`,s[0]?.data?.vessel?.name||'None',`Points: ${s[0]?.user?.points||r[0]?.user?.points}`);return s})()
+```
+
+## Race Condition: Build Multiple Vessels with just having money for one
+
+The `vessel/build-vessel` endpoint has the same race condition vulnerability as VIP purchases. By firing multiple simultaneous build requests, you can construct several identical vessels while only paying once.
+
+### How It Works
+
+1. The server checks cash balance AFTER acquiring a build lock
+2. Multiple simultaneous requests can slip through before the first transaction commits
+3. Result: You get multiple vessels but cash only deducted once (goes negative)
+
+### Warning - Think Before You Exploit!
+
+**This might NOT be the smartest idea!**
+
+- **Cash goes MASSIVELY NEGATIVE!** We went from +$32M to -$58M in one exploit
+- **You can't buy fuel anymore!** Ships sitting in port = no income = stuck forever without selling or other dirty tricks. This is for people earning enough with a full bunker to turn this into something helpfull ;)
+- **You can't depart vessels!** No fuel = no departures = game basically broken
+- **Recovery takes FOREVER!** You need to earn back tens of millions before you can play normally again
+- Works best with 6-10 simultaneous requests
+- All ships get the SAME name (server doesn't validate uniqueness fast enough)
+- Mix of Steam/Browser requests increases success rate
+
+**Bottom line:** Yes, you get free ships. But if you can't fuel them, what's the point? Only use this if you have a recovery plan or don't care about the account!
+
+### Browser Console Script
+
+```javascript
+// Race Condition Build - fires simultaneous build requests
+// Adjust config for your desired ship
+(async function raceConditionBuild(numRequests = 6) {
+  const suffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+
+  const config = {
+    name: `RaceShip${suffix}`,
+    ship_yard: 'baltimore',        // Must have drydock!
+    vessel_model: 'container',
+    engine_type: 'mih_x1',
+    engine_kw: 11000,
+    capacity: 2000,
+    antifouling_model: 'type_a',
+    bulbous: 1,
+    enhanced_thrusters: 0,
+    range: 18000,
+    propeller_types: '6_blade_propeller'
+  };
+
+  console.log(`Building ${numRequests}x "${config.name}" simultaneously...`);
+  console.log(`Ship cost: ~$30M | Your cash: check before running!`);
+
+  const promises = [];
+  for (let i = 0; i < numRequests; i++) {
+    promises.push(
+      fetch('/api/vessel/build-vessel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config)
+      }).then(r => r.json()).catch(e => ({ error: e.message }))
+    );
+  }
+
+  const results = await Promise.all(promises);
+
+  const successes = results.filter(r => r.data?.success);
+  const errors = {};
+  results.forEach(r => {
+    const err = r.error || 'success';
+    errors[err] = (errors[err] || 0) + 1;
+  });
+
+  console.log('='.repeat(50));
+  console.log('RESULTS:');
+  console.log(`Ships built: ${successes.length}/${numRequests}`);
+  console.log(`Cash after: $${successes[0]?.user?.cash?.toLocaleString() || results[0]?.user?.cash?.toLocaleString()}`);
+  console.log('Breakdown:', errors);
+
+  if (successes.length > 1) {
+    console.log(`>>> RACE CONDITION SUCCESS! Built ${successes.length} ships! <<<`);
+  }
+
+  return successes;
+})();
+```
+
+### Quick One-Liner (6 requests)
+
+```javascript
+(async(n=6)=>{const c={name:'Race'+Math.random().toString(36).slice(2,6).toUpperCase(),ship_yard:'baltimore',vessel_model:'container',engine_type:'mih_x1',engine_kw:11000,capacity:2000,antifouling_model:'type_a',bulbous:1,enhanced_thrusters:0,range:18000,propeller_types:'6_blade_propeller'};const r=await Promise.all([...Array(n)].map(()=>fetch('/api/vessel/build-vessel',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(c)}).then(r=>r.json()).catch(e=>({error:e}))));const s=r.filter(x=>x.data?.success);console.log(`Built: ${s.length}/${n}`,`Cash: $${(s[0]||r[0])?.user?.cash?.toLocaleString()}`);return s})()
 ```
 

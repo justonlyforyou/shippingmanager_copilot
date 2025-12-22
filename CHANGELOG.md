@@ -2,6 +2,25 @@
 
 All notable changes to Shipping Manager CoPilot will be documented in this file.
 
+## Important Bugfix [0.1.7.1] - 2025-12-21
+
+  C# Launcher:
+  - Add credential migration from old format to keytar-compatible format
+  - Read base port from settings.json instead of hardcoded 12345
+  - Add debug logging for session and credential lookups
+
+  CSS:
+  - Add missing .unread-indicator styling (red dot for unread messages)
+  - Fix deprecated word-break: break-word -> overflow-wrap: break-word
+  - Replace hardcoded rgba() values with CSS variables
+  - Add --gray-400-10 and --gray-400-20 variables
+
+  Server:
+  - Add cleanupOldCredentials() helper in encryption.js
+
+  Docs:
+  - **CHEATSHEET:** Add Race Condition exploit documentation (VIP purchase, vessel building)
+
 ## [0.1.7.0] - 2025-12-21
 
 ### Important: Background Data Sync

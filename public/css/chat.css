@@ -63,7 +63,7 @@
 .message-text {
   color: var(--color-text-light);
   line-height: var(--line-height-normal);
-  word-break: break-word;
+  overflow-wrap: break-word;
   white-space: pre-wrap;
 }
 
@@ -343,6 +343,16 @@ textarea:focus {
   background: var(--color-info-10);
 }
 
+.unread-indicator {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background: var(--color-danger);
+  border-radius: var(--radius-round);
+  margin-left: var(--spacing-6);
+  vertical-align: middle;
+}
+
 /* ============================================
    MESSENGER INPUT
    ============================================ */
@@ -561,7 +571,7 @@ textarea:focus {
   padding: var(--spacing-10) var(--spacing-15);
   border-radius: var(--radius-15);
   margin-bottom: var(--spacing-8);
-  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .message-bubble.own {
@@ -608,7 +618,7 @@ textarea:focus {
   width: 100%;
   margin: 0 0 var(--spacing-12) 0;
   padding: var(--spacing-10);
-  background: rgba(239, 68, 68, 0.1);
+  background: var(--color-danger-10);
   border-radius: var(--radius-4);
   box-sizing: border-box;
 }
@@ -626,7 +636,7 @@ textarea:focus {
   width: 100%;
   margin: 0 0 var(--spacing-12) 0;
   padding: var(--spacing-10);
-  background: rgba(156, 163, 175, 0.1);
+  background: var(--gray-400-10);
   border-radius: var(--radius-4);
   box-sizing: border-box;
 }
@@ -647,7 +657,7 @@ textarea:focus {
   display: flex;
   justify-content: space-between;
   padding: var(--spacing-4) 0;
-  border-bottom: 1px solid rgba(156, 163, 175, 0.2);
+  border-bottom: 1px solid var(--gray-400-20);
 }
 
 .hijacking-history-pirate {
@@ -662,7 +672,7 @@ textarea:focus {
   width: 100%;
   margin-top: var(--spacing-12);
   padding: var(--spacing-10);
-  background: rgba(16, 185, 129, 0.1);
+  background: var(--color-success-dark-10);
   border-radius: var(--radius-4);
   position: relative;
   box-sizing: border-box;

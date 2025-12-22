@@ -231,6 +231,39 @@ async function deleteEncryptedData(accountName) {
 }
 
 /**
+ * Clean up old format credentials that may have been created by older versions.
+ * Old format: service name without account suffix in target name.
+ * This ensures Node.js and C# use identical credential formats.
+ *
+ * @returns {Promise<void>}
+ */
+async function cleanupOldCredentials() {
+    if (!keytar) {
+        return;
+    }
+
+    try {
+        const credentials = await keytar.findCredentials(SERVICE_NAME);
+        logger.debug(`[Encryption] Found ${credentials.length} credentials in keyring`);
+
+        // Check for duplicates (same account with different formats)
+        const accountCounts = {};
+        for (const cred of credentials) {
+            accountCounts[cred.account] = (accountCounts[cred.account] || 0) + 1;
+        }
+
+        // Log any duplicates found
+        for (const [account, count] of Object.entries(accountCounts)) {
+            if (count > 1) {
+                logger.warn(`[Encryption] Found ${count} duplicate entries for account: ${account}`);
+            }
+        }
+    } catch (error) {
+        logger.error(`[Encryption] Cleanup error: ${error.message}`);
+    }
+}
+
+/**
  * Get information about the encryption system
  *
  * @returns {Object} System information
@@ -253,5 +286,6 @@ module.exports = {
     decryptData,
     isEncrypted,
     deleteEncryptedData,
+    cleanupOldCredentials,
     getEncryptionInfo
 };

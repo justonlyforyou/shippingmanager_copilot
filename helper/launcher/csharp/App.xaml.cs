@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace ShippingManagerCoPilot.Launcher
@@ -18,6 +19,31 @@ namespace ShippingManagerCoPilot.Launcher
         public SessionManager SessionManager => _sessionManager!;
 
         public static string AppDirectory => AppDomain.CurrentDomain.BaseDirectory;
+
+        /// <summary>
+        /// Get base port from settings.json (same logic as Node.js config.loadSettings())
+        /// </summary>
+        public static int GetBasePort()
+        {
+            try
+            {
+                var settingsPath = Path.Combine(UserDataDirectory, "settings", "settings.json");
+                if (File.Exists(settingsPath))
+                {
+                    var json = File.ReadAllText(settingsPath);
+                    using var doc = System.Text.Json.JsonDocument.Parse(json);
+                    if (doc.RootElement.TryGetProperty("port", out var portProp))
+                    {
+                        return portProp.GetInt32();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Debug($"Could not read port from settings: {ex.Message}");
+            }
+            return 12345; // Default same as Node.js
+        }
 
         /// <summary>
         /// Check if running as installed (packaged) or development mode.
@@ -79,6 +105,9 @@ namespace ShippingManagerCoPilot.Launcher
             Directory.CreateDirectory(UserDataDirectory);
             Directory.CreateDirectory(Path.Combine(UserDataDirectory, "settings"));
             Directory.CreateDirectory(Path.Combine(UserDataDirectory, "logs"));
+
+            // Migrate old format credentials to new keytar-compatible format
+            CredentialManager.MigrateOldCredentials();
 
             // Initialize managers
             _sessionManager = new SessionManager();
@@ -149,7 +178,9 @@ namespace ShippingManagerCoPilot.Launcher
                 Logger.Info($"Starting {autostartSessions.Count} server(s) in parallel...");
 
                 // Create pending session view models with loading state
-                var basePort = 12345;
+                // Read base port from settings.json (same as Node.js)
+                var basePort = GetBasePort();
+                Logger.Info($"[App] Using base port from settings: {basePort}");
                 var pendingSessions = autostartSessions.Select((session, index) => new SessionViewModel
                 {
                     UserId = session.UserId,

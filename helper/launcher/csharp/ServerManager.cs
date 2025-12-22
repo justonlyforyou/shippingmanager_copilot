@@ -11,7 +11,11 @@ namespace ShippingManagerCoPilot.Launcher
     public class ServerManager
     {
         private readonly Dictionary<string, ServerInstance> _servers = new();
-        private int _basePort = 12345;
+
+        /// <summary>
+        /// Get base port from settings (lazy loaded)
+        /// </summary>
+        private int BasePort => App.GetBasePort();
 
         // HTTP client for health checks (ignore SSL errors for self-signed cert)
         private static readonly HttpClient _httpClient = new(new HttpClientHandler
@@ -26,12 +30,12 @@ namespace ShippingManagerCoPilot.Launcher
 
         public int GetNextPort()
         {
-            return _basePort + _servers.Count;
+            return BasePort + _servers.Count;
         }
 
         public async Task StartAllServersAsync(List<SessionInfo> sessions)
         {
-            var port = _basePort;
+            var port = BasePort;
 
             foreach (var session in sessions)
             {
