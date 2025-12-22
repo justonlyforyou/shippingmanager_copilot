@@ -2873,16 +2873,15 @@ async function applyFiltersAndRender(forceRender = false) {
   // Determine active demand filter (only one can be active at a time)
   const activeDemandFilter = currentDemandMaxFilter || currentDemandCurrentFilter;
 
-  // Apply port filter OR demand filter (mutually exclusive)
-  // Demand filters override port filter and use rawPorts with their own scope (my/all)
-  let filteredPorts;
+  // Apply port filter FIRST, then demand filter on top
+  // Both filters are combined (AND logic) - port filter narrows down, demand filter narrows further
+  let filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
+  console.log(`[Harbor Map] Applied port filter: ${currentPortFilter} -> ${filteredPorts.length} ports`);
+
   if (activeDemandFilter) {
-    // Demand filter is active - use rawPorts and let demand filter handle scope
-    filteredPorts = applyDemandFilter(rawPorts, activeDemandFilter);
+    // Apply demand filter on already-filtered ports
+    filteredPorts = applyDemandFilter(filteredPorts, activeDemandFilter);
     console.log(`[Harbor Map] Applied demand filter: ${activeDemandFilter} -> ${filteredPorts.length} ports`);
-  } else {
-    // No demand filter - use regular port filter based on current scope
-    filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
   }
 
   console.log(`[Harbor Map] Applied filters - Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}`);

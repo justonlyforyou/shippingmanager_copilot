@@ -213,6 +213,17 @@ if (fs.existsSync(changelogSrc)) {
   console.log('[SEA Build] Copied CHANGELOG.md');
 }
 
+// Copy server/workers directory (Worker threads need actual .js files, not bundled code)
+const workersSrc = path.join(ROOT_DIR, 'server', 'workers');
+const workersDest = path.join(DIST_DIR, 'server', 'workers');
+if (fs.existsSync(workersDest)) {
+  fs.rmSync(workersDest, { recursive: true });
+}
+if (fs.existsSync(workersSrc)) {
+  copyDir(workersSrc, workersDest);
+  console.log('[SEA Build] Copied server/workers/');
+}
+
 // Copy native modules and all their dependencies recursively
 fs.mkdirSync(path.join(DIST_DIR, 'node_modules'), { recursive: true });
 

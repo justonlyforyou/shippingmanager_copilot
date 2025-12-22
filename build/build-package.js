@@ -109,6 +109,14 @@ if (fs.existsSync(dialogsSrc)) {
     console.log('  [OK] helper/launcher/nodejs/dialogs/ copied');
 }
 
+// Copy server/workers (Worker threads need actual .js files)
+const workersSrc = path.join(distFolder, 'server', 'workers');
+if (fs.existsSync(workersSrc)) {
+    const workersDest = path.join(outputFolder, 'server', 'workers');
+    copyDir(workersSrc, workersDest);
+    console.log('  [OK] server/workers/ copied');
+}
+
 // Copy package.json (for version info)
 const packageJsonSrc = path.join(distFolder, 'package.json');
 if (fs.existsSync(packageJsonSrc)) {

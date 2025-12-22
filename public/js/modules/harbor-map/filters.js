@@ -648,7 +648,7 @@ export function applyDemandFilter(ports, filterValue) {
   if (parts.length < 4) return ports;
 
   const demandType = parts[0]; // 'max' or 'current'
-  const scope = parts[1]; // 'my' or 'all'
+  const _scope = parts[1]; // 'my' or 'all' - kept for filter value parsing, not used for filtering
   const cargoType = parts[2]; // 'cargo' or 'oil'
   const thresholdStr = parts.slice(3).join('_'); // handle negative numbers
 
@@ -659,8 +659,8 @@ export function applyDemandFilter(ports, filterValue) {
   const absThreshold = Math.abs(threshold);
 
   return ports.filter(p => {
-    // Check scope
-    if (scope === 'my' && !p.isAssigned) return false;
+    // NOTE: Scope check removed - port filter already handles which ports to include
+    // This allows combining port filters (like 'my_ports_no_route') with demand filters
 
     // Calculate demand based on type and cargo
     let demandValue;

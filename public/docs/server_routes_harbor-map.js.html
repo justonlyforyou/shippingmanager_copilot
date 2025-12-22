@@ -392,6 +392,7 @@ const logger = require('../utils/logger');
 const config = require('../config');
 const { enrichHistoryWithTripData } = require('../utils/trip-data-store');
 const { migrateHarborFeesForUser } = require('../utils/migrate-harbor-fees');
+const { portDemandStore } = require('../database/stores');
 const { vesselHistoryStore } = require('../database/store-adapter');
 const { syncSpecificVessels, getVesselTrips } = vesselHistoryStore;
 
@@ -580,9 +581,55 @@ router.get('/overview', async (req, res) => {
       logger.debug(`[Harbor Map] Filter: ${filter}, All ports: ${ports.length}, Assigned ports marked: ${assignedCount}, Assigned ports from API: ${assignedPortsWithDemand.length}`);
     }
 
+    // Enrich ports with demand data from SQLite (for ports without demand from API)
+    // This provides demand data for ALL ports, not just assigned ones
+    const latestDemand = portDemandStore.getLatestDemand(userId);
+    const demandByPort = new Map(latestDemand.map(d => [d.port_code, d]));
+
+    const enrichedPorts = ports.map(port => {
+      // If port already has proper demand data (object with container/tanker), keep it
+      if (port.demand &amp;&amp; typeof port.demand === 'object' &amp;&amp; !Array.isArray(port.demand) &amp;&amp;
+          (port.demand.container || port.demand.tanker)) {
+        return port;
+      }
+
+      // Otherwise, try to get demand from SQLite
+      const storedDemand = demandByPort.get(port.code);
+      if (storedDemand) {
+        return {
+          ...port,
+          demand: {
+            container: {
+              dry: storedDemand.dry_demand,
+              refrigerated: storedDemand.refrigerated_demand
+            },
+            tanker: {
+              fuel: storedDemand.fuel_demand,
+              crude_oil: storedDemand.crude_demand
+            }
+          },
+          consumed: {
+            container: {
+              dry: storedDemand.dry_consumed,
+              refrigerated: storedDemand.refrigerated_consumed
+            },
+            tanker: {
+              fuel: storedDemand.fuel_consumed,
+              crude_oil: storedDemand.crude_consumed
+            }
+          }
+        };
+      }
+
+      return port;
+    });
+
+    const portsWithDemandFromStore = enrichedPorts.filter(p => demandByPort.has(p.code)).length;
+    logger.debug(`[Harbor Map] Enriched ${portsWithDemandFromStore} ports with demand from SQLite store`);
+
     res.json({
       vessels: vessels,
-      ports,
+      ports: enrichedPorts,
       portPairGroups,
       filter
     });

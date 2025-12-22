@@ -2,7 +2,13 @@
 
 All notable changes to Shipping Manager CoPilot will be documented in this file.
 
-## Important Bugfix [0.1.7.1] - 2025-12-21
+## Important Bugfix [0.1.7.2] - 2025-12-22
+
+* Port no route filter fix - does now work correctly but keep in mind: we need a full scrape of the demand first (takes up to 30 minutes after first startup)
+* Lookup problem for analytics data fixed
+
+
+## Important Bugfix [0.1.7.1] - 2025-12-22
 
   C# Launcher:
   - Add credential migration from old format to keytar-compatible format

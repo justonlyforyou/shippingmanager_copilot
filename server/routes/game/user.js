@@ -225,7 +225,7 @@ router.get('/version/check', async (req, res) => {
           'Accept': 'application/vnd.github.v3+json',
           'User-Agent': 'ShippingManager-CoPilot'
         },
-        timeout: 5000
+        timeout: 15000
       }
     );
 
@@ -256,7 +256,8 @@ router.get('/version/check', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    logger.error('Error checking version:', error);
+    // Version check is non-critical - log as warn, not error
+    logger.warn('[VersionCheck] Failed to check for updates:', error.message);
 
     // Return current version even if GitHub check fails
     try {
