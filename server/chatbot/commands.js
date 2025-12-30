@@ -140,7 +140,7 @@ async function hasManagementRole(checkUserId) {
         const members = response?.data?.members || response?.members || [];
         const member = members.find(m => m.user_id === parseInt(checkUserId));
         const role = member?.role || 'member';
-        const allowedRoles = ['ceo', 'coo', 'management', 'interimceo'];
+        const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
         return allowedRoles.includes(role);
     } catch (error) {
         logger.error('[ChatBot] Error checking management role:', error);
@@ -407,8 +407,8 @@ async function handleMsgCommand(args, userId, userName, config, isDM) {
         return;
     }
 
-    if (!template.enabled) {
-        logger.debug(`[ChatBot] msg command: template "${templateKey}" is disabled`);
+    if (template.enabled !== true) {
+        logger.debug(`[ChatBot] msg command: template "${templateKey}" is disabled (enabled=${template.enabled})`);
         return;
     }
 

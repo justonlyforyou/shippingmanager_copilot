@@ -155,26 +155,26 @@ async function startAllServers() {
   serverStarting = true;
   settings = config.loadSettings();
 
-  // Get and validate sessions
-  const validSession = await sessionManager.getFirstValidSession((level, msg) => {
-    log(level, msg);
-  });
-
-  if (!validSession) {
-    log('error', 'No valid sessions found');
-    serverStarting = false;
-    return 0;
-  }
-
-  // Get all sessions and start servers for each
+  // Get all sessions
   const sessions = await sessionManager.getAvailableSessions();
 
-  // Filter to only autostart-enabled sessions
-  const autostartSessions = sessions.filter(s => s.autostart !== false);
-  const skippedCount = sessions.length - autostartSessions.length;
+  // Filter to only valid, autostart-enabled sessions
+  // Sessions with valid=false have decryption issues and cannot be started
+  const autostartSessions = sessions.filter(s => s.valid !== false && s.autostart !== false);
+  const invalidCount = sessions.filter(s => s.valid === false).length;
+  const disabledCount = sessions.filter(s => s.valid !== false && s.autostart === false).length;
 
-  if (skippedCount > 0) {
-    log('info', `Skipping ${skippedCount} session(s) with autostart disabled`);
+  if (invalidCount > 0) {
+    log('warn', `${invalidCount} session(s) have decryption issues and cannot be started`);
+  }
+  if (disabledCount > 0) {
+    log('info', `Skipping ${disabledCount} session(s) with autostart disabled`);
+  }
+
+  if (autostartSessions.length === 0) {
+    log('error', 'No valid sessions to start');
+    serverStarting = false;
+    return 0;
   }
 
   log('info', `Starting ${autostartSessions.length} server(s)...`);
@@ -182,7 +182,12 @@ async function startAllServers() {
   let startedCount = 0;
 
   for (const [index, session] of autostartSessions.entries()) {
-    const port = settings.port + index;
+    // Use session's configured port, or fall back to base port + index
+    let port = session.port;
+    if (!port) {
+      port = settings.port + index;
+      log('warn', `No port configured for ${session.companyName}, using fallback ${port}`);
+    }
 
     // Validate this session before starting
     const validation = await sessionManager.validateSessionCookie(session.cookie);
@@ -220,16 +225,21 @@ async function startAllServersQuick() {
   // Get all sessions
   const sessions = await sessionManager.getAvailableSessions();
 
-  // Filter to only autostart-enabled sessions
-  const autostartSessions = sessions.filter(s => s.autostart !== false);
-  const skippedCount = sessions.length - autostartSessions.length;
+  // Filter to only valid, autostart-enabled sessions
+  // Sessions with valid=false have decryption issues and cannot be started
+  const autostartSessions = sessions.filter(s => s.valid !== false && s.autostart !== false);
+  const invalidCount = sessions.filter(s => s.valid === false).length;
+  const disabledCount = sessions.filter(s => s.valid !== false && s.autostart === false).length;
 
-  if (skippedCount > 0) {
-    log('info', `Skipping ${skippedCount} session(s) with autostart disabled`);
+  if (invalidCount > 0) {
+    log('warn', `${invalidCount} session(s) have decryption issues and cannot be started`);
+  }
+  if (disabledCount > 0) {
+    log('info', `Skipping ${disabledCount} session(s) with autostart disabled`);
   }
 
   if (autostartSessions.length === 0) {
-    log('error', 'No valid sessions found');
+    log('error', 'No valid sessions to start');
     serverStarting = false;
     return { sessions: [], startedCount: 0 };
   }
@@ -241,7 +251,12 @@ async function startAllServersQuick() {
 
   // Start all servers in parallel without waiting for ready
   const startPromises = autostartSessions.map(async (session, index) => {
-    const port = settings.port + index;
+    // Use session's configured port, or fall back to base port + index
+    let port = session.port;
+    if (!port) {
+      port = settings.port + index;
+      log('warn', `No port configured for ${session.companyName}, using fallback ${port}`);
+    }
 
     // Validate this session before starting
     const validation = await sessionManager.validateSessionCookie(session.cookie);
@@ -353,12 +368,29 @@ async function startServerProcess(session, port, onReady) {
     log('info', `Server for ${session.companyName} exited (code ${code}, signal ${signal})`);
     serverProcesses.delete(userId);
 
-    // Exit code 100 = restart requested
+    // Exit code 100 = restart requested for THIS server only
     if (code === 100) {
-      log('info', `Restart requested for ${session.companyName}, reloading settings and restarting...`);
+      log('info', `Restart requested for ${session.companyName}, restarting this server only...`);
       settings = config.loadSettings();
-      await new Promise(r => setTimeout(r, 500));
-      await startAllServers();
+      await new Promise(r => setTimeout(r, 1000));
+      // Wait for port to be free
+      let portFree = false;
+      for (let i = 0; i < 10; i++) {
+        portFree = await isPortAvailable(port);
+        if (portFree) break;
+        log('info', `Waiting for port ${port} to be free...`);
+        await new Promise(r => setTimeout(r, 500));
+      }
+      if (portFree) {
+        // Get fresh session data
+        const sessions = await sessionManager.getAvailableSessions();
+        const freshSession = sessions.find(s => String(s.userId) === userId);
+        if (freshSession) {
+          await startServerProcess(freshSession, port);
+        }
+      } else {
+        log('error', `Port ${port} still in use after restart request`);
+      }
     }
   });
 

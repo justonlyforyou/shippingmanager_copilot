@@ -12,32 +12,15 @@ const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
+const { calculateFuelConsumption } = require('../utils/fuel-calculator');
 
 /**
- * Auto-rebuy fuel for a single user with intelligent threshold checking.
+ * Auto-rebuy fuel for a single user.
  * NO COOLDOWN - purchases whenever price is good and space available.
  *
- * Decision Logic:
- * 1. Fetches current bunker state and prices
- * 2. Checks if price <= threshold (uses alert threshold or custom)
- * 3. Verifies cash balance >= minimum cash requirement
- * 4. Calculates available space and affordable amount
- * 5. Purchases fuel up to bunker capacity or cash limit
- * 6. Broadcasts purchase event and updated bunker state
- *
- * Threshold Selection:
- * - If autoRebuyFuelUseAlert=true: uses fuelThreshold (alert threshold)
- * - If autoRebuyFuelUseAlert=false: uses autoRebuyFuelThreshold (custom)
- *
- * Safety Features:
- * - Respects minimum cash balance (won't buy if cash < minCash)
- * - Uses Math.ceil to always fill bunker completely
- * - Updates state immediately to prevent duplicate purchases
- *
- * API Interactions:
- * - Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())
- * - Calls gameapi.purchaseFuel() to execute purchase
- * - Broadcasts 'fuel_purchased' and 'bunker_update' events
+ * Modes:
+ * - Normal (intelligentRebuyFuel=false): Fill bunker when price <= threshold
+ * - Intelligent (intelligentRebuyFuel=true): Buy for vessels OR refill when price <= intelligentMaxPrice
  *
  * @async
  * @param {Object|null} bunkerState - Optional pre-fetched bunker state to avoid duplicate API calls
@@ -47,125 +30,138 @@ const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audi
  * @returns {Promise<void>}
  */
 async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUser, tryUpdateAllData) {
-  // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.debug('[Auto-Rebuy Fuel] Skipped - Autopilot is PAUSED');
+    logger.debug('[Barrel Boss] Skipped - Autopilot is PAUSED');
     return;
   }
 
   const userId = getUserId();
   if (!userId) return;
 
-  // Check settings
   const settings = state.getSettings(userId);
   if (!settings.autoRebuyFuel) {
-    logger.debug('[Auto-Rebuy Fuel] Feature disabled in settings');
+    logger.debug('[Barrel Boss] Feature disabled in settings');
     return;
   }
 
   try {
-    // Get bunker state from provided state or cache (auto-updated by apiCall())
     const bunker = bunkerState || state.getBunkerState(userId);
-    // No need to manually update state or broadcast - apiCall() handles that automatically
-
     const prices = state.getPrices(userId);
 
-    logger.debug(`[Auto-Rebuy Fuel] Check: Enabled=${settings.autoRebuyFuel}, Price=${prices.fuel}, Bunker=${bunker.fuel.toFixed(1)}/${bunker.maxFuel}t`);
-
-    // Check if prices have been fetched yet
     if (!prices.fuel || prices.fuel === 0) {
-      logger.debug('[Auto-Rebuy Fuel] No price data available yet');
+      logger.debug('[Barrel Boss] No price data available yet');
       return;
     }
 
-    // Determine threshold (use custom or alert threshold)
-    const threshold = settings.autoRebuyFuelUseAlert
-      ? settings.fuelThreshold
-      : settings.autoRebuyFuelThreshold;
-
-    logger.debug(`[Auto-Rebuy Fuel] Threshold check: Price $${prices.fuel}/t vs Threshold $${threshold}/t (UseAlert=${settings.autoRebuyFuelUseAlert})`);
-
-    // Check for emergency buy override conditions
-    let isEmergencyBuy = false;
-    if (settings.autoRebuyFuelEmergency) {
-      const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
-      const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
-      const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
-
-      // Check if bunker is below emergency threshold
-      if (bunker.fuel < emergencyBelowThreshold) {
-        // Count vessels at port
-        const vessels = await gameapi.fetchVessels();
-        const shipsAtPort = vessels.filter(v => v.status === 'port').length;
-
-        logger.debug(`[Auto-Rebuy Fuel] Emergency check: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ShipsAtPort=${shipsAtPort} >= ${emergencyShipsRequired}?`);
-
-        if (shipsAtPort >= emergencyShipsRequired) {
-          // Check if price is within emergency max price limit
-          if (prices.fuel <= emergencyMaxPrice) {
-            isEmergencyBuy = true;
-            logger.info(`[Auto-Rebuy Fuel] EMERGENCY BUY TRIGGERED: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t AND ${shipsAtPort} ships at port >= ${emergencyShipsRequired} (Price $${prices.fuel} <= MaxPrice $${emergencyMaxPrice})`);
-          } else {
-            logger.warn(`[Auto-Rebuy Fuel] Emergency conditions met but price too high: $${prices.fuel}/t > MaxPrice $${emergencyMaxPrice}/t`);
-          }
-        }
-      }
-    }
-
-    // Check if price is at or below threshold (unless emergency buy)
-    if (!isEmergencyBuy && prices.fuel > threshold) {
-      logger.debug(`[Auto-Rebuy Fuel] Price too high: $${prices.fuel}/t > $${threshold}/t threshold`);
-      return;
-    }
-
-    // Check if bunker has space
-    const availableSpace = bunker.maxFuel - bunker.fuel;
-    if (availableSpace < 0.5) {
-      logger.debug('[Auto-Rebuy Fuel] Bunker full');
-      return; // Bunker full
-    }
-
-    // Fill to max capacity - use Math.ceil to always buy enough to fill completely
-    const amountNeeded = Math.ceil(availableSpace);
-
-    // Calculate how much we can buy while keeping minCash reserve
     const minCash = settings.autoRebuyFuelMinCash;
     if (minCash === undefined || minCash === null) {
-      logger.error('[Auto-Rebuy Fuel] ERROR: autoRebuyFuelMinCash setting is missing!');
+      logger.error('[Barrel Boss] ERROR: autoRebuyFuelMinCash setting is missing!');
       return;
     }
+
+    const availableSpace = bunker.maxFuel - bunker.fuel;
     const cashAvailable = Math.max(0, bunker.cash - minCash);
     const maxAffordable = Math.floor(cashAvailable / prices.fuel);
 
-    // Buy as much as we can (limited by space or money)
-    const amountToBuy = Math.min(amountNeeded, maxAffordable);
+    let amountToBuy = 0;
+    let isEmergencyBuy = false;
 
-    logger.debug(`[Auto-Rebuy Fuel] Calculations: Space=${availableSpace.toFixed(1)}t, Cash=$${bunker.cash.toLocaleString()}, MinCash=$${minCash.toLocaleString()}, Available=$${cashAvailable.toLocaleString()}, MaxAffordable=${maxAffordable}t, ToBuy=${amountToBuy}t`);
+    // ========== INTELLIGENT MODE ==========
+    if (settings.intelligentRebuyFuel) {
+      const maxPrice = settings.intelligentRebuyFuelMaxPrice;
+
+      if (prices.fuel > maxPrice) {
+        logger.debug(`[Barrel Boss] Intelligent: Price $${prices.fuel}/t > max $${maxPrice}/t - skipping`);
+        return;
+      }
+
+      // Get vessels ready to depart and calculate fuel needs
+      const vessels = await gameapi.fetchVessels();
+      const readyVessels = vessels.filter(v => v.status === 'port' && !v.is_parked && v.route_destination);
+
+      let totalFuelNeeded = 0;
+      for (const vessel of readyVessels) {
+        const distance = vessel.route_distance;
+        if (!distance || distance <= 0) continue;
+
+        const speed = vessel.route_speed || vessel.max_speed;
+        let fuelNeeded = vessel.route_fuel_required || vessel.fuel_required;
+        if (!fuelNeeded) {
+          fuelNeeded = calculateFuelConsumption(vessel, distance, speed, userId);
+        }
+        if (fuelNeeded === null) fuelNeeded = 0;
+        totalFuelNeeded += fuelNeeded;
+      }
+
+      const shortfall = Math.ceil(totalFuelNeeded - bunker.fuel);
+
+      if (shortfall > 0) {
+        // Not enough fuel for vessels - buy what's missing
+        amountToBuy = Math.min(shortfall, Math.floor(availableSpace), maxAffordable);
+        logger.debug(`[Barrel Boss] Intelligent: ${readyVessels.length} vessels need ${totalFuelNeeded.toFixed(1)}t, bunker has ${bunker.fuel.toFixed(1)}t (shortfall: ${shortfall}t)`);
+      } else if (availableSpace >= 0.5) {
+        // No shortfall but bunker not full - refill
+        amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
+        logger.debug(`[Barrel Boss] Intelligent: No shortfall, refilling (${bunker.fuel.toFixed(1)}/${bunker.maxFuel}t)`);
+      } else {
+        logger.debug('[Barrel Boss] Intelligent: Bunker full, no action needed');
+        return;
+      }
+
+    // ========== NORMAL MODE ==========
+    } else {
+      // Determine threshold
+      const threshold = settings.autoRebuyFuelUseAlert
+        ? settings.fuelThreshold
+        : settings.autoRebuyFuelThreshold;
+
+      // Check for emergency buy
+      if (settings.autoRebuyFuelEmergency) {
+        const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
+        const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
+        const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
+
+        if (bunker.fuel < emergencyBelowThreshold) {
+          const vessels = await gameapi.fetchVessels();
+          const shipsAtPort = vessels.filter(v => v.status === 'port').length;
+
+          if (shipsAtPort >= emergencyShipsRequired && prices.fuel <= emergencyMaxPrice) {
+            isEmergencyBuy = true;
+            logger.info(`[Barrel Boss] EMERGENCY: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port`);
+          }
+        }
+      }
+
+      // Check price threshold
+      if (!isEmergencyBuy && prices.fuel > threshold) {
+        logger.debug(`[Barrel Boss] Price $${prices.fuel}/t > threshold $${threshold}/t - skipping`);
+        return;
+      }
+
+      if (availableSpace < 0.5) {
+        logger.debug('[Barrel Boss] Bunker full');
+        return;
+      }
+
+      amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
+    }
 
     if (amountToBuy <= 0) {
-      logger.warn(`[Auto-Rebuy Fuel] Cannot buy: Not enough cash after keeping minimum reserve`);
+      logger.debug('[Barrel Boss] Cannot buy: insufficient funds or space');
       return;
     }
 
-    const totalCost = amountToBuy * prices.fuel;
-    const cashAfterPurchase = bunker.cash - totalCost;
-    logger.debug(`[Auto-Rebuy Fuel] Purchasing ${amountToBuy}t @ $${prices.fuel}/t = $${totalCost.toLocaleString()} (Cash after: $${cashAfterPurchase.toLocaleString()})`);
-    logger.debug(`[Auto-Rebuy Fuel] Current bunker state BEFORE purchase: Cash=$${bunker.cash.toLocaleString()}, Fuel=${bunker.fuel.toFixed(1)}t/${bunker.maxFuel}t`);
-
-    // Purchase fuel - pass the price so cost can be calculated
+    // Purchase fuel
     const result = await gameapi.purchaseFuel(amountToBuy, prices.fuel);
-    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
-
-    logger.debug(`[Auto-Rebuy Fuel] Purchase successful, API returned: newTotal=${result.newTotal.toFixed(1)}t, cost=$${result.cost.toLocaleString()}`);
+    const actionTimestamp = Date.now();
 
     // Update bunker state
     bunker.fuel = result.newTotal;
     bunker.cash -= result.cost;
     state.updateBunkerState(userId, bunker);
 
-    // Broadcast success
+    // Broadcast
     if (broadcastToUser) {
-      logger.debug(`[Auto-Rebuy Fuel] Broadcasting fuel_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
       broadcastToUser(userId, 'fuel_purchased', {
         amount: amountToBuy,
         price: prices.fuel,
@@ -174,7 +170,6 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
         isEmergency: isEmergencyBuy
       });
 
-      // Broadcast updated bunker state (fuel AND cash changed)
       broadcastToUser(userId, 'bunker_update', {
         fuel: bunker.fuel,
         co2: bunker.co2,
@@ -184,9 +179,9 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       });
     }
 
-    logger.info(`[Auto-Rebuy Fuel] Purchased ${amountToBuy}t @ $${prices.fuel}/t (New total: ${result.newTotal.toFixed(1)}t)`);
+    logger.info(`[Barrel Boss] Purchased ${amountToBuy}t @ $${prices.fuel}/t = $${result.cost.toLocaleString()}`);
 
-    // Log to autopilot logbook
+    // Audit log
     const logDescription = isEmergencyBuy
       ? `EMERGENCY: ${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`
       : `${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`;
@@ -208,24 +203,26 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       SOURCES.AUTOPILOT
     );
 
-    // Update all header data and badges
-    await tryUpdateAllData();
+    if (tryUpdateAllData) {
+      await tryUpdateAllData();
+    }
 
   } catch (error) {
-    logger.error('[Auto-Rebuy Fuel] Error:', error.message);
+    // Ignore "bunker full" errors
+    if (error.message === 'max_fuel_reached' || error.message === 'bunker_full') {
+      logger.debug('[Barrel Boss] Bunker already full');
+      return;
+    }
 
-    // Log error to autopilot logbook (exclude stack trace for expected errors)
+    logger.error('[Barrel Boss] Error:', error.message);
+
     const isExpectedError = error.message === 'not_enough_cash' || error.message === 'insufficient_funds';
-    const details = isExpectedError
-      ? { error: error.message }
-      : { error: error.message, stack: error.stack };
-
     await auditLog(
       userId,
       CATEGORIES.BUNKER,
       'Auto-Fuel',
       `Purchase failed: ${error.message}`,
-      details,
+      isExpectedError ? { error: error.message } : { error: error.message, stack: error.stack },
       'ERROR',
       SOURCES.AUTOPILOT
     );

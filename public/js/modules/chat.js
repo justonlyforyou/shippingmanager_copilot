@@ -863,6 +863,8 @@ export function initWebSocket() {
         handlePurserPurchase(data);
       } else if (type === 'purser_sell') {
         handlePurserSell(data);
+      } else if (type === 'desktop_notification') {
+        handleDesktopNotification(data);
       } else if (type === 'server_startup') {
         // Server restarted - reload page
         logger.debug('[WebSocket] Server startup detected - reloading...');
@@ -1154,31 +1156,32 @@ Threshold: $${threshold}/t`,
  * Shows notification and updates bunker display.
  */
 async function handleFuelPurchased(data) {
-  const { amount, price, newTotal, cost } = data;
+  const { amount, price, newTotal, cost, isIntelligentRebuy } = data;
+  const source = isIntelligentRebuy ? 'Intelligent Rebuy' : 'Barrel Boss';
 
-  logger.debug(`[Autopilot] Fuel purchased: ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
+  logger.debug(`[Autopilot] Fuel purchased (${source}): ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
 
   const settings = window.getSettings ? window.getSettings() : {};
 
   // In-app alert
   if (settings.autoPilotNotifications && settings.notifyBarrelBossInApp) {
     showSideNotification(`
-      <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
-        <strong style="font-size: 1.1em;">⛽ Barrel Boss</strong>
+      <div class="notification-header">
+        <strong class="notification-title">${isIntelligentRebuy ? '🧠' : '⛽'} ${source}</strong>
       </div>
-      <div style="font-family: monospace; font-size: 13px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+      <div class="notification-body notification-mono">
+        <div class="notification-row">
           <span>Amount:</span>
           <span><strong>${amount.toFixed(0)}t</strong></span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Price per ton:</span>
           <span>$${price.toLocaleString()}/t</span>
         </div>
-        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 15px;">
+        <div class="notification-divider"></div>
+        <div class="notification-row notification-total">
           <span><strong>Total Cost:</strong></span>
-          <span style="color: #ef4444;"><strong>$${Math.round(cost).toLocaleString()}</strong></span>
+          <span class="notification-cost"><strong>$${Math.round(cost).toLocaleString()}</strong></span>
         </div>
       </div>
     `, 'success');
@@ -1186,12 +1189,8 @@ async function handleFuelPurchased(data) {
 
   // Desktop notification
   if (settings.autoPilotNotifications && settings.notifyBarrelBossDesktop && Notification.permission === 'granted') {
-    await showNotification('⛽ Barrel Boss', {
-      body: `
-
-${formatNumber(amount)}t @ $${price}/t
-
-💰 Total: $${Math.round(cost).toLocaleString()}`,
+    await showNotification(`${isIntelligentRebuy ? '🧠' : '⛽'} ${source}`, {
+      body: `${formatNumber(amount)}t @ $${price}/t\nTotal: $${Math.round(cost).toLocaleString()}`,
       icon: '/favicon.ico',
       tag: 'barrel-boss',
       silent: false
@@ -1206,31 +1205,32 @@ ${formatNumber(amount)}t @ $${price}/t
  * Shows notification and updates bunker display.
  */
 async function handleCO2Purchased(data) {
-  const { amount, price, newTotal, cost } = data;
+  const { amount, price, newTotal, cost, isIntelligentRebuy } = data;
+  const source = isIntelligentRebuy ? 'Intelligent Rebuy' : 'Atmosphere Broker';
 
-  logger.debug(`[Autopilot] CO2 purchased: ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
+  logger.debug(`[Autopilot] CO2 purchased (${source}): ${amount}t @ $${price}/t = $${Math.round(cost).toLocaleString()} (new total: ${newTotal.toFixed(1)}t)`);
 
   const settings = window.getSettings ? window.getSettings() : {};
 
   // In-app alert
   if (settings.autoPilotNotifications && settings.notifyAtmosphereBrokerInApp) {
     showSideNotification(`
-      <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
-        <strong style="font-size: 1.1em;">💨 Atmosphere Broker</strong>
+      <div class="notification-header">
+        <strong class="notification-title">${isIntelligentRebuy ? '🧠' : '💨'} ${source}</strong>
       </div>
-      <div style="font-family: monospace; font-size: 13px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+      <div class="notification-body notification-mono">
+        <div class="notification-row">
           <span>Amount:</span>
           <span><strong>${amount.toFixed(0)}t</strong></span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Price per ton:</span>
           <span>$${price.toLocaleString()}/t</span>
         </div>
-        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 15px;">
+        <div class="notification-divider"></div>
+        <div class="notification-row notification-total">
           <span><strong>Total Cost:</strong></span>
-          <span style="color: #ef4444;"><strong>$${Math.round(cost).toLocaleString()}</strong></span>
+          <span class="notification-cost"><strong>$${Math.round(cost).toLocaleString()}</strong></span>
         </div>
       </div>
     `, 'success');
@@ -1238,12 +1238,8 @@ async function handleCO2Purchased(data) {
 
   // Desktop notification
   if (settings.autoPilotNotifications && settings.notifyAtmosphereBrokerDesktop && Notification.permission === 'granted') {
-    await showNotification('💨 Atmosphere Broker', {
-      body: `
-
-${formatNumber(amount)}t @ $${price}/t
-
-💰 Total: $${Math.round(cost).toLocaleString()}`,
+    await showNotification(`${isIntelligentRebuy ? '🧠' : '💨'} ${source}`, {
+      body: `${formatNumber(amount)}t @ $${price}/t\nTotal: $${Math.round(cost).toLocaleString()}`,
       icon: '/favicon.ico',
       tag: 'atmosphere-broker',
       silent: false
@@ -1267,30 +1263,30 @@ async function handlePurserPurchase(data) {
   // In-app alert
   if (settings.autoPilotNotifications && settings.notifyThePurserInApp) {
     showSideNotification(`
-      <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
-        <strong style="font-size: 1.1em;">&#128176; The Purser - Buy</strong>
+      <div class="notification-header">
+        <strong class="notification-title">The Purser - Stock Purchase</strong>
       </div>
-      <div style="font-family: monospace; font-size: 13px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+      <div class="notification-body notification-mono">
+        <div class="notification-row">
           <span>Company:</span>
           <span><strong>${companyName}</strong></span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Account Age:</span>
           <span>${ageDays} days</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Shares:</span>
           <span><strong>${shares.toLocaleString()}</strong></span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Price per share:</span>
           <span>$${pricePerShare.toLocaleString()}</span>
         </div>
-        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 15px;">
+        <div class="notification-divider"></div>
+        <div class="notification-row notification-total">
           <span><strong>Total Cost:</strong></span>
-          <span style="color: #ef4444;"><strong>$${totalCost.toLocaleString()}</strong></span>
+          <span class="notification-cost"><strong>$${totalCost.toLocaleString()}</strong></span>
         </div>
       </div>
     `, 'success');
@@ -1298,7 +1294,7 @@ async function handlePurserPurchase(data) {
 
   // Desktop notification
   if (settings.autoPilotNotifications && settings.notifyThePurserDesktop && Notification.permission === 'granted') {
-    await showNotification('&#128176; The Purser - Buy', {
+    await showNotification('The Purser - Stock Purchase', {
       body: `${companyName} (${ageDays}d old)
 ${shares.toLocaleString()} shares @ $${pricePerShare}
 
@@ -1324,30 +1320,30 @@ async function handlePurserSell(data) {
   // In-app alert
   if (settings.autoPilotNotifications && settings.notifyThePurserInApp) {
     showSideNotification(`
-      <div style="margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid rgba(255,255,255,0.3);">
-        <strong style="font-size: 1.1em;">&#128176; The Purser - Sell</strong>
+      <div class="notification-header">
+        <strong class="notification-title">The Purser - Stock Sold</strong>
       </div>
-      <div style="font-family: monospace; font-size: 13px;">
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+      <div class="notification-body notification-mono">
+        <div class="notification-row">
           <span>Company:</span>
           <span><strong>${companyName}</strong></span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Reason:</span>
-          <span style="color: #fbbf24;">${reason}</span>
+          <span class="notification-warning">${reason}</span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Shares:</span>
           <span><strong>${shares.toLocaleString()}</strong></span>
         </div>
-        <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+        <div class="notification-row">
           <span>Price per share:</span>
           <span>$${pricePerShare.toLocaleString()}</span>
         </div>
-        <div style="height: 1px; background: rgba(255,255,255,0.2); margin: 10px 0;"></div>
-        <div style="display: flex; justify-content: space-between; font-size: 15px;">
+        <div class="notification-divider"></div>
+        <div class="notification-row notification-total">
           <span><strong>Total Revenue:</strong></span>
-          <span style="color: #22c55e;"><strong>+$${totalRevenue.toLocaleString()}</strong></span>
+          <span class="notification-success"><strong>+$${totalRevenue.toLocaleString()}</strong></span>
         </div>
       </div>
     `, 'warning');
@@ -1355,7 +1351,7 @@ async function handlePurserSell(data) {
 
   // Desktop notification
   if (settings.autoPilotNotifications && settings.notifyThePurserDesktop && Notification.permission === 'granted') {
-    await showNotification('&#128176; The Purser - Sell', {
+    await showNotification('The Purser - Stock Sold', {
       body: `${companyName}
 ${shares.toLocaleString()} shares @ $${pricePerShare}
 Reason: ${reason}
@@ -1365,6 +1361,31 @@ Revenue: +$${totalRevenue.toLocaleString()}`,
       tag: 'the-purser-sell',
       silent: false
     });
+  }
+}
+
+/**
+ * Handles desktop_notification events from backend autopilot modules.
+ * These are sent directly from autopilot pilots (Blackbeard, Purser, etc.)
+ */
+async function handleDesktopNotification(data) {
+  const { title, message, type } = data;
+
+  // Check if desktop notifications are enabled
+  if (Notification.permission !== 'granted') {
+    logger.debug('[Desktop Notification] Permission not granted, skipping');
+    return;
+  }
+
+  try {
+    await showNotification(title, {
+      body: message,
+      icon: '/favicon.ico',
+      tag: `autopilot-${type}`,
+      silent: false
+    });
+  } catch (err) {
+    logger.error('[Desktop Notification] Failed to show:', err.message);
   }
 }
 
@@ -2872,12 +2893,6 @@ function handleCompanyTypeUpdate(data) {
     logger.debug(`[Autopilot] Company type update:`, company_type);
   }
 
-  // Show/hide tanker filter button in sell vessels dialog
-  const sellTankerBtn = document.getElementById('sellFilterTankerBtn');
-  if (sellTankerBtn && company_type && company_type.includes('tanker')) {
-    sellTankerBtn.classList.remove('hidden');
-  }
-
   // NOTE: Removed auto-refresh of vessel cards - overlays should not be auto-refreshed
   // Vessel catalog will update when user reopens it
 }
@@ -2900,6 +2915,24 @@ function handleStaffTrainingPointsUpdate(data) {
       ceoLevelBadge.classList.add('has-staff-points');
     } else {
       ceoLevelBadge.classList.remove('has-staff-points');
+    }
+  }
+
+  // Update CEO level number in header star badge
+  if (ceo_level !== undefined) {
+    const ceoLevelNumber = document.getElementById('ceoLevelNumber');
+    if (ceoLevelNumber) {
+      ceoLevelNumber.textContent = ceo_level;
+    }
+  }
+
+  // Update XP progress bar fill in header star badge
+  if (experience_points !== undefined && levelup_experience_points !== undefined && levelup_experience_points > 0) {
+    const progress = Math.min(100, (experience_points / levelup_experience_points) * 100);
+    const ceoLevelFill = document.getElementById('ceoLevelFill');
+    if (ceoLevelFill) {
+      const fillWidth = (progress / 100) * 24;
+      ceoLevelFill.setAttribute('width', fillWidth);
     }
   }
 
@@ -2952,6 +2985,24 @@ function handleStaffUpdate(data) {
     const trainingPointsElement = document.querySelector('.company-profile-section-title span[style*="float: right"]');
     if (trainingPointsElement && trainingPointsElement.textContent.includes('💪')) {
       trainingPointsElement.textContent = `💪 ${user.staff_training_points}`;
+    }
+  }
+
+  // Update CEO level number if included in user data
+  if (user && user.ceo_level !== undefined) {
+    const ceoLevelNumber = document.getElementById('ceoLevelNumber');
+    if (ceoLevelNumber) {
+      ceoLevelNumber.textContent = user.ceo_level;
+    }
+  }
+
+  // Update XP progress bar if included in user data
+  if (user && user.experience_points !== undefined && user.levelup_experience_points !== undefined && user.levelup_experience_points > 0) {
+    const progress = Math.min(100, (user.experience_points / user.levelup_experience_points) * 100);
+    const ceoLevelFill = document.getElementById('ceoLevelFill');
+    if (ceoLevelFill) {
+      const fillWidth = (progress / 100) * 24;
+      ceoLevelFill.setAttribute('width', fillWidth);
     }
   }
 }

@@ -402,6 +402,26 @@ async function extractWithSteamKill(cookiePath, aesKey) {
 }
 
 /**
+ * Normalize a session cookie to consistent format (URL-decoded)
+ * @param {string} cookie - The cookie value
+ * @returns {string} Normalized cookie
+ */
+function normalizeCookie(cookie) {
+  if (!cookie) return cookie;
+  if (cookie.includes('%')) {
+    try {
+      const decoded = decodeURIComponent(cookie);
+      logger.debug(`[Steam] Cookie was URL-encoded, decoded from ${cookie.length} to ${decoded.length} chars`);
+      return decoded;
+    } catch {
+      logger.debug('[Steam] Cookie contains % but is not URL-encoded');
+      return cookie;
+    }
+  }
+  return cookie;
+}
+
+/**
  * Main Steam login function
  * @returns {Promise<object|null>} Object with session cookie and metadata, or null
  */
@@ -412,8 +432,11 @@ async function steamLogin() {
     return null;
   }
 
+  // Normalize the session cookie (ensure consistent format - always URL-decoded)
+  const normalizedCookie = normalizeCookie(cookies[TARGET_COOKIE_NAME]);
+
   return {
-    cookie: cookies[TARGET_COOKIE_NAME],
+    cookie: normalizedCookie,
     method: 'steam',
     allCookies: cookies
   };

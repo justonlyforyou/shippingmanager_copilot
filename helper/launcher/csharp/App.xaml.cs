@@ -114,6 +114,9 @@ namespace ShippingManagerCoPilot.Launcher
             _serverManager = new ServerManager();
             _trayIcon = new TrayIconManager();
 
+            // Migrate sessions.json to database if it exists
+            _ = _sessionManager.MigrateFromSessionsJsonAsync();
+
             // Initialize tray icon
             _trayIcon.Initialize();
 

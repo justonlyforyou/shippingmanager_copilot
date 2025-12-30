@@ -12,32 +12,15 @@ const state = require('../state');
 const logger = require('../utils/logger');
 const { getUserId } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
+const { calculateCO2Consumption } = require('../utils/fuel-calculator');
 
 /**
- * Auto-rebuy CO2 for a single user with intelligent threshold checking.
+ * Auto-rebuy CO2 for a single user.
  * NO COOLDOWN - purchases whenever price is good and space available.
  *
- * Decision Logic:
- * 1. Fetches current bunker state and prices
- * 2. Checks if price <= threshold (uses alert threshold or custom)
- * 3. Verifies cash balance >= minimum cash requirement
- * 4. Calculates available space and affordable amount
- * 5. Purchases CO2 up to bunker capacity or cash limit
- * 6. Broadcasts purchase event and updated bunker state
- *
- * Threshold Selection:
- * - If autoRebuyCO2UseAlert=true: uses co2Threshold (alert threshold)
- * - If autoRebuyCO2UseAlert=false: uses autoRebuyCO2Threshold (custom)
- *
- * Safety Features:
- * - Respects minimum cash balance (won't buy if cash < minCash)
- * - Uses Math.ceil to always fill bunker completely
- * - Updates state immediately to prevent duplicate purchases
- *
- * API Interactions:
- * - Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())
- * - Calls gameapi.purchaseCO2() to execute purchase
- * - Broadcasts 'co2_purchased' and 'bunker_update' events
+ * Modes:
+ * - Normal (intelligentRebuyCO2=false): Fill bunker when price <= threshold
+ * - Intelligent (intelligentRebuyCO2=true): Buy for vessels OR refill when price <= intelligentMaxPrice
  *
  * @async
  * @param {Object|null} bunkerState - Optional pre-fetched bunker state to avoid duplicate API calls
@@ -47,122 +30,133 @@ const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audi
  * @returns {Promise<void>}
  */
 async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser, tryUpdateAllData) {
-  // Check if autopilot is paused
   if (autopilotPaused) {
-    logger.debug('[Auto-Rebuy CO2] Skipped - Autopilot is PAUSED');
+    logger.debug('[Atmosphere Broker] Skipped - Autopilot is PAUSED');
     return;
   }
 
   const userId = getUserId();
   if (!userId) return;
 
-  // Check settings
   const settings = state.getSettings(userId);
   if (!settings.autoRebuyCO2) {
-    logger.debug('[Auto-Rebuy CO2] Feature disabled in settings');
+    logger.debug('[Atmosphere Broker] Feature disabled in settings');
     return;
   }
 
   try {
-    // Get bunker state from provided state or cache (auto-updated by apiCall())
     const bunker = bunkerState || state.getBunkerState(userId);
-    // No need to manually update state or broadcast - apiCall() handles that automatically
-
     const prices = state.getPrices(userId);
 
-    logger.debug(`[Auto-Rebuy CO2] Check: Enabled=${settings.autoRebuyCO2}, Price=${prices.co2}, Bunker=${bunker.co2.toFixed(1)}/${bunker.maxCO2}t`);
-
-    // Check if prices have been fetched yet
     if (!prices.co2 || prices.co2 === 0) {
-      logger.debug('[Auto-Rebuy CO2] No price data available yet');
+      logger.debug('[Atmosphere Broker] No price data available yet');
       return;
     }
 
-    // Determine threshold (use custom or alert threshold)
-    const threshold = settings.autoRebuyCO2UseAlert
-      ? settings.co2Threshold
-      : settings.autoRebuyCO2Threshold;
-
-    logger.debug(`[Auto-Rebuy CO2] Threshold check: Price $${prices.co2}/t vs Threshold $${threshold}/t (UseAlert=${settings.autoRebuyCO2UseAlert})`);
-
-    // Check for emergency buy override conditions
-    let isEmergencyBuy = false;
-    if (settings.autoRebuyCO2Emergency) {
-      const emergencyBelowThreshold = settings.autoRebuyCO2EmergencyBelow;
-      const emergencyShipsRequired = settings.autoRebuyCO2EmergencyShips;
-      const emergencyMaxPrice = settings.autoRebuyCO2EmergencyMaxPrice;
-
-      // Check if bunker is below emergency threshold
-      if (bunker.co2 < emergencyBelowThreshold) {
-        // Count vessels at port
-        const vessels = await gameapi.fetchVessels();
-        const shipsAtPort = vessels.filter(v => v.status === 'port').length;
-
-        logger.debug(`[Auto-Rebuy CO2] Emergency check: Bunker=${bunker.co2.toFixed(1)}t < ${emergencyBelowThreshold}t, ShipsAtPort=${shipsAtPort} >= ${emergencyShipsRequired}?`);
-
-        if (shipsAtPort >= emergencyShipsRequired) {
-          // Check if price is within emergency max price limit
-          if (prices.co2 <= emergencyMaxPrice) {
-            isEmergencyBuy = true;
-            logger.info(`[Auto-Rebuy CO2] EMERGENCY BUY TRIGGERED: Bunker=${bunker.co2.toFixed(1)}t < ${emergencyBelowThreshold}t AND ${shipsAtPort} ships at port >= ${emergencyShipsRequired} (Price $${prices.co2} <= MaxPrice $${emergencyMaxPrice})`);
-          } else {
-            logger.warn(`[Auto-Rebuy CO2] Emergency conditions met but price too high: $${prices.co2}/t > MaxPrice $${emergencyMaxPrice}/t`);
-          }
-        }
-      }
-    }
-
-    // Check if price is at or below threshold (unless emergency buy)
-    if (!isEmergencyBuy && prices.co2 > threshold) {
-      logger.debug(`[Auto-Rebuy CO2] Price too high: $${prices.co2}/t > $${threshold}/t threshold`);
-      return;
-    }
-
-    // Check if bunker has space
-    const availableSpace = bunker.maxCO2 - bunker.co2;
-    if (availableSpace < 0.5) {
-      logger.debug('[Auto-Rebuy CO2] Bunker full');
-      return; // Bunker full
-    }
-
-    // Fill to max capacity - use Math.ceil to always buy enough to fill completely
-    const amountNeeded = Math.ceil(availableSpace);
-
-    // Calculate how much we can buy while keeping minCash reserve
     const minCash = settings.autoRebuyCO2MinCash;
     if (minCash === undefined || minCash === null) {
-      logger.error('[Auto-Rebuy CO2] ERROR: autoRebuyCO2MinCash setting is missing!');
+      logger.error('[Atmosphere Broker] ERROR: autoRebuyCO2MinCash setting is missing!');
       return;
     }
+
+    const availableSpace = bunker.maxCO2 - bunker.co2;
     const cashAvailable = Math.max(0, bunker.cash - minCash);
     const maxAffordable = Math.floor(cashAvailable / prices.co2);
 
-    // Buy as much as we can (limited by space or money)
-    const amountToBuy = Math.min(amountNeeded, maxAffordable);
+    let amountToBuy = 0;
+    let isEmergencyBuy = false;
 
-    logger.debug(`[Auto-Rebuy CO2] Calculations: Space=${availableSpace.toFixed(1)}t, Cash=$${bunker.cash.toLocaleString()}, MinCash=$${minCash.toLocaleString()}, Available=$${cashAvailable.toLocaleString()}, MaxAffordable=${maxAffordable}t, ToBuy=${amountToBuy}t`);
+    // ========== INTELLIGENT MODE ==========
+    if (settings.intelligentRebuyCO2) {
+      const maxPrice = settings.intelligentRebuyCO2MaxPrice;
+
+      if (prices.co2 > maxPrice) {
+        logger.debug(`[Atmosphere Broker] Intelligent: Price $${prices.co2}/t > max $${maxPrice}/t - skipping`);
+        return;
+      }
+
+      // Get vessels ready to depart and calculate CO2 needs
+      const vessels = await gameapi.fetchVessels();
+      const readyVessels = vessels.filter(v => v.status === 'port' && !v.is_parked && v.route_destination);
+
+      let totalCO2Needed = 0;
+      for (const vessel of readyVessels) {
+        const distance = vessel.route_distance;
+        if (!distance || distance <= 0) continue;
+
+        const co2Needed = calculateCO2Consumption(vessel, distance) || 0;
+        totalCO2Needed += co2Needed;
+      }
+
+      const shortfall = Math.ceil(totalCO2Needed - bunker.co2);
+
+      if (shortfall > 0) {
+        // Not enough CO2 for vessels - buy what's missing
+        amountToBuy = Math.min(shortfall, Math.floor(availableSpace), maxAffordable);
+        logger.debug(`[Atmosphere Broker] Intelligent: ${readyVessels.length} vessels need ${totalCO2Needed.toFixed(1)}t, bunker has ${bunker.co2.toFixed(1)}t (shortfall: ${shortfall}t)`);
+      } else if (availableSpace >= 0.5) {
+        // No shortfall but bunker not full - refill
+        amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
+        logger.debug(`[Atmosphere Broker] Intelligent: No shortfall, refilling (${bunker.co2.toFixed(1)}/${bunker.maxCO2}t)`);
+      } else {
+        logger.debug('[Atmosphere Broker] Intelligent: Bunker full, no action needed');
+        return;
+      }
+
+    // ========== NORMAL MODE ==========
+    } else {
+      // Determine threshold
+      const threshold = settings.autoRebuyCO2UseAlert
+        ? settings.co2Threshold
+        : settings.autoRebuyCO2Threshold;
+
+      // Check for emergency buy
+      if (settings.autoRebuyCO2Emergency) {
+        const emergencyBelowThreshold = settings.autoRebuyCO2EmergencyBelow;
+        const emergencyShipsRequired = settings.autoRebuyCO2EmergencyShips;
+        const emergencyMaxPrice = settings.autoRebuyCO2EmergencyMaxPrice;
+
+        if (bunker.co2 < emergencyBelowThreshold) {
+          const vessels = await gameapi.fetchVessels();
+          const shipsAtPort = vessels.filter(v => v.status === 'port').length;
+
+          if (shipsAtPort >= emergencyShipsRequired && prices.co2 <= emergencyMaxPrice) {
+            isEmergencyBuy = true;
+            logger.info(`[Atmosphere Broker] EMERGENCY: Bunker=${bunker.co2.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port`);
+          }
+        }
+      }
+
+      // Check price threshold
+      if (!isEmergencyBuy && prices.co2 > threshold) {
+        logger.debug(`[Atmosphere Broker] Price $${prices.co2}/t > threshold $${threshold}/t - skipping`);
+        return;
+      }
+
+      if (availableSpace < 0.5) {
+        logger.debug('[Atmosphere Broker] Bunker full');
+        return;
+      }
+
+      amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
+    }
 
     if (amountToBuy <= 0) {
-      logger.warn(`[Auto-Rebuy CO2] Cannot buy: Not enough cash after keeping minimum reserve`);
+      logger.debug('[Atmosphere Broker] Cannot buy: insufficient funds or space');
       return;
     }
 
-    const totalCost = amountToBuy * prices.co2;
-    const cashAfterPurchase = bunker.cash - totalCost;
-    logger.debug(`[Auto-Rebuy CO2] Purchasing ${amountToBuy}t @ $${prices.co2}/t = $${totalCost.toLocaleString()} (Cash after: $${cashAfterPurchase.toLocaleString()})`);
-
-    // Purchase CO2 - pass the price so cost can be calculated
+    // Purchase CO2
     const result = await gameapi.purchaseCO2(amountToBuy, prices.co2);
-    const actionTimestamp = Date.now(); // Capture timestamp immediately after API response
+    const actionTimestamp = Date.now();
 
     // Update bunker state
     bunker.co2 = result.newTotal;
     bunker.cash -= result.cost;
     state.updateBunkerState(userId, bunker);
 
-    // Broadcast success
+    // Broadcast
     if (broadcastToUser) {
-      logger.debug(`[Auto-Rebuy CO2] Broadcasting co2_purchased event (Desktop notifications: ${settings.enableDesktopNotifications ? 'ENABLED' : 'DISABLED'})`);
       broadcastToUser(userId, 'co2_purchased', {
         amount: amountToBuy,
         price: prices.co2,
@@ -171,7 +165,6 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
         isEmergency: isEmergencyBuy
       });
 
-      // Broadcast updated bunker state (CO2 AND cash changed)
       broadcastToUser(userId, 'bunker_update', {
         fuel: bunker.fuel,
         co2: bunker.co2,
@@ -181,9 +174,9 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       });
     }
 
-    logger.info(`[Auto-Rebuy CO2] Purchased ${amountToBuy}t @ $${prices.co2}/t (New total: ${result.newTotal.toFixed(1)}t)`);
+    logger.info(`[Atmosphere Broker] Purchased ${amountToBuy}t @ $${prices.co2}/t = $${result.cost.toLocaleString()}`);
 
-    // Log to autopilot logbook
+    // Audit log
     const logDescription = isEmergencyBuy
       ? `EMERGENCY: ${amountToBuy}t @ ${formatCurrency(prices.co2)}/t | -${formatCurrency(result.cost)}`
       : `${amountToBuy}t @ ${formatCurrency(prices.co2)}/t | -${formatCurrency(result.cost)}`;
@@ -205,24 +198,26 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       SOURCES.AUTOPILOT
     );
 
-    // Update all header data and badges
-    await tryUpdateAllData();
+    if (tryUpdateAllData) {
+      await tryUpdateAllData();
+    }
 
   } catch (error) {
-    logger.error('[Auto-Rebuy CO2] Error:', error.message);
+    // Ignore "bunker full" errors
+    if (error.message === 'max_co2_reached' || error.message === 'bunker_full') {
+      logger.debug('[Atmosphere Broker] Bunker already full');
+      return;
+    }
 
-    // Log error to autopilot logbook (exclude stack trace for expected errors)
+    logger.error('[Atmosphere Broker] Error:', error.message);
+
     const isExpectedError = error.message === 'not_enough_cash' || error.message === 'insufficient_funds';
-    const details = isExpectedError
-      ? { error: error.message }
-      : { error: error.message, stack: error.stack };
-
     await auditLog(
       userId,
       CATEGORIES.BUNKER,
       'Auto-CO2',
       `Purchase failed: ${error.message}`,
-      details,
+      isExpectedError ? { error: error.message } : { error: error.message, stack: error.stack },
       'ERROR',
       SOURCES.AUTOPILOT
     );

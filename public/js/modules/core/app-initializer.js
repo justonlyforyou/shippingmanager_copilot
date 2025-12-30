@@ -537,6 +537,7 @@ function registerAllEventListeners(settings, debouncedFunctions) {
   eventRegistry.registerAutoPilotListeners(settings, toggleAutoPilotAgentCheckboxes);
   eventRegistry.registerAutoRebuyFuelListeners(settings);
   eventRegistry.registerAutoRebuyCO2Listeners(settings);
+  eventRegistry.registerIntelligentRebuyListeners(settings);
   eventRegistry.registerAutoPilotFeatureListeners(settings);
   eventRegistry.registerAutoDepartSettingsListeners(settings);
   eventRegistry.registerBunkerListeners({ buyMaxFuel, buyMaxCO2 });
@@ -549,6 +550,7 @@ function registerAllEventListeners(settings, debouncedFunctions) {
     'fuelThreshold', 'co2Threshold', 'minFuelThreshold',
     'autoRebuyFuelThreshold', 'autoRebuyFuelMinCash',
     'autoRebuyCO2Threshold', 'autoRebuyCO2MinCash',
+    'intelligentRebuyFuelMaxPrice', 'intelligentRebuyCO2MaxPrice',
     'autoBulkRepairMinCash', 'autoDrydockMinCash',
     'autoCampaignRenewalMinCash', 'autoAnchorPointMinCash',
     'autoPurserMinCash'

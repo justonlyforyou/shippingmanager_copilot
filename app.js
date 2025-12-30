@@ -327,6 +327,16 @@ const chatBot = require('./server/chatbot');
       logger.error('[Security] Sessions will remain in current format');
     }
 
+    // Migrate any URL-encoded cookies to normalized (decoded) format
+    try {
+      const normalizedCount = await sessionManager.migrateToNormalizedCookies();
+      if (normalizedCount > 0) {
+        logger.info(`[Security] Normalized ${normalizedCount} URL-encoded cookie(s)`);
+      }
+    } catch (error) {
+      logger.error('[Security] Cookie normalization failed:', error.message);
+    }
+
     const state = require('./server/state');
     const { getUserId } = require('./server/utils/api');
     const userId = getUserId();

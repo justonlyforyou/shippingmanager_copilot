@@ -43,7 +43,7 @@ function renderTemplateList() {
 
   keys.forEach(key => {
     const template = templates[key];
-    const isEnabled = template.enabled !== false;
+    const isEnabled = template.enabled === true;
     const enabledStyle = isEnabled
       ? 'background: rgba(16, 185, 129, 0.2); border-color: rgba(16, 185, 129, 0.4); color: #10b981;'
       : 'background: rgba(107, 114, 128, 0.2); border-color: rgba(107, 114, 128, 0.4); color: #6b7280;';

@@ -15,6 +15,7 @@ const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const { logAutopilotAction } = require('../logbook');
 const { triggerImmediateIpoRefresh } = require('../websocket/ipo-refresh');
+const { addToStockBlacklist } = require('../database');
 
 /**
  * GET /api/stock/finance-overview - Retrieves stock finance overview for a user
@@ -232,6 +233,9 @@ router.post('/stock/sell', async (req, res) => {
           total_revenue: totalRevenue || null
         }
       );
+
+      // Add to blacklist to prevent autopilot from re-buying
+      addToStockBlacklist(userId, parseInt(stock_issuer_user_id, 10), company_name || `Company #${stock_issuer_user_id}`, 'manual_sell');
     }
 
     // Trigger IPO refresh to update available shares in IPO Alert tab

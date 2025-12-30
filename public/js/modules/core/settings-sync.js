@@ -83,12 +83,6 @@ export function handleSettingsUpdate(newSettings, settingsRef, onRepairCountUpda
     window.USER_COMPANY_TYPE = newSettings.company_type;
     logger.debug('[Settings] Updated company_type from cache:', newSettings.company_type);
 
-    // Show/hide tanker filter button in sell vessels dialog
-    const sellTankerBtn = document.getElementById('sellFilterTankerBtn');
-    if (sellTankerBtn && newSettings.company_type && newSettings.company_type.includes('tanker')) {
-      sellTankerBtn.classList.remove('hidden');
-    }
-
     // Refresh vessel catalog if open to update locked/unlocked banners
     if (window.refreshVesselCatalog && typeof window.refreshVesselCatalog === 'function') {
       window.refreshVesselCatalog();

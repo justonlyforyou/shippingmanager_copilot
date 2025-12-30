@@ -369,6 +369,27 @@ export function showSettings(settings) {
     co2ThresholdInput.classList.add('enabled');
   }
 
+  // Intelligent Rebuy (within Barrel Boss / Atmosphere Broker)
+  document.getElementById('intelligentRebuyFuel').checked = settings.intelligentRebuyFuel || false;
+  document.getElementById('intelligentRebuyCO2').checked = settings.intelligentRebuyCO2 || false;
+
+  const intelligentFuelOptions = document.getElementById('intelligentRebuyFuelOptions');
+  const intelligentCO2Options = document.getElementById('intelligentRebuyCO2Options');
+
+  if (intelligentFuelOptions) {
+    intelligentFuelOptions.classList.toggle('hidden', !settings.intelligentRebuyFuel);
+  }
+  if (intelligentCO2Options) {
+    intelligentCO2Options.classList.toggle('hidden', !settings.intelligentRebuyCO2);
+  }
+
+  if (settings.intelligentRebuyFuelMaxPrice !== undefined) {
+    document.getElementById('intelligentRebuyFuelMaxPrice').value = settings.intelligentRebuyFuelMaxPrice;
+  }
+  if (settings.intelligentRebuyCO2MaxPrice !== undefined) {
+    document.getElementById('intelligentRebuyCO2MaxPrice').value = settings.intelligentRebuyCO2MaxPrice;
+  }
+
   document.getElementById('autoDepartAll').checked = settings.autoDepartAll || false;
   document.getElementById('autoBulkRepair').checked = settings.autoBulkRepair || false;
   document.getElementById('autoCampaignRenewal').checked = settings.autoCampaignRenewal || false;

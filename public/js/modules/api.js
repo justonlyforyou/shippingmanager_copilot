@@ -473,7 +473,17 @@ export async function sendPrivateMessage(targetUserId, subject, message, retryCo
       if (window.DEBUG_MODE) {
         logger.debug('[API DEBUG] Error response:', JSON.stringify(error, null, 2));
       }
-      const errorMessage = typeof error.error === 'string' ? error.error : (error.message || JSON.stringify(error));
+      let errorMessage;
+      if (typeof error.error === 'string') {
+        errorMessage = error.error;
+      } else if (error.error && error.error.type === 'game_version_update') {
+        // Game API returns this when cooldown is active
+        errorMessage = 'Message cooldown active - please wait 45 seconds between messages';
+      } else if (error.error && error.error.text) {
+        errorMessage = error.error.text;
+      } else {
+        errorMessage = error.message || 'Failed to send message';
+      }
       throw new Error(errorMessage);
     }
 

@@ -392,8 +392,9 @@
         dialogData.sessions.forEach((session, index) => {
           const status = session.status || 'ready';
           const isLoading = status === 'loading';
-          const isError = status === 'error';
+          const isError = status === 'error' || status === 'stopped';
           const isReady = status === 'ready';
+          const isDisabled = status === 'disabled';
 
           const url = isReady ? 'https://localhost:' + session.port : '';
           const icon = session.loginMethod === 'steam' ? '&#127918;' : '&#127760;';
@@ -409,7 +410,13 @@
           if (isLoading) {
             actionsHtml = '<div class="loading-spinner"></div>';
           } else if (isError) {
-            actionsHtml = '<span class="session-status error">' + escapeHtml(session.error || 'Failed') + '</span>';
+            // Error: show error message AND buttons so user can refresh or delete
+            actionsHtml =
+              '<div class="session-actions">' +
+                '<span class="session-status error">' + escapeHtml(session.error || 'Failed') + '</span>' +
+                '<button class="refresh-btn" onclick="event.stopPropagation(); refreshSession(\'' + session.userId + '\', \'' + session.loginMethod + '\')" title="Refresh session">&#8635;</button>' +
+                '<button class="delete-btn" onclick="event.stopPropagation(); showDeleteConfirm(\'' + session.userId + '\', \'' + escapeHtml(session.companyName) + '\')" title="Remove account">&#128465;</button>' +
+              '</div>';
           } else {
             actionsHtml =
               '<div class="session-actions">' +

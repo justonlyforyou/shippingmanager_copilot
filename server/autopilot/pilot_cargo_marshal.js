@@ -10,11 +10,12 @@
 const gameapi = require('../gameapi');
 const state = require('../state');
 const logger = require('../utils/logger');
-const { getUserId, getAllianceId } = require('../utils/api');
+const { getUserId, getAllianceId, apiCall } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency } = require('../utils/audit-logger');
 const { saveTripData } = require('../utils/trip-data-store');
 const { fetchUserContribution } = require('../gameapi/alliance');
 const { calculateFuelConsumption } = require('../utils/fuel-calculator');
+const { getRouteSettings } = require('../database');
 
 /**
  * Tracks vessels that failed fuel check to avoid retrying unnecessarily.
@@ -293,7 +294,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
           }
         }
 
-        // Trigger auto-rebuy after each successful batch (if enabled)
+        // Trigger auto-rebuy and intelligent refill after each successful batch (if enabled)
         if (departedVessels.length > 0) {
           logger.debug(`[Depart] Triggering auto-rebuy after ${departedVessels.length} vessels departed in this batch`);
           try {
@@ -440,6 +441,38 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
             reason: `Utilization too low (${(utilizationRate * 100).toFixed(0)}% < ${(minUtilization * 100).toFixed(0)}%)`
           });
           continue;
+        }
+
+        // RESTORE ROUTE SETTINGS: Check if we have stored settings (survives drydock)
+        // Game resets speed after drydock, so we restore from our database
+        const storedSettings = getRouteSettings(userId, vessel.id);
+        if (storedSettings) {
+          const needsUpdate = storedSettings.speed !== vessel.route_speed ||
+                              storedSettings.guards !== vessel.route_guards ||
+                              storedSettings.prices?.dry !== vessel.prices?.dry ||
+                              storedSettings.prices?.refrigerated !== vessel.prices?.refrigerated ||
+                              storedSettings.prices?.fuel !== vessel.prices?.fuel ||
+                              storedSettings.prices?.crude_oil !== vessel.prices?.crude_oil;
+
+          if (needsUpdate) {
+            logger.info(`[Depart] ${vessel.name}: Restoring route settings (speed: ${storedSettings.speed} vs ${vessel.route_speed}, guards: ${storedSettings.guards} vs ${vessel.route_guards})`);
+            try {
+              await apiCall('/route/update-route-data', 'POST', {
+                user_vessel_id: vessel.id,
+                speed: storedSettings.speed,
+                guards: storedSettings.guards,
+                prices: storedSettings.prices
+              });
+              // Update local vessel object with restored values
+              vessel.route_speed = storedSettings.speed;
+              vessel.route_guards = storedSettings.guards;
+              vessel.prices = storedSettings.prices;
+              logger.info(`[Depart] ${vessel.name}: Route settings restored successfully`);
+            } catch (restoreError) {
+              logger.error(`[Depart] ${vessel.name}: Failed to restore route settings: ${restoreError.message}`);
+              // Continue with current vessel settings - don't block departure
+            }
+          }
         }
 
         // Determine speed and guards
@@ -705,7 +738,7 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       await sendBatchNotifications();
     }
 
-    // Trigger rebuy and update data after departures
+    // Trigger rebuy, intelligent refill, and update data after departures
     if (processedCount > 0) {
       try {
         await autoRebuyAll();

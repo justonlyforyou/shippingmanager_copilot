@@ -94,6 +94,18 @@ export function getCurrentPorts() {
   return currentPorts;
 }
 
+/**
+ * Gets overview data for external modules (route-planner)
+ * @returns {Object} Object with vessels, ports, and portPairGroups
+ */
+export function getOverviewData() {
+  return {
+    vessels: currentVessels,
+    ports: currentPorts,
+    portPairGroups: currentPortPairGroups
+  };
+}
+
 // Previous state (for restoration when panel closes)
 let previousMapState = {
   vessels: [],
@@ -3539,6 +3551,7 @@ export function resetPortDisplay() {
   renderPorts(currentPorts);
 }
 
-// Expose setRouteFilter to window for cross-module access (analytics)
+// Expose functions to window for cross-module access (analytics, route-planner)
 window.harborMap = window.harborMap || {};
 window.harborMap.setRouteFilter = setRouteFilter;
+window.harborMap.getOverviewData = getOverviewData;

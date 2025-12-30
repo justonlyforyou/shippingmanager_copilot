@@ -543,10 +543,21 @@ export function registerAutoRebuyFuelListeners(settings) {
     saveSettings(settings);
   });
 
-  // Emergency Buy Override
+  // Emergency Buy Override - mutually exclusive with Intelligent Rebuy
   document.getElementById('autoRebuyFuelEmergency').addEventListener('change', function() {
     settings.autoRebuyFuelEmergency = this.checked;
     document.getElementById('autoRebuyFuelEmergencyOptions').classList.toggle('hidden', !this.checked);
+
+    // Disable Intelligent Rebuy when Emergency Buy Override is enabled
+    if (this.checked) {
+      const intelligentCheckbox = document.getElementById('intelligentRebuyFuel');
+      if (intelligentCheckbox && intelligentCheckbox.checked) {
+        intelligentCheckbox.checked = false;
+        settings.intelligentRebuyFuel = false;
+        document.getElementById('intelligentRebuyFuelOptions').classList.add('hidden');
+      }
+    }
+
     saveSettings(settings);
   });
 
@@ -610,10 +621,21 @@ export function registerAutoRebuyCO2Listeners(settings) {
     saveSettings(settings);
   });
 
-  // Emergency Buy Override
+  // Emergency Buy Override - mutually exclusive with Intelligent Rebuy
   document.getElementById('autoRebuyCO2Emergency').addEventListener('change', function() {
     settings.autoRebuyCO2Emergency = this.checked;
     document.getElementById('autoRebuyCO2EmergencyOptions').classList.toggle('hidden', !this.checked);
+
+    // Disable Intelligent Rebuy when Emergency Buy Override is enabled
+    if (this.checked) {
+      const intelligentCheckbox = document.getElementById('intelligentRebuyCO2');
+      if (intelligentCheckbox && intelligentCheckbox.checked) {
+        intelligentCheckbox.checked = false;
+        settings.intelligentRebuyCO2 = false;
+        document.getElementById('intelligentRebuyCO2Options').classList.add('hidden');
+      }
+    }
+
     saveSettings(settings);
   });
 
@@ -629,6 +651,64 @@ export function registerAutoRebuyCO2Listeners(settings) {
 
   document.getElementById('autoRebuyCO2EmergencyMaxPrice').addEventListener('change', function() {
     settings.autoRebuyCO2EmergencyMaxPrice = parseInt(this.value);
+    saveSettings(settings);
+  });
+}
+
+/**
+ * Register intelligent rebuy event listeners (within Barrel Boss and Atmosphere Broker).
+ * Intelligent Rebuy and Emergency Buy Override are mutually exclusive.
+ *
+ * @param {Object} settings - Settings object reference
+ */
+export function registerIntelligentRebuyListeners(settings) {
+  // Intelligent Fuel Rebuy toggle (inside Barrel Boss)
+  // Mutually exclusive with Emergency Buy Override
+  document.getElementById('intelligentRebuyFuel').addEventListener('change', function() {
+    settings.intelligentRebuyFuel = this.checked;
+    document.getElementById('intelligentRebuyFuelOptions').classList.toggle('hidden', !this.checked);
+
+    // Disable Emergency Buy Override when Intelligent Rebuy is enabled
+    if (this.checked) {
+      const emergencyCheckbox = document.getElementById('autoRebuyFuelEmergency');
+      if (emergencyCheckbox && emergencyCheckbox.checked) {
+        emergencyCheckbox.checked = false;
+        settings.autoRebuyFuelEmergency = false;
+        document.getElementById('autoRebuyFuelEmergencyOptions').classList.add('hidden');
+      }
+    }
+
+    saveSettings(settings);
+  });
+
+  // Intelligent Fuel Max Price
+  document.getElementById('intelligentRebuyFuelMaxPrice').addEventListener('change', function() {
+    settings.intelligentRebuyFuelMaxPrice = parseInt(this.value);
+    saveSettings(settings);
+  });
+
+  // Intelligent CO2 Rebuy toggle (inside Atmosphere Broker)
+  // Mutually exclusive with Emergency Buy Override
+  document.getElementById('intelligentRebuyCO2').addEventListener('change', function() {
+    settings.intelligentRebuyCO2 = this.checked;
+    document.getElementById('intelligentRebuyCO2Options').classList.toggle('hidden', !this.checked);
+
+    // Disable Emergency Buy Override when Intelligent Rebuy is enabled
+    if (this.checked) {
+      const emergencyCheckbox = document.getElementById('autoRebuyCO2Emergency');
+      if (emergencyCheckbox && emergencyCheckbox.checked) {
+        emergencyCheckbox.checked = false;
+        settings.autoRebuyCO2Emergency = false;
+        document.getElementById('autoRebuyCO2EmergencyOptions').classList.add('hidden');
+      }
+    }
+
+    saveSettings(settings);
+  });
+
+  // Intelligent CO2 Max Price
+  document.getElementById('intelligentRebuyCO2MaxPrice').addEventListener('change', function() {
+    settings.intelligentRebuyCO2MaxPrice = parseInt(this.value);
     saveSettings(settings);
   });
 }

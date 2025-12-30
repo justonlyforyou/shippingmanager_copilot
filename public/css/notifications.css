@@ -106,24 +106,32 @@
   background: var(--color-success-darkest);
   color: var(--color-success-text-light);
   border: 2px solid var(--color-success);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-success-darker) var(--color-success-darkest);
 }
 
 .side-notification.error {
   background: var(--color-danger-darkest);
   color: var(--color-danger-text-light);
   border: 2px solid var(--color-danger);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-danger-dark) var(--color-danger-darkest);
 }
 
 .side-notification.warning {
   background: var(--color-warning-dark);
   color: var(--color-warning-lighter);
   border: 2px solid var(--color-warning-light);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-warning) var(--color-warning-dark);
 }
 
 .side-notification.info {
   background: var(--color-success-darkest);
   color: var(--color-success-text-light);
   border: 2px solid var(--color-success);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-info) var(--color-info-dark);
 }
 
 /* Alert notifications with megaphone icon and Got it button */
@@ -179,30 +187,7 @@
   color: var(--color-danger);
 }
 
-/* Custom scrollbar for long notifications - 1px ultra-thin, color-coded */
-
-/* Standard properties for Firefox */
-.side-notification.success {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-success-darker) var(--color-success-darkest);
-}
-
-.side-notification.error {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-danger-dark) var(--color-danger-darkest);
-}
-
-.side-notification.warning {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-warning) var(--color-warning-dark);
-}
-
-.side-notification.info {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-info) var(--color-info-dark);
-}
-
-/* Webkit browsers (Chrome, Safari, Edge, Opera) - 1px */
+/* Webkit scrollbar styles (Chrome, Safari, Edge, Opera) - 1px */
 .side-notification::-webkit-scrollbar {
   width: 1px;
   height: 1px;
@@ -263,18 +248,18 @@
   border-radius: var(--radius-12);
   padding: var(--spacing-20);
   z-index: var(--z-toast);
-  box-shadow: var(--shadow-2xl), 0 0 20px rgba(251, 191, 36, 0.3);
+  box-shadow: var(--shadow-2xl), 0 0 20px rgb(251, 191, 36, 0.3);
   animation: priceAlertSlide var(--anim-duration-fast) ease-out;
 }
 
 .price-alert-success {
   border-color: var(--color-success-50);
-  box-shadow: var(--shadow-2xl), 0 0 20px rgba(74, 222, 128, 0.3);
+  box-shadow: var(--shadow-2xl), 0 0 20px rgb(74, 222, 128, 0.3);
 }
 
 .price-alert-warning {
   border-color: var(--color-warning-light-50);
-  box-shadow: var(--shadow-2xl), 0 0 20px rgba(251, 191, 36, 0.3);
+  box-shadow: var(--shadow-2xl), 0 0 20px rgb(251, 191, 36, 0.3);
 }
 
 .alert-icon {
@@ -306,6 +291,57 @@
 .alert-dismiss:hover {
   background: var(--color-info-30);
   border-color: var(--color-info-70);
+}
+
+/* ============================================
+   NOTIFICATION CONTENT LAYOUT
+   ============================================ */
+
+.notification-header {
+  margin-bottom: var(--spacing-12);
+  padding-bottom: var(--spacing-10);
+  border-bottom: 2px solid var(--white-30);
+}
+
+.notification-title {
+  font-size: var(--font-size-15);
+}
+
+.notification-body {
+  font-size: var(--font-size-13);
+}
+
+.notification-mono {
+  font-family: var(--font-mono);
+}
+
+.notification-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-6);
+}
+
+.notification-divider {
+  height: 1px;
+  background: var(--white-20);
+  margin: var(--spacing-10) 0;
+}
+
+.notification-total {
+  font-size: var(--font-size-15);
+  margin-bottom: 0;
+}
+
+.notification-cost {
+  color: var(--color-danger-light);
+}
+
+.notification-success {
+  color: var(--color-success);
+}
+
+.notification-warning {
+  color: var(--color-warning-light);
 }
 
 /* ============================================

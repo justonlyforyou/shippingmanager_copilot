@@ -80,6 +80,13 @@ const SETTINGS_SCHEMA = {
   autoRebuyCO2EmergencyShips: 5,
   autoRebuyCO2EmergencyMaxPrice: 12,
 
+  // Intelligent Rebuy (buys exactly what departing vessels need)
+  // Uses Min Cash Reserve from Barrel Boss / Atmosphere Broker
+  intelligentRebuyFuel: false,
+  intelligentRebuyFuelMaxPrice: 500,
+  intelligentRebuyCO2: false,
+  intelligentRebuyCO2MaxPrice: 10,
+
   // Auto-Depart
   autoDepartAll: false,
   autoDepartUseRouteDefaults: true,

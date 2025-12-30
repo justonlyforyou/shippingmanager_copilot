@@ -129,12 +129,12 @@
 }
 
 /* ============================================
-   PORTS TAB - FILTER BUTTONS (2x2 Grid)
+   PORTS TAB - FILTER BUTTONS (3-column Grid)
    ============================================ */
 
 .route-planner-port-filters {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: var(--spacing-8);
   margin-bottom: var(--spacing-12);
 }
@@ -170,6 +170,30 @@
 .route-planner-filter-btn.loading {
   opacity: 0.6;
   cursor: wait;
+}
+
+.route-planner-demand-dropdown {
+  padding: 0 2px;
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  background: var(--gray-800-50);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-6);
+  cursor: pointer;
+  transition: var(--transition-fast);
+  text-align: center;
+  height: 18px;
+}
+
+.route-planner-demand-dropdown:hover {
+  background: var(--gray-800-80);
+  border-color: var(--white-20);
+}
+
+.route-planner-demand-dropdown:focus {
+  outline: none;
+  border-color: var(--color-info-40);
 }
 
 /* ============================================

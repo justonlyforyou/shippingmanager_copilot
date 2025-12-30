@@ -552,9 +552,10 @@ router.post('/messenger/mark-as-read', express.json(), async (req, res) => {
   }
 
   try {
+    // Game API expects arrays as JSON strings, not actual arrays
     const data = await apiCall('/messenger/mark-as-read', 'POST', {
-      chat_ids,
-      system_message_ids
+      chat_ids: JSON.stringify(chat_ids),
+      system_message_ids: JSON.stringify(system_message_ids)
     });
 
     // Update cache to mark chats as read
@@ -714,61 +715,67 @@ router.get('/hijacking/history/:caseId', (req, res) => {
   const { caseId } = req.params;
 
   // CRITICAL: Validate caseId to prevent path traversal attacks
-  // Only allow alphanumeric characters, hyphens, and underscores
   if (!caseId || !/^[a-zA-Z0-9\-_]+$/.test(caseId)) {
     return res.status(400).json({
       error: 'Invalid case ID. Only alphanumeric characters, hyphens, and underscores allowed.'
     });
   }
 
-  // Limit length to prevent abuse
   if (caseId.length > 100) {
     return res.status(400).json({ error: 'Case ID too long (max 100 characters)' });
   }
 
   const userId = getUserId();
+  const caseIdInt = parseInt(caseId, 10);
 
   try {
-    // Read from SQLite
     const db = getDb(userId);
-    const rows = db.prepare(`
-      SELECT type, amount, timestamp, autopilot_resolved, resolved_at, payment_verification_json
+
+    // Get history events from hijack_history
+    const historyRows = db.prepare(`
+      SELECT type, amount, timestamp
       FROM hijack_history
       WHERE case_id = ?
       ORDER BY timestamp
-    `).all(parseInt(caseId, 10));
+    `).all(caseIdInt);
 
-    if (rows.length > 0) {
-      // Build history array (type, amount, timestamp only)
-      const history = rows.map(r => ({
-        type: r.type,
-        amount: r.amount,
-        timestamp: r.timestamp
-      }));
+    // Get case metadata from hijack_cases
+    const caseRow = db.prepare(`
+      SELECT resolved, autopilot_resolved, resolved_at, cash_before, cash_after, payment_verified, paid_amount, requested_amount
+      FROM hijack_cases
+      WHERE case_id = ?
+    `).get(caseIdInt);
 
-      // Metadata from first row (all rows have same metadata)
-      const firstRow = rows[0];
-      const response = {
-        history: history,
-        autopilot_resolved: firstRow.autopilot_resolved === 1
-      };
+    const history = historyRows.map(r => ({
+      type: r.type,
+      amount: r.amount,
+      timestamp: r.timestamp
+    }));
 
-      if (firstRow.resolved_at) {
-        response.resolved_at = firstRow.resolved_at;
-      }
+    const response = {
+      history: history,
+      autopilot_resolved: caseRow?.autopilot_resolved === 1,
+      resolved: caseRow?.resolved === 1
+    };
 
-      if (firstRow.payment_verification_json) {
-        response.payment_verification = JSON.parse(firstRow.payment_verification_json);
-      }
-
-      return res.json(response);
+    if (caseRow?.resolved_at) {
+      response.resolved_at = caseRow.resolved_at;
     }
 
-    // No entry in DB - return empty history
-    res.json({ history: [], autopilot_resolved: false });
+    if (caseRow?.payment_verified) {
+      response.payment_verification = {
+        verified: caseRow.payment_verified === 1,
+        actual_paid: caseRow.paid_amount,
+        expected_amount: caseRow.requested_amount,
+        cash_before: caseRow.cash_before,
+        cash_after: caseRow.cash_after
+      };
+    }
+
+    return res.json(response);
   } catch (error) {
     logger.error('Error reading hijack history:', error);
-    res.json({ history: [], autopilot_resolved: false });
+    res.json({ history: [], autopilot_resolved: false, resolved: false });
   }
 });
 
@@ -779,14 +786,12 @@ router.post('/hijacking/history/:caseId', express.json(), (req, res) => {
   const { caseId } = req.params;
 
   // CRITICAL: Validate caseId to prevent path traversal attacks
-  // Only allow alphanumeric characters, hyphens, and underscores
   if (!caseId || !/^[a-zA-Z0-9\-_]+$/.test(caseId)) {
     return res.status(400).json({
       error: 'Invalid case ID. Only alphanumeric characters, hyphens, and underscores allowed.'
     });
   }
 
-  // Limit length to prevent abuse
   if (caseId.length > 100) {
     return res.status(400).json({ error: 'Case ID too long (max 100 characters)' });
   }
@@ -796,32 +801,60 @@ router.post('/hijacking/history/:caseId', express.json(), (req, res) => {
   const caseIdInt = parseInt(caseId, 10);
 
   try {
-    // Save to SQLite
     const db = getDb(userId);
 
-    // Delete existing entries for this case (replaces old JSON file overwrite behavior)
-    db.prepare('DELETE FROM hijack_history WHERE case_id = ?').run(caseIdInt);
+    // Save history events using saveNegotiationEvent (handles deduplication)
+    if (history && Array.isArray(history)) {
+      for (const event of history) {
+        saveNegotiationEvent(caseIdInt, event.type, event.amount, event.timestamp);
+      }
+    }
 
-    const insertEvent = db.prepare(`
-      INSERT INTO hijack_history
-      (case_id, type, amount, timestamp, autopilot_resolved, resolved_at, payment_verification_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
+    // Save metadata to hijack_cases if provided
+    if (autopilot_resolved || resolved_at || payment_verification) {
+      // Ensure case exists
+      const existing = db.prepare('SELECT case_id FROM hijack_cases WHERE case_id = ?').get(caseIdInt);
 
-    const autopilotVal = autopilot_resolved ? 1 : 0;
-    const resolvedAtVal = resolved_at || null;
-    const paymentVerificationJson = payment_verification ? JSON.stringify(payment_verification) : null;
-
-    for (const event of history) {
-      insertEvent.run(
-        caseIdInt,
-        event.type,
-        event.amount,
-        event.timestamp,
-        autopilotVal,
-        resolvedAtVal,
-        paymentVerificationJson
-      );
+      if (existing) {
+        // Update existing case
+        if (autopilot_resolved) {
+          db.prepare('UPDATE hijack_cases SET autopilot_resolved = 1, resolved = 1 WHERE case_id = ?').run(caseIdInt);
+        }
+        if (resolved_at) {
+          db.prepare('UPDATE hijack_cases SET resolved_at = ?, resolved = 1 WHERE case_id = ?').run(resolved_at, caseIdInt);
+        }
+        if (payment_verification) {
+          db.prepare(`
+            UPDATE hijack_cases SET
+              payment_verified = 1,
+              paid_amount = ?,
+              cash_before = ?,
+              cash_after = ?,
+              resolved = 1
+            WHERE case_id = ?
+          `).run(
+            payment_verification.actual_paid,
+            payment_verification.cash_before,
+            payment_verification.cash_after,
+            caseIdInt
+          );
+        }
+      } else {
+        // Create minimal case entry with metadata
+        db.prepare(`
+          INSERT INTO hijack_cases (case_id, status, resolved, autopilot_resolved, resolved_at, payment_verified, paid_amount, cash_before, cash_after)
+          VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          caseIdInt,
+          (autopilot_resolved || resolved_at || payment_verification) ? 1 : 0,
+          autopilot_resolved ? 1 : 0,
+          resolved_at,
+          payment_verification ? 1 : 0,
+          payment_verification?.actual_paid,
+          payment_verification?.cash_before,
+          payment_verification?.cash_after
+        );
+      }
     }
 
     res.json({ success: true });

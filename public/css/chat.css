@@ -762,3 +762,30 @@ textarea:focus {
   background: var(--color-info-40);
   border-color: var(--color-info);
 }
+
+/* ============================================
+   SYSTEM MESSAGE STYLES
+   ============================================ */
+
+.system-message-title {
+  font-size: var(--font-size-18);
+  font-weight: var(--font-weight-bold);
+  margin-bottom: var(--spacing-12);
+}
+
+.system-message-title--warning {
+  color: var(--color-warning-light);
+}
+
+.system-message-title--success {
+  color: var(--color-success-light);
+}
+
+.system-message-title--info {
+  color: var(--color-info-light);
+}
+
+.system-message-body {
+  line-height: var(--line-height-relaxed);
+  color: var(--color-text-light);
+}

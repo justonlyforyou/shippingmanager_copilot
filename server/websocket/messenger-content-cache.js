@@ -76,6 +76,27 @@ function updateChatList(userId, chatList) {
   try {
     const db = getDb(userIdStr);
 
+    // Get IDs of chats from Game API
+    const apiChatIds = new Set(chatList.map(chat => chat.id));
+
+    // Delete chats from cache that are no longer in Game API (user deleted them)
+    const cachedChats = db.prepare('SELECT chat_id FROM messenger_chats').all();
+    const deletedCount = cachedChats.filter(row => !apiChatIds.has(row.chat_id)).length;
+
+    if (deletedCount > 0) {
+      const placeholders = [...apiChatIds].map(() => '?').join(',');
+      if (apiChatIds.size > 0) {
+        // Delete messages FIRST (foreign key constraint)
+        db.prepare(`DELETE FROM messenger_messages WHERE chat_id NOT IN (${placeholders})`).run(...apiChatIds);
+        db.prepare(`DELETE FROM messenger_chats WHERE chat_id NOT IN (${placeholders})`).run(...apiChatIds);
+      } else {
+        // All chats were deleted - delete messages first
+        db.prepare('DELETE FROM messenger_messages').run();
+        db.prepare('DELETE FROM messenger_chats').run();
+      }
+      logger.info(`[Messenger Cache] Removed ${deletedCount} deleted chats from cache`);
+    }
+
     const upsertChat = db.prepare(`
       INSERT INTO messenger_chats (chat_id, subject, is_new, message_count, last_message_at, metadata_json, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?)

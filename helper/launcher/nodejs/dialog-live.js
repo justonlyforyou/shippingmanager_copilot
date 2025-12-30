@@ -138,6 +138,13 @@ webview.bind('getSessionStatus', () => {
         continue;
       }
 
+      // IMPORTANT: Respect original status for error/disabled/stopped sessions - don't poll them!
+      if (session.status === 'error' || session.status === 'disabled' || session.status === 'stopped') {
+        sessions.push({ userId: session.userId, status: session.status, port: null, error: session.error });
+        continue;
+      }
+
+      // Only poll for 'loading' sessions
       let status = 'loading';
 
       try {

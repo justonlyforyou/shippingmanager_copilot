@@ -1,7 +1,7 @@
 /**
  * @fileoverview Centralized configuration for Shipping Manager application.
  * Contains all server settings, API endpoints, rate limiting rules, and timing intervals.
- * Session cookie is loaded from encrypted sessions.json (secure storage).
+ * Session data is stored in SQLite database (userdata/database/accounts.db).
  *
  * Important configuration notes:
  * - All settings loaded from userdata/settings/settings.json (NO env vars)
@@ -287,7 +287,7 @@ const config = {
   SHIPPING_MANAGER_API: 'https://shippingmanager.cc/api',
 
   /**
-   * Session cookie for API authentication. Loaded from encrypted sessions.json.
+   * Session cookie for API authentication. Loaded from encrypted accounts database.
    * Provides full account access - must be kept secure and never logged.
    * Use getSessionCookie() to access dynamically.
    * @deprecated Use getSessionCookie() instead

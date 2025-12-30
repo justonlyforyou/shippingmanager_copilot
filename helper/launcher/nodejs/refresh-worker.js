@@ -11,7 +11,7 @@ const path = require('path');
 
 // Set up module paths for worker context
 const launcherDir = __dirname;
-const projectRoot = path.join(launcherDir, '..');
+const projectRoot = path.join(launcherDir, '..', '..', '..');
 
 // Logger for worker
 const logger = require('./logger');

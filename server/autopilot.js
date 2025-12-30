@@ -29,6 +29,7 @@ const { autoCampaignRenewal } = require('./autopilot/pilot_reputation_chief');
 const { autoCoop } = require('./autopilot/pilot_fair_hand');
 const { autoAnchorPointPurchase, setBroadcastFunction: setHarbormasterBroadcast } = require('./autopilot/pilot_harbormaster');
 const { vesselHistoryStore } = require('./database/store-adapter');
+const { migrateHijackHistoryFromJson } = require('./database');
 const { autoNegotiateHijacking } = require('./autopilot/pilot_captain_blackbeard');
 const { autoBuyStock, autoSellStock } = require('./autopilot/pilot_the_purser');
 const { manageStaffMorale } = require('./autopilot/pilot_staff_captain');
@@ -81,8 +82,24 @@ function initializeAutopilotState(userId) {
     logger.info('[Autopilot] No saved pause state, defaulting to RUNNING');
   }
 
+  // Migrate hijack history from JSON files to SQLite (one-time migration)
+  try {
+    const migrationResults = migrateHijackHistoryFromJson(userId);
+    if (migrationResults.migrated > 0 || migrationResults.deleted > 0) {
+      logger.info(`[Autopilot] Hijack history migration: ${migrationResults.migrated} migrated, ${migrationResults.deleted} JSON files deleted`);
+    }
+  } catch (err) {
+    logger.error('[Autopilot] Failed to migrate hijack history from JSON:', err.message);
+  }
+
   // Start vessel history slow sync (initial full sync, then ~2 calls/min rotation)
-  vesselHistoryStore.startAutoSync(userId);
+  vesselHistoryStore.startAutoSync(userId)
+    .then(() => {
+      logger.info('[Autopilot] Vessel history auto-sync started successfully');
+    })
+    .catch(err => {
+      logger.error('[Autopilot] Failed to start vessel history auto-sync:', err.message);
+    });
 }
 
 /**

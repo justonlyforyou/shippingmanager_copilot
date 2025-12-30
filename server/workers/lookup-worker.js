@@ -272,14 +272,26 @@ function runBuild() {
 
     parentPort.postMessage({ type: 'progress', stage: 'loaded_pod3', count: pod3.length, percent: 35 });
 
-    // Get existing fully matched IDs (have pod2_id)
+    // Get existing fully matched IDs
+    // For departure contexts: needs BOTH pod2_id AND pod3_id
+    // For other contexts: only needs pod2_id
     const fullyMatchedIds = new Set(
-      db.prepare('SELECT pod1_id FROM lookup WHERE pod2_id IS NOT NULL').all().map(r => r.pod1_id)
+      db.prepare(`
+        SELECT pod1_id FROM lookup
+        WHERE pod2_id IS NOT NULL
+        AND (pod3_id IS NOT NULL OR context NOT IN ('vessels_departed', 'harbor_fee_on_depart', 'guard_payment_on_depart'))
+      `).all().map(r => r.pod1_id)
     );
 
-    // Get entries that need re-matching (exist but have no pod2_id)
+    // Get entries that need re-matching:
+    // - Entries without pod2_id
+    // - Entries with pod2_id but missing pod3_id for departure contexts
     const needsRematchIds = new Set(
-      db.prepare('SELECT pod1_id FROM lookup WHERE pod2_id IS NULL').all().map(r => r.pod1_id)
+      db.prepare(`
+        SELECT pod1_id FROM lookup
+        WHERE pod2_id IS NULL
+        OR (pod2_id IS NOT NULL AND pod3_id IS NULL AND context IN ('vessels_departed', 'harbor_fee_on_depart', 'guard_payment_on_depart'))
+      `).all().map(r => r.pod1_id)
     );
 
     parentPort.postMessage({ type: 'progress', stage: 'building_index', percent: 40 });

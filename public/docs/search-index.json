@@ -340,7 +340,7 @@
     "name": "server/autopilot/pilot_captain_blackbeard",
     "longname": "module:server/autopilot/pilot_captain_blackbeard",
     "url": "module-server_autopilot_pilot_captain_blackbeard.html",
-    "description": "<p>Captain Blackbeard - Auto-Negotiate Hijacking Pilot</p>\n<p>Automatically negotiates hijacked vessels.\nStrategy: Make exactly 2 counter-offers (25%), then accept pirate's price.</p>\n<p>Flow (identical to manual):</p>\n<ol>\n<li>Pirate demands X</li>\n<li>We offer 25% -&gt; API returns pirate counter Y immediately</li>\n<li>We offer 25% of Y -&gt; API returns pirate counter Z immediately</li>\n<li>We ACCEPT Z (pay ransom)</li>\n</ol>"
+    "description": "<p>Captain Blackbeard - Auto-Negotiate Hijacking Pilot</p>\n<p>Automatically negotiates hijacked vessels.\nStrategy: Make exactly 2 counter-offers (25%), then accept pirate's price.</p>\n<p>Flow:</p>\n<ol>\n<li>Pirate demands X (save to DB)</li>\n<li>We offer 25% of X (save to DB) -&gt; API returns pirate counter Y (save to DB)</li>\n<li>WAIT 2 MINUTES</li>\n<li>We offer 25% of Y (save to DB) -&gt; API returns pirate counter Z (save to DB)</li>\n<li>WAIT 2 MINUTES</li>\n<li>We PAY Z</li>\n</ol>\n<p>Result: Exactly 2 user offers, 3 pirate demands (initial + 2 counters)</p>"
   },
   {
     "type": "module",
@@ -466,7 +466,7 @@
     "name": "server/config",
     "longname": "module:server/config",
     "url": "module-server_config.html",
-    "description": "<p>Centralized configuration for Shipping Manager application.\nContains all server settings, API endpoints, rate limiting rules, and timing intervals.\nSession cookie is loaded from encrypted sessions.json (secure storage).</p>\n<p>Important configuration notes:</p>\n<ul>\n<li>All settings loaded from userdata/settings/settings.json (NO env vars)</li>\n<li>Rate limits are set conservatively to avoid API detection</li>\n<li>Chat refresh interval is 25 seconds (within the 29-minute price window)</li>\n<li>Session cookie provides full account access - never log or expose it</li>\n</ul>"
+    "description": "<p>Centralized configuration for Shipping Manager application.\nContains all server settings, API endpoints, rate limiting rules, and timing intervals.\nSession data is stored in SQLite database (userdata/database/accounts.db).</p>\n<p>Important configuration notes:</p>\n<ul>\n<li>All settings loaded from userdata/settings/settings.json (NO env vars)</li>\n<li>Rate limits are set conservatively to avoid API detection</li>\n<li>Chat refresh interval is 25 seconds (within the 29-minute price window)</li>\n<li>Session cookie provides full account access - never log or expose it</li>\n</ul>"
   },
   {
     "type": "module",
@@ -858,7 +858,7 @@
     "name": "server/utils/fuel-calculator",
     "longname": "module:server/utils/fuel-calculator",
     "url": "module-server_utils_fuel-calculator.html",
-    "description": "<p>Fuel Calculator Utility - Calculates vessel fuel consumption</p>\n<p>Uses the discovered game formula:\nfuel_kg_per_nm = capacity * Math.sqrt(speed) * fuel_factor / 40</p>\n<p>All vessel data (capacity, max_speed, fuel_factor) comes from the game API.\nNo lookup tables or user-entered data needed.</p>"
+    "description": "<p>Fuel &amp; CO2 Calculator Utility</p>\n<p>Calculates vessel fuel consumption and CO2 emissions using discovered game formulas.</p>\n<p>Fuel Formula (from app.js module 2576):\nfuel = (capacity / 2000) * distance * sqrt(speed) / 20 * fuel_factor\nSimplified per nm: fuel_kg_per_nm = capacity * sqrt(speed) * fuel_factor / 40</p>\n<p>CO2 Formula (from app.js module 2576):\nco2_per_teu_nm = (2 - capacity / 15000) * co2_factor\ntotal_co2 = co2_per_teu_nm * cargo * distance</p>\n<p>All vessel data (capacity, max_speed, fuel_factor, co2_factor) comes from the game API.</p>"
   },
   {
     "type": "module",
@@ -893,7 +893,7 @@
     "name": "server/utils/session-manager",
     "longname": "module:server/utils/session-manager",
     "url": "module-server_utils_session-manager.html",
-    "description": "<p>Secure Session Manager</p>\n<p>Manages user sessions with encrypted storage of sensitive cookies.\nSessions are stored in sessions.json but cookies are encrypted using OS-native storage.</p>\n<p>Features:</p>\n<ul>\n<li>Automatic encryption of session cookies</li>\n<li>Platform-independent (Windows/macOS/Linux)</li>\n<li>Migration of old plaintext sessions</li>\n<li>Session validation</li>\n</ul>"
+    "description": "<p>Secure Session Manager</p>\n<p>Manages user sessions with encrypted storage of sensitive cookies.\nSessions are stored in SQLite database with cookies encrypted using OS-native storage.</p>\n<p>Features:</p>\n<ul>\n<li>Automatic encryption of session cookies</li>\n<li>Platform-independent (Windows/macOS/Linux)</li>\n<li>SQLite database storage for reliability</li>\n<li>Session validation</li>\n</ul>"
   },
   {
     "type": "module",
@@ -3538,6 +3538,14 @@
   },
   {
     "type": "method",
+    "name": "handleDesktopNotification",
+    "longname": "module:chat~handleDesktopNotification",
+    "url": "module-chat.html#~handleDesktopNotification",
+    "description": "<p>Handles desktop_notification events from backend autopilot modules.\nThese are sent directly from autopilot pilots (Blackbeard, Purser, etc.)</p>",
+    "parent": "module:chat"
+  },
+  {
+    "type": "method",
     "name": "handleDrydockCountUpdate",
     "longname": "module:chat~handleDrydockCountUpdate",
     "url": "module-chat.html#~handleDrydockCountUpdate",
@@ -4506,6 +4514,14 @@
   },
   {
     "type": "method",
+    "name": "registerIntelligentRebuyListeners",
+    "longname": "module:core/event-registry.registerIntelligentRebuyListeners",
+    "url": "module-core_event-registry.html#.registerIntelligentRebuyListeners",
+    "description": "<p>Register intelligent rebuy event listeners (within Barrel Boss and Atmosphere Broker).\nIntelligent Rebuy and Emergency Buy Override are mutually exclusive.</p>",
+    "parent": "module:core/event-registry"
+  },
+  {
+    "type": "method",
     "name": "registerMessengerEventListeners",
     "longname": "module:core/event-registry.registerMessengerEventListeners",
     "url": "module-core_event-registry.html#.registerMessengerEventListeners",
@@ -5133,7 +5149,7 @@
     "name": "selectAllVessels",
     "longname": "module:depart-manager~selectAllVessels",
     "url": "module-depart-manager.html#~selectAllVessels",
-    "description": "<p>Select all vessel checkboxes</p>",
+    "description": "<p>Select all vessel checkboxes (both depart and moor tabs)</p>",
     "parent": "module:depart-manager"
   },
   {
@@ -5165,7 +5181,7 @@
     "name": "unselectAllVessels",
     "longname": "module:depart-manager~unselectAllVessels",
     "url": "module-depart-manager.html#~unselectAllVessels",
-    "description": "<p>Unselect all vessel checkboxes</p>",
+    "description": "<p>Unselect all vessel checkboxes (both depart and moor tabs)</p>",
     "parent": "module:depart-manager"
   },
   {
@@ -5902,6 +5918,14 @@
     "longname": "module:harbor-map/map-controller.getMap",
     "url": "module-harbor-map_map-controller.html#.getMap",
     "description": "<p>Returns the map instance for use in other modules</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "getOverviewData",
+    "longname": "module:harbor-map/map-controller.getOverviewData",
+    "url": "module-harbor-map_map-controller.html#.getOverviewData",
+    "description": "<p>Gets overview data for external modules (route-planner)</p>",
     "parent": "module:harbor-map/map-controller"
   },
   {
@@ -7018,6 +7042,14 @@
   },
   {
     "type": "method",
+    "name": "applyDemandPortFilter",
+    "longname": "module:route-planner~applyDemandPortFilter",
+    "url": "module-route-planner.html#~applyDemandPortFilter",
+    "description": "<p>Apply demand filter on reachable ports\nUses harbor-map filters but applies to vessel-reachable ports only\nCombines with current port filter (local, all, metropol, no_routes)</p>",
+    "parent": "module:route-planner"
+  },
+  {
+    "type": "method",
     "name": "applyPortFilter",
     "longname": "module:route-planner~applyPortFilter",
     "url": "module-route-planner.html#~applyPortFilter",
@@ -7098,6 +7130,14 @@
   },
   {
     "type": "method",
+    "name": "fetchAndSetAutoPrice",
+    "longname": "module:route-planner~fetchAndSetAutoPrice",
+    "url": "module-route-planner.html#~fetchAndSetAutoPrice",
+    "description": "<p>Fetch and set auto-price from API.\nONLY fetches price and updates display - nothing else.</p>",
+    "parent": "module:route-planner"
+  },
+  {
+    "type": "method",
     "name": "fetchRouteData",
     "longname": "module:route-planner~fetchRouteData",
     "url": "module-route-planner.html#~fetchRouteData",
@@ -7150,6 +7190,14 @@
     "longname": "module:route-planner~loadVesselPorts",
     "url": "module-route-planner.html#~loadVesselPorts",
     "description": "<p>Load vessel ports from API</p>",
+    "parent": "module:route-planner"
+  },
+  {
+    "type": "method",
+    "name": "populateDemandDropdown",
+    "longname": "module:route-planner~populateDemandDropdown",
+    "url": "module-route-planner.html#~populateDemandDropdown",
+    "description": "<p>Populate demand filter dropdown based on vessel type</p>",
     "parent": "module:route-planner"
   },
   {
@@ -7677,7 +7725,7 @@
     "name": "autoRebuyCO2",
     "longname": "module:server/autopilot/pilot_atmosphere_broker~autoRebuyCO2",
     "url": "module-server_autopilot_pilot_atmosphere_broker.html#~autoRebuyCO2",
-    "description": "<p>Auto-rebuy CO2 for a single user with intelligent threshold checking.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current bunker state and prices</li>\n<li>Checks if price &lt;= threshold (uses alert threshold or custom)</li>\n<li>Verifies cash balance &gt;= minimum cash requirement</li>\n<li>Calculates available space and affordable amount</li>\n<li>Purchases CO2 up to bunker capacity or cash limit</li>\n<li>Broadcasts purchase event and updated bunker state</li>\n</ol>\n<p>Threshold Selection:</p>\n<ul>\n<li>If autoRebuyCO2UseAlert=true: uses co2Threshold (alert threshold)</li>\n<li>If autoRebuyCO2UseAlert=false: uses autoRebuyCO2Threshold (custom)</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Respects minimum cash balance (won't buy if cash &lt; minCash)</li>\n<li>Uses Math.ceil to always fill bunker completely</li>\n<li>Updates state immediately to prevent duplicate purchases</li>\n</ul>\n<p>API Interactions:</p>\n<ul>\n<li>Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())</li>\n<li>Calls gameapi.purchaseCO2() to execute purchase</li>\n<li>Broadcasts 'co2_purchased' and 'bunker_update' events</li>\n</ul>",
+    "description": "<p>Auto-rebuy CO2 for a single user.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Modes:</p>\n<ul>\n<li>Normal (intelligentRebuyCO2=false): Fill bunker when price &lt;= threshold</li>\n<li>Intelligent (intelligentRebuyCO2=true): Buy for vessels OR refill when price &lt;= intelligentMaxPrice</li>\n</ul>",
     "parent": "module:server/autopilot/pilot_atmosphere_broker"
   },
   {
@@ -7685,7 +7733,7 @@
     "name": "autoRebuyFuel",
     "longname": "module:server/autopilot/pilot_barrel_boss~autoRebuyFuel",
     "url": "module-server_autopilot_pilot_barrel_boss.html#~autoRebuyFuel",
-    "description": "<p>Auto-rebuy fuel for a single user with intelligent threshold checking.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Decision Logic:</p>\n<ol>\n<li>Fetches current bunker state and prices</li>\n<li>Checks if price &lt;= threshold (uses alert threshold or custom)</li>\n<li>Verifies cash balance &gt;= minimum cash requirement</li>\n<li>Calculates available space and affordable amount</li>\n<li>Purchases fuel up to bunker capacity or cash limit</li>\n<li>Broadcasts purchase event and updated bunker state</li>\n</ol>\n<p>Threshold Selection:</p>\n<ul>\n<li>If autoRebuyFuelUseAlert=true: uses fuelThreshold (alert threshold)</li>\n<li>If autoRebuyFuelUseAlert=false: uses autoRebuyFuelThreshold (custom)</li>\n</ul>\n<p>Safety Features:</p>\n<ul>\n<li>Respects minimum cash balance (won't buy if cash &lt; minCash)</li>\n<li>Uses Math.ceil to always fill bunker completely</li>\n<li>Updates state immediately to prevent duplicate purchases</li>\n</ul>\n<p>API Interactions:</p>\n<ul>\n<li>Uses state.getBunkerState() for cached bunker levels (auto-updated by apiCall())</li>\n<li>Calls gameapi.purchaseFuel() to execute purchase</li>\n<li>Broadcasts 'fuel_purchased' and 'bunker_update' events</li>\n</ul>",
+    "description": "<p>Auto-rebuy fuel for a single user.\nNO COOLDOWN - purchases whenever price is good and space available.</p>\n<p>Modes:</p>\n<ul>\n<li>Normal (intelligentRebuyFuel=false): Fill bunker when price &lt;= threshold</li>\n<li>Intelligent (intelligentRebuyFuel=true): Buy for vessels OR refill when price &lt;= intelligentMaxPrice</li>\n</ul>",
     "parent": "module:server/autopilot/pilot_barrel_boss"
   },
   {
@@ -7693,7 +7741,7 @@
     "name": "autoNegotiateHijacking",
     "longname": "module:server/autopilot/pilot_captain_blackbeard~autoNegotiateHijacking",
     "url": "module-server_autopilot_pilot_captain_blackbeard.html#~autoNegotiateHijacking",
-    "description": "<p>Main autopilot entry point - processes all active hijacking cases.</p>",
+    "description": "<p>Main entry point - find and process all active hijacking cases.</p>",
     "parent": "module:server/autopilot/pilot_captain_blackbeard"
   },
   {
@@ -7701,15 +7749,7 @@
     "name": "processHijackingCase",
     "longname": "module:server/autopilot/pilot_captain_blackbeard~processHijackingCase",
     "url": "module-server_autopilot_pilot_captain_blackbeard.html#~processHijackingCase",
-    "description": "<p>Process a single hijacking case with strict verification after each step.\nFlow:</p>\n<ol>\n<li>Get case, make 1st offer (25%)</li>\n<li>WAIT 2 MINUTES</li>\n<li>Verify response matches current case demand</li>\n<li>Make 2nd offer (25%)</li>\n<li>WAIT 2 MINUTES</li>\n<li>Verify response matches current case demand</li>\n<li>Check balance, pay if sufficient</li>\n<li>Verify payment was deducted</li>\n</ol>",
-    "parent": "module:server/autopilot/pilot_captain_blackbeard"
-  },
-  {
-    "type": "method",
-    "name": "saveToHistory",
-    "longname": "module:server/autopilot/pilot_captain_blackbeard~saveToHistory",
-    "url": "module-server_autopilot_pilot_captain_blackbeard.html#~saveToHistory",
-    "description": "<p>Save negotiation entry to history file.</p>",
+    "description": "<p>Process a single hijacking case.\nMakes exactly 2 offers, then pays the final pirate counter.</p>",
     "parent": "module:server/autopilot/pilot_captain_blackbeard"
   },
   {
@@ -9466,6 +9506,22 @@
   },
   {
     "type": "method",
+    "name": "addToStockBlacklist",
+    "longname": "module:server/database~addToStockBlacklist",
+    "url": "module-server_database.html#~addToStockBlacklist",
+    "description": "<p>Add a stock to the blacklist (prevent auto-buy)</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "closeAccountsDb",
+    "longname": "module:server/database~closeAccountsDb",
+    "url": "module-server_database.html#~closeAccountsDb",
+    "description": "<p>Close accounts database connection</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "closeAll",
     "longname": "module:server/database~closeAll",
     "url": "module-server_database.html#~closeAll",
@@ -9482,6 +9538,14 @@
   },
   {
     "type": "method",
+    "name": "createAccountsSchema",
+    "longname": "module:server/database~createAccountsSchema",
+    "url": "module-server_database.html#~createAccountsSchema",
+    "description": "<p>Create accounts database schema</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "createSchema",
     "longname": "module:server/database~createSchema",
     "url": "module-server_database.html#~createSchema",
@@ -9490,10 +9554,74 @@
   },
   {
     "type": "method",
+    "name": "deleteAccount",
+    "longname": "module:server/database~deleteAccount",
+    "url": "module-server_database.html#~deleteAccount",
+    "description": "<p>Delete an account</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "deleteRouteSettings",
+    "longname": "module:server/database~deleteRouteSettings",
+    "url": "module-server_database.html#~deleteRouteSettings",
+    "description": "<p>Delete route settings for a vessel (e.g., when route is removed)</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "ensureDbDir",
     "longname": "module:server/database~ensureDbDir",
     "url": "module-server_database.html#~ensureDbDir",
     "description": "<p>Ensure database directory exists</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "findNextAvailablePort",
+    "longname": "module:server/database~findNextAvailablePort",
+    "url": "module-server_database.html#~findNextAvailablePort",
+    "description": "<p>Find next available port starting from basePort</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getAccount",
+    "longname": "module:server/database~getAccount",
+    "url": "module-server_database.html#~getAccount",
+    "description": "<p>Get a single account by user ID</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getAccountsDb",
+    "longname": "module:server/database~getAccountsDb",
+    "url": "module-server_database.html#~getAccountsDb",
+    "description": "<p>Get accounts database connection (singleton)</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getAccountsDbPath",
+    "longname": "module:server/database~getAccountsDbPath",
+    "url": "module-server_database.html#~getAccountsDbPath",
+    "description": "<p>Get path to accounts database</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getAllAccounts",
+    "longname": "module:server/database~getAllAccounts",
+    "url": "module-server_database.html#~getAllAccounts",
+    "description": "<p>Get all accounts from database</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getAllRouteSettings",
+    "longname": "module:server/database~getAllRouteSettings",
+    "url": "module-server_database.html#~getAllRouteSettings",
+    "description": "<p>Get all route settings for a user</p>",
     "parent": "module:server/database"
   },
   {
@@ -9522,10 +9650,34 @@
   },
   {
     "type": "method",
+    "name": "getHijackHistoryDir",
+    "longname": "module:server/database~getHijackHistoryDir",
+    "url": "module-server_database.html#~getHijackHistoryDir",
+    "description": "<p>Get the hijack history directory path</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "getMetadata",
     "longname": "module:server/database~getMetadata",
     "url": "module-server_database.html#~getMetadata",
     "description": "<p>Get metadata value</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getRouteSettings",
+    "longname": "module:server/database~getRouteSettings",
+    "url": "module-server_database.html#~getRouteSettings",
+    "description": "<p>Get route settings for a vessel</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getStockBlacklist",
+    "longname": "module:server/database~getStockBlacklist",
+    "url": "module-server_database.html#~getStockBlacklist",
+    "description": "<p>Get all blacklisted stocks</p>",
     "parent": "module:server/database"
   },
   {
@@ -9538,10 +9690,74 @@
   },
   {
     "type": "method",
+    "name": "isStockBlacklisted",
+    "longname": "module:server/database~isStockBlacklisted",
+    "url": "module-server_database.html#~isStockBlacklisted",
+    "description": "<p>Check if a stock is blacklisted</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "markMigrationComplete",
     "longname": "module:server/database~markMigrationComplete",
     "url": "module-server_database.html#~markMigrationComplete",
     "description": "<p>Mark migration as complete</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "migrateAllHijackHistoryFromJson",
+    "longname": "module:server/database~migrateAllHijackHistoryFromJson",
+    "url": "module-server_database.html#~migrateAllHijackHistoryFromJson",
+    "description": "<p>Migrate all users' hijack history from JSON to SQLite\nScans hijack_history directory and migrates all files</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "migrateHijackHistoryFromJson",
+    "longname": "module:server/database~migrateHijackHistoryFromJson",
+    "url": "module-server_database.html#~migrateHijackHistoryFromJson",
+    "description": "<p>Migrate hijack history from JSON files to SQLite</p>\n<ul>\n<li>Reads all JSON files from userdata/hijack_history/</li>\n<li>Migrates history entries to hijack_history table</li>\n<li>Migrates case metadata to hijack_cases table</li>\n<li>Deletes JSON files after successful migration</li>\n</ul>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "removeFromStockBlacklist",
+    "longname": "module:server/database~removeFromStockBlacklist",
+    "url": "module-server_database.html#~removeFromStockBlacklist",
+    "description": "<p>Remove a stock from the blacklist</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "saveAccount",
+    "longname": "module:server/database~saveAccount",
+    "url": "module-server_database.html#~saveAccount",
+    "description": "<p>Save or update an account</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "saveRouteSettings",
+    "longname": "module:server/database~saveRouteSettings",
+    "url": "module-server_database.html#~saveRouteSettings",
+    "description": "<p>Save or update vessel route settings</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "setAccountAutostart",
+    "longname": "module:server/database~setAccountAutostart",
+    "url": "module-server_database.html#~setAccountAutostart",
+    "description": "<p>Update account autostart setting</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "setAccountPort",
+    "longname": "module:server/database~setAccountPort",
+    "url": "module-server_database.html#~setAccountPort",
+    "description": "<p>Update account port</p>",
     "parent": "module:server/database"
   },
   {
@@ -10978,6 +11194,14 @@
   },
   {
     "type": "method",
+    "name": "calculateCO2Consumption",
+    "longname": "module:server/utils/fuel-calculator~calculateCO2Consumption",
+    "url": "module-server_utils_fuel-calculator.html#~calculateCO2Consumption",
+    "description": "<p>Calculate CO2 consumption for a vessel route</p>\n<p>Game Formula: co2_per_teu_nm = (2 - capacity / 15000) * co2_factor\nTotal CO2: co2_per_teu_nm * cargo * distance</p>\n<p>For intelligent rebuy, we use max capacity as cargo to ensure buffer.</p>",
+    "parent": "module:server/utils/fuel-calculator"
+  },
+  {
+    "type": "method",
     "name": "calculateFuelConsumption",
     "longname": "module:server/utils/fuel-calculator~calculateFuelConsumption",
     "url": "module-server_utils_fuel-calculator.html#~calculateFuelConsumption",
@@ -10998,6 +11222,14 @@
     "longname": "module:server/utils/fuel-calculator~getFuelConsumptionDisplay",
     "url": "module-server_utils_fuel-calculator.html#~getFuelConsumptionDisplay",
     "description": "<p>Get formatted fuel consumption display string for UI</p>",
+    "parent": "module:server/utils/fuel-calculator"
+  },
+  {
+    "type": "method",
+    "name": "getVesselCapacityForFormula",
+    "longname": "module:server/utils/fuel-calculator~getVesselCapacityForFormula",
+    "url": "module-server_utils_fuel-calculator.html#~getVesselCapacityForFormula",
+    "description": "<p>Get vessel capacity for formulas (TEU for containers, barrels/74 for tankers)</p>",
     "parent": "module:server/utils/fuel-calculator"
   },
   {
@@ -11218,6 +11450,14 @@
   },
   {
     "type": "method",
+    "name": "findAvailablePort",
+    "longname": "module:server/utils/session-manager~findAvailablePort",
+    "url": "module-server_utils_session-manager.html#~findAvailablePort",
+    "description": "<p>Find the next available port starting from basePort\nChecks both database AND system port availability</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
     "name": "getAllUserIds",
     "longname": "module:server/utils/session-manager~getAllUserIds",
     "url": "module-server_utils_session-manager.html#~getAllUserIds",
@@ -11229,7 +11469,7 @@
     "name": "getAvailableSessions",
     "longname": "module:server/utils/session-manager~getAvailableSessions",
     "url": "module-server_utils_session-manager.html#~getAvailableSessions",
-    "description": "<p>Get all available sessions with decrypted cookies</p>",
+    "description": "<p>Get all available sessions with decrypted cookies\nIMPORTANT: Always returns ALL stored sessions, even if decryption fails.\nSessions with issues will have valid=false so the UI can show them appropriately.</p>",
     "parent": "module:server/utils/session-manager"
   },
   {
@@ -11250,14 +11490,6 @@
   },
   {
     "type": "method",
-    "name": "getSessionsPath",
-    "longname": "module:server/utils/session-manager~getSessionsPath",
-    "url": "module-server_utils_session-manager.html#~getSessionsPath",
-    "description": "<p>Get sessions file path based on execution mode</p>",
-    "parent": "module:server/utils/session-manager"
-  },
-  {
-    "type": "method",
     "name": "hasSession",
     "longname": "module:server/utils/session-manager~hasSession",
     "url": "module-server_utils_session-manager.html#~hasSession",
@@ -11266,18 +11498,10 @@
   },
   {
     "type": "method",
-    "name": "loadAllSessions",
-    "longname": "module:server/utils/session-manager~loadAllSessions",
-    "url": "module-server_utils_session-manager.html#~loadAllSessions",
-    "description": "<p>Load all available sessions (Python and Node.js now use same file)</p>",
-    "parent": "module:server/utils/session-manager"
-  },
-  {
-    "type": "method",
-    "name": "loadSessions",
-    "longname": "module:server/utils/session-manager~loadSessions",
-    "url": "module-server_utils_session-manager.html#~loadSessions",
-    "description": "<p>Load all sessions from file</p>",
+    "name": "isPortAvailable",
+    "longname": "module:server/utils/session-manager~isPortAvailable",
+    "url": "module-server_utils_session-manager.html#~isPortAvailable",
+    "description": "<p>Check if a port is available on the system</p>",
     "parent": "module:server/utils/session-manager"
   },
   {
@@ -11285,7 +11509,23 @@
     "name": "migrateToEncrypted",
     "longname": "module:server/utils/session-manager~migrateToEncrypted",
     "url": "module-server_utils_session-manager.html#~migrateToEncrypted",
-    "description": "<p>Migrate plaintext sessions to encrypted format\nThis should be called once during upgrade</p>",
+    "description": "<p>Migration function - no longer needed as we use database\nKept for backwards compatibility</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
+    "name": "migrateToNormalizedCookies",
+    "longname": "module:server/utils/session-manager~migrateToNormalizedCookies",
+    "url": "module-server_utils_session-manager.html#~migrateToNormalizedCookies",
+    "description": "<p>Migrate all existing cookies to normalized format (URL-decoded)\nThis fixes cookies that were stored with %3D instead of =</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
+    "name": "normalizeCookie",
+    "longname": "module:server/utils/session-manager~normalizeCookie",
+    "url": "module-server_utils_session-manager.html#~normalizeCookie",
+    "description": "<p>Normalize a session cookie to consistent format (URL-decoded)\nHandles both URL-encoded (%3D) and raw cookies</p>",
     "parent": "module:server/utils/session-manager"
   },
   {
@@ -11298,18 +11538,18 @@
   },
   {
     "type": "method",
-    "name": "saveSessions",
-    "longname": "module:server/utils/session-manager~saveSessions",
-    "url": "module-server_utils_session-manager.html#~saveSessions",
-    "description": "<p>Save sessions to file</p>",
-    "parent": "module:server/utils/session-manager"
-  },
-  {
-    "type": "method",
     "name": "setAutostart",
     "longname": "module:server/utils/session-manager~setAutostart",
     "url": "module-server_utils_session-manager.html#~setAutostart",
     "description": "<p>Set autostart preference for a session</p>",
+    "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
+    "name": "setPort",
+    "longname": "module:server/utils/session-manager~setPort",
+    "url": "module-server_utils_session-manager.html#~setPort",
+    "description": "<p>Set port for a session</p>",
     "parent": "module:server/utils/session-manager"
   },
   {

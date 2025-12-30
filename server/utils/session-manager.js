@@ -2,154 +2,105 @@
  * @fileoverview Secure Session Manager
  *
  * Manages user sessions with encrypted storage of sensitive cookies.
- * Sessions are stored in sessions.json but cookies are encrypted using OS-native storage.
+ * Sessions are stored in SQLite database with cookies encrypted using OS-native storage.
  *
  * Features:
  * - Automatic encryption of session cookies
  * - Platform-independent (Windows/macOS/Linux)
- * - Migration of old plaintext sessions
+ * - SQLite database storage for reliability
  * - Session validation
  *
  * @module server/utils/session-manager
  */
 
-const fs = require('fs').promises;
-const path = require('path');
 const https = require('https');
+const net = require('net');
 const { encryptData, decryptData, isEncrypted } = require('./encryption');
 const logger = require('./logger');
+const db = require('../database');
 
 /**
- * Get sessions file path based on execution mode
- * @returns {string} Path to sessions.json
+ * Normalize a session cookie to consistent format (URL-decoded)
+ * Handles both URL-encoded (%3D) and raw cookies
+ * @param {string} cookie - The cookie value
+ * @returns {string} Normalized cookie
  */
-function getSessionsPath() {
-    const { getAppBaseDir } = require('../config');
+function normalizeCookie(cookie) {
+    if (!cookie) return cookie;
 
-    // Check if running from installed location (AppData)
-    const appDataBase = getAppBaseDir();
-    const isInstalled = process.execPath.toLowerCase().includes('appdata') ||
-                        process.execPath.toLowerCase().includes('shippingmanagercopilot');
-
-    if (isInstalled) {
-        return path.join(appDataBase, 'userdata', 'settings', 'sessions.json');
-    }
-
-    // Development: use project folder
-    return path.join(__dirname, '..', '..', 'userdata', 'settings', 'sessions.json');
-}
-
-/**
- * Load all sessions from file
- *
- * @returns {Promise<Object>} Sessions object with user IDs as keys
- */
-async function loadSessions() {
-    const sessionsFile = getSessionsPath();
-    logger.debug(`[SessionManager] Loading sessions from: ${sessionsFile}`);
-    try {
-        const data = await fs.readFile(sessionsFile, 'utf8');
-        const sessions = JSON.parse(data);
-        logger.debug(`[SessionManager] Loaded ${Object.keys(sessions).length} session(s)`);
-        return sessions;
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            // File doesn't exist yet
-            logger.warn(`[SessionManager] Sessions file not found: ${sessionsFile}`);
-            return {};
+    if (cookie.includes('%')) {
+        try {
+            const decoded = decodeURIComponent(cookie);
+            logger.debug(`[SessionManager] Cookie was URL-encoded, decoded from ${cookie.length} to ${decoded.length} chars`);
+            return decoded;
+        } catch {
+            logger.debug(`[SessionManager] Cookie contains % but is not URL-encoded`);
+            return cookie;
         }
-        logger.error('[SessionManager] Error loading sessions:', error);
-        return {};
     }
-}
 
-/**
- * Load all available sessions (Python and Node.js now use same file)
- *
- * @returns {Promise<Object>} Sessions object
- */
-async function loadAllSessions() {
-    // Both Python and Node.js now use the same sessions.json
-    return await loadSessions();
+    return cookie;
 }
 
 /**
  * Get all available sessions with decrypted cookies
+ * IMPORTANT: Always returns ALL stored sessions, even if decryption fails.
+ * Sessions with issues will have valid=false so the UI can show them appropriately.
  *
- * @returns {Promise<Array>} Array of {userId, cookie, companyName, loginMethod, timestamp}
+ * @returns {Promise<Array>} Array of session objects
  */
 async function getAvailableSessions() {
-    const sessions = await loadAllSessions();
+    const accounts = db.getAllAccounts();
     const available = [];
 
-    for (const userId of Object.keys(sessions)) {
+    for (const account of accounts) {
+        let decryptedCookie = null;
+        let decryptError = null;
+
         try {
-            const session = await getSession(userId);
-            if (session && session.cookie) {
-                // Load app_platform and app_version if available
-                let appPlatform = null;
-                let appVersion = null;
-
-                if (session.app_platform && isEncrypted(session.app_platform)) {
-                    const accountName = `app_platform_${userId}`;
-                    appPlatform = await decryptData(session.app_platform, accountName);
-                }
-
-                if (session.app_version && isEncrypted(session.app_version)) {
-                    const accountName = `app_version_${userId}`;
-                    appVersion = await decryptData(session.app_version, accountName);
-                }
-
-                // Handle both old format (timestamp as Unix) and new format (last_updated as ISO)
-                let timestamp = session.timestamp;
-                if (!timestamp && session.last_updated) {
-                    timestamp = Math.floor(new Date(session.last_updated).getTime() / 1000);
-                }
-
-                available.push({
-                    userId: String(session.user_id || userId),
-                    cookie: session.cookie,
-                    appPlatform: appPlatform,
-                    appVersion: appVersion,
-                    companyName: session.company_name || 'Unknown',
-                    loginMethod: session.login_method || 'unknown',
-                    timestamp: timestamp,
-                    autostart: session.autostart !== false  // Default true for backwards compatibility
-                });
+            if (account.cookie && isEncrypted(account.cookie)) {
+                const accountName = `session_${account.userId}`;
+                decryptedCookie = await decryptData(account.cookie, accountName);
+            } else {
+                decryptedCookie = account.cookie;
             }
         } catch (error) {
-            logger.error(`[SessionManager] Failed to decrypt session for user ${userId}:`, error);
+            logger.error(`[SessionManager] Failed to decrypt session for user ${account.userId}:`, error);
+            decryptError = error.message;
+        }
+
+        if (decryptedCookie) {
+            available.push({
+                userId: String(account.userId),
+                cookie: decryptedCookie,
+                companyName: account.companyName,
+                loginMethod: account.loginMethod,
+                timestamp: account.timestamp,
+                autostart: account.autostart,
+                port: account.port,
+                valid: true,
+                error: null
+            });
+        } else {
+            available.push({
+                userId: String(account.userId),
+                cookie: null,
+                companyName: account.companyName,
+                loginMethod: account.loginMethod,
+                timestamp: account.timestamp,
+                autostart: account.autostart,
+                port: account.port,
+                valid: false,
+                error: decryptError || 'Failed to decrypt session cookie'
+            });
+            logger.warn(`[SessionManager] Session for ${account.companyName} added with valid=false`);
         }
     }
 
     // Sort by timestamp (most recent first)
-    available.sort((a, b) => b.timestamp - a.timestamp);
+    available.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
 
     return available;
-}
-
-/**
- * Save sessions to file
- *
- * @param {Object} sessions - Sessions object to save
- * @returns {Promise<void>}
- */
-async function saveSessions(sessions) {
-    const sessionsFile = getSessionsPath();
-    try {
-        // Ensure directory exists
-        const dir = path.dirname(sessionsFile);
-        await fs.mkdir(dir, { recursive: true });
-
-        await fs.writeFile(
-            sessionsFile,
-            JSON.stringify(sessions, null, 2),
-            'utf8'
-        );
-    } catch (error) {
-        logger.error('[SessionManager] Error saving sessions:', error);
-        throw error;
-    }
 }
 
 /**
@@ -159,20 +110,16 @@ async function saveSessions(sessions) {
  * @returns {Promise<Object|null>} Session object with decrypted cookie, or null if not found
  */
 async function getSession(userId) {
-    const sessions = await loadAllSessions();  // Load from both locations
-    const session = sessions[String(userId)];
+    const account = db.getAccount(String(userId));
 
-    if (!session) {
+    if (!account) {
         return null;
     }
 
-    // Support both old format (cookie) and new format (encrypted_cookie)
-    const encryptedCookie = session.cookie || session.encrypted_cookie;
-
     // Decrypt cookie if encrypted
-    if (encryptedCookie && isEncrypted(encryptedCookie)) {
+    if (account.cookie && isEncrypted(account.cookie)) {
         const accountName = `session_${userId}`;
-        const decryptedCookie = await decryptData(encryptedCookie, accountName);
+        const decryptedCookie = await decryptData(account.cookie, accountName);
 
         if (!decryptedCookie) {
             logger.error(`[SessionManager] Failed to decrypt session for user ${userId}`);
@@ -180,15 +127,24 @@ async function getSession(userId) {
         }
 
         return {
-            ...session,
-            cookie: decryptedCookie
+            user_id: account.userId,
+            cookie: decryptedCookie,
+            company_name: account.companyName,
+            login_method: account.loginMethod,
+            timestamp: account.timestamp,
+            autostart: account.autostart,
+            port: account.port
         };
     }
 
-    // Return as-is if not encrypted (for backward compatibility during migration)
     return {
-        ...session,
-        cookie: encryptedCookie
+        user_id: account.userId,
+        cookie: account.cookie,
+        company_name: account.companyName,
+        login_method: account.loginMethod,
+        timestamp: account.timestamp,
+        autostart: account.autostart,
+        port: account.port
     };
 }
 
@@ -198,27 +154,33 @@ async function getSession(userId) {
  * @param {string|number} userId - User ID
  * @param {string} cookie - Session cookie (will be encrypted)
  * @param {string} companyName - Company name
- * @param {string} loginMethod - Login method used ('steam', 'firefox', 'chrome', etc.)
+ * @param {string} loginMethod - Login method used ('steam', 'browser', etc.)
  * @returns {Promise<void>}
  */
 async function saveSession(userId, cookie, companyName, loginMethod) {
-    const sessions = await loadSessions();
+    const userIdStr = String(userId);
     const accountName = `session_${userId}`;
 
+    // Normalize cookie (ensure consistent format - always URL-decoded)
+    const normalizedCookie = normalizeCookie(cookie);
+
     // Encrypt the cookie
-    const encryptedCookie = await encryptData(cookie, accountName);
+    const encryptedCookie = await encryptData(normalizedCookie, accountName);
 
-    // Store session with encrypted cookie
-    sessions[String(userId)] = {
+    // Get existing account to preserve settings (port, autostart)
+    const existingAccount = db.getAccount(userIdStr);
+
+    // Save to database - preserve port and autostart if they exist
+    db.saveAccount(userIdStr, {
+        companyName: companyName,
         cookie: encryptedCookie,
-        timestamp: Math.floor(Date.now() / 1000),
-        company_name: companyName,
-        login_method: loginMethod
-    };
+        loginMethod: loginMethod,
+        port: existingAccount?.port || db.findNextAvailablePort(12345),
+        autostart: existingAccount?.autostart !== false,
+        timestamp: Math.floor(Date.now() / 1000)
+    });
 
-    await saveSessions(sessions);
-
-    logger.debug(`[SessionManager] Saved encrypted session for user ${userId} (${companyName})`);
+    logger.info(`[SessionManager] Saved session for ${companyName} - port=${existingAccount?.port}`);
 }
 
 /**
@@ -228,17 +190,11 @@ async function saveSession(userId, cookie, companyName, loginMethod) {
  * @returns {Promise<boolean>} True if session was deleted
  */
 async function deleteSession(userId) {
-    const sessions = await loadSessions();
-
-    if (!sessions[String(userId)]) {
-        return false;
+    const result = db.deleteAccount(String(userId));
+    if (result) {
+        logger.debug(`[SessionManager] Deleted session for user ${userId}`);
     }
-
-    delete sessions[String(userId)];
-    await saveSessions(sessions);
-
-    logger.debug(`[SessionManager] Deleted session for user ${userId}`);
-    return true;
+    return result;
 }
 
 /**
@@ -247,46 +203,8 @@ async function deleteSession(userId) {
  * @returns {Promise<string[]>} Array of user IDs
  */
 async function getAllUserIds() {
-    const sessions = await loadAllSessions();  // Load from both locations
-    return Object.keys(sessions);
-}
-
-/**
- * Migrate plaintext sessions to encrypted format
- * This should be called once during upgrade
- *
- * @returns {Promise<number>} Number of sessions migrated
- */
-async function migrateToEncrypted() {
-    logger.debug('[SessionManager] Starting session migration...');
-
-    const sessions = await loadSessions();
-    let migratedCount = 0;
-
-    for (const [userId, session] of Object.entries(sessions)) {
-        if (session.cookie && !isEncrypted(session.cookie)) {
-            logger.debug(`[SessionManager] Migrating session for user ${userId}...`);
-
-            const accountName = `session_${userId}`;
-            const encryptedCookie = await encryptData(session.cookie, accountName);
-
-            sessions[userId] = {
-                ...session,
-                cookie: encryptedCookie
-            };
-
-            migratedCount++;
-        }
-    }
-
-    if (migratedCount > 0) {
-        await saveSessions(sessions);
-        logger.debug(`[SessionManager] OK Migrated ${migratedCount} session(s) to encrypted format`);
-    } else {
-        logger.debug('[SessionManager] No sessions needed migration');
-    }
-
-    return migratedCount;
+    const accounts = db.getAllAccounts();
+    return accounts.map(a => a.userId);
 }
 
 /**
@@ -296,8 +214,8 @@ async function migrateToEncrypted() {
  * @returns {Promise<boolean>} True if session exists
  */
 async function hasSession(userId) {
-    const sessions = await loadAllSessions();  // Load from both locations
-    return !!sessions[String(userId)];
+    const account = db.getAccount(String(userId));
+    return !!account;
 }
 
 /**
@@ -308,19 +226,72 @@ async function hasSession(userId) {
  * @returns {Promise<boolean>} True if updated successfully
  */
 async function setAutostart(userId, autostart) {
-    const sessions = await loadSessions();
-    const userIdStr = String(userId);
-
-    if (!sessions[userIdStr]) {
-        logger.warn(`[SessionManager] Cannot set autostart - session not found for user ${userId}`);
-        return false;
+    const result = db.setAccountAutostart(String(userId), autostart);
+    if (result) {
+        logger.debug(`[SessionManager] Set autostart=${autostart} for user ${userId}`);
     }
+    return result;
+}
 
-    sessions[userIdStr].autostart = autostart;
-    await saveSessions(sessions);
+/**
+ * Check if a port is available on the system
+ * @param {number} port - Port number to check
+ * @returns {Promise<boolean>} True if port is available
+ */
+function isPortAvailable(port) {
+    return new Promise((resolve) => {
+        const server = net.createServer();
+        server.once('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                resolve(false);
+            } else {
+                resolve(true);
+            }
+        });
+        server.once('listening', () => {
+            server.close(() => {
+                resolve(true);
+            });
+        });
+        server.listen(port, '127.0.0.1');
+    });
+}
 
-    logger.debug(`[SessionManager] Set autostart=${autostart} for user ${userId}`);
-    return true;
+/**
+ * Find the next available port starting from basePort
+ * Checks both database AND system port availability
+ * @param {number} basePort - Starting port number
+ * @param {string|number} [excludeUserId] - User ID to exclude from check (for updates)
+ * @returns {Promise<number>} First available port
+ */
+async function findAvailablePort(basePort, _excludeUserId) {
+    // Get next port not used in database
+    let port = db.findNextAvailablePort(basePort);
+
+    // Also verify it's free on the system
+    while (true) {
+        const available = await isPortAvailable(port);
+        if (available) {
+            return port;
+        }
+        logger.debug(`[SessionManager] Port ${port} in use on system, trying next`);
+        port++;
+    }
+}
+
+/**
+ * Set port for a session
+ *
+ * @param {string|number} userId - User ID
+ * @param {number} port - Port number to use for this session
+ * @returns {Promise<boolean>} True if updated successfully
+ */
+async function setPort(userId, port) {
+    const result = db.setAccountPort(String(userId), port);
+    if (result) {
+        logger.info(`[SessionManager] Set port=${port} for user ${userId}`);
+    }
+    return result;
 }
 
 /**
@@ -330,6 +301,9 @@ async function setAutostart(userId, autostart) {
  * @returns {Promise<object|null>} User data {userId, companyName} if valid, null if invalid/expired
  */
 function validateSessionCookie(cookie) {
+    // Normalize cookie first (decode URL-encoded cookies)
+    const normalizedCookie = normalizeCookie(cookie);
+
     return new Promise((resolve) => {
         const options = {
             hostname: 'shippingmanager.cc',
@@ -337,7 +311,7 @@ function validateSessionCookie(cookie) {
             path: '/api/user/get-user-settings',
             method: 'GET',
             headers: {
-                'Cookie': `shipping_manager_session=${cookie}`,
+                'Cookie': `shipping_manager_session=${normalizedCookie}`,
                 'Accept': 'application/json'
             },
             rejectUnauthorized: true
@@ -407,6 +381,75 @@ async function getFirstValidSession(logFn) {
     return null;
 }
 
+/**
+ * Migration function - no longer needed as we use database
+ * Kept for backwards compatibility
+ * @returns {Promise<number>} Always returns 0
+ */
+async function migrateToEncrypted() {
+    logger.debug('[SessionManager] Migration not needed - using database');
+    return 0;
+}
+
+/**
+ * Migrate all existing cookies to normalized format (URL-decoded)
+ * This fixes cookies that were stored with %3D instead of =
+ * @returns {Promise<number>} Number of cookies migrated
+ */
+async function migrateToNormalizedCookies() {
+    const accounts = db.getAllAccounts();
+    let migrated = 0;
+
+    for (const account of accounts) {
+        try {
+            // Decrypt current cookie
+            let decryptedCookie = null;
+            if (account.cookie && isEncrypted(account.cookie)) {
+                const accountName = `session_${account.userId}`;
+                decryptedCookie = await decryptData(account.cookie, accountName);
+            } else {
+                decryptedCookie = account.cookie;
+            }
+
+            if (!decryptedCookie) {
+                continue;
+            }
+
+            // Check if cookie needs normalization
+            if (decryptedCookie.includes('%3D') || decryptedCookie.includes('%')) {
+                const normalizedCookie = normalizeCookie(decryptedCookie);
+
+                if (normalizedCookie !== decryptedCookie) {
+                    logger.info(`[SessionManager] Migrating cookie for ${account.companyName}: URL-encoded -> decoded`);
+
+                    // Re-encrypt and save normalized cookie
+                    const accountName = `session_${account.userId}`;
+                    const encryptedCookie = await encryptData(normalizedCookie, accountName);
+
+                    db.saveAccount(account.userId, {
+                        companyName: account.companyName,
+                        cookie: encryptedCookie,
+                        loginMethod: account.loginMethod,
+                        port: account.port,
+                        autostart: account.autostart,
+                        timestamp: account.timestamp
+                    });
+
+                    migrated++;
+                }
+            }
+        } catch (error) {
+            logger.error(`[SessionManager] Failed to migrate cookie for ${account.userId}: ${error.message}`);
+        }
+    }
+
+    if (migrated > 0) {
+        logger.info(`[SessionManager] Migrated ${migrated} cookie(s) to normalized format`);
+    }
+
+    return migrated;
+}
+
 module.exports = {
     getSession,
     saveSession,
@@ -414,8 +457,13 @@ module.exports = {
     getAllUserIds,
     hasSession,
     migrateToEncrypted,
+    migrateToNormalizedCookies,
     getAvailableSessions,
     setAutostart,
+    setPort,
+    isPortAvailable,
+    findAvailablePort,
     validateSessionCookie,
-    getFirstValidSession
+    getFirstValidSession,
+    normalizeCookie
 };

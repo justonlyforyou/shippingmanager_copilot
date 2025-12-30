@@ -1170,6 +1170,7 @@ async function renderAllianzTab() {
 
   const roleGroups = {
     ceo: { title: 'CEO', emoji: '👨‍✈️', members: [] },
+    interim_ceo: { title: 'Interim CEO', emoji: '👨‍✈️', members: [] },
     coo: { title: 'COO', emoji: '👨‍💼', members: [] },
     management: { title: 'Management', emoji: '🧑‍💻', members: [] },
     member: { title: 'Members', emoji: '🦸‍♂️', members: [] }
@@ -1267,7 +1268,7 @@ async function renderAllianzTab() {
 
   function renderMembers(sortBy = 'contribution-24h', sortOrder = 'desc') {
     const allMembers = [];
-    const groupOrder = ['ceo', 'coo', 'management', 'member'];
+    const groupOrder = ['ceo', 'interim_ceo', 'coo', 'management', 'member'];
     groupOrder.forEach(roleKey => {
       const group = roleGroups[roleKey];
       group.members.forEach(m => {
@@ -2009,6 +2010,7 @@ export async function showAllianceDetailsModal(allianceId) {
     // Group members by role
     const roleGroups = {
       ceo: { title: 'CEO', emoji: '👨‍✈️', members: [] },
+      interim_ceo: { title: 'Interim CEO', emoji: '👨‍✈️', members: [] },
       coo: { title: 'COO', emoji: '👨‍💼', members: [] },
       management: { title: 'Management', emoji: '🧑‍💻', members: [] },
       member: { title: 'Members', emoji: '🦸‍♂️', members: [] }
@@ -2107,7 +2109,7 @@ export async function showAllianceDetailsModal(allianceId) {
 
     function renderExternalAllianceMembers(sortBy = 'contribution-24h', sortOrder = 'desc') {
       const allMembers = [];
-      const groupOrder = ['ceo', 'coo', 'management', 'member'];
+      const groupOrder = ['ceo', 'interim_ceo', 'coo', 'management', 'member'];
       groupOrder.forEach(roleKey => {
         const group = roleGroups[roleKey];
         group.members.forEach(m => {
@@ -2389,6 +2391,7 @@ async function renderManagementTab() {
     // Group members by role
     const roleGroups = {
       ceo: { title: 'CEO', emoji: '👨‍✈️', members: [] },
+      interim_ceo: { title: 'Interim CEO', emoji: '👨‍✈️', members: [] },
       coo: { title: 'COO', emoji: '👨‍💼', members: [] },
       management: { title: 'Management', emoji: '🧑‍💻', members: [] },
       member: { title: 'Members', emoji: '🦸‍♂️', members: [] }
@@ -2421,13 +2424,13 @@ async function renderManagementTab() {
       const stockValue = member.share_value > 0 ? `$${formatNumber(member.share_value)}` : 'N/A';
 
       // Determine if role can be changed
-      // ONLY CEO and COO can change roles
-      // CEO can change all roles
-      // COO can change all roles EXCEPT CEO
+      // CEO and Interim CEO can change all roles (including each other)
+      // COO can change all roles EXCEPT CEO and Interim CEO
+      const isCeoOrInterim = currentUserRole === 'ceo' || currentUserRole === 'interim_ceo';
       let canChangeRole = false;
-      if (currentUserRole === 'ceo') {
+      if (isCeoOrInterim) {
         canChangeRole = true;
-      } else if (currentUserRole === 'coo' && member.role !== 'ceo') {
+      } else if (currentUserRole === 'coo' && member.role !== 'ceo' && member.role !== 'interim_ceo') {
         canChangeRole = true;
       }
 
@@ -2438,10 +2441,10 @@ async function renderManagementTab() {
           <option value="member" ${member.role === 'member' ? 'selected' : ''}>Member</option>
           <option value="management" ${member.role === 'management' ? 'selected' : ''}>Management</option>
         `;
-        // Only CEO can assign COO or Interim CEO
-        if (currentUserRole === 'ceo') {
+        // CEO and Interim CEO can assign COO and Interim CEO
+        if (isCeoOrInterim) {
           roleOptions += `
-            <option value="interimceo" ${member.role === 'interimceo' ? 'selected' : ''}>Interim CEO</option>
+            <option value="interim_ceo" ${member.role === 'interim_ceo' ? 'selected' : ''}>Interim CEO</option>
             <option value="coo" ${member.role === 'coo' ? 'selected' : ''}>COO</option>
           `;
         }
@@ -2492,14 +2495,19 @@ async function renderManagementTab() {
       `;
     };
 
-    // Render CEO and COO together in one row
-    if (roleGroups.ceo.members.length > 0 || roleGroups.coo.members.length > 0) {
+    // Render CEO, Interim CEO, and COO together in one row
+    if (roleGroups.ceo.members.length > 0 || roleGroups.interim_ceo.members.length > 0 || roleGroups.coo.members.length > 0) {
       html += `<h4 class="member-group-title">👨‍✈️ CEO & 👨‍💼 COO</h4>`;
       html += `<div class="members-grid">`;
 
       // Render CEO members
       roleGroups.ceo.members.forEach(member => {
         html += renderMemberCard(member, roleGroups.ceo);
+      });
+
+      // Render Interim CEO members
+      roleGroups.interim_ceo.members.forEach(member => {
+        html += renderMemberCard(member, roleGroups.interim_ceo);
       });
 
       // Render COO members
@@ -3082,7 +3090,7 @@ async function updateManagementTabVisibility() {
     const currentUserRole = membersData.find(m => m.user_id === currentUserId)?.role || 'member';
 
     // Only show Management tab and Welcome Command Settings for CEO, COO, Management, and Interim CEO roles
-    const allowedRoles = ['ceo', 'coo', 'management', 'interimceo'];
+    const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
     const isAllowed = allowedRoles.includes(currentUserRole);
 
     // Show/hide Management tab

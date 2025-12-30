@@ -23,6 +23,7 @@ const logger = require('../utils/logger');
 const { getUserId, apiCall } = require('../utils/api');
 const { auditLog, CATEGORIES, SOURCES, formatCurrency, formatNumber } = require('../utils/audit-logger');
 const { getFreshIpos, triggerImmediateIpoRefresh } = require('../websocket/ipo-refresh');
+const { isStockBlacklisted, addToStockBlacklist } = require('../database');
 
 /**
  * Tracks which IPOs we've already purchased from (by user ID)
@@ -105,6 +106,12 @@ async function autoBuyStock(autopilotPaused, broadcastToUser, tryUpdateAllData) 
     const eligibleIpos = freshIpos.filter(ipo => {
       // Already purchased this session?
       if (purchasedIpos.has(ipo.id)) {
+        return false;
+      }
+
+      // On blacklist? (previously sold - never buy again)
+      if (isStockBlacklisted(userId, ipo.id)) {
+        logger.debug(`[The Purser] Skipping ${ipo.company_name}: on blacklist (previously sold)`);
         return false;
       }
 
@@ -209,6 +216,23 @@ async function autoBuyStock(autopilotPaused, broadcastToUser, tryUpdateAllData) 
             maxFuel: currentBunker.maxFuel,
             maxCO2: currentBunker.maxCO2
           });
+
+          // Send in-app notification if enabled
+          if (settings.notifyThePurserInApp) {
+            broadcastToUser(userId, 'notification', {
+              type: 'success',
+              message: `<p><strong>The Purser</strong></p><p>Bought ${sharesToBuy.toLocaleString()} shares of ${ipo.company_name}<br>@ $${ipo.stock.toLocaleString()}/share = $${totalCost.toLocaleString()}</p>`
+            });
+          }
+
+          // Send desktop notification if enabled
+          if (settings.enableDesktopNotifications && settings.notifyThePurserDesktop) {
+            broadcastToUser(userId, 'desktop_notification', {
+              title: 'The Purser - Stock Purchase',
+              message: `Bought ${sharesToBuy.toLocaleString()} shares of ${ipo.company_name} for $${totalCost.toLocaleString()}`,
+              type: 'success'
+            });
+          }
         }
 
         logger.info(`[The Purser] Successfully purchased ${sharesToBuy.toLocaleString()} shares of ${ipo.company_name}`);
@@ -394,6 +418,9 @@ async function autoSellStock(autopilotPaused, broadcastToUser, tryUpdateAllData)
         // Remove from our tracking
         investmentPurchaseData.delete(companyId);
 
+        // Add to blacklist to prevent re-buying
+        addToStockBlacklist(userId, companyId, companyName, 'auto_sell');
+
         // Broadcast sell notification
         if (broadcastToUser) {
           broadcastToUser(userId, 'purser_sell', {
@@ -415,6 +442,23 @@ async function autoSellStock(autopilotPaused, broadcastToUser, tryUpdateAllData)
             maxFuel: bunker.maxFuel,
             maxCO2: bunker.maxCO2
           });
+
+          // Send in-app notification if enabled
+          if (settings.notifyThePurserInApp) {
+            broadcastToUser(userId, 'notification', {
+              type: 'warning',
+              message: `<p><strong>The Purser</strong></p><p>Sold ${sharesOwned.toLocaleString()} shares of ${companyName}<br>@ $${currentValue.toLocaleString()}/share = $${totalRevenue.toLocaleString()}<br>Reason: ${sellReason}</p>`
+            });
+          }
+
+          // Send desktop notification if enabled
+          if (settings.enableDesktopNotifications && settings.notifyThePurserDesktop) {
+            broadcastToUser(userId, 'desktop_notification', {
+              title: 'The Purser - Stock Sold',
+              message: `Sold ${sharesOwned.toLocaleString()} shares of ${companyName} for $${totalRevenue.toLocaleString()} (${sellReason})`,
+              type: 'warning'
+            });
+          }
         }
 
         logger.info(`[The Purser] Successfully sold ${sharesOwned.toLocaleString()} shares of ${companyName} for $${totalRevenue.toLocaleString()}`);

@@ -7,6 +7,7 @@
 
 import { showSideNotification , toGameCode } from './utils.js';
 import logger from './core/logger.js';
+import { getDemandFilterOptions, applyDemandFilter } from './harbor-map/filters.js';
 
 // Drag state
 let isDragging = false;
@@ -25,6 +26,7 @@ let currentVesselData = null; // Vessel data for formula calculations
 let currentRouteDistance = null; // Distance of current route (for Route tab calculations)
 let currentAutoPrices = null; // Auto-price data from game API
 let currentFeeDiscount = { discountPercent: 0, multiplier: 1 }; // Staff training discount
+let currentPortFilter = 'all'; // Current port filter type for demand filter combination
 
 // Planning mode state (exported for map-controller)
 let planningMode = false;
@@ -168,9 +170,39 @@ export function initializeRoutePlanner() {
   filterBtns.forEach(btn => {
     btn.addEventListener('click', () => {
       const filter = btn.dataset.filter;
-      applyPortFilter(filter);
+      // Skip 'suggested' - it doesn't combine with demand filter
+      if (filter === 'suggested') {
+        currentPortFilter = null;
+        applyPortFilter(filter);
+        return;
+      }
+      // Save current port filter for demand filter combination
+      currentPortFilter = filter;
+      // Check if demand filter is active - if so, apply combined filter
+      const demandDropdown = document.getElementById('routePlannerDemandFilter');
+      if (demandDropdown && demandDropdown.value) {
+        applyDemandPortFilter(demandDropdown.value);
+      } else {
+        applyPortFilter(filter);
+      }
     });
   });
+
+  // Demand filter dropdown
+  const demandDropdown = document.getElementById('routePlannerDemandFilter');
+  if (demandDropdown) {
+    demandDropdown.addEventListener('change', () => {
+      const filterValue = demandDropdown.value;
+      if (filterValue) {
+        applyDemandPortFilter(filterValue);
+      } else {
+        // Demand filter cleared - re-apply port filter only
+        if (currentPortFilter) {
+          applyPortFilter(currentPortFilter);
+        }
+      }
+    });
+  }
 
   // Create route button
   const createBtn = document.getElementById('routePlannerCreateBtn');
@@ -189,7 +221,7 @@ export function initializeRoutePlanner() {
   if (resetAutoPriceBtn) {
     resetAutoPriceBtn.addEventListener('click', async () => {
       if (!selectedRoute) return;
-      await updateSelectedPortDisplay();
+      await fetchAndSetAutoPrice();
     });
   }
 
@@ -348,12 +380,15 @@ export async function openRoutePlanner(vesselId, vesselName) {
   // Load vessel ports data
   await loadVesselPorts();
 
+  // Populate demand filter dropdown based on vessel type
+  populateDemandDropdown(currentVesselData?.capacityType);
+
   // Check if vessel has an active route and update Route tab
   // Reuse vesselData from earlier fetch to avoid duplicate API call
   let hasActiveRoute = false;
   if (vesselData && vesselData.route_destination) {
     hasActiveRoute = true;
-    updateRouteTabWithCurrentRoute(vesselData);
+    await updateRouteTabWithCurrentRoute(vesselData);
   }
 
   // Update Route tab visibility based on active route
@@ -522,8 +557,31 @@ function updateRouteTabVisibility(hasActiveRoute) {
  * Populate Route tab with current vessel route info
  * @param {Object} vessel - Vessel object with route data
  */
-function updateRouteTabWithCurrentRoute(vessel) {
+async function updateRouteTabWithCurrentRoute(vessel) {
   if (!vessel) return;
+
+  // Fetch route data with hijacking risk if we have origin/destination
+  let routeHijackingData = null;
+  if (vessel.route_origin && vessel.route_destination) {
+    try {
+      const response = await fetch('/api/route/get-routes-by-ports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          port1: vessel.route_origin,
+          port2: vessel.route_destination
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.data?.routes?.[0]) {
+          routeHijackingData = data.data.routes[0];
+        }
+      }
+    } catch (err) {
+      console.warn('[Route Planner] Could not fetch hijacking risk:', err.message);
+    }
+  }
 
   // Get route settings section and add route info display
   const routeSettingsSection = document.querySelector('.route-planner-route-settings');
@@ -732,6 +790,34 @@ function updateRouteTabWithCurrentRoute(vessel) {
     saveBtn.title = canModify ? '' : 'Cannot modify route while vessel is enroute';
   }
 
+  // Update piracy warning section in Route tab
+  const routeTabPiracyWarning = document.getElementById('routeTabPiracyWarning');
+  const routeTabPiracyZone = document.getElementById('routeTabPiracyZone');
+  const routeTabPiracyRisk = document.getElementById('routeTabPiracyRisk');
+
+  // Get hijacking risk from fetched route data or vessel routes array
+  const hijackingRisk = routeHijackingData?.hijacking_risk ||
+    (vessel.routes && vessel.routes[0] ? vessel.routes[0].hijacking_risk : 0);
+  const dangerZonesIds = routeHijackingData?.danger_zones_ids ||
+    (vessel.routes && vessel.routes[0] ? vessel.routes[0].danger_zones_ids : null);
+
+  if (routeTabPiracyWarning) {
+    if (hijackingRisk > 0) {
+      routeTabPiracyWarning.classList.remove('hidden');
+
+      if (routeTabPiracyZone && dangerZonesIds) {
+        const zoneId = Array.isArray(dangerZonesIds) ? dangerZonesIds[0] : dangerZonesIds;
+        routeTabPiracyZone.textContent = `Zone: ${DANGER_ZONE_NAMES[zoneId] || zoneId}`;
+      }
+
+      if (routeTabPiracyRisk) {
+        routeTabPiracyRisk.textContent = `Risk: ${hijackingRisk}%`;
+      }
+    } else {
+      routeTabPiracyWarning.classList.add('hidden');
+    }
+  }
+
   console.log(`[Route Planner] Updated Route tab with current route: ${originName} -> ${destName}, canModify: ${canModify}`);
 }
 
@@ -809,6 +895,41 @@ async function applyPortFilter(filter) {
       ports = vesselPorts.all?.ports || [];
       console.log(`[Route Planner] All ports raw:`, vesselPorts.all);
       break;
+    case 'no_routes': {
+      // Get all reachable ports
+      const allReachable = vesselPorts.all?.ports || [];
+
+      // Get harbor map data with vessel routes
+      const harborData = window.harborMap?.getOverviewData();
+      if (!harborData) {
+        console.warn('[Route Planner] Harbor map data not available');
+        ports = allReachable;
+        break;
+      }
+
+      // Collect all port codes that are part of any vessel's route (origin + destination)
+      const routedPortCodes = new Set();
+      harborData.vessels?.forEach(v => {
+        // Check all possible route destination fields
+        const dest = v.route_destination ||
+                     v.active_route?.destination ||
+                     v.active_route?.destination_port_code ||
+                     v.routes?.[0]?.destination;
+        if (dest) routedPortCodes.add(dest);
+
+        // Also check origin - vessels go back and forth
+        const origin = v.route_origin ||
+                       v.active_route?.origin ||
+                       v.active_route?.origin_port_code ||
+                       v.routes?.[0]?.origin;
+        if (origin) routedPortCodes.add(origin);
+      });
+
+      // Filter reachable ports to those WITHOUT active routes
+      ports = allReachable.filter(p => !routedPortCodes.has(p.code));
+      console.log(`[Route Planner] No Routes filter: ${allReachable.length} reachable -> ${ports.length} without routes (${routedPortCodes.size} ports have routes)`);
+      break;
+    }
   }
 
   console.log(`[Route Planner] Applying filter '${filter}' with ${ports.length} ports`);
@@ -819,6 +940,139 @@ async function applyPortFilter(filter) {
   // Tell map-controller to highlight these ports
   if (window.harborMap && window.harborMap.highlightPorts) {
     window.harborMap.highlightPorts(ports, currentVesselId);
+  }
+}
+
+/**
+ * Populate demand filter dropdown based on vessel type
+ * @param {string} capacityType - 'container' or 'tanker'
+ */
+function populateDemandDropdown(capacityType) {
+  const dropdown = document.getElementById('routePlannerDemandFilter');
+  if (!dropdown) return;
+
+  // Reset dropdown
+  dropdown.innerHTML = '<option value="">Demand Filter</option>';
+
+  // Get demand filter options for "current" demand (remaining demand)
+  // Using 'current_all' since we're filtering reachable ports, not just assigned ones
+  const options = getDemandFilterOptions('current_all');
+
+  // Filter options based on vessel type
+  const relevantOptions = options.filter(opt => {
+    if (capacityType === 'tanker') {
+      // Tanker: only oil-related filters
+      return opt.value.includes('_oil_');
+    } else {
+      // Container: only cargo-related filters
+      return opt.value.includes('_cargo_');
+    }
+  });
+
+  // Add options to dropdown
+  relevantOptions.forEach(opt => {
+    const option = document.createElement('option');
+    option.value = opt.value;
+    option.textContent = opt.label;
+    dropdown.appendChild(option);
+  });
+
+  console.log(`[Route Planner] Populated demand dropdown for ${capacityType}: ${relevantOptions.length} options`);
+}
+
+/**
+ * Apply demand filter on reachable ports
+ * Uses harbor-map filters but applies to vessel-reachable ports only
+ * Combines with current port filter (local, all, metropol, no_routes)
+ * @param {string} filterValue - Demand filter value from dropdown
+ */
+async function applyDemandPortFilter(filterValue) {
+  if (!vesselPorts) {
+    console.warn('[Route Planner] No port data loaded');
+    return;
+  }
+
+  // Get base ports from current port filter
+  let basePorts = [];
+  const activeFilter = currentPortFilter || 'all';
+
+  switch (activeFilter) {
+    case 'local':
+      basePorts = vesselPorts.local?.ports || [];
+      break;
+    case 'metropol':
+      basePorts = vesselPorts.metropolis?.ports || [];
+      break;
+    case 'no_routes': {
+      const allReachable = vesselPorts.all?.ports || [];
+      const harborDataForRoutes = window.harborMap?.getOverviewData();
+      if (harborDataForRoutes) {
+        const routedPortCodes = new Set();
+        harborDataForRoutes.vessels?.forEach(v => {
+          const dest = v.route_destination ||
+                       v.active_route?.destination ||
+                       v.active_route?.destination_port_code ||
+                       v.routes?.[0]?.destination;
+          if (dest) routedPortCodes.add(dest);
+          const origin = v.route_origin ||
+                         v.active_route?.origin ||
+                         v.active_route?.origin_port_code ||
+                         v.routes?.[0]?.origin;
+          if (origin) routedPortCodes.add(origin);
+        });
+        basePorts = allReachable.filter(p => !routedPortCodes.has(p.code));
+      } else {
+        basePorts = allReachable;
+      }
+      break;
+    }
+    case 'all':
+    default:
+      basePorts = vesselPorts.all?.ports || [];
+      break;
+  }
+
+  // Update button states to show which port filter is active
+  const filterBtns = document.querySelectorAll('.route-planner-filter-btn');
+  filterBtns.forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === activeFilter);
+  });
+
+  // Get harbor map data for demand info
+  const harborData = window.harborMap?.getOverviewData();
+  if (!harborData) {
+    console.warn('[Route Planner] Harbor map data not available for demand filter');
+    return;
+  }
+
+  // Create map of port code -> port data with demand info
+  const portDataMap = new Map(harborData.ports?.map(p => [p.code, p]));
+
+  // Enrich base ports with demand data from harbor map
+  const enrichedPorts = basePorts.map(p => {
+    const harborPort = portDataMap.get(p.code);
+    if (harborPort) {
+      return {
+        ...p,
+        demand: harborPort.demand,
+        consumed: harborPort.consumed,
+        isAssigned: harborPort.isAssigned
+      };
+    }
+    return p;
+  });
+
+  // Apply the demand filter using harbor-map filter function
+  const filteredPorts = applyDemandFilter(enrichedPorts, filterValue);
+
+  console.log(`[Route Planner] Demand filter '${filterValue}' on '${activeFilter}': ${basePorts.length} base -> ${filteredPorts.length} matching`);
+
+  // Save current state for restore
+  currentHighlightedPorts = filteredPorts;
+
+  // Tell map-controller to highlight these ports
+  if (window.harborMap && window.harborMap.highlightPorts) {
+    window.harborMap.highlightPorts(filteredPorts, currentVesselId);
   }
 }
 
@@ -1035,6 +1289,82 @@ async function fetchRouteData(destinationCode) {
   } catch (error) {
     console.error('[Route Planner] Failed to fetch route:', error);
     showError('Failed to load route data');
+  }
+}
+
+/**
+ * Fetch and set auto-price from API.
+ * ONLY fetches price and updates display - nothing else.
+ */
+async function fetchAndSetAutoPrice() {
+  if (!selectedRoute || !currentVesselId) return;
+
+  try {
+    const response = await fetch('/api/route/auto-price', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        route_id: selectedRoute.id,
+        user_vessel_id: currentVesselId
+      })
+    });
+
+    if (!response.ok) {
+      console.error('[Route Planner] Auto-price API failed:', response.status);
+      return;
+    }
+
+    const autoPriceData = await response.json();
+    logger.debug('[Route Planner] Auto-price fetched:', autoPriceData);
+
+    // Store auto-prices for later use in createRoute
+    currentAutoPrices = autoPriceData.data;
+
+    // Update price display
+    const isContainer = currentVesselData && currentVesselData.capacityType === 'container';
+    const isTanker = currentVesselData && currentVesselData.capacityType === 'tanker';
+
+    const priceDry = currentAutoPrices?.dry;
+    const priceRefrigerated = currentAutoPrices?.ref;
+    const priceFuel = currentAutoPrices?.fuel;
+    const priceCrudeOil = currentAutoPrices?.crude;
+
+    const priceDryRow = document.getElementById('routePlannerPricesDry');
+    const priceRefRow = document.getElementById('routePlannerPricesRef');
+    const priceFuelRow = document.getElementById('routePlannerPricesFuel');
+    const priceCrudeRow = document.getElementById('routePlannerPricesCrude');
+
+    if (isContainer) {
+      if (priceDryRow && priceDry !== undefined) {
+        priceDryRow.style.display = 'flex';
+        const valueEl = priceDryRow.querySelector('[data-info="price-dry"]');
+        if (valueEl) valueEl.textContent = `$${priceDry}/TEU`;
+      }
+      if (priceRefRow && priceRefrigerated !== undefined) {
+        priceRefRow.style.display = 'flex';
+        const valueEl = priceRefRow.querySelector('[data-info="price-refrigerated"]');
+        if (valueEl) valueEl.textContent = `$${priceRefrigerated}/TEU`;
+      }
+      if (priceFuelRow) priceFuelRow.style.display = 'none';
+      if (priceCrudeRow) priceCrudeRow.style.display = 'none';
+    } else if (isTanker) {
+      if (priceFuelRow && priceFuel !== undefined) {
+        priceFuelRow.style.display = 'flex';
+        const valueEl = priceFuelRow.querySelector('[data-info="price-fuel"]');
+        if (valueEl) valueEl.textContent = `$${priceFuel}/bbl`;
+      }
+      if (priceCrudeRow && priceCrudeOil !== undefined) {
+        priceCrudeRow.style.display = 'flex';
+        const valueEl = priceCrudeRow.querySelector('[data-info="price-crude"]');
+        if (valueEl) valueEl.textContent = `$${priceCrudeOil}/bbl`;
+      }
+      if (priceDryRow) priceDryRow.style.display = 'none';
+      if (priceRefRow) priceRefRow.style.display = 'none';
+    }
+
+    logger.debug('[Route Planner] Auto-price display updated');
+  } catch (error) {
+    console.error('[Route Planner] Failed to fetch auto-price:', error);
   }
 }
 
@@ -1768,6 +2098,12 @@ async function saveRouteChanges() {
     }
 
     showSideNotification(`Route updated: Speed ${speed} kn, Guards ${guards}`, 'success');
+
+    // Reset button state before closing
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save';
+    }
 
     // Close panel
     closeRoutePlanner();

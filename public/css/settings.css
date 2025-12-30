@@ -152,6 +152,72 @@
 }
 
 /* ============================================
+   INTELLIGENT REBUY
+   ============================================ */
+
+.intelligent-rebuy-section {
+  margin-top: var(--spacing-12);
+  padding-top: var(--spacing-12);
+  border-top: 1px solid var(--white-10);
+}
+
+.intelligent-rebuy-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin-bottom: var(--spacing-8);
+}
+
+.intelligent-rebuy-label input {
+  width: 16px;
+  height: 16px;
+  margin-right: var(--spacing-8);
+  cursor: pointer;
+}
+
+.intelligent-rebuy-label span {
+  font-size: var(--font-size-13);
+  font-weight: var(--font-weight-semibold);
+}
+
+.intelligent-rebuy-label-fuel span {
+  color: var(--color-warning);
+}
+
+.intelligent-rebuy-label-co2 span {
+  color: var(--color-success);
+}
+
+.intelligent-rebuy-hint {
+  margin: 0 0 var(--spacing-8) 24px;
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-11);
+}
+
+.intelligent-rebuy-row {
+  margin-left: 24px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-8);
+}
+
+.intelligent-rebuy-input-label {
+  color: var(--color-text-tertiary);
+  font-size: var(--font-size-12);
+  white-space: nowrap;
+}
+
+.intelligent-rebuy-input {
+  width: 120px;
+  padding: var(--spacing-6);
+  background: var(--white-5);
+  border: 1px solid var(--white-10);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+}
+
+/* ============================================
    RADIO GROUP INLINE
    ============================================ */
 

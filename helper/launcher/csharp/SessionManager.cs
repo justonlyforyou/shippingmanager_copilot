@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Data.SQLite;
 using System.IO;
 using System.Net.Http;
-using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -12,13 +12,85 @@ namespace ShippingManagerCoPilot.Launcher
     public class SessionManager
     {
         private const string KEYRING_PREFIX = "KEYRING:";
+        private const int ACCOUNTS_DB_VERSION = 1;
 
         private static readonly HttpClient _httpClient = new()
         {
             Timeout = TimeSpan.FromSeconds(10)
         };
 
-        private string SessionsFilePath => Path.Combine(App.UserDataDirectory, "settings", "sessions.json");
+        /// <summary>
+        /// Normalize a session cookie to consistent format (URL-decoded)
+        /// Handles both URL-encoded (%3D) and raw cookies
+        /// </summary>
+        private static string NormalizeCookie(string cookie)
+        {
+            if (string.IsNullOrEmpty(cookie))
+            {
+                return cookie;
+            }
+
+            if (cookie.Contains("%"))
+            {
+                try
+                {
+                    var decoded = Uri.UnescapeDataString(cookie);
+                    Logger.Debug($"[SessionManager] Cookie was URL-encoded, decoded from {cookie.Length} to {decoded.Length} chars");
+                    return decoded;
+                }
+                catch
+                {
+                    Logger.Debug("[SessionManager] Cookie contains % but is not URL-encoded");
+                    return cookie;
+                }
+            }
+
+            return cookie;
+        }
+
+        private string AccountsDbPath => Path.Combine(App.UserDataDirectory, "database", "accounts.db");
+
+        /// <summary>
+        /// Ensures the accounts database exists and has the correct schema
+        /// </summary>
+        private void EnsureDatabase()
+        {
+            var dbDir = Path.GetDirectoryName(AccountsDbPath);
+            if (!Directory.Exists(dbDir))
+            {
+                Directory.CreateDirectory(dbDir!);
+            }
+
+            if (!File.Exists(AccountsDbPath))
+            {
+                SQLiteConnection.CreateFile(AccountsDbPath);
+            }
+
+            using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+            connection.Open();
+
+            // Create accounts table if not exists
+            using var cmd = new SQLiteCommand(@"
+                CREATE TABLE IF NOT EXISTS accounts (
+                    user_id TEXT PRIMARY KEY,
+                    company_name TEXT NOT NULL,
+                    cookie TEXT NOT NULL,
+                    login_method TEXT NOT NULL,
+                    port INTEGER NOT NULL,
+                    autostart INTEGER DEFAULT 1,
+                    timestamp INTEGER NOT NULL,
+                    last_updated TEXT
+                )", connection);
+            cmd.ExecuteNonQuery();
+
+            // Create meta table for version tracking
+            using var metaCmd = new SQLiteCommand(@"
+                CREATE TABLE IF NOT EXISTS meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT
+                )", connection);
+            metaCmd.ExecuteNonQuery();
+        }
 
         public async Task<List<SessionInfo>> GetAvailableSessionsAsync()
         {
@@ -26,60 +98,89 @@ namespace ShippingManagerCoPilot.Launcher
 
             try
             {
-                Logger.Info($"[SessionManager] Looking for sessions at: {SessionsFilePath}");
+                Logger.Info($"[SessionManager] Looking for accounts database at: {AccountsDbPath}");
                 Logger.Info($"[SessionManager] UserDataDirectory: {App.UserDataDirectory}");
                 Logger.Info($"[SessionManager] IsPackaged: {App.IsPackaged}");
 
-                if (!File.Exists(SessionsFilePath))
+                EnsureDatabase();
+
+                if (!File.Exists(AccountsDbPath))
                 {
-                    Logger.Warn($"[SessionManager] Sessions file not found at: {SessionsFilePath}");
-                    // Also check if directory exists
-                    var dir = Path.GetDirectoryName(SessionsFilePath);
-                    Logger.Info($"[SessionManager] Directory exists: {Directory.Exists(dir)}");
+                    Logger.Warn($"[SessionManager] Accounts database not found at: {AccountsDbPath}");
                     return sessions;
                 }
 
-                Logger.Info($"[SessionManager] Sessions file found");
+                Logger.Info($"[SessionManager] Accounts database found");
 
-                var json = await File.ReadAllTextAsync(SessionsFilePath);
-                var data = JsonConvert.DeserializeObject<Dictionary<string, SessionData>>(json);
+                using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                connection.Open();
 
-                if (data == null)
+                using var cmd = new SQLiteCommand(
+                    "SELECT user_id, company_name, cookie, login_method, port, autostart, timestamp FROM accounts ORDER BY timestamp DESC",
+                    connection);
+
+                using var reader = cmd.ExecuteReader();
+
+                while (reader.Read())
                 {
-                    return sessions;
-                }
-
-                foreach (var kvp in data)
-                {
-                    var userId = kvp.Key;
-                    var sessionData = kvp.Value;
+                    var userId = reader.GetString(0);
+                    var companyName = reader.GetString(1);
+                    var cookieRef = reader.GetString(2);
+                    var loginMethod = reader.GetString(3);
+                    var port = reader.GetInt32(4);
+                    var autostart = reader.GetInt32(5) == 1;
 
                     // Decrypt cookie from Credential Manager (keytar-compatible)
-                    var cookie = DecryptCookie(sessionData.Cookie, userId);
+                    var cookie = DecryptCookie(cookieRef, userId);
                     if (string.IsNullOrEmpty(cookie))
                     {
                         Logger.Warn($"[SessionManager] Could not decrypt cookie for {userId}");
+                        // Still add to list with valid=false so UI can show it
+                        sessions.Add(new SessionInfo
+                        {
+                            UserId = userId,
+                            CompanyName = companyName,
+                            Cookie = null,
+                            LoginMethod = loginMethod,
+                            Port = port,
+                            Autostart = autostart,
+                            Valid = false,
+                            Error = "Failed to decrypt session cookie"
+                        });
                         continue;
                     }
 
                     // Validate session
-                    Logger.Debug($"Validating session for {sessionData.CompanyName} ({userId})...");
+                    Logger.Debug($"Validating session for {companyName} ({userId})...");
                     var validation = await ValidateSessionCookieAsync(cookie);
                     if (validation != null)
                     {
-                        Logger.Info($"Valid session: {sessionData.CompanyName} ({userId})");
+                        Logger.Info($"Valid session: {companyName} ({userId}) on port {port}");
                         sessions.Add(new SessionInfo
                         {
                             UserId = userId,
-                            CompanyName = sessionData.CompanyName ?? validation.CompanyName,
+                            CompanyName = companyName,
                             Cookie = cookie,
-                            LoginMethod = sessionData.LoginMethod ?? "unknown",
-                            Autostart = sessionData.Autostart
+                            LoginMethod = loginMethod,
+                            Port = port,
+                            Autostart = autostart,
+                            Valid = true
                         });
                     }
                     else
                     {
-                        Logger.Warn($"[SessionManager] Session invalid for {userId}");
+                        Logger.Warn($"[SessionManager] Session invalid/expired for {userId}");
+                        sessions.Add(new SessionInfo
+                        {
+                            UserId = userId,
+                            CompanyName = companyName,
+                            Cookie = cookie,
+                            LoginMethod = loginMethod,
+                            Port = port,
+                            Autostart = autostart,
+                            Valid = false,
+                            Error = "Session expired or invalid"
+                        });
                     }
                 }
             }
@@ -95,8 +196,11 @@ namespace ShippingManagerCoPilot.Launcher
         {
             try
             {
+                // Normalize cookie first (decode URL-encoded cookies)
+                var normalizedCookie = NormalizeCookie(cookie);
+
                 var request = new HttpRequestMessage(HttpMethod.Get, "https://shippingmanager.cc/api/user/get-user-settings");
-                request.Headers.Add("Cookie", $"shipping_manager_session={cookie}");
+                request.Headers.Add("Cookie", $"shipping_manager_session={normalizedCookie}");
                 request.Headers.Add("Accept", "application/json");
 
                 var response = await _httpClient.SendAsync(request);
@@ -127,7 +231,8 @@ namespace ShippingManagerCoPilot.Launcher
                 {
                     UserId = userId,
                     CompanyName = companyName,
-                    Cookie = cookie
+                    Cookie = cookie,
+                    Valid = true
                 };
             }
             catch (Exception ex)
@@ -137,121 +242,339 @@ namespace ShippingManagerCoPilot.Launcher
             }
         }
 
-        public async Task SaveSessionAsync(string userId, string cookie, string companyName, string loginMethod)
+        public Task SaveSessionAsync(string userId, string cookie, string companyName, string loginMethod)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    EnsureDatabase();
+
+                    // Normalize cookie (ensure consistent format - always URL-decoded)
+                    var normalizedCookie = NormalizeCookie(cookie);
+
+                    // Store cookie in Credential Manager (keytar-compatible)
+                    var accountName = $"session_{userId}";
+                    if (!CredentialManager.SetPassword(accountName, normalizedCookie))
+                    {
+                        throw new Exception("Failed to store cookie in Credential Manager");
+                    }
+
+                    using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                    connection.Open();
+
+                    // Check if account exists to preserve port/autostart
+                    int port = 12345;
+                    bool autostart = true;
+
+                    using (var checkCmd = new SQLiteCommand(
+                        "SELECT port, autostart FROM accounts WHERE user_id = @userId", connection))
+                    {
+                        checkCmd.Parameters.AddWithValue("@userId", userId);
+                        using var reader = checkCmd.ExecuteReader();
+                        if (reader.Read())
+                        {
+                            port = reader.GetInt32(0);
+                            autostart = reader.GetInt32(1) == 1;
+                        }
+                        else
+                        {
+                            // Find next available port
+                            port = FindNextAvailablePort(connection, 12345);
+                        }
+                    }
+
+                    // Upsert account
+                    using var cmd = new SQLiteCommand(@"
+                        INSERT INTO accounts (user_id, company_name, cookie, login_method, port, autostart, timestamp, last_updated)
+                        VALUES (@userId, @companyName, @cookie, @loginMethod, @port, @autostart, @timestamp, @lastUpdated)
+                        ON CONFLICT(user_id) DO UPDATE SET
+                            company_name = @companyName,
+                            cookie = @cookie,
+                            login_method = @loginMethod,
+                            timestamp = @timestamp,
+                            last_updated = @lastUpdated
+                    ", connection);
+
+                    cmd.Parameters.AddWithValue("@userId", userId);
+                    cmd.Parameters.AddWithValue("@companyName", companyName);
+                    cmd.Parameters.AddWithValue("@cookie", $"{KEYRING_PREFIX}{accountName}");
+                    cmd.Parameters.AddWithValue("@loginMethod", loginMethod);
+                    cmd.Parameters.AddWithValue("@port", port);
+                    cmd.Parameters.AddWithValue("@autostart", autostart ? 1 : 0);
+                    cmd.Parameters.AddWithValue("@timestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                    cmd.Parameters.AddWithValue("@lastUpdated", DateTime.UtcNow.ToString("o"));
+
+                    cmd.ExecuteNonQuery();
+
+                    Logger.Info($"Session saved for {companyName} ({userId}) on port {port}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Failed to save session: {ex.Message}");
+                    throw;
+                }
+            });
+        }
+
+        private int FindNextAvailablePort(SQLiteConnection connection, int basePort)
+        {
+            using var cmd = new SQLiteCommand(
+                "SELECT port FROM accounts ORDER BY port", connection);
+
+            var usedPorts = new HashSet<int>();
+            using (var reader = cmd.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    usedPorts.Add(reader.GetInt32(0));
+                }
+            }
+
+            int port = basePort;
+            while (usedPorts.Contains(port))
+            {
+                port++;
+            }
+
+            return port;
+        }
+
+        public Task DeleteSessionAsync(string userId)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    // Delete from Credential Manager
+                    var accountName = $"session_{userId}";
+                    CredentialManager.DeletePassword(accountName);
+
+                    if (!File.Exists(AccountsDbPath))
+                    {
+                        return;
+                    }
+
+                    using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                    connection.Open();
+
+                    using var cmd = new SQLiteCommand(
+                        "DELETE FROM accounts WHERE user_id = @userId", connection);
+                    cmd.Parameters.AddWithValue("@userId", userId);
+                    cmd.ExecuteNonQuery();
+
+                    Logger.Info($"Session deleted for {userId}");
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Failed to delete session: {ex.Message}");
+                }
+            });
+        }
+
+        public Task<bool> SetAutostartAsync(string userId, bool autostart)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    if (!File.Exists(AccountsDbPath))
+                    {
+                        return false;
+                    }
+
+                    using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                    connection.Open();
+
+                    using var cmd = new SQLiteCommand(
+                        "UPDATE accounts SET autostart = @autostart WHERE user_id = @userId", connection);
+                    cmd.Parameters.AddWithValue("@userId", userId);
+                    cmd.Parameters.AddWithValue("@autostart", autostart ? 1 : 0);
+
+                    var affected = cmd.ExecuteNonQuery();
+                    if (affected > 0)
+                    {
+                        Logger.Info($"Autostart for {userId} set to {autostart}");
+                        return true;
+                    }
+
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Failed to set autostart: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
+        public Task<bool> SetPortAsync(string userId, int port)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    if (!File.Exists(AccountsDbPath))
+                    {
+                        return false;
+                    }
+
+                    using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                    connection.Open();
+
+                    using var cmd = new SQLiteCommand(
+                        "UPDATE accounts SET port = @port WHERE user_id = @userId", connection);
+                    cmd.Parameters.AddWithValue("@userId", userId);
+                    cmd.Parameters.AddWithValue("@port", port);
+
+                    var affected = cmd.ExecuteNonQuery();
+                    if (affected > 0)
+                    {
+                        Logger.Info($"Port for {userId} set to {port}");
+                        return true;
+                    }
+
+                    return false;
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error($"Failed to set port: {ex.Message}");
+                    return false;
+                }
+            });
+        }
+
+        public SessionInfo? GetAccount(string userId)
         {
             try
             {
-                Dictionary<string, SessionData> data;
-
-                if (File.Exists(SessionsFilePath))
+                if (!File.Exists(AccountsDbPath))
                 {
-                    var json = await File.ReadAllTextAsync(SessionsFilePath);
-                    data = JsonConvert.DeserializeObject<Dictionary<string, SessionData>>(json) ?? new();
-                }
-                else
-                {
-                    data = new();
+                    return null;
                 }
 
-                // Store cookie in Credential Manager (keytar-compatible)
-                var accountName = $"session_{userId}";
-                if (!CredentialManager.SetPassword(accountName, cookie))
+                using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                connection.Open();
+
+                using var cmd = new SQLiteCommand(
+                    "SELECT user_id, company_name, cookie, login_method, port, autostart, timestamp FROM accounts WHERE user_id = @userId",
+                    connection);
+                cmd.Parameters.AddWithValue("@userId", userId);
+
+                using var reader = cmd.ExecuteReader();
+                if (reader.Read())
                 {
-                    throw new Exception("Failed to store cookie in Credential Manager");
+                    var cookieRef = reader.GetString(2);
+                    var cookie = DecryptCookie(cookieRef, userId);
+
+                    return new SessionInfo
+                    {
+                        UserId = reader.GetString(0),
+                        CompanyName = reader.GetString(1),
+                        Cookie = cookie,
+                        LoginMethod = reader.GetString(3),
+                        Port = reader.GetInt32(4),
+                        Autostart = reader.GetInt32(5) == 1,
+                        Valid = cookie != null
+                    };
                 }
 
-                // Store reference in sessions.json (keytar format)
-                data[userId] = new SessionData
-                {
-                    Cookie = $"{KEYRING_PREFIX}{accountName}",
-                    CompanyName = companyName,
-                    LoginMethod = loginMethod,
-                    Autostart = true,
-                    LastUpdated = DateTime.UtcNow.ToString("o")
-                };
-
-                var outputJson = JsonConvert.SerializeObject(data, Formatting.Indented);
-
-                // Ensure directory exists
-                Directory.CreateDirectory(Path.GetDirectoryName(SessionsFilePath)!);
-                await File.WriteAllTextAsync(SessionsFilePath, outputJson);
-
-                Logger.Info($"Session saved for {companyName} ({userId})");
+                return null;
             }
             catch (Exception ex)
             {
-                Logger.Error($"Failed to save session: {ex.Message}");
-                throw;
+                Logger.Error($"Failed to get account: {ex.Message}");
+                return null;
             }
         }
 
-        public async Task DeleteSessionAsync(string userId)
+        /// <summary>
+        /// Migrate sessions from old sessions.json to database
+        /// </summary>
+        public async Task<int> MigrateFromSessionsJsonAsync()
         {
+            var sessionsJsonPath = Path.Combine(App.UserDataDirectory, "settings", "sessions.json");
+
+            if (!File.Exists(sessionsJsonPath))
+            {
+                Logger.Debug("[SessionManager] No sessions.json found, migration not needed");
+                return 0;
+            }
+
+            Logger.Info("[SessionManager] Found sessions.json, migrating to database...");
+            EnsureDatabase();
+
+            int migrated = 0;
+
             try
             {
-                // Delete from Credential Manager
-                var accountName = $"session_{userId}";
-                CredentialManager.DeletePassword(accountName);
+                var json = await File.ReadAllTextAsync(sessionsJsonPath);
+                var data = JsonConvert.DeserializeObject<Dictionary<string, LegacySessionData>>(json);
 
-                // Remove from sessions.json
-                if (!File.Exists(SessionsFilePath))
+                if (data == null || data.Count == 0)
                 {
-                    return;
+                    Logger.Info("[SessionManager] sessions.json is empty, deleting file");
+                    File.Delete(sessionsJsonPath);
+                    return 0;
                 }
 
-                var json = await File.ReadAllTextAsync(SessionsFilePath);
-                var data = JsonConvert.DeserializeObject<Dictionary<string, SessionData>>(json);
+                using var connection = new SQLiteConnection($"Data Source={AccountsDbPath};Version=3;");
+                connection.Open();
 
-                if (data == null || !data.ContainsKey(userId))
+                int portCounter = 12345;
+
+                foreach (var kvp in data)
                 {
-                    return;
+                    var userId = kvp.Key;
+                    var sessionData = kvp.Value;
+
+                    // Check if already in database
+                    using var checkCmd = new SQLiteCommand(
+                        "SELECT user_id FROM accounts WHERE user_id = @userId", connection);
+                    checkCmd.Parameters.AddWithValue("@userId", userId);
+                    var existing = checkCmd.ExecuteScalar();
+
+                    if (existing != null)
+                    {
+                        Logger.Debug($"[SessionManager] User {userId} already in database, skipping");
+                        continue;
+                    }
+
+                    // Find next available port
+                    int port = FindNextAvailablePort(connection, portCounter);
+                    portCounter = port + 1;
+
+                    // Insert into database
+                    using var insertCmd = new SQLiteCommand(@"
+                        INSERT INTO accounts (user_id, company_name, cookie, login_method, port, autostart, timestamp, last_updated)
+                        VALUES (@userId, @companyName, @cookie, @loginMethod, @port, @autostart, @timestamp, @lastUpdated)
+                    ", connection);
+
+                    insertCmd.Parameters.AddWithValue("@userId", userId);
+                    insertCmd.Parameters.AddWithValue("@companyName", sessionData.CompanyName ?? "Unknown");
+                    insertCmd.Parameters.AddWithValue("@cookie", sessionData.Cookie ?? "");
+                    insertCmd.Parameters.AddWithValue("@loginMethod", sessionData.LoginMethod ?? "unknown");
+                    insertCmd.Parameters.AddWithValue("@port", port);
+                    insertCmd.Parameters.AddWithValue("@autostart", sessionData.Autostart ? 1 : 0);
+                    insertCmd.Parameters.AddWithValue("@timestamp", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                    insertCmd.Parameters.AddWithValue("@lastUpdated", DateTime.UtcNow.ToString("o"));
+
+                    insertCmd.ExecuteNonQuery();
+                    migrated++;
+
+                    Logger.Info($"[SessionManager] Migrated {sessionData.CompanyName} ({userId}) to port {port}");
                 }
 
-                data.Remove(userId);
-
-                var outputJson = JsonConvert.SerializeObject(data, Formatting.Indented);
-                await File.WriteAllTextAsync(SessionsFilePath, outputJson);
-
-                Logger.Info($"Session deleted for {userId}");
+                // Delete sessions.json after successful migration
+                File.Delete(sessionsJsonPath);
+                Logger.Info($"[SessionManager] Migration complete: {migrated} sessions migrated, sessions.json deleted");
             }
             catch (Exception ex)
             {
-                Logger.Error($"Failed to delete session: {ex.Message}");
+                Logger.Error($"[SessionManager] Migration failed: {ex.Message}");
             }
-        }
 
-        public async Task<bool> ToggleAutostartAsync(string userId)
-        {
-            try
-            {
-                if (!File.Exists(SessionsFilePath))
-                {
-                    return false;
-                }
-
-                var json = await File.ReadAllTextAsync(SessionsFilePath);
-                var data = JsonConvert.DeserializeObject<Dictionary<string, SessionData>>(json);
-
-                if (data == null || !data.ContainsKey(userId))
-                {
-                    return false;
-                }
-
-                // Toggle autostart
-                data[userId].Autostart = !data[userId].Autostart;
-                var newValue = data[userId].Autostart;
-
-                var outputJson = JsonConvert.SerializeObject(data, Formatting.Indented);
-                await File.WriteAllTextAsync(SessionsFilePath, outputJson);
-
-                Logger.Info($"Autostart for {userId} set to {newValue}");
-                return newValue;
-            }
-            catch (Exception ex)
-            {
-                Logger.Error($"Failed to toggle autostart: {ex.Message}");
-                return false;
-            }
+            return migrated;
         }
 
         private string? DecryptCookie(string? cookieRef, string userId)
@@ -276,7 +599,7 @@ namespace ShippingManagerCoPilot.Launcher
             return cookieRef;
         }
 
-        private class SessionData
+        private class LegacySessionData
         {
             [JsonProperty("cookie")]
             public string? Cookie { get; set; }

@@ -15,6 +15,7 @@ const { apiCall, getUserId } = require('../utils/api');
 const logger = require('../utils/logger');
 const logbook = require('../logbook');
 const state = require('../state');
+const { saveRouteSettings } = require('../database');
 
 const router = express.Router();
 
@@ -260,6 +261,31 @@ router.post('/create-user-route', async (req, res) => {
       // Don't fail the request if logging fails
     }
 
+    // Save route settings to database for restoration after drydock
+    try {
+      const userId = getUserId();
+      if (userId && data.data?.user_vessel) {
+        const vessel = data.data.user_vessel;
+        const routeId = vessel.routes?.[0]?.route_id;
+
+        logger.debug(`[Route Planner] Saving route settings for vessel ${vessel.id}: routeId=${routeId}, prices=${JSON.stringify(vessel.prices)}`);
+
+        saveRouteSettings(userId, {
+          vesselId: vessel.id,
+          routeId: routeId,
+          origin: vessel.route_origin,
+          destination: vessel.route_destination,
+          speed: vessel.route_speed,
+          guards: vessel.route_guards,
+          capacityType: vessel.capacity_type,
+          prices: vessel.prices
+        });
+      }
+    } catch (saveError) {
+      logger.error(`[Route Planner] Failed to save route settings: ${saveError.message}`);
+      // Don't fail the request if save fails
+    }
+
     // Broadcast vessel count update after successful route creation
     // This updates the anchor badge on the frontend
     try {
@@ -415,6 +441,28 @@ router.post('/update-route-data', async (req, res) => {
       }
     } catch (logError) {
       logger.error(`[Route Planner] Failed to log route update: ${logError.message}`);
+    }
+
+    // Save route settings to database for restoration after drydock
+    try {
+      const userId = getUserId();
+      if (userId && data.data?.user_vessel) {
+        const vessel = data.data.user_vessel;
+        const routeId = vessel.routes?.[0]?.route_id || vessel.active_route?.route_id;
+
+        saveRouteSettings(userId, {
+          vesselId: vessel.id,
+          routeId: routeId,
+          origin: vessel.route_origin,
+          destination: vessel.route_destination,
+          speed: vessel.route_speed,
+          guards: vessel.route_guards,
+          capacityType: vessel.capacity_type,
+          prices: vessel.prices
+        });
+      }
+    } catch (saveError) {
+      logger.error(`[Route Planner] Failed to save route settings: ${saveError.message}`);
     }
 
     res.json({

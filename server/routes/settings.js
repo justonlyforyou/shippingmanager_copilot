@@ -337,7 +337,7 @@ router.post('/settings', async (req, res) => {
           const members = response?.data?.members || response?.members || [];
           const member = members.find(m => m.user_id === userId);
           const role = member?.role || 'member';
-          const allowedRoles = ['ceo', 'coo', 'management', 'interimceo'];
+          const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
           isManagement = allowedRoles.includes(role);
         } catch (error) {
           logger.debug('[Settings] Error checking management role:', error);

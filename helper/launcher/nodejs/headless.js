@@ -61,6 +61,16 @@ async function main() {
     config.saveSettings(config.DEFAULT_SETTINGS);
   }
 
+  // Migrate URL-encoded cookies to normalized format
+  try {
+    const normalizedCount = await sessionManager.migrateToNormalizedCookies();
+    if (normalizedCount > 0) {
+      log('info', `Normalized ${normalizedCount} URL-encoded cookie(s)`);
+    }
+  } catch (err) {
+    log('error', `Cookie normalization failed: ${err.message}`);
+  }
+
   // Check for sessions
   const sessions = await sessionManager.getAvailableSessions();
   if (sessions.length === 0) {

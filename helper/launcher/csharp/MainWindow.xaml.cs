@@ -147,10 +147,26 @@ namespace ShippingManagerCoPilot.Launcher
         {
             if (sender is WpfButton button && button.Tag is string userId)
             {
-                var newValue = await App.Instance.SessionManager.ToggleAutostartAsync(userId);
+                // Get current value and toggle it
+                bool currentValue = true;
+                if (App.Instance.ServerManager.Servers.TryGetValue(userId, out var instance))
+                {
+                    currentValue = instance.Session.Autostart;
+                }
+                else
+                {
+                    var account = App.Instance.SessionManager.GetAccount(userId);
+                    if (account != null)
+                    {
+                        currentValue = account.Autostart;
+                    }
+                }
+
+                var newValue = !currentValue;
+                await App.Instance.SessionManager.SetAutostartAsync(userId, newValue);
 
                 // Update the server instance
-                if (App.Instance.ServerManager.Servers.TryGetValue(userId, out var instance))
+                if (instance != null)
                 {
                     instance.Session.Autostart = newValue;
                 }

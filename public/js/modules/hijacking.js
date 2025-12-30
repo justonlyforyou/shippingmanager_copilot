@@ -17,6 +17,7 @@
 import { openExistingChat } from './messenger.js';
 import { showConfirmDialog } from './ui-dialogs.js';
 import { updateBadge, updateButtonTooltip } from './badge-manager.js';
+import { showSideNotification } from './utils.js';
 
 let allCases = [];
 let ownUserId = null;
@@ -186,8 +187,8 @@ async function deleteCase(caseData) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_ids: '[]',
-        system_message_ids: `[${caseData.id}]`,
+        chat_ids: [],
+        system_message_ids: [caseData.id],
         case_id: caseData.values.case_id
       })
     });
@@ -197,6 +198,7 @@ async function deleteCase(caseData) {
     }
 
     console.log(`[Hijacking] Deleted case ${caseData.values.case_id}`);
+    showSideNotification(`Case ${caseData.values.case_id} deleted`, 'success');
 
     // Refresh the list
     await openHijackingInbox();
@@ -205,7 +207,7 @@ async function deleteCase(caseData) {
     await refreshHijackingBadge();
   } catch (error) {
     console.error('[Hijacking] Error deleting case:', error);
-    alert('Failed to delete hijacking case. Please try again.');
+    showSideNotification('Failed to delete hijacking case', 'error');
   }
 }
 

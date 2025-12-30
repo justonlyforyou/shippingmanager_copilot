@@ -153,15 +153,8 @@ function saveLocalCaseToDb(caseId, details, isOpen) {
       Date.now()
     );
 
-    // Save offers from API response to history table
-    if (details.offers && Array.isArray(details.offers)) {
-      for (const offer of details.offers) {
-        saveNegotiationEvent(caseId, offer.type, offer.amount, offer.timestamp);
-      }
-    } else if (details.requested_amount && details.registered_at) {
-      // Fallback: save initial pirate request if no offers array
-      saveNegotiationEvent(caseId, 'pirate', details.requested_amount, details.registered_at);
-    }
+    // History is saved by Blackbeard and routes with correct timestamps
+    // Do NOT try to reconstruct history here - timestamps would be wrong
 
     logger.debug(`[Hijacking Cache] Saved case ${caseId} to SQLite (resolved: ${!isOpen})`);
   } catch (error) {
@@ -277,11 +270,12 @@ async function getCachedHijackingCase(caseId) {
 
     if (localData) {
       // Only use SQLite if case is RESOLVED - open cases need fresh API data
-      // Also check status field for 'successful', 'solved', 'paid' as resolved indicators
-      const statusResolved = ['successful', 'solved', 'paid'].includes(localData.case_details?.status);
-      const isResolved = localData.resolved === true ||
-                         localData.autopilot_resolved === true ||
-                         localData.resolved_at !== undefined ||
+      // Check status field for 'solved', 'paid' as resolved indicators
+      // NOTE: 'successful' means hijacking succeeded (vessel captured), NOT case paid!
+      const statusResolved = ['solved', 'paid'].includes(localData.case_details?.status);
+      const isResolved = localData.resolved === 1 ||
+                         localData.autopilot_resolved === 1 ||
+                         localData.resolved_at ||
                          statusResolved;
 
       logger.debug(`[Hijacking Cache] Case ${caseId} - isResolved check: ${isResolved}`);
@@ -363,10 +357,10 @@ async function getCachedHijackingCase(caseId) {
     const details = caseData?.data;
     if (!details) return null;
 
+    // NOTE: 'successful' means hijacking succeeded (vessel captured), NOT case paid!
     const isOpen = details.paid_amount === null &&
                    details.status !== 'solved' &&
-                   details.status !== 'paid' &&
-                   details.status !== 'successful';
+                   details.status !== 'paid';
 
     // Store in memory cache
     hijackingCaseDetailsCache.set(caseId, {
@@ -378,7 +372,13 @@ async function getCachedHijackingCase(caseId) {
     // Save to SQLite for persistence
     saveLocalCaseToDb(caseId, details, isOpen);
 
-    logger.debug(`[Hijacking Cache] Case ${caseId} fetched from API (status: ${isOpen ? 'open' : 'resolved'})`);
+    // Re-read from SQLite to get the history we just saved
+    const freshData = readLocalCaseFromDb(caseId);
+    if (freshData && freshData.history && freshData.history.length > 0) {
+      details.offers = freshData.history;
+    }
+
+    logger.debug(`[Hijacking Cache] Case ${caseId} fetched from API (status: ${isOpen ? 'open' : 'resolved'}, history: ${details.offers?.length || 0} entries)`);
 
     return { isOpen, details, cached: false };
   } catch (error) {

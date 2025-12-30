@@ -1160,8 +1160,8 @@ function renderVesselItem(vessel, status, showStatusBadge = false) {
   // Vessel type emoji (container or tanker)
   const typeEmoji = vessel.capacity_type === 'tanker' ? '🛢️' : '📦';
 
-  // Show checkbox only on tabs where moor/resume is possible (not maintenance/pending)
-  const showCheckbox = status !== 'maintenance' && status !== 'pending';
+  // Show checkbox only on tabs where moor/resume is possible (port, enroute, mass-moor)
+  const showCheckbox = status === 'port' || status === 'enroute';
   const checkboxHtml = showCheckbox
     ? `<input type="checkbox" class="depart-vessel-checkbox" data-vessel-id="${vessel.id}" data-is-parked="${vessel.is_parked || false}">`
     : '';
@@ -1277,8 +1277,8 @@ function updateDepartButtonCount() {
 
   // Depart button only shown on 'port' tab
   const showDepartButton = currentStatus === 'port';
-  // Moor/Resume buttons NOT shown on 'maintenance' (DryDock) or 'pending' tabs - game doesn't support it
-  const showMoorResumeButtons = currentStatus !== 'maintenance' && currentStatus !== 'pending';
+  // Moor/Resume/All/None buttons only shown on 'port', 'enroute', and 'mass-moor' tabs
+  const showMoorResumeButtons = currentStatus === 'port' || currentStatus === 'enroute' || currentStatus === 'mass-moor';
 
   // Depart button (only for 'port' tab)
   if (departAllBtn) {
@@ -1333,10 +1333,10 @@ export function updateDepartManagerLockState() {
 window.updateDepartManagerLockState = updateDepartManagerLockState;
 
 /**
- * Select all vessel checkboxes
+ * Select all vessel checkboxes (both depart and moor tabs)
  */
 function selectAllVessels() {
-  const checkboxes = document.querySelectorAll('.depart-vessel-checkbox');
+  const checkboxes = document.querySelectorAll('.depart-vessel-checkbox, .moor-vessel-checkbox');
   checkboxes.forEach(cb => {
     cb.checked = true;
   });
@@ -1344,10 +1344,10 @@ function selectAllVessels() {
 }
 
 /**
- * Unselect all vessel checkboxes
+ * Unselect all vessel checkboxes (both depart and moor tabs)
  */
 function unselectAllVessels() {
-  const checkboxes = document.querySelectorAll('.depart-vessel-checkbox');
+  const checkboxes = document.querySelectorAll('.depart-vessel-checkbox, .moor-vessel-checkbox');
   checkboxes.forEach(cb => {
     cb.checked = false;
   });

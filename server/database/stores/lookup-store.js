@@ -28,7 +28,8 @@ const { getAppBaseDir, isPackaged } = require('../../config');
 // v14: Fixed Manual Vessel Build mapping to use buy_vessel context (same as purchases)
 // v15: Added 'Vessel Build Purchase' and 'Hijacking' contexts, Captain Blackbeard mapping, finalPayment extraction
 // v16: Added POD3 matching for guard_payment_on_depart (was missing vessel history link)
-const STORE_VERSION = 16;
+// v17: Fixed POD3 re-matching bug - entries with pod2_id but no pod3_id were being skipped
+const STORE_VERSION = 17;
 
 // Context to type/value mapping
 const CONTEXT_MAPPING = {
@@ -247,15 +248,26 @@ async function buildLookup(userId, days = 0) {
   // Set build status
   buildStatus.set(userId, { building: true, progress: 0, total: pod1.length });
 
-  // Get existing lookup IDs that are FULLY matched (have pod2_id)
-  // Entries without pod2_id need to be re-processed for matching
+  // Get existing fully matched IDs
+  // For departure contexts: needs BOTH pod2_id AND pod3_id
+  // For other contexts: only needs pod2_id
   const fullyMatchedIds = new Set(
-    db.prepare('SELECT pod1_id FROM lookup WHERE pod2_id IS NOT NULL').all().map(r => r.pod1_id)
+    db.prepare(`
+      SELECT pod1_id FROM lookup
+      WHERE pod2_id IS NOT NULL
+      AND (pod3_id IS NOT NULL OR context NOT IN ('vessels_departed', 'harbor_fee_on_depart', 'guard_payment_on_depart'))
+    `).all().map(r => r.pod1_id)
   );
 
-  // Get entries that need re-matching (exist but have no pod2_id)
+  // Get entries that need re-matching:
+  // - Entries without pod2_id
+  // - Entries with pod2_id but missing pod3_id for departure contexts
   const needsRematchIds = new Set(
-    db.prepare('SELECT pod1_id FROM lookup WHERE pod2_id IS NULL').all().map(r => r.pod1_id)
+    db.prepare(`
+      SELECT pod1_id FROM lookup
+      WHERE pod2_id IS NULL
+      OR (pod2_id IS NOT NULL AND pod3_id IS NULL AND context IN ('vessels_departed', 'harbor_fee_on_depart', 'guard_payment_on_depart'))
+    `).all().map(r => r.pod1_id)
   );
 
   const insertLookup = db.prepare(`

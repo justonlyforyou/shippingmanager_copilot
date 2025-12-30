@@ -60,11 +60,31 @@ function loadSelenium() {
 }
 
 /**
+ * Normalize a session cookie to consistent format (URL-decoded)
+ * @param {string} cookie - The cookie value
+ * @returns {string} Normalized cookie
+ */
+function normalizeCookie(cookie) {
+  if (!cookie) return cookie;
+  if (cookie.includes('%')) {
+    try {
+      return decodeURIComponent(cookie);
+    } catch {
+      return cookie;
+    }
+  }
+  return cookie;
+}
+
+/**
  * Validate a session cookie by making an API call
  * @param {string} cookie - Session cookie to validate
  * @returns {Promise<Object|null>} User data if valid, null if invalid
  */
 function validateCookie(cookie) {
+  // Normalize cookie first (decode URL-encoded cookies)
+  const normalizedCookie = normalizeCookie(cookie);
+
   return new Promise((resolve) => {
     const options = {
       hostname: TARGET_DOMAIN,
@@ -72,7 +92,7 @@ function validateCookie(cookie) {
       path: '/api/user/get-user-settings',
       method: 'POST',
       headers: {
-        'Cookie': `${TARGET_COOKIE_NAME}=${cookie}`,
+        'Cookie': `${TARGET_COOKIE_NAME}=${normalizedCookie}`,
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       },

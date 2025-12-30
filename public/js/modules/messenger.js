@@ -1005,71 +1005,13 @@ function formatSystemMessage(body, values, subject, caseDetails, messageTimestam
   if (body === 'alliance_interrim_ceo' && v.allianceName) {
     const allianceName = escapeHtml(v.allianceName);
     const ceoName = escapeHtml(v.currentCeo || 'the CEO');
-    const buttonId = `interimCeoThankBtn_${Date.now()}`;
-
-    // Attach event listener after render
-    setTimeout(() => {
-      const btn = document.getElementById(buttonId);
-      if (btn) {
-        btn.addEventListener('click', async () => {
-          btn.disabled = true;
-          btn.textContent = 'Sending...';
-
-          try {
-            // Fetch alliance members to get CEO user ID
-            const membersResponse = await fetch('/api/alliance/members');
-            const membersData = await membersResponse.json();
-
-            if (!membersResponse.ok) {
-              throw new Error('Failed to fetch alliance members');
-            }
-
-            // Find CEO in members list
-            const ceoMember = membersData.members?.find(m =>
-              m.company_name === v.currentCeo || m.role === 'ceo'
-            );
-
-            if (!ceoMember) {
-              throw new Error('CEO not found in alliance members');
-            }
-
-            // Send thank you message to alliance chat with CEO mention
-            const thankYouMessage = `[${ceoMember.user_id}] Thank you for your trust!`;
-
-            const sendResponse = await fetch('/api/alliance/send-message', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ message: thankYouMessage })
-            });
-
-            if (!sendResponse.ok) {
-              throw new Error('Failed to send message');
-            }
-
-            btn.textContent = 'Message Sent!';
-            btn.style.background = 'var(--color-success-20)';
-            btn.style.borderColor = 'var(--color-success-30)';
-          } catch (error) {
-            console.error('[Interim CEO] Error sending thank you:', error);
-            btn.textContent = 'Failed to send';
-            btn.style.background = 'var(--color-danger-20)';
-            btn.disabled = false;
-          }
-        });
-      }
-    }, 100);
 
     return `
-      <div style="color: #fbbf24; font-size: 18px; font-weight: bold;">🎉 Congratulations!</div>
-      <div style="margin-top: 12px; line-height: 1.6;">
+      <div class="system-message-title system-message-title--warning">Congratulations!</div>
+      <div class="system-message-body">
         You have been made <strong>Interim CEO</strong> in your alliance <strong>${allianceName}</strong>
         as the current CEO <strong>${ceoName}</strong> has been inactive.<br><br>
-        Once he is active again he will resume his role, but until then you're in charge!
-      </div>
-      <div style="margin-top: 16px;">
-        <button id="${buttonId}" style="background: var(--color-info-20); border: 1px solid var(--color-info-30); color: var(--color-info-lighter); padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">
-          Say Thank You
-        </button>
+        Once they are active again they will resume their role, but until then you're in charge!
       </div>
     `;
   }

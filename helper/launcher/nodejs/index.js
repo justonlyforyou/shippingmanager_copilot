@@ -234,8 +234,31 @@ async function handleDialogResult(dialogResult, allUrls, sessionInfos) {
       }
 
       if (refreshSuccess) {
-        await restartServerForUser(refreshUserId);
-        log('info', `Server for user ${refreshUserId} restarted with new session`);
+        // Check if server is already running
+        const existingServer = serverProcesses.get(String(refreshUserId));
+        if (existingServer) {
+          // Restart existing server
+          await restartServerForUser(refreshUserId);
+          log('info', `Server for user ${refreshUserId} restarted with new session`);
+        } else {
+          // Start new server - use saved port if available, otherwise find next available
+          const refreshedSessions = await sessionManager.getAvailableSessions();
+          const refreshedSession = refreshedSessions.find(s => String(s.userId) === String(refreshUserId));
+          if (refreshedSession) {
+            let port = refreshedSession.port;
+
+            // If no port in config, find one and save it FIRST
+            if (!port) {
+              port = await sessionManager.findAvailablePort(settings.port, refreshedSession.userId);
+              await sessionManager.setPort(refreshedSession.userId, port);
+              log('info', `No port in config - assigned ${port} for ${refreshedSession.companyName}`);
+            } else {
+              log('info', `Using config port ${port} for ${refreshedSession.companyName}`);
+            }
+
+            await startServerForSession(refreshedSession, port);
+          }
+        }
       }
     }
     return true; // Reopen dialog
@@ -302,15 +325,19 @@ async function handleDialogResult(dialogResult, allUrls, sessionInfos) {
           );
           log('info', `New session saved for ${validation.companyName}`);
 
-          const newPort = settings.port + serverProcesses.size;
+          // New account - find available port and save to config FIRST
+          const newPort = await sessionManager.findAvailablePort(settings.port, validation.userId);
+          await sessionManager.setPort(validation.userId, newPort);
+          log('info', `New account - assigned port ${newPort} for ${validation.companyName}`);
+
           const newSession = {
             userId: validation.userId,
             companyName: validation.companyName,
             cookie: newCookie,
-            loginMethod: loginMethod
+            loginMethod: loginMethod,
+            port: newPort
           };
           await startServerForSession(newSession, newPort);
-          log('info', `New server started for ${validation.companyName} on port ${newPort}`);
         }
       }
     }
@@ -355,26 +382,70 @@ async function handleDialogResult(dialogResult, allUrls, sessionInfos) {
 }
 
 /**
- * Update session infos from running servers
+ * Update session infos - includes ALL sessions, not just running ones
  * @param {string[]} allUrls - Array to fill with URLs
  * @param {object[]} sessionInfos - Array to fill with session info
  */
 async function updateSessionInfos(allUrls, sessionInfos) {
-  const updatedSessions = await sessionManager.getAvailableSessions();
+  const allSessions = await sessionManager.getAvailableSessions();
   allUrls.length = 0;
   sessionInfos.length = 0;
 
-  for (const [uId, sInfo] of serverProcesses) {
-    allUrls.push(`https://localhost:${sInfo.port}`);
-    const sData = updatedSessions.find(s => String(s.userId) === String(uId));
-    sessionInfos.push({
-      userId: uId,
-      companyName: sInfo.companyName,
-      loginMethod: sData?.loginMethod || 'unknown',
-      port: sInfo.port,
-      autostart: sData?.autostart !== false,
-      status: 'ready'
-    });
+  for (const session of allSessions) {
+    const odI = String(session.userId);
+    const serverInfo = serverProcesses.get(odI);
+
+    // ALWAYS use port from session config, fall back to running port only if no config
+    const configPort = session.port;
+    const runningPort = serverInfo ? serverInfo.port : null;
+    const displayPort = configPort || runningPort;
+
+    if (serverInfo) {
+      // Server is running
+      if (displayPort) {
+        allUrls.push(`https://localhost:${displayPort}`);
+      }
+      sessionInfos.push({
+        userId: odI,
+        companyName: session.companyName,
+        loginMethod: session.loginMethod,
+        port: displayPort,
+        autostart: session.autostart !== false,
+        status: serverInfo.ready ? 'ready' : 'loading'
+      });
+    } else if (session.valid === false) {
+      // Decryption failed
+      sessionInfos.push({
+        userId: odI,
+        companyName: session.companyName,
+        loginMethod: session.loginMethod,
+        port: configPort,
+        autostart: session.autostart !== false,
+        status: 'error',
+        error: session.error || 'Session decryption failed'
+      });
+    } else if (session.autostart === false) {
+      // Autostart disabled
+      sessionInfos.push({
+        userId: odI,
+        companyName: session.companyName,
+        loginMethod: session.loginMethod,
+        port: configPort,
+        autostart: false,
+        status: 'disabled'
+      });
+    } else {
+      // Valid session but no server running - needs to be started
+      sessionInfos.push({
+        userId: odI,
+        companyName: session.companyName,
+        loginMethod: session.loginMethod,
+        port: configPort,
+        autostart: true,
+        status: 'stopped',
+        error: 'Server not running - click refresh to start'
+      });
+    }
   }
 }
 
@@ -403,28 +474,18 @@ async function showServerReadyDialogLoop(allUrls, sessionInfos) {
 
 /**
  * Open the Server Ready dialog from systray
+ * Shows ALL sessions (running and not running)
  */
 async function launchApp() {
   const allUrls = [];
   const sessionInfos = [];
-  const currentSessions = await sessionManager.getAvailableSessions();
 
-  for (const [userId, serverInfo] of serverProcesses) {
-    allUrls.push(`https://localhost:${serverInfo.port}`);
-    const sData = currentSessions.find(s => String(s.userId) === String(userId));
-    sessionInfos.push({
-      userId: String(userId),
-      companyName: serverInfo.companyName,
-      loginMethod: serverInfo.loginMethod,
-      port: serverInfo.port,
-      autostart: sData?.autostart !== false,
-      status: 'ready'
-    });
-  }
+  // Use updateSessionInfos to get ALL sessions, not just running ones
+  await updateSessionInfos(allUrls, sessionInfos);
 
-  if (allUrls.length === 0) {
-    log('warn', 'No servers running, showing error dialog');
-    await webview.showErrorDialog('No Servers Running', 'No servers are currently running. Please restart the application or add an account.');
+  if (sessionInfos.length === 0) {
+    log('warn', 'No sessions found, showing error dialog');
+    await webview.showErrorDialog('No Sessions', 'No sessions found. Please add an account.');
     return;
   }
 
@@ -536,6 +597,16 @@ async function main() {
     // Continue without tray for headless mode
   }
 
+  // Migrate URL-encoded cookies to normalized format
+  try {
+    const normalizedCount = await sessionManager.migrateToNormalizedCookies();
+    if (normalizedCount > 0) {
+      log('info', `Normalized ${normalizedCount} URL-encoded cookie(s)`);
+    }
+  } catch (err) {
+    log('error', `Cookie normalization failed: ${err.message}`);
+  }
+
   // Check for existing sessions
   const sessions = await sessionManager.getAvailableSessions();
   log('info', `Found ${sessions.length} saved session(s)`);
@@ -637,28 +708,109 @@ async function main() {
   try {
     settings = config.loadSettings();
 
-    // Get sessions to start
+    // Get ALL sessions (including invalid ones - they need to show in UI for deletion/refresh)
     const allSessions = await sessionManager.getAvailableSessions();
-    const autostartSessions = allSessions.filter(s => s.autostart !== false);
 
-    if (autostartSessions.length === 0) {
-      log('error', 'No sessions to start');
+    if (allSessions.length === 0) {
+      log('error', 'No sessions found');
       await webview.showErrorDialog('Startup Failed', 'No sessions found. Please add an account.');
+      await handleExit();
+      return;
+    }
+
+    // Separate valid and invalid sessions
+    const validSessions = allSessions.filter(s => s.valid !== false);
+    const invalidSessions = allSessions.filter(s => s.valid === false);
+
+    if (invalidSessions.length > 0) {
+      log('warn', `${invalidSessions.length} session(s) have decryption issues and will be shown as needing attention`);
+    }
+
+    // Only autostart valid sessions with autostart enabled
+    const autostartSessions = validSessions.filter(s => s.autostart !== false);
+
+    if (autostartSessions.length === 0 && invalidSessions.length === 0) {
+      log('error', 'No sessions to start');
+      await webview.showErrorDialog('Startup Failed', 'No valid sessions found. Please add an account.');
       await handleExit();
       return;
     }
 
     log('info', `Starting ${autostartSessions.length} server(s) in parallel...`);
 
-    // Prepare initial session list with loading state
-    const sessionInfos = autostartSessions.map((session, index) => ({
-      userId: String(session.userId),
-      companyName: session.companyName,
-      loginMethod: session.loginMethod,
-      port: settings.port + index,
-      autostart: session.autostart !== false,
-      status: 'loading'
-    }));
+    // Prepare initial session list - validate tokens FIRST before showing loading
+    const sessionInfos = [];
+    const sessionsToStart = []; // Only sessions with valid tokens
+
+    log('info', 'Validating session tokens...');
+
+    // Validate and add autostart sessions
+    for (const session of autostartSessions) {
+      // Validate token with game API FIRST
+      const validation = await validateSessionCookie(session.cookie);
+
+      if (validation) {
+        let port = session.port;
+
+        // If no port in config, find one and save it FIRST
+        if (!port) {
+          port = await sessionManager.findAvailablePort(settings.port, session.userId);
+          await sessionManager.setPort(session.userId, port);
+          log('info', `No port in config - assigned ${port} for ${session.companyName}`);
+        } else {
+          log('info', `Using config port ${port} for ${session.companyName}`);
+        }
+
+        // Token valid - will start server
+        sessionInfos.push({
+          userId: String(session.userId),
+          companyName: session.companyName,
+          loginMethod: session.loginMethod,
+          port: port,
+          autostart: true,
+          status: 'loading'
+        });
+        sessionsToStart.push({ session, port });
+        log('info', `Token valid: ${session.companyName}`);
+      } else {
+        // Token expired/invalid - show error immediately with buttons
+        sessionInfos.push({
+          userId: String(session.userId),
+          companyName: session.companyName,
+          loginMethod: session.loginMethod,
+          port: null,
+          autostart: true,
+          status: 'error',
+          error: 'Session expired - please refresh'
+        });
+        log('warn', `Token expired: ${session.companyName}`);
+      }
+    }
+
+    // Add valid sessions WITHOUT autostart (show as disabled)
+    for (const session of validSessions.filter(s => s.autostart === false)) {
+      sessionInfos.push({
+        userId: String(session.userId),
+        companyName: session.companyName,
+        loginMethod: session.loginMethod,
+        port: null,
+        autostart: false,
+        status: 'disabled'
+      });
+    }
+
+    // Add invalid sessions (decryption failed - show as error)
+    for (const session of invalidSessions) {
+      sessionInfos.push({
+        userId: String(session.userId),
+        companyName: session.companyName,
+        loginMethod: session.loginMethod,
+        port: null,
+        autostart: session.autostart !== false,
+        status: 'error',
+        error: session.error || 'Session decryption failed'
+      });
+    }
 
     // Show dialog - it will poll the status file for updates
     log('info', 'Showing dialog...');
@@ -668,22 +820,19 @@ async function main() {
       userdataPath: config.getUserDataDir()
     });
 
-    // Start servers - status updates go to shared file
-    log('info', 'Starting servers in batches of 3...');
-    const BATCH_SIZE = 3;
-    for (let i = 0; i < autostartSessions.length; i += BATCH_SIZE) {
-      const batch = autostartSessions.slice(i, i + BATCH_SIZE);
+    // Start servers - only for validated sessions (ports already saved above)
+    if (sessionsToStart.length > 0) {
+      log('info', `Starting ${sessionsToStart.length} validated server(s)...`);
 
-      // Start batch in parallel - dialog polls /health directly via curl
-      batch.forEach((session, batchIndex) => {
-        const port = settings.port + i + batchIndex;
-
+      for (const { session, port } of sessionsToStart) {
         serverManager.startServerForSession(session, port, (userId, companyName, readyPort) => {
           log('info', `Server ${companyName} is ready on port ${readyPort}`);
         }).catch((err) => {
           log('error', `Failed to start ${session.companyName}: ${err.message}`);
         });
-      });
+      }
+    } else {
+      log('warn', 'No valid sessions to start - all tokens expired or invalid');
     }
 
     // Wait for dialog result and handle it

@@ -1,11 +1,17 @@
 /**
- * @fileoverview Fuel Calculator Utility - Calculates vessel fuel consumption
+ * @fileoverview Fuel & CO2 Calculator Utility
  *
- * Uses the discovered game formula:
- * fuel_kg_per_nm = capacity * Math.sqrt(speed) * fuel_factor / 40
+ * Calculates vessel fuel consumption and CO2 emissions using discovered game formulas.
  *
- * All vessel data (capacity, max_speed, fuel_factor) comes from the game API.
- * No lookup tables or user-entered data needed.
+ * Fuel Formula (from app.js module 2576):
+ *   fuel = (capacity / 2000) * distance * sqrt(speed) / 20 * fuel_factor
+ *   Simplified per nm: fuel_kg_per_nm = capacity * sqrt(speed) * fuel_factor / 40
+ *
+ * CO2 Formula (from app.js module 2576):
+ *   co2_per_teu_nm = (2 - capacity / 15000) * co2_factor
+ *   total_co2 = co2_per_teu_nm * cargo * distance
+ *
+ * All vessel data (capacity, max_speed, fuel_factor, co2_factor) comes from the game API.
  *
  * @module server/utils/fuel-calculator
  */
@@ -111,6 +117,62 @@ function getFuelConsumptionDisplay(vessel, userId) {
   return `${kg_per_nm} kg/nm @ ${speed_kn}kn`;
 }
 
+/**
+ * Get vessel capacity for formulas (TEU for containers, barrels/74 for tankers)
+ *
+ * @param {Object} vessel - Vessel object from API
+ * @returns {number} Capacity value for formulas
+ */
+function getVesselCapacityForFormula(vessel) {
+  if (!vessel || !vessel.capacity_max) return 0;
+
+  const capacityType = vessel.capacity_type || 'container';
+
+  if (capacityType === 'tanker') {
+    // Tanker capacity: (fuel + crude_oil) / 74
+    return ((vessel.capacity_max.fuel || 0) + (vessel.capacity_max.crude_oil || 0)) / 74;
+  } else {
+    // Container capacity: dry + refrigerated
+    return (vessel.capacity_max.dry || 0) + (vessel.capacity_max.refrigerated || 0);
+  }
+}
+
+/**
+ * Calculate CO2 consumption for a vessel route
+ *
+ * Game Formula: co2_per_teu_nm = (2 - capacity / 15000) * co2_factor
+ * Total CO2: co2_per_teu_nm * cargo * distance
+ *
+ * For intelligent rebuy, we use max capacity as cargo to ensure buffer.
+ *
+ * @param {Object} vessel - Vessel object from API
+ * @param {number} distance - Route distance in nautical miles
+ * @param {number} [cargoAmount] - Cargo amount (defaults to max capacity for buffer)
+ * @returns {number|null} Required CO2 in tons, or null if data not available
+ */
+function calculateCO2Consumption(vessel, distance, cargoAmount = null) {
+  const capacity = getVesselCapacityForFormula(vessel);
+  if (capacity <= 0 || distance <= 0) {
+    return null;
+  }
+
+  const co2Factor = vessel.co2_factor || 1;
+
+  // CO2 per TEU per nautical mile
+  const co2PerTeuNm = (2 - capacity / 15000) * co2Factor;
+
+  // Use provided cargo or max capacity (for buffer in intelligent rebuy)
+  const cargo = cargoAmount !== null ? cargoAmount : capacity;
+
+  // Total CO2 in kg
+  const totalCO2Kg = co2PerTeuNm * cargo * distance;
+
+  // Convert to tons
+  const totalCO2Tons = totalCO2Kg / 1000;
+
+  return totalCO2Tons;
+}
+
 // Stub functions to maintain API compatibility (do nothing)
 function addCustomVesselFuelData() {
   logger.debug('[Fuel Calculator] addCustomVesselFuelData - no longer needed, fuel calculated from formula');
@@ -126,9 +188,11 @@ function reloadCustomFuelData() {
 
 module.exports = {
   calculateFuelConsumption,
+  calculateCO2Consumption,
   calculateFuelFromFormula,
   getFuelConsumptionDisplay,
   getVesselFuelData,
+  getVesselCapacityForFormula,
   addCustomVesselFuelData,
   removeCustomVesselFuelData,
   reloadCustomFuelData

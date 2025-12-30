@@ -344,6 +344,10 @@
                             <button class="route-planner-filter-btn vessel-filter-btn" data-filter="suggested">Suggested Route</button>
                             <button class="route-planner-filter-btn vessel-filter-btn" data-filter="metropol">Metropol Routes</button>
                             <button class="route-planner-filter-btn vessel-filter-btn" data-filter="all">All Reachable</button>
+                            <button class="route-planner-filter-btn vessel-filter-btn" data-filter="no_routes">No Routes</button>
+                            <select id="routePlannerDemandFilter" class="route-planner-demand-dropdown">
+                                <option value="">Demand Filter</option>
+                            </select>
                         </div>
                         <div class="route-planner-selected-info hidden">
                             <button id="routePlannerClearRoute" class="close-btn route-planner-clear-btn" title="Clear route selection"><span>×</span></button>
@@ -494,6 +498,11 @@
                                     <span class="route-planner-cost-label">Crude Oil Price:</span>
                                     <span id="routePlannerRoutePricesCrudeValue" class="route-planner-cost-value">-</span>
                                 </div>
+                            </div>
+                            <div class="route-planner-piracy-warning route-tab-piracy hidden" id="routeTabPiracyWarning">
+                                <div class="route-planner-piracy-header">PIRACY WARNING</div>
+                                <div class="route-planner-piracy-zone" id="routeTabPiracyZone">Zone: Unknown</div>
+                                <div class="route-planner-piracy-risk" id="routeTabPiracyRisk">Risk: 0%</div>
                             </div>
                             <div class="route-planner-actions">
                                 <button id="routePlannerCancelBtn" class="route-planner-cancel-btn">Cancel</button>
@@ -1172,7 +1181,7 @@
                 <button id="sellFilterContainerBtn" class="vessel-filter-btn active" data-type="container">
                     📦 Container
                 </button>
-                <button id="sellFilterTankerBtn" class="vessel-filter-btn hidden" data-type="tanker">
+                <button id="sellFilterTankerBtn" class="vessel-filter-btn" data-type="tanker">
                     🛢️ Tanker
                 </button>
                 <button id="sellCartBtn" class="vessel-filter-btn hidden">
@@ -1667,6 +1676,21 @@
                                             </div>
                                         </div>
                                     </div>
+
+                                    <!-- Intelligent Rebuy Mode -->
+                                    <div class="intelligent-rebuy-section">
+                                        <label class="intelligent-rebuy-label intelligent-rebuy-label-fuel">
+                                            <input type="checkbox" id="intelligentRebuyFuel">
+                                            <span>🧠 Intelligent Rebuy</span>
+                                        </label>
+                                        <p class="intelligent-rebuy-hint">Buy only what departing vessels need (instead of filling bunker)</p>
+                                        <div id="intelligentRebuyFuelOptions" class="hidden">
+                                            <div class="intelligent-rebuy-row">
+                                                <label class="intelligent-rebuy-input-label">Max price ($/t):</label>
+                                                <input type="number" id="intelligentRebuyFuelMaxPrice" min="1" max="1000" value="500" class="intelligent-rebuy-input">
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1729,6 +1753,21 @@
                                                     <input type="number" id="autoRebuyCO2EmergencyShips" min="1" value="5">
                                                     <input type="number" id="autoRebuyCO2EmergencyMaxPrice" min="1" value="12">
                                                 </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Intelligent Rebuy Mode -->
+                                    <div class="intelligent-rebuy-section">
+                                        <label class="intelligent-rebuy-label intelligent-rebuy-label-co2">
+                                            <input type="checkbox" id="intelligentRebuyCO2">
+                                            <span>🧠 Intelligent Rebuy</span>
+                                        </label>
+                                        <p class="intelligent-rebuy-hint">Buy only what departing vessels need (instead of filling bunker)</p>
+                                        <div id="intelligentRebuyCO2Options" class="hidden">
+                                            <div class="intelligent-rebuy-row">
+                                                <label class="intelligent-rebuy-input-label">Max price ($/t):</label>
+                                                <input type="number" id="intelligentRebuyCO2MaxPrice" min="1" max="25" value="10" class="intelligent-rebuy-input">
                                             </div>
                                         </div>
                                     </div>
