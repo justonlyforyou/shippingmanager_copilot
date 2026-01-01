@@ -332,12 +332,36 @@ namespace ShippingManagerCoPilot.Launcher
             }
 
             int port = basePort;
-            while (usedPorts.Contains(port))
+            // Find port that is: 1) not used in DB, 2) free on OS
+            while (usedPorts.Contains(port) || !IsPortAvailable(port))
             {
                 port++;
+                // Safety limit to prevent infinite loop
+                if (port > basePort + 100)
+                {
+                    throw new Exception($"No available ports found between {basePort} and {port}");
+                }
             }
 
             return port;
+        }
+
+        /// <summary>
+        /// Check if a port is available on the OS
+        /// </summary>
+        private static bool IsPortAvailable(int port)
+        {
+            try
+            {
+                var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, port);
+                listener.Start();
+                listener.Stop();
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         public Task DeleteSessionAsync(string userId)

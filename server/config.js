@@ -264,13 +264,60 @@ function loadStartupSettings() {
 // Load startup settings (REQUIRED - no fallbacks)
 const startupSettings = loadStartupSettings();
 
+/**
+ * Get port from accounts database for the selected user.
+ * Falls back to settings.json port if no user selected or not found.
+ * @returns {number} Port number
+ */
+function getPortFromDatabase() {
+  const selectedUserId = process.env.SELECTED_USER_ID;
+  if (!selectedUserId) {
+    return startupSettings.port;
+  }
+
+  try {
+    // Get database path
+    const isPkg = isPackaged();
+    let dbPath;
+    if (isPkg) {
+      if (process.platform === 'win32') {
+        dbPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'database', 'accounts.db');
+      } else if (process.platform === 'darwin') {
+        dbPath = path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot', 'userdata', 'database', 'accounts.db');
+      } else {
+        dbPath = path.join(os.homedir(), '.ShippingManagerCoPilot', 'userdata', 'database', 'accounts.db');
+      }
+    } else {
+      dbPath = path.join(__dirname, '..', 'userdata', 'database', 'accounts.db');
+    }
+
+    if (!fs.existsSync(dbPath)) {
+      return startupSettings.port;
+    }
+
+    // Read port from database using better-sqlite3
+    const Database = require('better-sqlite3');
+    const db = new Database(dbPath, { readonly: true });
+    const row = db.prepare('SELECT port FROM accounts WHERE user_id = ?').get(selectedUserId);
+    db.close();
+
+    if (row && row.port) {
+      return row.port;
+    }
+  } catch {
+    // Silently fall back to settings port
+  }
+
+  return startupSettings.port;
+}
+
 const config = {
   /**
    * HTTPS server port.
-   * Priority: process.env.PORT (from launcher) > settings.json
+   * Read from accounts.db for SELECTED_USER_ID, falls back to settings.json
    * @constant {number}
    */
-  PORT: process.env.PORT ? parseInt(process.env.PORT, 10) : startupSettings.port,
+  PORT: getPortFromDatabase(),
 
   /**
    * Server bind address.

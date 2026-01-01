@@ -2,6 +2,35 @@
 
 All notable changes to Shipping Manager CoPilot will be documented in this file.
 
+## [0.1.7.4] - 2026-01-01
+
+### C# Launcher
+- Port now read from accounts.db instead of calculated (basePort + index)
+- Added IsPortAvailable() OS-level port check when finding next available port
+- Server status now correctly shows "loading" vs "ready"
+- Fixed session.Port being used consistently throughout
+
+### Server
+- `config.js`: Added getPortFromDatabase() to read port from accounts.db for SELECTED_USER_ID
+- `alliance.js`: New endpoint `/api/alliance/exclude-user` for kicking alliance members
+- `vessel.js`: Sale broadcast now filters invalid entries and recalculates totals from valid data
+
+### Frontend
+- `vessel-selling.js`: Fixed undefined `priceMap` reference (now uses `globalPriceMap`)
+
+---
+
+## [0.1.7.3] - 2025-12-31
+
+### Autopilot
+- Intelligent Rebuy now available as separate mode (not just emergency fallback)
+- Depart Manager fixes for edge cases
+
+### Route Planner
+- Added filters for route planning
+
+---
+
 ## Important Bugfix [0.1.7.2] - 2025-12-22
 
 * Port no route filter fix - does now work correctly but keep in mind: we need a full scrape of the demand first (takes up to 30 minutes after first startup)

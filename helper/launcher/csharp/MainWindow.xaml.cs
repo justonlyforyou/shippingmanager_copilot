@@ -40,6 +40,9 @@ namespace ShippingManagerCoPilot.Launcher
                 var isSteam = instance.Session.LoginMethod == "steam";
                 var autostart = instance.Session.Autostart;
 
+                // Only show as ready if actually ready
+                var status = instance.Ready ? "ready" : "loading";
+
                 sessions.Add(new SessionViewModel
                 {
                     UserId = instance.Session.UserId,
@@ -52,7 +55,7 @@ namespace ShippingManagerCoPilot.Launcher
                     Autostart = autostart,
                     AutostartText = autostart ? "Autostart On" : "Autostart Off",
                     AutostartTooltip = autostart ? "Autostart enabled - click to disable" : "Autostart disabled - click to enable",
-                    Status = "ready"
+                    Status = status
                 });
             }
 

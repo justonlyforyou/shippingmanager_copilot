@@ -21,31 +21,6 @@ namespace ShippingManagerCoPilot.Launcher
         public static string AppDirectory => AppDomain.CurrentDomain.BaseDirectory;
 
         /// <summary>
-        /// Get base port from settings.json (same logic as Node.js config.loadSettings())
-        /// </summary>
-        public static int GetBasePort()
-        {
-            try
-            {
-                var settingsPath = Path.Combine(UserDataDirectory, "settings", "settings.json");
-                if (File.Exists(settingsPath))
-                {
-                    var json = File.ReadAllText(settingsPath);
-                    using var doc = System.Text.Json.JsonDocument.Parse(json);
-                    if (doc.RootElement.TryGetProperty("port", out var portProp))
-                    {
-                        return portProp.GetInt32();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug($"Could not read port from settings: {ex.Message}");
-            }
-            return 12345; // Default same as Node.js
-        }
-
-        /// <summary>
         /// Check if running as installed (packaged) or development mode.
         /// Packaged = ShippingManagerCoPilot-Server.exe exists in app directory
         /// </summary>
@@ -181,16 +156,14 @@ namespace ShippingManagerCoPilot.Launcher
                 Logger.Info($"Starting {autostartSessions.Count} server(s) in parallel...");
 
                 // Create pending session view models with loading state
-                // Read base port from settings.json (same as Node.js)
-                var basePort = GetBasePort();
-                Logger.Info($"[App] Using base port from settings: {basePort}");
-                var pendingSessions = autostartSessions.Select((session, index) => new SessionViewModel
+                // Port comes from database (session.Port)
+                var pendingSessions = autostartSessions.Select(session => new SessionViewModel
                 {
                     UserId = session.UserId,
                     CompanyName = session.CompanyName,
                     LoginMethod = session.LoginMethod,
-                    Port = basePort + index,
-                    Url = $"https://localhost:{basePort + index}",
+                    Port = session.Port,
+                    Url = $"https://localhost:{session.Port}",
                     Icon = session.LoginMethod == "steam" ? "\U0001F3AE" : "\U0001F310",
                     IconColor = session.LoginMethod == "steam"
                         ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0xc0, 0xf4))
@@ -205,10 +178,10 @@ namespace ShippingManagerCoPilot.Launcher
                 ShowMainWindowWithPendingSessions(pendingSessions);
 
                 // Start all servers in parallel (fire and forget, update UI as each completes)
-                foreach (var (session, index) in autostartSessions.Select((s, i) => (s, i)))
+                // Port comes from session.Port (read from DB)
+                foreach (var session in autostartSessions)
                 {
-                    var port = basePort + index;
-                    _ = StartServerAndUpdateUIAsync(session, port);
+                    _ = StartServerAndUpdateUIAsync(session, session.Port);
                 }
             }
             catch (Exception ex)
@@ -397,9 +370,15 @@ namespace ShippingManagerCoPilot.Launcher
             var session = await ShowLoginMethodDialogAsync();
             if (session != null)
             {
-                // Start server for new session
-                var port = _serverManager!.GetNextPort();
-                await _serverManager.StartServerAsync(session, port);
+                // Reload session to get the port that was written to DB
+                var sessions = await _sessionManager!.GetAvailableSessionsAsync();
+                var savedSession = sessions.FirstOrDefault(s => s.UserId == session.UserId);
+
+                if (savedSession != null)
+                {
+                    // Start server for new session - port comes from DB
+                    await _serverManager!.StartServerAsync(savedSession, savedSession.Port);
+                }
 
                 // Refresh main window
                 _mainWindow?.RefreshSessions();

@@ -12,11 +12,6 @@ namespace ShippingManagerCoPilot.Launcher
     {
         private readonly Dictionary<string, ServerInstance> _servers = new();
 
-        /// <summary>
-        /// Get base port from settings (lazy loaded)
-        /// </summary>
-        private int BasePort => App.GetBasePort();
-
         // HTTP client for health checks (ignore SSL errors for self-signed cert)
         private static readonly HttpClient _httpClient = new(new HttpClientHandler
         {
@@ -28,15 +23,8 @@ namespace ShippingManagerCoPilot.Launcher
 
         public IReadOnlyDictionary<string, ServerInstance> Servers => _servers;
 
-        public int GetNextPort()
-        {
-            return BasePort + _servers.Count;
-        }
-
         public async Task StartAllServersAsync(List<SessionInfo> sessions)
         {
-            var port = BasePort;
-
             foreach (var session in sessions)
             {
                 if (!session.Autostart)
@@ -44,8 +32,8 @@ namespace ShippingManagerCoPilot.Launcher
                     continue;
                 }
 
-                await StartServerAsync(session, port);
-                port++;
+                // Port comes from session (read from DB)
+                await StartServerAsync(session, session.Port);
             }
         }
 
@@ -109,8 +97,7 @@ namespace ShippingManagerCoPilot.Launcher
                     };
                 }
 
-                // Pass only session selection and config (NOT the cookie - that's read from Credential Manager)
-                startInfo.EnvironmentVariables["PORT"] = port.ToString();
+                // Pass only session selection (NOT port or cookie - app reads from accounts.db)
                 startInfo.EnvironmentVariables["HOST"] = "127.0.0.1";
                 startInfo.EnvironmentVariables["SELECTED_USER_ID"] = session.UserId;
 

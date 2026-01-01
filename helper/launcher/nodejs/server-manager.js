@@ -313,9 +313,9 @@ async function startServerProcess(session, port, onReady) {
   log('info', `Starting server process for ${session.companyName} on port ${port}...`);
 
   const serverPath = config.getServerPath();
+  // PORT is NOT passed - app reads it from accounts.db using SELECTED_USER_ID
   const env = {
     ...process.env,
-    PORT: String(port),
     HOST: settings?.host || '127.0.0.1',
     SELECTED_USER_ID: userId,
     DEBUG_MODE: settings?.debugMode ? '1' : ''

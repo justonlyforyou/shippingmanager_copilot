@@ -8650,6 +8650,14 @@
   },
   {
     "type": "method",
+    "name": "getPortFromDatabase",
+    "longname": "module:server/config~getPortFromDatabase",
+    "url": "module-server_config.html#~getPortFromDatabase",
+    "description": "<p>Get port from accounts database for the selected user.\nFalls back to settings.json port if no user selected or not found.</p>",
+    "parent": "module:server/config"
+  },
+  {
+    "type": "method",
     "name": "getSessionCookie",
     "longname": "module:server/config~getSessionCookie",
     "url": "module-server_config.html#~getSessionCookie",
@@ -10038,6 +10046,14 @@
     "longname": "module:server/routes/alliance.POST /api/alliance-decline-user",
     "url": "module-server_routes_alliance.html#.POST/api/alliance-decline-user",
     "description": "<p>POST /api/alliance-decline-user - Declines a user's application to join the alliance.</p>\n<p>This endpoint allows alliance management to decline pending applications from users\nwho want to join the alliance. The application will be removed from the queue.</p>\n<p>Game API Endpoint: POST /alliance/decline-user-direct-application\nRequired Parameters:</p>\n<ul>\n<li>user_id: The ID of the user whose application to decline</li>\n<li>alliance_id: The ID of the alliance (automatically provided)</li>\n</ul>",
+    "parent": "module:server/routes/alliance"
+  },
+  {
+    "type": "method",
+    "name": "POST /api/alliance-exclude-user",
+    "longname": "module:server/routes/alliance.POST /api/alliance-exclude-user",
+    "url": "module-server_routes_alliance.html#.POST/api/alliance-exclude-user",
+    "description": "<p>POST /api/alliance-exclude-user - Kicks/excludes a member from the alliance.</p>\n<p>This endpoint allows alliance management (CEO/COO/Management) to remove\na member from the alliance.</p>\n<p>Game API Endpoint: POST /alliance/exclude-user\nRequired Parameters:</p>\n<ul>\n<li>user_id: The ID of the user to kick from the alliance</li>\n</ul>",
     "parent": "module:server/routes/alliance"
   },
   {

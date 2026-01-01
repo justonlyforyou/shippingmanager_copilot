@@ -179,15 +179,15 @@ async function loadUserVesselsForSale() {
       }
     });
 
-    // Recalculate prices for updated items
-    if (itemsToUpdate.length > 0 && priceMap && priceMap.size > 0) {
+    // Recalculate prices for updated items (only if globalPriceMap exists)
+    if (itemsToUpdate.length > 0 && typeof globalPriceMap !== 'undefined' && globalPriceMap && globalPriceMap.size > 0) {
       itemsToUpdate.forEach(item => {
         let totalSellPrice = 0;
         let totalOriginalPrice = 0;
         let pricesFound = 0;
 
         item.vesselIds.forEach(vesselId => {
-          const priceInfo = priceMap.get(vesselId);
+          const priceInfo = globalPriceMap.get(vesselId);
           if (priceInfo && priceInfo.sellPrice !== undefined && priceInfo.originalPrice !== undefined) {
             totalSellPrice += priceInfo.sellPrice;
             totalOriginalPrice += priceInfo.originalPrice;

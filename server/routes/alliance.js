@@ -1020,6 +1020,54 @@ router.post('/alliance-update-user-role', express.json(), async (req, res) => {
 });
 
 /**
+ * POST /api/alliance-exclude-user - Kicks/excludes a member from the alliance.
+ *
+ * This endpoint allows alliance management (CEO/COO/Management) to remove
+ * a member from the alliance.
+ *
+ * Game API Endpoint: POST /alliance/exclude-user
+ * Required Parameters:
+ * - user_id: The ID of the user to kick from the alliance
+ *
+ * @name POST /api/alliance-exclude-user
+ * @function
+ * @memberof module:server/routes/alliance
+ * @param {express.Request} req - Express request object with user_id
+ * @param {express.Response} res - Express response object
+ * @returns {Promise<void>} Sends JSON response with success/failure
+ */
+router.post('/alliance/exclude-user', express.json(), async (req, res) => {
+  if (!getAllianceId()) {
+    return res.status(400).json({ error: 'You are not in an alliance' });
+  }
+
+  const { user_id } = req.body;
+
+  if (!Number.isInteger(user_id) || user_id <= 0) {
+    return res.status(400).json({ error: 'Invalid user ID' });
+  }
+
+  try {
+    logger.info(`[Alliance Exclude User] Kicking user ${user_id} from alliance`);
+
+    const data = await apiCall('/alliance/exclude-user', 'POST', {
+      user_id
+    });
+
+    if (data.error) {
+      logger.error('[Alliance Exclude User] API error:', data.error);
+      return res.status(400).json({ error: data.error });
+    }
+
+    logger.info(`[Alliance Exclude User] Successfully kicked user ${user_id}`);
+    res.json({ success: true, data });
+  } catch (error) {
+    logger.error('[Alliance Exclude User] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/league-info - Retrieves user's league and group standings.
  *
  * This endpoint fetches the user's current league level, group position,

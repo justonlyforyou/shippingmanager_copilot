@@ -796,7 +796,8 @@ router.post('/broadcast-purchase-summary', express.json(), async (req, res) => {
  * - Triggers harbor map refresh
  */
 router.post('/broadcast-sale-summary', express.json(), async (req, res) => {
-  const { vessels, totalPrice, totalVessels } = req.body;
+  // Note: totalPrice and totalVessels from request are ignored - we recalculate from valid vessels
+  const { vessels } = req.body;
 
   if (!vessels || !Array.isArray(vessels)) {
     return res.status(400).json({ error: 'Missing required field: vessels (array)' });
@@ -808,24 +809,35 @@ router.post('/broadcast-sale-summary', express.json(), async (req, res) => {
   }
 
   try {
+    // Filter out invalid vessel entries (missing required fields)
+    const validVessels = vessels.filter(v => v && v.name && typeof v.totalPrice === 'number' && typeof v.quantity === 'number');
+
+    if (validVessels.length === 0) {
+      return res.status(400).json({ error: 'No valid vessel data provided' });
+    }
+
     // Build vessel list HTML with prices
     let vesselListHtml = '';
-    if (vessels.length > 5) {
+    if (validVessels.length > 5) {
       // If more than 5, show scrollable list
       vesselListHtml = '<div style="max-height: 200px; overflow-y: auto; margin: 10px 0; padding-right: 5px;"><ul style="margin: 0; padding-left: 20px; text-align: left;">';
-      vessels.forEach(v => {
+      validVessels.forEach(v => {
         vesselListHtml += `<li>${v.quantity}x ${v.name} - $${v.totalPrice.toLocaleString()}</li>`;
       });
       vesselListHtml += '</ul></div>';
     } else {
       // If 5 or fewer, show simple list
       vesselListHtml = '<br>';
-      vessels.forEach(v => {
+      validVessels.forEach(v => {
         vesselListHtml += `${v.quantity}x ${v.name} - $${v.totalPrice.toLocaleString()}<br>`;
       });
     }
 
-    const message = `⛴️ <strong>Sold ${totalVessels} vessel${totalVessels > 1 ? 's' : ''}!</strong>${vesselListHtml}Total Revenue: $${totalPrice.toLocaleString()}`;
+    // Use actual counts from validVessels in case some were filtered
+    const actualVesselCount = validVessels.reduce((sum, v) => sum + v.quantity, 0);
+    const actualTotalPrice = validVessels.reduce((sum, v) => sum + v.totalPrice, 0);
+
+    const message = `<strong>Sold ${actualVesselCount} vessel${actualVesselCount > 1 ? 's' : ''}!</strong>${vesselListHtml}Total Revenue: $${actualTotalPrice.toLocaleString()}`;
 
     broadcastToUser(userId, 'user_action_notification', {
       type: 'success',
@@ -839,11 +851,11 @@ router.post('/broadcast-sale-summary', express.json(), async (req, res) => {
         userId,
         CATEGORIES.VESSEL,
         'Manual Vessel Sale',
-        `Sold ${totalVessels} vessel${totalVessels > 1 ? 's' : ''}! Total Revenue: $${totalPrice.toLocaleString()}`,
+        `Sold ${actualVesselCount} vessel${actualVesselCount > 1 ? 's' : ''}! Total Revenue: $${actualTotalPrice.toLocaleString()}`,
         {
-          vessel_count: totalVessels,
-          total_price: totalPrice,
-          vessels: vessels.map(v => ({
+          vessel_count: actualVesselCount,
+          total_price: actualTotalPrice,
+          vessels: validVessels.map(v => ({
             name: v.name,
             quantity: v.quantity,
             price_per_vessel: v.price,
@@ -859,7 +871,7 @@ router.post('/broadcast-sale-summary', express.json(), async (req, res) => {
 
     // Trigger Harbor Map refresh (vessels sold)
     broadcastHarborMapRefresh(userId, 'vessels_sold', {
-      count: totalVessels
+      count: actualVesselCount
     });
 
     res.json({ success: true });
