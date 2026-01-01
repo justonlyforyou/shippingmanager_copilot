@@ -314,11 +314,15 @@ async function startServerProcess(session, port, onReady) {
 
   const serverPath = config.getServerPath();
   // PORT is NOT passed - app reads it from accounts.db using SELECTED_USER_ID
+  // HOST comes from settings.json - NO fallbacks allowed
+  if (!settings || !settings.host) {
+    throw new Error('settings.host is required - check settings.json');
+  }
   const env = {
     ...process.env,
-    HOST: settings?.host || '127.0.0.1',
+    HOST: settings.host,
     SELECTED_USER_ID: userId,
-    DEBUG_MODE: settings?.debugMode ? '1' : ''
+    DEBUG_MODE: settings.debugMode ? '1' : ''
   };
 
   let serverProcess;

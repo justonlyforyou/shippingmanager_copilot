@@ -168,8 +168,13 @@ setupMiddleware(app);
  * @returns {void} Downloads the CA certificate file or sends 404 error
  */
 app.get('/ca-cert.pem', (req, res) => {
-  const { getAppBaseDir } = require('./server/config');
-  const CERTS_DIR = path.join(getAppBaseDir(), 'userdata', 'certs');
+  const { getAppBaseDir, isPackaged } = require('./server/config');
+  let CERTS_DIR;
+  if (isPackaged()) {
+    CERTS_DIR = path.join(getAppBaseDir(), 'userdata', 'certs');
+  } else {
+    CERTS_DIR = path.join(__dirname, 'userdata', 'certs');
+  }
   const caCertPath = path.join(CERTS_DIR, 'ca-cert.pem');
 
   res.download(caCertPath, 'ShippingManager-CA.pem', (err) => {

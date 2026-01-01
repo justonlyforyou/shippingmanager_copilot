@@ -201,7 +201,28 @@ async function detectBrowser() {
         const options = new chrome.Options();
         options.addArguments('--start-maximized');
         options.addArguments('--disable-blink-features=AutomationControlled');
+        options.addArguments('--no-sandbox');
+        options.addArguments('--disable-dev-shm-usage');
         options.excludeSwitches('enable-automation');
+
+        // On Linux, explicitly set Chrome binary path if needed
+        if (platform === 'linux') {
+          const fs = require('fs');
+          const chromePaths = [
+            '/usr/bin/google-chrome',
+            '/usr/bin/google-chrome-stable',
+            '/usr/bin/chromium-browser',
+            '/usr/bin/chromium',
+            '/snap/bin/chromium'
+          ];
+          for (const chromePath of chromePaths) {
+            if (fs.existsSync(chromePath)) {
+              logger.info(`[BrowserLogin] Found Chrome at: ${chromePath}`);
+              options.setChromeBinaryPath(chromePath);
+              break;
+            }
+          }
+        }
 
         driver = await new Builder()
           .forBrowser('chrome')

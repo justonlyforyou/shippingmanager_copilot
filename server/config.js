@@ -249,12 +249,16 @@ function loadStartupSettings() {
     const data = fs.readFileSync(settingsPath, 'utf8');
     const settings = JSON.parse(data);
 
-    // Return settings with defaults for missing values
+    // Validate required fields - NO fallbacks for port/host
+    if (settings.port === undefined || settings.host === undefined) {
+      throw new Error('settings.json is missing required fields (port, host)');
+    }
+
     return {
-      port: settings.port || 12345,
-      host: settings.host || '127.0.0.1',
+      port: settings.port,
+      host: settings.host,
       logLevel: settings.logLevel || 'info',
-      debugMode: settings.debugMode !== undefined ? settings.debugMode : false
+      debugMode: settings.debugMode === true
     };
   } catch (error) {
     throw new Error(`Failed to read startup settings: ${error.message}`);
@@ -322,9 +326,10 @@ const config = {
   /**
    * Server bind address.
    * Priority: process.env.HOST (from launcher) > settings.json
+   * NO fallbacks - must come from settings.json or launcher env
    * @constant {string}
    */
-  HOST: process.env.HOST || startupSettings.host,
+  HOST: process.env.HOST || startupSettings.host,  // startupSettings.host is validated, no fallback needed
 
   /**
    * Base URL for Shipping Manager game API. All proxy requests are sent to this endpoint.

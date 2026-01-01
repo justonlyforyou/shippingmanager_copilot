@@ -1210,10 +1210,14 @@ export async function loadServerConfig() {
       hostSelect.addEventListener('change', updateHostInfo);
     }
 
-    // Set current config values
+    // Set current config values - NO fallbacks, server must provide valid data
     if (configData.success &amp;&amp; configData.config) {
-      hostSelect.value = configData.config.host || '127.0.0.1';
-      document.getElementById('serverPort').value = configData.config.port || 12345;
+      if (!configData.config.host || !configData.config.port) {
+        console.error('[Server Config] Invalid config data - missing host or port');
+        return;
+      }
+      hostSelect.value = configData.config.host;
+      document.getElementById('serverPort').value = configData.config.port;
       updateHostInfo();
     }
   } catch (error) {

@@ -420,32 +420,23 @@ router.get('/server-config', async (req, res) => {
     const data = await fs.readFile(PYTHON_SETTINGS_FILE, 'utf8');
     const settings = JSON.parse(data);
 
+    // Validate required fields
+    if (settings.port === undefined || settings.host === undefined) {
+      throw new Error('settings.json is missing required fields (port, host)');
+    }
+
     res.json({
       success: true,
       config: {
-        port: settings.port || 12345,
-        host: settings.host || '127.0.0.1',
-        debugMode: settings.debugMode || false,
+        port: settings.port,
+        host: settings.host,
+        debugMode: settings.debugMode === true,
         logLevel: settings.logLevel || 'info'
       }
     });
   } catch (error) {
     logger.error('[Server Config] Error reading settings:', error.message);
-
-    // Return defaults if file doesn't exist
-    if (error.code === 'ENOENT') {
-      res.json({
-        success: true,
-        config: {
-          port: 12345,
-          host: '127.0.0.1',
-          debugMode: false,
-          logLevel: 'info'
-        }
-      });
-    } else {
-      res.status(500).json({ error: 'Failed to read server configuration' });
-    }
+    res.status(500).json({ error: 'Failed to read server configuration: ' + error.message });
   }
 });
 
@@ -519,21 +510,21 @@ router.post('/server-config', async (req, res) => {
       return res.status(400).json({ error: 'Host is required' });
     }
 
-    // Read current settings
-    let currentSettings = { port: 12345, host: '127.0.0.1', debugMode: false, logLevel: 'info' };
+    // Read current settings (file must exist - created on first run)
+    let currentSettings;
     try {
       const data = await fs.readFile(PYTHON_SETTINGS_FILE, 'utf8');
       currentSettings = JSON.parse(data);
-    } catch {
-      // File doesn't exist, use defaults
-      logger.debug('[Server Config] Settings file not found, using defaults');
+    } catch (readError) {
+      logger.error('[Server Config] Settings file not found or invalid:', readError.message);
+      return res.status(500).json({ error: 'Settings file not found - restart application' });
     }
 
-    // Merge with new values
+    // Merge with new values - preserve existing debugMode/logLevel
     const updatedSettings = {
       port: portNum,
       host: host.trim(),
-      debugMode: currentSettings.debugMode || false,
+      debugMode: currentSettings.debugMode === true,
       logLevel: currentSettings.logLevel || 'info'
     };
 

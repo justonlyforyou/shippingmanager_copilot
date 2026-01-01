@@ -87,20 +87,45 @@ function settingsExist() {
 
 /**
  * Load settings from JSON file
+ * IMPORTANT: Settings.json is the ONLY source of truth for port/host.
+ * If settings.json doesn't exist, it MUST be created first (first-run flow).
+ * NO fallbacks allowed - the app should fail if settings.json is missing or corrupt.
  * @returns {object}
+ * @throws {Error} If settings.json doesn't exist or is invalid
  */
 function loadSettings() {
   const settingsFile = path.join(getSettingsDir(), 'settings.json');
-  try {
-    if (fs.existsSync(settingsFile)) {
-      const data = fs.readFileSync(settingsFile, 'utf8');
-      const settings = JSON.parse(data);
-      return { ...DEFAULT_SETTINGS, ...settings };
+
+  if (!fs.existsSync(settingsFile)) {
+    // First run - create settings.json with defaults
+    logger.info('[Launcher] First run - creating settings.json');
+    const settingsDir = getSettingsDir();
+    if (!fs.existsSync(settingsDir)) {
+      fs.mkdirSync(settingsDir, { recursive: true });
     }
-  } catch (err) {
-    logger.error('[Launcher] Error loading settings: ' + err.message);
+    fs.writeFileSync(settingsFile, JSON.stringify(DEFAULT_SETTINGS, null, 2));
+    return { ...DEFAULT_SETTINGS };
   }
-  return { ...DEFAULT_SETTINGS };
+
+  try {
+    const data = fs.readFileSync(settingsFile, 'utf8');
+    const settings = JSON.parse(data);
+
+    // Validate required fields exist - NO fallbacks
+    if (settings.port === undefined || settings.host === undefined) {
+      throw new Error('settings.json is missing required fields (port, host)');
+    }
+
+    return {
+      port: settings.port,
+      host: settings.host,
+      debugMode: settings.debugMode === true,
+      logLevel: settings.logLevel || 'info'
+    };
+  } catch (err) {
+    logger.error('[Launcher] FATAL: Error loading settings: ' + err.message);
+    throw new Error('Failed to load settings.json: ' + err.message);
+  }
 }
 
 /**
