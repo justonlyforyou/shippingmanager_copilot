@@ -2,6 +2,36 @@
 
 All notable changes to Shipping Manager CoPilot will be documented in this file.
 
+## [0.1.7.6] - 2026-01-02
+
+### Autopilot
+- **Intelligent Rebuy restructured** to work ON TOP of normal mode (not replace it)
+  - Normal mode: Price <= threshold -> fill bunker completely
+  - Intelligent mode: Price > threshold but <= max price AND vessels have shortfall -> buy shortfall only
+  - Removed unwanted refill-when-not-full behavior
+  - Added INTELLIGENT prefix in audit logs for clarity
+
+### Depart Manager
+- **Fixed vessel ID type mismatch** causing 0 departed/failed counts
+  - Normalize vessel IDs with Number() for consistent comparison
+  - Added detailed logging when vessels are filtered out
+- **Fixed infinite loop** when server lock gets stuck
+  - Max retry limit of 6 attempts (30 seconds total)
+  - Fails gracefully with Server busy message instead of hanging forever
+- Added reason code no_vessels_processed when vessels found but none departed
+
+### UI Fixes
+- **CEO level star badge** now uses correct XP progress formula
+  - Was: current_xp / next_level_xp (wrong)
+  - Now: (current_xp - level_start_xp) / (next_level_xp - level_start_xp)
+- **Harbor fee warning** now respects not-set option (no warning when disabled)
+
+### Messenger
+- Formatted system messages for stock_loses_company_bankrupt (bankruptcy notification)
+- Formatted system messages for alliance_top_contributor_message (with medal emojis)
+
+---
+
 ## [0.1.7.5] - 2026-01-02
 
 ### Database Migration
