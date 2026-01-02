@@ -948,10 +948,11 @@ function renderHistoryPage() {
        trip.cargo.fuel === 0 && trip.cargo.crude_oil === 0);
 
     // Check if harbor fee is high (using user's percentage threshold)
+    // Only check if threshold is explicitly set (not null/undefined)
     const settings = window.getSettings ? window.getSettings() : {};
-    const harborFeeThreshold = settings.harborFeeWarningThreshold || 50; // Default 50%
+    const harborFeeThreshold = settings.harborFeeWarningThreshold;
     const feePercentage = trip.profit > 0 && trip.harbor_fee ? (trip.harbor_fee / trip.profit) * 100 : 0;
-    const isHighHarborFee = feePercentage > harborFeeThreshold;
+    const isHighHarborFee = harborFeeThreshold != null && feePercentage > harborFeeThreshold;
     const entryClass = isHighHarborFee ? 'history-entry high-harbor-fee' : 'history-entry';
     const cargoData = formatCargo(trip.cargo, trip.capacity, trip.utilization, trip.dry_rate, trip.ref_rate, trip.fuel_rate, trip.crude_rate);
 
@@ -1105,9 +1106,10 @@ export async function closeVesselPanel() {
 }
 
 // Queue for individual vessel departures
-const departureQueue = []; // Items: { vesselId, vesselName, resolve, reject }
+const departureQueue = []; // Items: { vesselId, vesselName, resolve, reject, retryCount }
 let isProcessingQueue = false;
 let autopilotWaitNotificationShown = false;
+const MAX_DEPART_RETRIES = 6; // Max 6 retries = 30 seconds of waiting
 
 /**
  * Checks if a local departure is in progress (queue not empty or processing)
@@ -1132,17 +1134,25 @@ async function processDepartureQueue() {
   const failuresByReason = {}; // { reason: count }
 
   while (departureQueue.length > 0) {
-    const { vesselId, vesselName, resolve, reject } = departureQueue.shift();
+    const { vesselId, vesselName, resolve, reject, retryCount = 0 } = departureQueue.shift();
 
     try {
       const { departVessels } = await import('../api.js');
-      console.log(`[Vessel Panel] Processing departure for ${vesselName} (${departureQueue.length} more in queue)`);
+      console.log(`[Vessel Panel] Processing departure for ${vesselName} (${departureQueue.length} more in queue, retry ${retryCount}/${MAX_DEPART_RETRIES})`);
 
       const result = await departVessels([vesselId]);
 
       // Handle special case: autopilot is currently departing vessels
       if (result.reason === 'depart_in_progress') {
-        console.log(`[Vessel Panel] ${vesselName} queued - autopilot departure in progress`);
+        // Check if we've exceeded max retries
+        if (retryCount >= MAX_DEPART_RETRIES) {
+          console.error(`[Vessel Panel] ${vesselName} - max retries exceeded, giving up (server lock stuck?)`);
+          failuresByReason['Server busy - try again later'] = (failuresByReason['Server busy - try again later'] || 0) + 1;
+          reject(new Error('Server busy - max retries exceeded'));
+          continue;
+        }
+
+        console.log(`[Vessel Panel] ${vesselName} queued - autopilot departure in progress (retry ${retryCount + 1}/${MAX_DEPART_RETRIES})`);
 
         // Only show notification once per queue processing session
         if (!autopilotWaitNotificationShown) {
@@ -1152,7 +1162,7 @@ async function processDepartureQueue() {
 
         // Wait 5 seconds before retry (don't spam the server)
         await new Promise(r => setTimeout(r, 5000));
-        departureQueue.unshift({ vesselId, vesselName, resolve, reject }); // Add back to front of queue
+        departureQueue.unshift({ vesselId, vesselName, resolve, reject, retryCount: retryCount + 1 }); // Add back to front of queue
         continue;
       }
 
@@ -1174,8 +1184,17 @@ async function processDepartureQueue() {
 
         if (result.failedCount > 0 && result.failedVessels && result.failedVessels.length > 0) {
           reason = result.failedVessels[0].reason || reason;
-        } else {
-          reason = result.message || result.reason || reason;
+        } else if (result.reason) {
+          // Map API reason codes to user-friendly messages
+          const reasonMap = {
+            'no_vessels': 'Vessel not in harbor (may be sailing or parked)',
+            'no_vessels_processed': 'Vessel could not be processed (may have departed already)',
+            'depart_in_progress': 'Another departure in progress',
+            'insufficient_fuel': 'Insufficient fuel'
+          };
+          reason = reasonMap[result.reason] || result.reason;
+        } else if (result.message) {
+          reason = result.message;
         }
 
         // Log full result object if reason is still unknown (debug API response structure)

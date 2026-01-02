@@ -65,9 +65,42 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
 
     let amountToBuy = 0;
     let isEmergencyBuy = false;
+    let isIntelligentBuy = false;
 
-    // ========== INTELLIGENT MODE ==========
-    if (settings.intelligentRebuyFuel) {
+    // Determine threshold for normal mode
+    const threshold = settings.autoRebuyFuelUseAlert
+      ? settings.fuelThreshold
+      : settings.autoRebuyFuelThreshold;
+
+    // ========== NORMAL MODE: Price below threshold - fill bunker ==========
+    if (prices.fuel <= threshold) {
+      // Check for emergency buy first
+      if (settings.autoRebuyFuelEmergency) {
+        const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
+        const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
+        const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
+
+        if (bunker.fuel < emergencyBelowThreshold) {
+          const vessels = await gameapi.fetchVessels();
+          const shipsAtPort = vessels.filter(v => v.status === 'port').length;
+
+          if (shipsAtPort >= emergencyShipsRequired && prices.fuel <= emergencyMaxPrice) {
+            isEmergencyBuy = true;
+            logger.info(`[Barrel Boss] EMERGENCY: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port`);
+          }
+        }
+      }
+
+      if (availableSpace < 0.5) {
+        logger.debug('[Barrel Boss] Bunker full');
+        return;
+      }
+
+      amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
+      logger.debug(`[Barrel Boss] Normal: Price $${prices.fuel}/t <= threshold $${threshold}/t - filling bunker`);
+
+    // ========== INTELLIGENT MODE: Price above threshold but vessels need fuel ==========
+    } else if (settings.intelligentRebuyFuel) {
       const maxPrice = settings.intelligentRebuyFuelMaxPrice;
 
       if (prices.fuel > maxPrice) {
@@ -98,52 +131,18 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       if (shortfall > 0) {
         // Not enough fuel for vessels - buy what's missing
         amountToBuy = Math.min(shortfall, Math.floor(availableSpace), maxAffordable);
-        logger.debug(`[Barrel Boss] Intelligent: ${readyVessels.length} vessels need ${totalFuelNeeded.toFixed(1)}t, bunker has ${bunker.fuel.toFixed(1)}t (shortfall: ${shortfall}t)`);
-      } else if (availableSpace >= 0.5) {
-        // No shortfall but bunker not full - refill
-        amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
-        logger.debug(`[Barrel Boss] Intelligent: No shortfall, refilling (${bunker.fuel.toFixed(1)}/${bunker.maxFuel}t)`);
+        isIntelligentBuy = true;
+        logger.info(`[Barrel Boss] Intelligent: Price $${prices.fuel}/t > threshold $${threshold}/t but ${readyVessels.length} vessels need ${totalFuelNeeded.toFixed(1)}t, bunker has ${bunker.fuel.toFixed(1)}t (shortfall: ${shortfall}t)`);
       } else {
-        logger.debug('[Barrel Boss] Intelligent: Bunker full, no action needed');
+        // No shortfall - vessels have enough fuel
+        logger.debug(`[Barrel Boss] Intelligent: No shortfall, ${readyVessels.length} vessels need ${totalFuelNeeded.toFixed(1)}t, bunker has ${bunker.fuel.toFixed(1)}t - skipping (price too high for refill)`);
         return;
       }
 
-    // ========== NORMAL MODE ==========
+    // ========== NO MODE ACTIVE: Price too high ==========
     } else {
-      // Determine threshold
-      const threshold = settings.autoRebuyFuelUseAlert
-        ? settings.fuelThreshold
-        : settings.autoRebuyFuelThreshold;
-
-      // Check for emergency buy
-      if (settings.autoRebuyFuelEmergency) {
-        const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
-        const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
-        const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
-
-        if (bunker.fuel < emergencyBelowThreshold) {
-          const vessels = await gameapi.fetchVessels();
-          const shipsAtPort = vessels.filter(v => v.status === 'port').length;
-
-          if (shipsAtPort >= emergencyShipsRequired && prices.fuel <= emergencyMaxPrice) {
-            isEmergencyBuy = true;
-            logger.info(`[Barrel Boss] EMERGENCY: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port`);
-          }
-        }
-      }
-
-      // Check price threshold
-      if (!isEmergencyBuy && prices.fuel > threshold) {
-        logger.debug(`[Barrel Boss] Price $${prices.fuel}/t > threshold $${threshold}/t - skipping`);
-        return;
-      }
-
-      if (availableSpace < 0.5) {
-        logger.debug('[Barrel Boss] Bunker full');
-        return;
-      }
-
-      amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
+      logger.debug(`[Barrel Boss] Price $${prices.fuel}/t > threshold $${threshold}/t and intelligent rebuy disabled - skipping`);
+      return;
     }
 
     if (amountToBuy <= 0) {
@@ -167,7 +166,8 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
         price: prices.fuel,
         newTotal: result.newTotal,
         cost: result.cost,
-        isEmergency: isEmergencyBuy
+        isEmergency: isEmergencyBuy,
+        isIntelligent: isIntelligentBuy
       });
 
       broadcastToUser(userId, 'bunker_update', {
@@ -182,9 +182,14 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
     logger.info(`[Barrel Boss] Purchased ${amountToBuy}t @ $${prices.fuel}/t = $${result.cost.toLocaleString()}`);
 
     // Audit log
-    const logDescription = isEmergencyBuy
-      ? `EMERGENCY: ${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`
-      : `${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`;
+    let logDescription;
+    if (isEmergencyBuy) {
+      logDescription = `EMERGENCY: ${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`;
+    } else if (isIntelligentBuy) {
+      logDescription = `INTELLIGENT: ${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`;
+    } else {
+      logDescription = `${amountToBuy}t @ ${formatCurrency(prices.fuel)}/t | -${formatCurrency(result.cost)}`;
+    }
 
     await auditLog(
       userId,
@@ -197,7 +202,8 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
         price: prices.fuel,
         totalCost: result.cost,
         newTotal: result.newTotal,
-        isEmergency: isEmergencyBuy
+        isEmergency: isEmergencyBuy,
+        isIntelligent: isIntelligentBuy
       },
       'SUCCESS',
       SOURCES.AUTOPILOT

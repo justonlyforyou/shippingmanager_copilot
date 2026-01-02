@@ -184,13 +184,29 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
     let harbourVessels;
     if (vesselIds && vesselIds.length > 0) {
       // Filter by specific vessel IDs
-      const vesselIdSet = new Set(vesselIds);
+      // Normalize to numbers for consistent comparison (handles string vs number IDs)
+      const vesselIdSet = new Set(vesselIds.map(id => Number(id)));
       harbourVessels = allVessels.filter(v =>
-        vesselIdSet.has(v.id) &&
+        vesselIdSet.has(Number(v.id)) &&
         v.status === 'port' &&
         !v.is_parked
       );
       logger.debug(`[Depart] Filtering ${vesselIds.length} requested vessels, found ${harbourVessels.length} in harbor`);
+
+      // Log why each requested vessel was filtered out (for debugging)
+      if (harbourVessels.length < vesselIds.length) {
+        for (const requestedId of vesselIds) {
+          const numId = Number(requestedId);
+          const vessel = allVessels.find(v => Number(v.id) === numId);
+          if (!vessel) {
+            logger.warn(`[Depart] Vessel ID ${requestedId} not found in game data`);
+          } else if (vessel.status !== 'port') {
+            logger.warn(`[Depart] Vessel ${vessel.name} (ID ${requestedId}) is not in port (status: ${vessel.status})`);
+          } else if (vessel.is_parked) {
+            logger.warn(`[Depart] Vessel ${vessel.name} (ID ${requestedId}) is parked`);
+          }
+        }
+      }
     } else {
       // Depart ALL vessels in harbor
       harbourVessels = allVessels.filter(v => v.status === 'port' && !v.is_parked);
@@ -223,7 +239,22 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
         }
       }
 
-      return { success: true, reason: 'no_vessels' };
+      return {
+        success: true,
+        reason: 'no_vessels',
+        departedCount: 0,
+        failedCount: 0,
+        warningCount: 0,
+        highFeeCount: 0,
+        departedVessels: [],
+        failedVessels: [],
+        warningVessels: [],
+        highFeeVessels: [],
+        totalRevenue: 0,
+        totalFuelUsed: 0,
+        totalCO2Used: 0,
+        totalHarborFees: 0
+      };
     }
 
     // Remove duplicate depart_start broadcast (already sent at function start)
@@ -628,9 +659,10 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
 
           // Track vessels with excessive harbor fees (using settings threshold)
           // High harbor fee just means the route is not profitable, not a bug
-          const harborFeeThreshold = settings.harborFeeWarningThreshold || 50; // Default 50%
+          // Only check if threshold is explicitly set (not null/undefined)
+          const harborFeeThreshold = settings.harborFeeWarningThreshold;
           const feePercentage = result.income > 0 ? (result.harborFee / result.income) * 100 : 0;
-          const isHighFee = feePercentage > harborFeeThreshold;
+          const isHighFee = harborFeeThreshold !== null && harborFeeThreshold !== undefined && feePercentage > harborFeeThreshold;
 
           if (isHighFee) {
             const highFeeData = {
@@ -863,6 +895,12 @@ async function departVessels(userId, vesselIds = null, broadcastToUser, autoRebu
       totalCO2Used,
       totalHarborFees
     };
+
+    // Add reason when no vessels were processed (helps frontend understand what happened)
+    if (allDepartedVessels.length === 0 && allFailedVessels.length === 0) {
+      result.reason = 'no_vessels_processed';
+      logger.debug('[Depart] No vessels departed or failed - vessels may have been filtered out during processing');
+    }
 
     // Only add contribution fields if user is in alliance and has data
     if (trackContribution && totalContributionGained > 0) {

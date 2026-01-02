@@ -1388,6 +1388,37 @@ function formatSystemMessage(body, values, subject, caseDetails, messageTimestam
     `;
   }
 
+  // Stock loss due to company bankruptcy
+  if (body === 'stock_loses_company_bankrupt' &amp;&amp; v.company_name) {
+    return `
+      &lt;div class="system-message-title system-message-title--error">💸 Stock Loss - Bankruptcy&lt;/div>
+      &lt;div class="system-message-body">
+        &lt;strong>${escapeHtml(v.company_name)}&lt;/strong> has gone bankrupt.&lt;br>&lt;br>
+        Your shares in this company are now worthless.
+      &lt;/div>
+    `;
+  }
+
+  // Alliance top contributor notification
+  if (body === 'alliance_top_contributor_message' &amp;&amp; v.alliance_name) {
+    const position = v.amount || 1;
+    const allianceName = escapeHtml(v.alliance_name);
+
+    // Medal emoji based on position
+    let medal = '🏆';
+    if (position === 1) medal = '🥇';
+    else if (position === 2) medal = '🥈';
+    else if (position === 3) medal = '🥉';
+
+    return `
+      &lt;div class="system-message-title system-message-title--success">${medal} Top Contributor!&lt;/div>
+      &lt;div class="system-message-body">
+        Congratulations! You finished in the &lt;strong>Top ${position}&lt;/strong> contributors
+        of &lt;strong>${allianceName}&lt;/strong> last season!
+      &lt;/div>
+    `;
+  }
+
   // Fallback: show raw data
   return `
     &lt;div style="color: #94a3b8;">&lt;strong>Type:&lt;/strong> ${escapeHtml(body)}&lt;/div>

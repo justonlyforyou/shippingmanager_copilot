@@ -2902,10 +2902,10 @@ function handleCompanyTypeUpdate(data) {
  * Updates the company profile overlay if open.
  */
 function handleStaffTrainingPointsUpdate(data) {
-  const { staff_training_points, ceo_level, experience_points, levelup_experience_points } = data;
+  const { staff_training_points, ceo_level, experience_points, levelup_experience_points, current_level_experience_points } = data;
 
   if (AUTOPILOT_LOG_LEVEL === 'detailed') {
-    logger.debug(`[Staff] Training points update: ${staff_training_points}, Level: ${ceo_level}, XP: ${experience_points}/${levelup_experience_points}`);
+    logger.debug(`[Staff] Training points update: ${staff_training_points}, Level: ${ceo_level}, XP: ${experience_points}/${levelup_experience_points} (current level start: ${current_level_experience_points})`);
   }
 
   // Toggle glow effect on CEO level badge when staff points are available
@@ -2927,8 +2927,11 @@ function handleStaffTrainingPointsUpdate(data) {
   }
 
   // Update XP progress bar fill in header star badge
-  if (experience_points !== undefined && levelup_experience_points !== undefined && levelup_experience_points > 0) {
-    const progress = Math.min(100, (experience_points / levelup_experience_points) * 100);
+  // Must use same formula as app-initializer: (current - level_start) / (next_level - level_start)
+  if (experience_points !== undefined && levelup_experience_points !== undefined && current_level_experience_points !== undefined) {
+    const expInCurrentLevel = experience_points - current_level_experience_points;
+    const expNeededForLevel = levelup_experience_points - current_level_experience_points;
+    const progress = expNeededForLevel > 0 ? Math.min(100, Math.max(0, (expInCurrentLevel / expNeededForLevel) * 100)) : 0;
     const ceoLevelFill = document.getElementById('ceoLevelFill');
     if (ceoLevelFill) {
       const fillWidth = (progress / 100) * 24;
@@ -2997,8 +3000,11 @@ function handleStaffUpdate(data) {
   }
 
   // Update XP progress bar if included in user data
-  if (user && user.experience_points !== undefined && user.levelup_experience_points !== undefined && user.levelup_experience_points > 0) {
-    const progress = Math.min(100, (user.experience_points / user.levelup_experience_points) * 100);
+  // Must use same formula as app-initializer: (current - level_start) / (next_level - level_start)
+  if (user && user.experience_points !== undefined && user.levelup_experience_points !== undefined && user.current_level_experience_points !== undefined) {
+    const expInCurrentLevel = user.experience_points - user.current_level_experience_points;
+    const expNeededForLevel = user.levelup_experience_points - user.current_level_experience_points;
+    const progress = expNeededForLevel > 0 ? Math.min(100, Math.max(0, (expInCurrentLevel / expNeededForLevel) * 100)) : 0;
     const ceoLevelFill = document.getElementById('ceoLevelFill');
     if (ceoLevelFill) {
       const fillWidth = (progress / 100) * 24;
