@@ -210,22 +210,20 @@ router.get('/get-vessels', async (req, res) => {
   try {
     const data = await apiCallWithRetry('/game/index', 'POST', {});
 
-    // Cache company_type in local settings for offline access
+    // Cache company_type in settings for offline access
     const userId = getUserId();
     if (userId && data.user?.company_type) {
       try {
-        const { getSettingsFilePath } = require('../../settings-schema');
-        const settingsFile = getSettingsFilePath(userId);
+        const db = require('../../database');
 
-        // Read current settings
-        const settingsData = await fs.readFile(settingsFile, 'utf8');
-        const settings = JSON.parse(settingsData);
+        // Read current settings from database
+        const settings = db.getUserSettings(userId) || {};
 
         // Update company_type
         settings.company_type = data.user.company_type;
 
-        // Write back to file
-        await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+        // Save back to database
+        db.saveUserSettings(userId, settings);
 
         logger.debug(`[Vessel API] Cached company_type: ${JSON.stringify(data.user.company_type)}`);
       } catch (cacheError) {

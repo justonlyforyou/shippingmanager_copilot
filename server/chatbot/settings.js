@@ -7,9 +7,8 @@
  * @module server/chatbot/settings
  */
 
-const fs = require('fs').promises;
 const { getUserId, apiCall } = require('../utils/api');
-const { getSettingsFilePath } = require('../settings-schema');
+const db = require('../database');
 const logger = require('../utils/logger');
 
 /**
@@ -32,7 +31,7 @@ async function hasManagementRole(userId) {
 }
 
 /**
- * Load settings from per-user settings file (settings-{userId}.json)
+ * Load settings from database for user
  * @returns {Promise<object>} ChatBot settings object
  */
 async function loadSettings() {
@@ -43,16 +42,18 @@ async function loadSettings() {
             return getDefaultChatBotObject();
         }
 
-        const settingsPath = getSettingsFilePath(userId);
-        const data = await fs.readFile(settingsPath, 'utf8');
-        const allSettings = JSON.parse(data);
+        const allSettings = db.getUserSettings(userId);
+        if (!allSettings) {
+            logger.debug('[ChatBot] No settings found in database, using defaults');
+            return getDefaultChatBotObject();
+        }
 
         // Check if user has management role
         const isManagement = await hasManagementRole(userId);
 
         // Map per-user settings to chatbot settings object
         const chatbotSettings = mapSettingsToChatBotObject(allSettings, isManagement);
-        logger.debug('[ChatBot] Settings loaded');
+        logger.debug('[ChatBot] Settings loaded from database');
         return chatbotSettings;
     } catch (error) {
         logger.error('[ChatBot] Error loading settings:', error);
@@ -202,7 +203,7 @@ function mapChatBotObjectToFlatSettings(chatbotSettings) {
 
 /**
  * Update settings from frontend
- * Settings are saved to per-user settings file using flat keys
+ * Settings are saved to database using flat keys
  * @param {object} newSettings - New ChatBot settings (partial or full)
  * @param {object} currentSettings - Current ChatBot settings
  * @returns {Promise<object>} Updated ChatBot settings
@@ -218,23 +219,19 @@ async function updateSettings(newSettings, currentSettings) {
             return mergedSettings;
         }
 
-        // Get per-user settings file path
-        const settingsPath = getSettingsFilePath(userId);
-
-        // Read current per-user settings
-        const data = await fs.readFile(settingsPath, 'utf8');
-        const allSettings = JSON.parse(data);
+        // Read current settings from database
+        const allSettings = db.getUserSettings(userId) || {};
 
         // Map ChatBot's nested structure to flat keys
         const flatChatBotSettings = mapChatBotObjectToFlatSettings(mergedSettings);
 
-        // Merge flat ChatBot keys into per-user settings
+        // Merge flat ChatBot keys into settings
         Object.assign(allSettings, flatChatBotSettings);
 
-        // Save updated per-user settings
-        await fs.writeFile(settingsPath, JSON.stringify(allSettings, null, 2), 'utf8');
+        // Save updated settings to database
+        db.saveUserSettings(userId, allSettings);
 
-        logger.debug('[ChatBot] Settings updated successfully');
+        logger.debug('[ChatBot] Settings updated in database');
 
         return mergedSettings;
     } catch (error) {

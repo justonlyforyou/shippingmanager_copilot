@@ -15,10 +15,7 @@
  * @module server/analytics/aggregator
  */
 
-const fs = require('fs').promises;
-const path = require('path');
 const logger = require('../utils/logger');
-const { getAppBaseDir } = require('../config');
 const { transactionStore, vesselHistoryStore, lookupStore } = require('../database/store-adapter');
 const { formatPortAbbreviation } = require('../routes/harbor-map-aggregator');
 
@@ -27,8 +24,8 @@ const { formatPortAbbreviation } = require('../routes/harbor-map-aggregator');
 const FILE_CACHE_TTL = 2000; // 2 seconds - just enough to cover a single request
 const fileCache = new Map(); // key -> { data, timestamp }
 
-// Hijack history directory (for fallback vessel_name lookup) - uses isPkg defined below
-let HIJACK_HISTORY_DIR = null;
+// Database access for hijack_cases vessel_name lookup
+const hijackDatabase = require('../database');
 
 // Port code to country code mapping
 const PORT_COUNTRIES = {
@@ -152,14 +149,6 @@ function normalizeRouteKey(origin, destination) {
   return `${first}<>${second}`;
 }
 
-// Use AppData when packaged as exe
-const { isPackaged } = require('../config');
-const isPkg = isPackaged();
-
-// Initialize hijack history directory (for fallback vessel_name lookup)
-HIJACK_HISTORY_DIR = isPkg
-  ? path.join(getAppBaseDir(), 'userdata', 'hijack_history')
-  : path.join(__dirname, '../../userdata/hijack_history');
 
 /**
  * Load audit log for a user from SQLite (cached for 2 seconds)
@@ -2082,19 +2071,17 @@ async function getVesselPerformanceMerged(userId, days = 30) {
 }
 
 /**
- * Load vessel_name from hijack_history file as fallback
- * @param {string} userId - User ID
+ * Load vessel_name from hijack_cases database table
+ * @param {string} userId - User ID (unused, kept for API compatibility)
  * @param {string} caseId - Hijacking case ID
  * @returns {Promise<string|null>} vessel_name or null if not found
  */
 async function getVesselNameFromHijackHistory(userId, caseId) {
   try {
-    const filePath = path.join(HIJACK_HISTORY_DIR, `${userId}-${caseId}.json`);
-    const data = await fs.readFile(filePath, 'utf8');
-    const history = JSON.parse(data);
-    return history.vessel_name || null;
+    const database = hijackDatabase.getDb();
+    const row = database.prepare('SELECT vessel_name FROM hijack_cases WHERE case_id = ?').get(caseId);
+    return row?.vessel_name || null;
   } catch {
-    // File doesn't exist or parse error - expected for old entries
     return null;
   }
 }

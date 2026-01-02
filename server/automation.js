@@ -12,14 +12,10 @@
  * @module server/automation
  */
 
-const { apiCall } = require('./utils/api');
-const fs = require('fs').promises;
-const path = require('path');
+const { apiCall, getUserId } = require('./utils/api');
 const { broadcast } = require('./websocket');
-const { getSettingsDir } = require('./config');
+const db = require('./database');
 const logger = require('./utils/logger');
-
-const SETTINGS_FILE = path.join(getSettingsDir(), 'settings.json');
 
 // Auto-repair timer
 let autoRepairTimer = null;
@@ -48,13 +44,32 @@ function getRandomInterval(intervalStr) {
 }
 
 /**
- * Load settings from file
+ * Load settings from database
  * @returns {Promise<Object>} Settings object
  */
 async function loadSettings() {
   try {
-    const data = await fs.readFile(SETTINGS_FILE, 'utf8');
-    return JSON.parse(data);
+    const userId = getUserId();
+    if (!userId) {
+      logger.warn('[Backend Automation] No user ID available');
+      return {
+        autoBulkRepair: false,
+        autoRepairInterval: '2-3',
+        maintenanceThreshold: 10
+      };
+    }
+
+    const settings = db.getUserSettings(userId);
+    if (!settings) {
+      logger.warn('[Backend Automation] No settings found in database');
+      return {
+        autoBulkRepair: false,
+        autoRepairInterval: '2-3',
+        maintenanceThreshold: 10
+      };
+    }
+
+    return settings;
   } catch (error) {
     logger.error('[Backend Automation] Failed to load settings:', error.message);
     return {

@@ -214,54 +214,78 @@ function getSettingsDir() {
 }
 
 /**
- * Load startup settings from systray configuration file.
- * Creates settings.json with localhost-only defaults on first run.
- * @returns {Object} Settings object with port, host, selectedUserId, logLevel, debugMode
+ * Get database directory path (duplicated here to avoid circular dependency)
+ * @returns {string} Database directory path
+ */
+function getDbDir() {
+  const isPkg = isPackaged();
+  if (isPkg) {
+    return path.join(getAppBaseDir(), 'userdata', 'database');
+  }
+  return path.join(__dirname, '..', 'userdata', 'database');
+}
+
+/**
+ * Load startup settings from database (accounts_metadata table).
+ * Falls back to defaults if database doesn't exist or host not set yet.
+ * debugMode is determined by existence of devel.json file.
+ * @returns {Object} Settings object with host, logLevel, debugMode
  */
 function loadStartupSettings() {
+  const dbPath = path.join(getDbDir(), 'accounts.db');
+
+  // Check devel.json for debug mode (this stays as file-based)
   const settingsDir = getSettingsDir();
-  const settingsPath = path.join(settingsDir, 'settings.json');
+  const develFile = path.join(settingsDir, 'devel.json');
+  const debugMode = fs.existsSync(develFile);
 
-  // First run: Create settings.json with localhost-only defaults
-  if (!fs.existsSync(settingsPath)) {
-    const defaultSettings = {
-      port: 12345,
-      host: '127.0.0.1',  // localhost-only by default (secure)
-      logLevel: 'info',  // info, debug, warn, error
-      debugMode: false   // Enable detailed debug logging
-    };
+  // Default settings
+  const defaults = {
+    host: '127.0.0.1',
+    logLevel: 'info',
+    debugMode: debugMode
+  };
 
-    try {
-      // Ensure directory exists
-      if (!fs.existsSync(settingsDir)) {
-        fs.mkdirSync(settingsDir, { recursive: true });
-      }
-
-      fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-      return defaultSettings;
-    } catch (error) {
-      throw new Error(`Failed to create startup settings: ${error.message}`);
-    }
+  // If database doesn't exist yet, return defaults
+  // The migrator will create it on first run
+  if (!fs.existsSync(dbPath)) {
+    return defaults;
   }
 
-  // Read existing settings
   try {
-    const data = fs.readFileSync(settingsPath, 'utf8');
-    const settings = JSON.parse(data);
+    // Direct SQLite access to avoid circular dependency with database module
+    const Database = require('better-sqlite3');
+    const db = new Database(dbPath, { readonly: true });
 
-    // Validate required fields - NO fallbacks for port/host
-    if (settings.port === undefined || settings.host === undefined) {
-      throw new Error('settings.json is missing required fields (port, host)');
+    // Check if accounts_metadata table exists
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='accounts_metadata'").get();
+
+    if (!tableExists) {
+      db.close();
+      return defaults;
+    }
+
+    // Read host and logLevel from accounts_metadata
+    const hostRow = db.prepare('SELECT value FROM accounts_metadata WHERE key = ?').get('host');
+    const logLevelRow = db.prepare('SELECT value FROM accounts_metadata WHERE key = ?').get('logLevel');
+
+    db.close();
+
+    // If host not in database yet (pre-migration), return defaults
+    // Migrator will populate it
+    if (!hostRow) {
+      return defaults;
     }
 
     return {
-      port: settings.port,
-      host: settings.host,
-      logLevel: settings.logLevel || 'info',
-      debugMode: settings.debugMode === true
+      host: hostRow.value,
+      logLevel: logLevelRow ? logLevelRow.value : 'info',
+      debugMode: debugMode
     };
-  } catch (error) {
-    throw new Error(`Failed to read startup settings: ${error.message}`);
+  } catch {
+    // For any database errors, return defaults
+    // This allows the app to start and the migrator to run
+    return defaults;
   }
 }
 

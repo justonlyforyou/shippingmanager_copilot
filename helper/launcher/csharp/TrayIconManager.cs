@@ -163,55 +163,32 @@ namespace ShippingManagerCoPilot.Launcher
 
         private bool GetDebugMode()
         {
-            try
-            {
-                var settingsPath = Path.Combine(App.UserDataDirectory, "settings", "settings.json");
-                if (File.Exists(settingsPath))
-                {
-                    var json = File.ReadAllText(settingsPath);
-                    using var doc = JsonDocument.Parse(json);
-                    if (doc.RootElement.TryGetProperty("debugMode", out var debugProp))
-                    {
-                        return debugProp.GetBoolean();
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Logger.Debug($"Could not read debug mode: {ex.Message}");
-            }
-            return false;
+            // Debug mode is determined by existence of devel.json file
+            var develPath = Path.Combine(App.UserDataDirectory, "settings", "devel.json");
+            return File.Exists(develPath);
         }
 
         private void SetDebugMode(bool enabled)
         {
             try
             {
-                var settingsPath = Path.Combine(App.UserDataDirectory, "settings", "settings.json");
-                var settingsDir = Path.GetDirectoryName(settingsPath)!;
+                var settingsDir = Path.Combine(App.UserDataDirectory, "settings");
                 Directory.CreateDirectory(settingsDir);
+                var develPath = Path.Combine(settingsDir, "devel.json");
 
-                // Read existing settings or create new
-                Dictionary<string, object> settings;
-                if (File.Exists(settingsPath))
+                if (enabled)
                 {
-                    var json = File.ReadAllText(settingsPath);
-                    settings = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new();
+                    // Create devel.json to enable debug mode
+                    File.WriteAllText(develPath, "{}");
                 }
                 else
                 {
-                    settings = new Dictionary<string, object>
+                    // Delete devel.json to disable debug mode
+                    if (File.Exists(develPath))
                     {
-                        { "port", 12345 },
-                        { "host", "127.0.0.1" },
-                        { "logLevel", "info" }
-                    };
+                        File.Delete(develPath);
+                    }
                 }
-
-                settings["debugMode"] = enabled;
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                File.WriteAllText(settingsPath, JsonSerializer.Serialize(settings, options));
             }
             catch (Exception ex)
             {

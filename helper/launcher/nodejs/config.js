@@ -70,90 +70,119 @@ function getLogsDir() {
  * Default application settings
  */
 const DEFAULT_SETTINGS = {
-  port: 12345,
   host: '127.0.0.1',
-  debugMode: false,
   logLevel: 'info'
 };
 
 /**
- * Check if settings file exists (first run detection)
+ * Get database directory path
+ * @returns {string}
+ */
+function getDatabaseDir() {
+  if (isPackaged() && process.platform === 'win32') {
+    const localAppData = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+    return path.join(localAppData, 'ShippingManagerCoPilot', 'userdata', 'database');
+  }
+  return path.join(getAppBaseDir(), 'userdata', 'database');
+}
+
+/**
+ * Check if database exists (first run detection)
  * @returns {boolean}
  */
 function settingsExist() {
-  const settingsFile = path.join(getSettingsDir(), 'settings.json');
-  return fs.existsSync(settingsFile);
+  const dbPath = path.join(getDatabaseDir(), 'accounts.db');
+  return fs.existsSync(dbPath);
 }
 
 /**
- * Load settings from JSON file
- * IMPORTANT: Settings.json is the ONLY source of truth for port/host.
- * If settings.json doesn't exist, it MUST be created first (first-run flow).
- * NO fallbacks allowed - the app should fail if settings.json is missing or corrupt.
+ * Load settings from database (accounts_metadata table)
+ * debugMode is determined by existence of devel.json file
  * @returns {object}
- * @throws {Error} If settings.json doesn't exist or is invalid
  */
 function loadSettings() {
-  const settingsFile = path.join(getSettingsDir(), 'settings.json');
+  const dbPath = path.join(getDatabaseDir(), 'accounts.db');
 
-  if (!fs.existsSync(settingsFile)) {
-    // First run - create settings.json with defaults
-    logger.info('[Launcher] First run - creating settings.json');
-    const settingsDir = getSettingsDir();
-    if (!fs.existsSync(settingsDir)) {
-      fs.mkdirSync(settingsDir, { recursive: true });
-    }
-    fs.writeFileSync(settingsFile, JSON.stringify(DEFAULT_SETTINGS, null, 2));
-    return { ...DEFAULT_SETTINGS };
+  // Check devel.json for debug mode
+  const develFile = path.join(getSettingsDir(), 'devel.json');
+  const debugMode = fs.existsSync(develFile);
+
+  // If database doesn't exist, return defaults (will be created by migrator)
+  if (!fs.existsSync(dbPath)) {
+    logger.info('[Launcher] No database found, using defaults');
+    return { ...DEFAULT_SETTINGS, debugMode };
   }
 
   try {
-    const data = fs.readFileSync(settingsFile, 'utf8');
-    const settings = JSON.parse(data);
+    // Direct SQLite access
+    const Database = require('better-sqlite3');
+    const db = new Database(dbPath, { readonly: true });
 
-    // Validate required fields exist - NO fallbacks
-    if (settings.port === undefined || settings.host === undefined) {
-      throw new Error('settings.json is missing required fields (port, host)');
+    // Check if accounts_metadata table exists
+    const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='accounts_metadata'").get();
+
+    if (!tableExists) {
+      db.close();
+      return { ...DEFAULT_SETTINGS, debugMode };
+    }
+
+    // Read host and logLevel from accounts_metadata
+    const hostRow = db.prepare('SELECT value FROM accounts_metadata WHERE key = ?').get('host');
+    const logLevelRow = db.prepare('SELECT value FROM accounts_metadata WHERE key = ?').get('logLevel');
+
+    db.close();
+
+    // If host not in database yet (pre-migration), return defaults
+    if (!hostRow) {
+      return { ...DEFAULT_SETTINGS, debugMode };
     }
 
     return {
-      port: settings.port,
-      host: settings.host,
-      debugMode: settings.debugMode === true,
-      logLevel: settings.logLevel || 'info'
+      host: hostRow.value,
+      logLevel: logLevelRow ? logLevelRow.value : 'info',
+      debugMode: debugMode
     };
   } catch (err) {
-    logger.error('[Launcher] FATAL: Error loading settings: ' + err.message);
-    throw new Error('Failed to load settings.json: ' + err.message);
+    logger.error('[Launcher] Error loading settings from database: ' + err.message);
+    return { ...DEFAULT_SETTINGS, debugMode };
   }
 }
 
 /**
- * Save settings to JSON file
+ * Save settings to database
  * @param {object} settings
  * @returns {boolean}
  */
 function saveSettings(settings) {
-  const settingsDir = getSettingsDir();
-  const settingsFile = path.join(settingsDir, 'settings.json');
+  const dbDir = getDatabaseDir();
+  const dbPath = path.join(dbDir, 'accounts.db');
 
   try {
     // Ensure directory exists
-    if (!fs.existsSync(settingsDir)) {
-      fs.mkdirSync(settingsDir, { recursive: true });
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    const settingsToSave = {
-      port: settings.port ?? DEFAULT_SETTINGS.port,
-      host: settings.host ?? DEFAULT_SETTINGS.host,
-      debugMode: settings.debugMode ?? DEFAULT_SETTINGS.debugMode,
-      logLevel: settings.logLevel ?? DEFAULT_SETTINGS.logLevel
-    };
+    const Database = require('better-sqlite3');
+    const db = new Database(dbPath);
 
-    fs.writeFileSync(settingsFile, JSON.stringify(settingsToSave, null, 2));
+    // Ensure accounts_metadata table exists
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS accounts_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    `);
+
+    // Save settings
+    const upsert = db.prepare('INSERT OR REPLACE INTO accounts_metadata (key, value) VALUES (?, ?)');
+    if (settings.host) upsert.run('host', settings.host);
+    if (settings.logLevel) upsert.run('logLevel', settings.logLevel);
+
+    db.close();
     return true;
   } catch (err) {
-    logger.error('[Launcher] Error saving settings: ' + err.message);
+    logger.error('[Launcher] Error saving settings to database: ' + err.message);
     return false;
   }
 }
@@ -197,6 +226,7 @@ module.exports = {
   getUserDataDir,
   getSettingsDir,
   getLogsDir,
+  getDatabaseDir,
   DEFAULT_SETTINGS,
   settingsExist,
   loadSettings,

@@ -67,14 +67,14 @@
 
 const express = require('express');
 const router = express.Router();
-const fs = require('fs').promises;
 const { broadcastToUser } = require('../websocket');
-const { getSettingsFilePath, validateSettings } = require('../settings-schema');
+const { validateSettings, getDefaults } = require('../settings-schema');
 const { getUserId, apiCall, getAllianceId } = require('../utils/api');
 const logger = require('../utils/logger');
 const { isDebugMode } = logger;
 const { encryptData } = require('../utils/encryption');
 const { testTelegramConnection } = require('../utils/telegram');
+const db = require('../database');
 
 /**
  * GET /api/settings - Retrieves current application settings from persistent storage.
@@ -141,9 +141,16 @@ router.get('/settings', async (req, res) => {
       return res.status(401).json({ error: 'User not logged in' });
     }
 
-    const settingsFile = getSettingsFilePath(userId);
-    const data = await fs.readFile(settingsFile, 'utf8');
-    const settings = JSON.parse(data);
+    // Read from database
+    let settings = db.getUserSettings(userId);
+
+    // If no settings in database yet, use defaults
+    if (!settings) {
+      settings = getDefaults();
+      // Save defaults to database
+      db.saveUserSettings(userId, settings);
+      logger.info(`[Settings] Created default settings for user ${userId}`);
+    }
 
     // Validate settings and return (include debug mode from environment and userId for cache key)
     const { validated } = validateSettings(settings);
@@ -275,8 +282,8 @@ router.post('/settings', async (req, res) => {
       });
     }
 
-    const settingsFile = getSettingsFilePath(userId);
-    await fs.writeFile(settingsFile, JSON.stringify(validSettings, null, 2), 'utf8');
+    // Save to database
+    db.saveUserSettings(userId, validSettings);
 
     // Update state management with new settings
     try {
@@ -423,15 +430,8 @@ router.post('/settings/telegram', async (req, res) => {
 
     const { botToken, chatId, enabled } = req.body;
 
-    // Read current settings
-    const settingsFile = getSettingsFilePath(userId);
-    let settings = {};
-    try {
-      const data = await fs.readFile(settingsFile, 'utf8');
-      settings = JSON.parse(data);
-    } catch {
-      // File doesn't exist, use empty settings
-    }
+    // Read current settings from database
+    let settings = db.getUserSettings(userId) || {};
 
     // Encrypt bot token using OS keyring if provided
     // If botToken is empty/null, preserve the existing token (user didn't change it)
@@ -442,7 +442,6 @@ router.post('/settings/telegram', async (req, res) => {
       logger.info(`[Telegram] Bot token encrypted and stored in OS keyring for user ${userId}`);
     } else if (botToken === '' || botToken === null) {
       // User explicitly cleared the token OR didn't enter one - keep existing if available
-      // settings.telegramBotToken is already loaded from file, so it's preserved
       logger.debug(`[Telegram] Bot token not provided, preserving existing token (hasToken: ${!!settings.telegramBotToken})`);
     }
 
@@ -461,8 +460,8 @@ router.post('/settings/telegram', async (req, res) => {
       settings.telegramAlertEnabled = !!enabled;
     }
 
-    // Write updated settings
-    await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+    // Save to database
+    db.saveUserSettings(userId, settings);
 
     // Update state
     try {
@@ -494,14 +493,8 @@ router.get('/settings/telegram', async (req, res) => {
       return res.status(401).json({ error: 'User not logged in' });
     }
 
-    const settingsFile = getSettingsFilePath(userId);
-    let settings = {};
-    try {
-      const data = await fs.readFile(settingsFile, 'utf8');
-      settings = JSON.parse(data);
-    } catch {
-      // File doesn't exist
-    }
+    // Read from database
+    const settings = db.getUserSettings(userId) || {};
 
     res.json({
       hasToken: !!settings.telegramBotToken,
@@ -524,12 +517,10 @@ router.post('/settings/telegram/test', async (req, res) => {
       return res.status(401).json({ error: 'User not logged in' });
     }
 
-    const settingsFile = getSettingsFilePath(userId);
-    let settings = {};
-    try {
-      const data = await fs.readFile(settingsFile, 'utf8');
-      settings = JSON.parse(data);
-    } catch {
+    // Read from database
+    const settings = db.getUserSettings(userId);
+
+    if (!settings) {
       return res.status(400).json({ error: 'No Telegram settings configured' });
     }
 

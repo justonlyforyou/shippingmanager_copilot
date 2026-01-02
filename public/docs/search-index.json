@@ -897,6 +897,13 @@
   },
   {
     "type": "module",
+    "name": "server/utils/settings-migrator",
+    "longname": "module:server/utils/settings-migrator",
+    "url": "module-server_utils_settings-migrator.html",
+    "description": "<p>Settings Migration Module</p>\n<p>Migrates settings from JSON files to SQLite database.</p>\n<ul>\n<li>Global settings (host, logLevel) from settings.json -&gt; accounts_metadata</li>\n<li>User settings from settings-{userId}.json -&gt; per-user database metadata table</li>\n</ul>\n<p>Migration process:</p>\n<ol>\n<li>Check if JSON files exist</li>\n<li>Read JSON data</li>\n<li>Write to database</li>\n<li>Verify data in database matches JSON</li>\n<li>ONLY THEN delete JSON files</li>\n</ol>"
+  },
+  {
+    "type": "module",
     "name": "server/utils/telegram",
     "longname": "module:server/utils/telegram",
     "url": "module-server_utils_telegram.html",
@@ -7469,7 +7476,7 @@
     "name": "getVesselNameFromHijackHistory",
     "longname": "module:server/analytics/aggregator~getVesselNameFromHijackHistory",
     "url": "module-server_analytics_aggregator.html#~getVesselNameFromHijackHistory",
-    "description": "<p>Load vessel_name from hijack_history file as fallback</p>",
+    "description": "<p>Load vessel_name from hijack_cases database table</p>",
     "parent": "module:server/analytics/aggregator"
   },
   {
@@ -7685,7 +7692,7 @@
     "name": "loadSettings",
     "longname": "module:server/automation~loadSettings",
     "url": "module-server_automation.html#~loadSettings",
-    "description": "<p>Load settings from file</p>",
+    "description": "<p>Load settings from database</p>",
     "parent": "module:server/automation"
   },
   {
@@ -8525,7 +8532,7 @@
     "name": "loadSettings",
     "longname": "module:server/chatbot/settings~loadSettings",
     "url": "module-server_chatbot_settings.html#~loadSettings",
-    "description": "<p>Load settings from per-user settings file (settings-{userId}.json)</p>",
+    "description": "<p>Load settings from database for user</p>",
     "parent": "module:server/chatbot/settings"
   },
   {
@@ -8549,7 +8556,7 @@
     "name": "updateSettings",
     "longname": "module:server/chatbot/settings~updateSettings",
     "url": "module-server_chatbot_settings.html#~updateSettings",
-    "description": "<p>Update settings from frontend\nSettings are saved to per-user settings file using flat keys</p>",
+    "description": "<p>Update settings from frontend\nSettings are saved to database using flat keys</p>",
     "parent": "module:server/chatbot/settings"
   },
   {
@@ -8626,6 +8633,14 @@
   },
   {
     "type": "method",
+    "name": "getDbDir",
+    "longname": "module:server/config~getDbDir",
+    "url": "module-server_config.html#~getDbDir",
+    "description": "<p>Get database directory path (duplicated here to avoid circular dependency)</p>",
+    "parent": "module:server/config"
+  },
+  {
+    "type": "method",
     "name": "getInternalBaseUrl",
     "longname": "module:server/config~getInternalBaseUrl",
     "url": "module-server_config.html#~getInternalBaseUrl",
@@ -8685,7 +8700,7 @@
     "name": "loadStartupSettings",
     "longname": "module:server/config~loadStartupSettings",
     "url": "module-server_config.html#~loadStartupSettings",
-    "description": "<p>Load startup settings from systray configuration file.\nCreates settings.json with localhost-only defaults on first run.</p>",
+    "description": "<p>Load startup settings from database (accounts_metadata table).\nFalls back to defaults if database doesn't exist or host not set yet.\ndebugMode is determined by existence of devel.json file.</p>",
     "parent": "module:server/config"
   },
   {
@@ -9626,6 +9641,14 @@
   },
   {
     "type": "method",
+    "name": "getAllGlobalSettings",
+    "longname": "module:server/database~getAllGlobalSettings",
+    "url": "module-server_database.html#~getAllGlobalSettings",
+    "description": "<p>Get all global settings</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "getAllRouteSettings",
     "longname": "module:server/database~getAllRouteSettings",
     "url": "module-server_database.html#~getAllRouteSettings",
@@ -9658,6 +9681,14 @@
   },
   {
     "type": "method",
+    "name": "getGlobalSetting",
+    "longname": "module:server/database~getGlobalSetting",
+    "url": "module-server_database.html#~getGlobalSetting",
+    "description": "<p>Get a global setting from accounts_metadata</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "getHijackHistoryDir",
     "longname": "module:server/database~getHijackHistoryDir",
     "url": "module-server_database.html#~getHijackHistoryDir",
@@ -9686,6 +9717,14 @@
     "longname": "module:server/database~getStockBlacklist",
     "url": "module-server_database.html#~getStockBlacklist",
     "description": "<p>Get all blacklisted stocks</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "getUserSettings",
+    "longname": "module:server/database~getUserSettings",
+    "url": "module-server_database.html#~getUserSettings",
+    "description": "<p>Get user settings from per-user database</p>",
     "parent": "module:server/database"
   },
   {
@@ -9754,6 +9793,14 @@
   },
   {
     "type": "method",
+    "name": "saveUserSettings",
+    "longname": "module:server/database~saveUserSettings",
+    "url": "module-server_database.html#~saveUserSettings",
+    "description": "<p>Save user settings to per-user database</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "setAccountAutostart",
     "longname": "module:server/database~setAccountAutostart",
     "url": "module-server_database.html#~setAccountAutostart",
@@ -9766,6 +9813,14 @@
     "longname": "module:server/database~setAccountPort",
     "url": "module-server_database.html#~setAccountPort",
     "description": "<p>Update account port</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "setGlobalSetting",
+    "longname": "module:server/database~setGlobalSetting",
+    "url": "module-server_database.html#~setGlobalSetting",
+    "description": "<p>Set a global setting in accounts_metadata</p>",
     "parent": "module:server/database"
   },
   {
@@ -10354,14 +10409,6 @@
   },
   {
     "type": "method",
-    "name": "ensureHijackHistoryDir",
-    "longname": "module:server/routes/messenger~ensureHijackHistoryDir",
-    "url": "module-server_routes_messenger.html#~ensureHijackHistoryDir",
-    "description": "<p>Ensures hijack history directory exists.\nCreates the directory if it doesn't exist.</p>",
-    "parent": "module:server/routes/messenger"
-  },
-  {
-    "type": "method",
     "name": "ensureCacheDir",
     "longname": "module:server/routes/poi~ensureCacheDir",
     "url": "module-server_routes_poi.html#~ensureCacheDir",
@@ -10741,7 +10788,7 @@
     "name": "initializeSettings",
     "longname": "module:server/settings-schema~initializeSettings",
     "url": "module-server_settings-schema.html#~initializeSettings",
-    "description": "<p>Initialize settings system.</p>\n<ul>\n<li>If settings.json doesn't exist: Create with defaults</li>\n<li>If settings.json exists: Validate and fill missing keys</li>\n<li>If settings.json is unreadable: CRASH</li>\n</ul>",
+    "description": "<p>Initialize settings system.</p>\n<ul>\n<li>Reads from database (user settings stored via db.getUserSettings)</li>\n<li>If no settings in database: Create with defaults</li>\n<li>Validates and fills missing keys</li>\n</ul>",
     "parent": "module:server/settings-schema"
   },
   {
@@ -10749,7 +10796,7 @@
     "name": "saveSettings",
     "longname": "module:server/settings-schema~saveSettings",
     "url": "module-server_settings-schema.html#~saveSettings",
-    "description": "<p>Save settings to file for a specific user.</p>",
+    "description": "<p>Save settings to database for a specific user.</p>",
     "parent": "module:server/settings-schema"
   },
   {
@@ -11381,7 +11428,7 @@
     "name": "loadLogLevel",
     "longname": "module:server/utils/logger~loadLogLevel",
     "url": "module-server_utils_logger.html#~loadLogLevel",
-    "description": "<p>Load log level from startup settings and debug mode.\nMust be done inline to avoid circular dependency with config.js.</p>\n<p>Priority:</p>\n<ol>\n<li>If DEBUG_MODE env var is set (from systray toggle), use 'debug'</li>\n<li>Otherwise use settings.logLevel (from settings.json)</li>\n</ol>",
+    "description": "<p>Load log level from database (accounts_metadata table).\nUses direct SQLite access to avoid circular dependency with db module.</p>\n<p>Priority:</p>\n<ol>\n<li>If DEBUG_MODE env var is set (from systray toggle), use 'debug'</li>\n<li>Otherwise use logLevel from accounts_metadata table</li>\n</ol>",
     "parent": "module:server/utils/logger"
   },
   {
@@ -11575,6 +11622,46 @@
     "url": "module-server_utils_session-manager.html#~validateSessionCookie",
     "description": "<p>Validate a session cookie by making an API call to the game server</p>",
     "parent": "module:server/utils/session-manager"
+  },
+  {
+    "type": "method",
+    "name": "getGlobalSettingsFromDb",
+    "longname": "module:server/utils/settings-migrator~getGlobalSettingsFromDb",
+    "url": "module-server_utils_settings-migrator.html#~getGlobalSettingsFromDb",
+    "description": "<p>Get global settings from database (with defaults)</p>",
+    "parent": "module:server/utils/settings-migrator"
+  },
+  {
+    "type": "method",
+    "name": "getSettingsDir",
+    "longname": "module:server/utils/settings-migrator~getSettingsDir",
+    "url": "module-server_utils_settings-migrator.html#~getSettingsDir",
+    "description": "<p>Get settings directory path</p>",
+    "parent": "module:server/utils/settings-migrator"
+  },
+  {
+    "type": "method",
+    "name": "migrateAllSettings",
+    "longname": "module:server/utils/settings-migrator~migrateAllSettings",
+    "url": "module-server_utils_settings-migrator.html#~migrateAllSettings",
+    "description": "<p>Migrate all settings (global + all users)\nCalled on server startup</p>",
+    "parent": "module:server/utils/settings-migrator"
+  },
+  {
+    "type": "method",
+    "name": "migrateGlobalSettings",
+    "longname": "module:server/utils/settings-migrator~migrateGlobalSettings",
+    "url": "module-server_utils_settings-migrator.html#~migrateGlobalSettings",
+    "description": "<p>Migrate global settings from settings.json to accounts_metadata</p>",
+    "parent": "module:server/utils/settings-migrator"
+  },
+  {
+    "type": "method",
+    "name": "migrateUserSettings",
+    "longname": "module:server/utils/settings-migrator~migrateUserSettings",
+    "url": "module-server_utils_settings-migrator.html#~migrateUserSettings",
+    "description": "<p>Migrate user settings from settings-{userId}.json to per-user database</p>",
+    "parent": "module:server/utils/settings-migrator"
   },
   {
     "type": "method",

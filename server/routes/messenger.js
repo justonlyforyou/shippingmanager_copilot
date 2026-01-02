@@ -43,8 +43,6 @@ const express = require('express');
 const validator = require('validator');
 const { apiCall, getUserId, getUserCompanyName } = require('../utils/api');
 const { messageLimiter } = require('../middleware');
-const fs = require('fs');
-const path = require('path');
 const logger = require('../utils/logger');
 const {
   getCachedChatList,
@@ -58,33 +56,6 @@ const { getCachedHijackingCase, saveNegotiationEvent, markCaseResolved } = requi
 const { getDb } = require('../database');
 
 const router = express.Router();
-
-// Centralized data directory for hijack history
-// In dev mode (py start.py): use local ./userdata
-// In packaged mode (.exe): use AppData/Local
-const { getAppBaseDir, isPackaged } = require('../config');
-const isPkg = isPackaged();
-
-const DATA_DIR = isPkg
-  ? path.join(getAppBaseDir(), 'userdata')
-  : path.join(__dirname, '../../userdata');
-
-/**
- * Ensures hijack history directory exists.
- * Creates the directory if it doesn't exist.
- */
-function ensureHijackHistoryDir() {
-  const historyDir = path.join(DATA_DIR, 'hijack_history');
-
-  // Create directory if it doesn't exist
-  if (!fs.existsSync(historyDir)) {
-    fs.mkdirSync(historyDir, { recursive: true });
-    logger.debug(`[Hijacking] Created hijack history directory: ${historyDir}`);
-  }
-}
-
-// Ensure directory exists on module load
-ensureHijackHistoryDir();
 
 /**
  * GET /api/contact/get-contacts - Retrieves user's contact list and alliance contacts.
@@ -605,20 +576,16 @@ router.post('/messenger/delete-chat', express.json(), async (req, res) => {
       logger.debug(`[Messenger] Deleted system message ${systemMsgId} from local cache`);
     }
 
-    // If case_id is provided, delete the corresponding history file
+    // If case_id is provided, delete from database
     if (case_id) {
-      // (using fs and path imported at top of file)
-      const historyDir = path.join(DATA_DIR, 'hijack_history');
-      const historyFile = path.join(historyDir, `${userId}-${case_id}.json`);
-
       try {
-        if (fs.existsSync(historyFile)) {
-          fs.unlinkSync(historyFile);
-          logger.debug(`[Hijacking] Deleted history file for case ${case_id}`);
-        }
+        const db = getDb();
+        db.prepare('DELETE FROM hijack_history WHERE case_id = ?').run(case_id);
+        db.prepare('DELETE FROM hijack_cases WHERE case_id = ?').run(case_id);
+        logger.debug(`[Hijacking] Deleted case ${case_id} from database`);
       } catch (error) {
-        logger.error(`[Hijacking] Failed to delete history file for case ${case_id}:`, error);
-        // Don't fail the entire request if history deletion fails
+        logger.error(`[Hijacking] Failed to delete case ${case_id} from database:`, error);
+        // Don't fail the entire request if database deletion fails
       }
     }
 

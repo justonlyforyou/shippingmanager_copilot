@@ -949,6 +949,79 @@ function closeAccountsDb() {
   }
 }
 
+// ============================================================================
+// GLOBAL SETTINGS - Stored in accounts_metadata table
+// ============================================================================
+
+/**
+ * Get a global setting from accounts_metadata
+ * @param {string} key - Setting key (e.g., 'host', 'logLevel')
+ * @returns {string|null} Setting value or null
+ */
+function getGlobalSetting(key) {
+  const db = getAccountsDb();
+  const row = db.prepare('SELECT value FROM accounts_metadata WHERE key = ?').get(key);
+  return row ? row.value : null;
+}
+
+/**
+ * Set a global setting in accounts_metadata
+ * @param {string} key - Setting key
+ * @param {string} value - Setting value
+ */
+function setGlobalSetting(key, value) {
+  const db = getAccountsDb();
+  db.prepare('INSERT OR REPLACE INTO accounts_metadata (key, value) VALUES (?, ?)').run(key, String(value));
+  logger.debug(`[Database] Set global setting ${key}=${value}`);
+}
+
+/**
+ * Get all global settings
+ * @returns {Object} Object with all global settings
+ */
+function getAllGlobalSettings() {
+  const db = getAccountsDb();
+  const rows = db.prepare('SELECT key, value FROM accounts_metadata WHERE key NOT LIKE "db_%"').all();
+  const settings = {};
+  for (const row of rows) {
+    settings[row.key] = row.value;
+  }
+  return settings;
+}
+
+// ============================================================================
+// USER SETTINGS - Stored in per-user database metadata table
+// ============================================================================
+
+/**
+ * Get user settings from per-user database
+ * @param {string} userId - User ID
+ * @returns {Object|null} Settings object or null
+ */
+function getUserSettings(userId) {
+  const db = getDb(userId);
+  const row = db.prepare('SELECT value FROM metadata WHERE key = ?').get('user_settings');
+  if (!row) return null;
+  try {
+    return JSON.parse(row.value);
+  } catch {
+    logger.error(`[Database] Failed to parse user settings for ${userId}`);
+    return null;
+  }
+}
+
+/**
+ * Save user settings to per-user database
+ * @param {string} userId - User ID
+ * @param {Object} settings - Settings object
+ */
+function saveUserSettings(userId, settings) {
+  const db = getDb(userId);
+  const json = JSON.stringify(settings);
+  db.prepare('INSERT OR REPLACE INTO metadata (key, value) VALUES (?, ?)').run('user_settings', json);
+  logger.debug(`[Database] Saved user settings for ${userId}`);
+}
+
 
 // ============================================================================
 // STOCK BLACKLIST - Prevents autopilot from re-buying sold stocks
@@ -1152,6 +1225,13 @@ module.exports = {
   deleteAccount,
   findNextAvailablePort,
   closeAccountsDb,
+  // Global settings (accounts_metadata)
+  getGlobalSetting,
+  setGlobalSetting,
+  getAllGlobalSettings,
+  // User settings (per-user database)
+  getUserSettings,
+  saveUserSettings,
   // Stock blacklist
   addToStockBlacklist,
   isStockBlacklisted,

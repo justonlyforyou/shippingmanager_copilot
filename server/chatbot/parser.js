@@ -8,7 +8,7 @@
  */
 
 const { getUserId, apiCall } = require('../utils/api');
-const { getSettingsFilePath } = require('../settings-schema');
+const db = require('../database');
 const logger = require('../utils/logger');
 
 // Command queue for rate-limited execution
@@ -213,10 +213,11 @@ function isCommandAllowedInChannel(command, channel) {
             return channel === 'alliance';
         }
 
-        const settingsPath = getSettingsFilePath(userId);
-        // Read current settings to get latest values
-        const data = require('fs').readFileSync(settingsPath, 'utf8');
-        const settings = JSON.parse(data);
+        // Read current settings from database
+        const settings = db.getUserSettings(userId);
+        if (!settings) {
+            return channel === 'alliance';
+        }
 
         // Build setting key based on command and channel
         // e.g., chatbotForecastAllianceEnabled or chatbotForecastDMEnabled

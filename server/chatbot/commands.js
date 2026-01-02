@@ -11,7 +11,7 @@ const logger = require('../utils/logger');
 const fs = require('fs').promises;
 const path = require('path');
 const { getUserId, getAllianceName, apiCall } = require('../utils/api');
-const { getSettingsFilePath } = require('../settings-schema');
+const db = require('../database');
 const { getInternalBaseUrl, getAppBaseDir } = require('../config');
 const { getServerLocalTimezone } = require('../routes/forecast');
 
@@ -301,9 +301,7 @@ async function handleWelcomeCommand(args, userName, isDM) {
     try {
         // Load welcome message from bot owner's settings
         const botOwnerId = getUserId();
-        const settingsPath = getSettingsFilePath(botOwnerId);
-        const data = await fs.readFile(settingsPath, 'utf8');
-        const settings = JSON.parse(data);
+        const settings = db.getUserSettings(botOwnerId) || {};
 
         // Get alliance name for variable replacement
         const allianceName = getAllianceName() || 'our Alliance';

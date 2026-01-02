@@ -116,10 +116,8 @@ async function pauseAutopilot() {
       const settings = state.getSettings(userId);
       settings.autopilotPaused = true;
 
-      const { getSettingsFilePath } = require('./settings-schema');
-      const fsPromises = require('fs').promises;
-      const settingsFile = getSettingsFilePath(userId);
-      await fsPromises.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+      const { saveSettings } = require('./settings-schema');
+      await saveSettings(userId, settings);
       logger.debug('[Autopilot] Pause state saved to settings');
     }
   } catch (error) {
@@ -141,10 +139,8 @@ async function resumeAutopilot() {
       const settings = state.getSettings(userId);
       settings.autopilotPaused = false;
 
-      const { getSettingsFilePath } = require('./settings-schema');
-      const fsPromises = require('fs').promises;
-      const settingsFile = getSettingsFilePath(userId);
-      await fsPromises.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
+      const { saveSettings } = require('./settings-schema');
+      await saveSettings(userId, settings);
       logger.debug('[Autopilot] Resume state saved to settings');
     }
   } catch (error) {

@@ -255,10 +255,22 @@ server.on('upgrade', (request, socket, head) => {
 // Settings initialization (will be done after user is loaded)
 const { initializeSettings } = require('./server/settings-schema');
 const chatBot = require('./server/chatbot');
+const settingsMigrator = require('./server/utils/settings-migrator');
 
 (async () => {
   // Start server
   server.listen(config.PORT, config.HOST, async () => {
+    // Run settings migration (JSON -> Database)
+    logger.info('[Migration] Running settings migration check...');
+    try {
+      const migrationResults = settingsMigrator.migrateAllSettings();
+      if (migrationResults.global.migrated || Object.keys(migrationResults.users).length > 0) {
+        logger.info('[Migration] Settings migration complete');
+      }
+    } catch (error) {
+      logger.error('[Migration] Settings migration failed:', error.message);
+    }
+
     // Load session cookie from encrypted storage FIRST
     logger.info('[Session] Loading sessions from encrypted storage...');
 

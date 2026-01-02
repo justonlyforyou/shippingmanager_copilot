@@ -17,21 +17,20 @@ const archiver = require('archiver');
 const unzipper = require('unzipper');
 const multer = require('multer');
 const logger = require('../utils/logger');
-const { isPackaged } = require('../config');
+const { isPackaged, getAppBaseDir } = require('../config');
 const { marked } = require('marked');
 const { getUserId } = require('../utils/api');
-const { getMetadata, setMetadata } = require('../database');
+const { getMetadata, setMetadata, getGlobalSetting, setGlobalSetting, getAccount, setAccountPort } = require('../database');
 
-// Get Python settings directory - matches start.py logic
+// Get settings directory for devel.json check
 const isPkg = isPackaged();
-const PYTHON_SETTINGS_DIR = isPkg
-  ? path.join(process.env.LOCALAPPDATA, 'ShippingManagerCoPilot', 'settings')
+const SETTINGS_DIR = isPkg
+  ? path.join(getAppBaseDir(), 'userdata', 'settings')
   : path.join(__dirname, '../../userdata/settings');
-const PYTHON_SETTINGS_FILE = path.join(PYTHON_SETTINGS_DIR, 'settings.json');
 
 // Get userdata directory for backup/restore
 const USERDATA_DIR = isPkg
-  ? path.join(process.env.LOCALAPPDATA, 'ShippingManagerCoPilot', 'userdata')
+  ? path.join(getAppBaseDir(), 'userdata')
   : path.join(__dirname, '../../userdata');
 
 // Configure multer for file uploads (memory storage for ZIP files)
@@ -49,25 +48,40 @@ const upload = multer({
 
 /**
  * GET /api/server-config - Get current server configuration (IP/Port)
+ * Reads host from accounts_metadata, port from accounts table for current user
  */
 router.get('/server-config', async (req, res) => {
   try {
-    // Read Python settings file
-    const data = await fs.readFile(PYTHON_SETTINGS_FILE, 'utf8');
-    const settings = JSON.parse(data);
+    // Read host from global settings (accounts_metadata)
+    const host = getGlobalSetting('host');
+    const logLevel = getGlobalSetting('logLevel');
+
+    // Read port from accounts table for current user
+    const userId = getUserId();
+    let port = 12345; // Default fallback
+    if (userId) {
+      const account = getAccount(userId);
+      if (account) {
+        port = account.port;
+      }
+    }
+
+    // Check devel.json for debug mode
+    const develFile = path.join(SETTINGS_DIR, 'devel.json');
+    const debugMode = fss.existsSync(develFile);
 
     // Validate required fields
-    if (settings.port === undefined || settings.host === undefined) {
-      throw new Error('settings.json is missing required fields (port, host)');
+    if (!host) {
+      throw new Error('host not found in database');
     }
 
     res.json({
       success: true,
       config: {
-        port: settings.port,
-        host: settings.host,
-        debugMode: settings.debugMode === true,
-        logLevel: settings.logLevel || 'info'
+        host: host,
+        port: port,
+        debugMode: debugMode,
+        logLevel: logLevel || 'info'
       }
     });
   } catch (error) {
@@ -129,55 +143,53 @@ router.get('/server-config/interfaces', (req, res) => {
 
 /**
  * POST /api/server-config - Update server configuration (IP/Port)
+ * Writes host to accounts_metadata, port to accounts table for current user
  * NOTE: Server restart required for changes to take effect
  */
 router.post('/server-config', async (req, res) => {
   try {
-    const { port, host } = req.body;
-
-    // Validate port
-    const portNum = parseInt(port);
-    if (isNaN(portNum) || portNum < 1 || portNum > 65535) {
-      return res.status(400).json({ error: 'Port must be between 1 and 65535' });
-    }
+    const { host, port } = req.body;
 
     // Validate host
     if (!host || typeof host !== 'string') {
       return res.status(400).json({ error: 'Host is required' });
     }
 
-    // Read current settings (file must exist - created on first run)
-    let currentSettings;
-    try {
-      const data = await fs.readFile(PYTHON_SETTINGS_FILE, 'utf8');
-      currentSettings = JSON.parse(data);
-    } catch (readError) {
-      logger.error('[Server Config] Settings file not found or invalid:', readError.message);
-      return res.status(500).json({ error: 'Settings file not found - restart application' });
+    // Validate port
+    if (!port || typeof port !== 'number' || port < 1 || port > 65535) {
+      return res.status(400).json({ error: 'Port must be a number between 1 and 65535' });
     }
 
-    // Merge with new values - preserve existing debugMode/logLevel
-    const updatedSettings = {
-      port: portNum,
-      host: host.trim(),
-      debugMode: currentSettings.debugMode === true,
-      logLevel: currentSettings.logLevel || 'info'
-    };
+    // Get current logLevel from database
+    const currentLogLevel = getGlobalSetting('logLevel') || 'info';
 
-    // Ensure directory exists
-    await fs.mkdir(PYTHON_SETTINGS_DIR, { recursive: true });
+    // Check devel.json for debug mode
+    const develFile = path.join(SETTINGS_DIR, 'devel.json');
+    const debugMode = fss.existsSync(develFile);
 
-    // Write updated settings
-    await fs.writeFile(PYTHON_SETTINGS_FILE, JSON.stringify(updatedSettings, null, 2), 'utf8');
+    // Write host to global settings (accounts_metadata)
+    setGlobalSetting('host', host.trim());
 
-    logger.info(`[Server Config] Updated settings: port=${portNum}, host=${host.trim()}`);
+    // Write port to accounts table for current user
+    const userId = getUserId();
+    if (userId) {
+      setAccountPort(userId, port);
+      logger.info(`[Server Config] Updated settings: host=${host.trim()}, port=${port} for user ${userId}`);
+    } else {
+      logger.warn('[Server Config] No userId available, port not saved to database');
+    }
 
     res.json({
       success: true,
       message: 'Server configuration updated. Server will restart automatically.',
-      config: updatedSettings,
+      config: {
+        host: host.trim(),
+        port: port,
+        debugMode: debugMode,
+        logLevel: currentLogLevel
+      },
       requiresRestart: true,
-      newUrl: `https://${host.trim()}:${portNum}`
+      newUrl: `https://${host.trim()}:${port}`
     });
   } catch (error) {
     logger.error('[Server Config] Error saving settings:', error);

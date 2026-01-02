@@ -97,8 +97,7 @@ namespace ShippingManagerCoPilot.Launcher
                     };
                 }
 
-                // Pass only session selection (NOT port or cookie - app reads from accounts.db)
-                startInfo.EnvironmentVariables["HOST"] = "127.0.0.1";
+                // Pass only session selection (NOT port, host, or cookie - app reads from database)
                 startInfo.EnvironmentVariables["SELECTED_USER_ID"] = session.UserId;
 
                 var process = Process.Start(startInfo);

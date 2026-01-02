@@ -16,13 +16,12 @@
  * @module server/settings-schema
  */
 
-const fs = require('fs').promises;
 const path = require('path');
 const logger = require('./utils/logger');
-const { getAppBaseDir } = require('./config');
+const { getAppBaseDir, isPackaged } = require('./config');
+const db = require('./database');
 
 // Get settings directory - use APPDATA when running as packaged exe
-const { isPackaged } = require('./config');
 const SETTINGS_DIR = isPackaged()
   ? path.join(getAppBaseDir(), 'userdata', 'settings')
   : path.join(__dirname, '..', 'userdata', 'settings');
@@ -431,66 +430,54 @@ function validateSettings(settings) {
 
 /**
  * Initialize settings system.
- * - If settings.json doesn't exist: Create with defaults
- * - If settings.json exists: Validate and fill missing keys
- * - If settings.json is unreadable: CRASH
+ * - Reads from database (user settings stored via db.getUserSettings)
+ * - If no settings in database: Create with defaults
+ * - Validates and fills missing keys
  *
- * @param {number|null} userId - User ID for user-specific settings
+ * @param {number|null} userId - User ID for user-specific settings (REQUIRED)
  * @returns {Promise<Object>} Validated settings object
- * @throws {Error} If file cannot be read or written
  */
 async function initializeSettings(userId = null) {
-  const settingsFile = getSettingsFilePath(userId);
-  const fileLabel = userId ? `settings-${userId}.json` : 'settings.json';
+  if (!userId) {
+    logger.error('[Settings] initializeSettings requires userId parameter');
+    process.exit(1);
+  }
 
   try {
-    // Try to read existing file
-    const data = await fs.readFile(settingsFile, 'utf8');
-    const settings = JSON.parse(data);
+    // Read from database
+    let settings = db.getUserSettings(userId);
 
-    logger.debug(`[Settings] Loading from ${fileLabel}...`);
+    if (!settings) {
+      // No settings in database - first run, use defaults
+      logger.debug(`[Settings] No settings found in database for user ${userId}, creating defaults...`);
+      const defaults = getDefaults();
+      db.saveUserSettings(userId, defaults);
+      logger.debug(`[Settings] Created default settings in database for user ${userId}`);
+      return defaults;
+    }
+
+    logger.debug(`[Settings] Loading from database for user ${userId}...`);
 
     // Validate and fill missing keys
     const { validated, needsWrite } = validateSettings(settings);
 
     if (needsWrite) {
-      logger.debug('[Settings] Missing keys detected, writing complete settings...');
-
-      // Ensure settings directory exists
-      const settingsDir = path.dirname(settingsFile);
-      await fs.mkdir(settingsDir, { recursive: true });
-
-      await fs.writeFile(settingsFile, JSON.stringify(validated, null, 2), 'utf8');
-      logger.debug('[Settings] Settings file updated with missing defaults');
+      logger.debug('[Settings] Missing keys detected, updating database with complete settings...');
+      db.saveUserSettings(userId, validated);
+      logger.debug('[Settings] Settings updated in database with missing defaults');
     }
 
-    logger.debug('[Settings] User settings loaded successfully');
+    logger.debug('[Settings] User settings loaded successfully from database');
     return validated;
 
   } catch (error) {
-    if (error.code === 'ENOENT') {
-      // File doesn't exist - first run
-      logger.debug(`[Settings] ${fileLabel} not found, creating with defaults...`);
-
-      // Ensure settings directory exists
-      const settingsDir = path.dirname(settingsFile);
-      await fs.mkdir(settingsDir, { recursive: true });
-
-      const defaults = getDefaults();
-      await fs.writeFile(settingsFile, JSON.stringify(defaults, null, 2), 'utf8');
-      logger.debug(`[Settings] Created ${fileLabel} with default values`);
-      return defaults;
-    }
-
-    // Any other error is FATAL
     logger.error('═══════════════════════════════════════════════════════════');
-    logger.error(`FATAL ERROR: Cannot read or write ${fileLabel}`);
+    logger.error(`FATAL ERROR: Cannot load settings for user ${userId}`);
     logger.error('═══════════════════════════════════════════════════════════');
     logger.error('Error:', error.message);
-    logger.error('Path:', settingsFile);
     logger.error('');
     logger.error('Possible causes:');
-    logger.error('- File is corrupted (invalid JSON)');
+    logger.error('- Database is corrupted');
     logger.error('- No read/write permissions');
     logger.error('- Disk is full');
     logger.error('');
@@ -503,25 +490,23 @@ async function initializeSettings(userId = null) {
 }
 
 /**
- * Save settings to file for a specific user.
+ * Save settings to database for a specific user.
  *
- * @param {number|null} userId - User ID for user-specific settings
+ * @param {number|null} userId - User ID for user-specific settings (REQUIRED)
  * @param {Object} settings - Settings object to save
  * @returns {Promise<void>}
  */
 async function saveSettings(userId, settings) {
-  const settingsFile = getSettingsFilePath(userId);
-  const fileLabel = userId ? `settings-${userId}.json` : 'settings.json';
+  if (!userId) {
+    logger.error('[Settings] saveSettings requires userId parameter');
+    throw new Error('userId is required');
+  }
 
   try {
-    // Ensure settings directory exists
-    const settingsDir = path.dirname(settingsFile);
-    await fs.mkdir(settingsDir, { recursive: true });
-
-    await fs.writeFile(settingsFile, JSON.stringify(settings, null, 2), 'utf8');
-    logger.debug(`[Settings] Saved to ${fileLabel}`);
+    db.saveUserSettings(userId, settings);
+    logger.debug(`[Settings] Saved to database for user ${userId}`);
   } catch (error) {
-    logger.error(`[Settings] Error saving ${fileLabel}:`, error);
+    logger.error(`[Settings] Error saving settings for user ${userId}:`, error);
     throw error;
   }
 }
