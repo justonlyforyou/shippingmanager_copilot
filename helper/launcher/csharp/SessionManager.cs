@@ -90,6 +90,18 @@ namespace ShippingManagerCoPilot.Launcher
                     value TEXT
                 )", connection);
             metaCmd.ExecuteNonQuery();
+
+            // Migration: Add host column if it doesn't exist
+            using var checkHostCmd = new SQLiteCommand(
+                "SELECT COUNT(*) FROM pragma_table_info('accounts') WHERE name='host'", connection);
+            var hasHost = Convert.ToInt32(checkHostCmd.ExecuteScalar()) > 0;
+            if (!hasHost)
+            {
+                Logger.Info("[SessionManager] Migrating database: Adding host column to accounts table");
+                using var addHostCmd = new SQLiteCommand(
+                    "ALTER TABLE accounts ADD COLUMN host TEXT DEFAULT '0.0.0.0'", connection);
+                addHostCmd.ExecuteNonQuery();
+            }
         }
 
         public async Task<List<SessionInfo>> GetAvailableSessionsAsync()

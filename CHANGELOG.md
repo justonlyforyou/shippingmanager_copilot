@@ -2,6 +2,14 @@
 
 All notable changes to Shipping Manager CoPilot will be documented in this file.
 
+## [0.1.7.8] - 2026-01-03
+
+### Launcher
+- **C# Launcher**: Added migration for `host` column in EnsureDatabase()
+  - Fixes "no such column: host" error for existing users upgrading
+
+---
+
 ## [0.1.7.7] - 2026-01-03
 
 ### Database
