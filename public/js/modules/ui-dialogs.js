@@ -317,6 +317,17 @@ export function showSettings(settings) {
   document.getElementById('co2Threshold').value = settings.co2Threshold;
   document.getElementById('maintenanceThreshold').value = settings.maintenanceThreshold;
 
+  // General Settings - Min Cargo Utilization and Harbor Fee Warning
+  const minCargoSelect = document.getElementById('minCargoUtilization');
+  if (minCargoSelect && settings.minCargoUtilization !== undefined) {
+    minCargoSelect.value = settings.minCargoUtilization;
+  }
+
+  const harborFeeSelect = document.getElementById('harborFeeWarningThreshold');
+  if (harborFeeSelect) {
+    harborFeeSelect.value = settings.harborFeeWarningThreshold !== undefined ? settings.harborFeeWarningThreshold : '';
+  }
+
   // Auto-Rebuy Fuel
   document.getElementById('autoRebuyFuel').checked = settings.autoRebuyFuel || false;
   const fuelOptions = document.getElementById('autoRebuyFuelOptions');
@@ -423,17 +434,13 @@ export function showSettings(settings) {
   document.getElementById('autoDepartUseRouteDefaults').checked = useRouteDefaults;
 
   const customSettingsDiv = document.getElementById('autoDepartCustomSettings');
-  const minUtilInput = document.getElementById('minVesselUtilization');
   const speedInput = document.getElementById('autoVesselSpeed');
 
   if (useRouteDefaults) {
     customSettingsDiv.classList.add('hidden');
   } else {
     customSettingsDiv.classList.remove('hidden');
-    if (settings.minVesselUtilization !== undefined) {
-      minUtilInput.value = settings.minVesselUtilization;
-    }
-    if (settings.autoVesselSpeed !== undefined) {
+    if (settings.autoVesselSpeed !== undefined && speedInput) {
       speedInput.value = settings.autoVesselSpeed;
     }
   }

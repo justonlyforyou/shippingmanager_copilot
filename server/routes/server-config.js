@@ -20,7 +20,7 @@ const logger = require('../utils/logger');
 const { isPackaged, getAppBaseDir } = require('../config');
 const { marked } = require('marked');
 const { getUserId } = require('../utils/api');
-const { getMetadata, setMetadata, getGlobalSetting, setGlobalSetting, getAccount, setAccountPort } = require('../database');
+const { getMetadata, setMetadata, getGlobalSetting, getAccount, setAccountHost, setAccountPort } = require('../database');
 
 // Get settings directory for devel.json check
 const isPkg = isPackaged();
@@ -48,32 +48,26 @@ const upload = multer({
 
 /**
  * GET /api/server-config - Get current server configuration (IP/Port)
- * Reads host from accounts_metadata, port from accounts table for current user
+ * Reads host and port from accounts table for current user
  */
 router.get('/server-config', async (req, res) => {
   try {
-    // Read host from global settings (accounts_metadata)
-    const host = getGlobalSetting('host');
     const logLevel = getGlobalSetting('logLevel');
 
-    // Read port from accounts table for current user
+    // Read host and port from accounts table for current user
     const userId = getUserId();
-    let port = 12345; // Default fallback
-    if (userId) {
-      const account = getAccount(userId);
-      if (account) {
-        port = account.port;
-      }
+    const account = getAccount(userId);
+
+    if (!account) {
+      throw new Error('Account not found in database');
     }
+
+    const host = account.host;
+    const port = account.port;
 
     // Check devel.json for debug mode
     const develFile = path.join(SETTINGS_DIR, 'devel.json');
     const debugMode = fss.existsSync(develFile);
-
-    // Validate required fields
-    if (!host) {
-      throw new Error('host not found in database');
-    }
 
     res.json({
       success: true,
@@ -143,7 +137,7 @@ router.get('/server-config/interfaces', (req, res) => {
 
 /**
  * POST /api/server-config - Update server configuration (IP/Port)
- * Writes host to accounts_metadata, port to accounts table for current user
+ * Writes host and port to accounts table for current user
  * NOTE: Server restart required for changes to take effect
  */
 router.post('/server-config', async (req, res) => {
@@ -167,16 +161,14 @@ router.post('/server-config', async (req, res) => {
     const develFile = path.join(SETTINGS_DIR, 'devel.json');
     const debugMode = fss.existsSync(develFile);
 
-    // Write host to global settings (accounts_metadata)
-    setGlobalSetting('host', host.trim());
-
-    // Write port to accounts table for current user
+    // Write host and port to accounts table for current user
     const userId = getUserId();
     if (userId) {
+      setAccountHost(userId, host.trim());
       setAccountPort(userId, port);
       logger.info(`[Server Config] Updated settings: host=${host.trim()}, port=${port} for user ${userId}`);
     } else {
-      logger.warn('[Server Config] No userId available, port not saved to database');
+      logger.warn('[Server Config] No userId available, settings not saved to database');
     }
 
     res.json({

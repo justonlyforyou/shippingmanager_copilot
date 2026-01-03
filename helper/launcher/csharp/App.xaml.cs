@@ -163,7 +163,7 @@ namespace ShippingManagerCoPilot.Launcher
                     CompanyName = session.CompanyName,
                     LoginMethod = session.LoginMethod,
                     Port = session.Port,
-                    Url = $"https://localhost:{session.Port}",
+                    Url = session.Url,
                     Icon = session.LoginMethod == "steam" ? "\U0001F3AE" : "\U0001F310",
                     IconColor = session.LoginMethod == "steam"
                         ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0xc0, 0xf4))

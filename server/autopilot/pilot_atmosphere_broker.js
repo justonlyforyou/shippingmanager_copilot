@@ -72,25 +72,32 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       ? settings.co2Threshold
       : settings.autoRebuyCO2Threshold;
 
-    // ========== NORMAL MODE: Price below threshold - fill bunker ==========
-    if (prices.co2 <= threshold) {
-      // Check for emergency buy first
-      if (settings.autoRebuyCO2Emergency) {
-        const emergencyBelowThreshold = settings.autoRebuyCO2EmergencyBelow;
-        const emergencyShipsRequired = settings.autoRebuyCO2EmergencyShips;
-        const emergencyMaxPrice = settings.autoRebuyCO2EmergencyMaxPrice;
+    // ========== EMERGENCY MODE: Check FIRST, independent of price threshold ==========
+    if (settings.autoRebuyCO2Emergency) {
+      const emergencyBelowThreshold = settings.autoRebuyCO2EmergencyBelow;
+      const emergencyShipsRequired = settings.autoRebuyCO2EmergencyShips;
+      const emergencyMaxPrice = settings.autoRebuyCO2EmergencyMaxPrice;
 
-        if (bunker.co2 < emergencyBelowThreshold) {
-          const vessels = await gameapi.fetchVessels();
-          const shipsAtPort = vessels.filter(v => v.status === 'port').length;
+      if (bunker.co2 < emergencyBelowThreshold && prices.co2 <= emergencyMaxPrice) {
+        const vessels = await gameapi.fetchVessels();
+        const shipsAtPort = vessels.filter(v => v.status === 'port').length;
 
-          if (shipsAtPort >= emergencyShipsRequired && prices.co2 <= emergencyMaxPrice) {
-            isEmergencyBuy = true;
-            logger.info(`[Atmosphere Broker] EMERGENCY: Bunker=${bunker.co2.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port`);
+        if (shipsAtPort >= emergencyShipsRequired) {
+          isEmergencyBuy = true;
+          logger.info(`[Atmosphere Broker] EMERGENCY: Bunker=${bunker.co2.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port, price $${prices.co2}/t <= max $${emergencyMaxPrice}/t`);
+
+          if (availableSpace < 0.5) {
+            logger.debug('[Atmosphere Broker] Emergency: Bunker full');
+            return;
           }
+
+          amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
         }
       }
+    }
 
+    // ========== NORMAL MODE: Price below threshold - fill bunker ==========
+    if (!isEmergencyBuy && prices.co2 <= threshold) {
       if (availableSpace < 0.5) {
         logger.debug('[Atmosphere Broker] Bunker full');
         return;
@@ -100,7 +107,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       logger.debug(`[Atmosphere Broker] Normal: Price $${prices.co2}/t <= threshold $${threshold}/t - filling bunker`);
 
     // ========== INTELLIGENT MODE: Price above threshold but vessels need CO2 ==========
-    } else if (settings.intelligentRebuyCO2) {
+    } else if (!isEmergencyBuy && settings.intelligentRebuyCO2) {
       const maxPrice = settings.intelligentRebuyCO2MaxPrice;
 
       if (prices.co2 > maxPrice) {
@@ -135,7 +142,7 @@ async function autoRebuyCO2(bunkerState = null, autopilotPaused, broadcastToUser
       }
 
     // ========== NO MODE ACTIVE: Price too high ==========
-    } else {
+    } else if (!isEmergencyBuy) {
       logger.debug(`[Atmosphere Broker] Price $${prices.co2}/t > threshold $${threshold}/t and intelligent rebuy disabled - skipping`);
       return;
     }

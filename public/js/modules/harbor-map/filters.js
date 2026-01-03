@@ -684,3 +684,60 @@ export function applyDemandFilter(ports, filterValue) {
     return demandValue >= absThreshold;
   });
 }
+
+/**
+ * Applies demand filters using input field values (min/max ranges).
+ * Filters ports based on Container (TEU) and/or Tanker (BBL) demand ranges.
+ * Type selection (current/max) determines which demand value to check.
+ *
+ * @param {Array<Object>} ports - All ports
+ * @param {Object} filters - Filter values object
+ * @param {string} filters.teuType - 'current' or 'max' for TEU demand type
+ * @param {number|null} filters.teuMin - Min TEU demand
+ * @param {number|null} filters.teuMax - Max TEU demand
+ * @param {string} filters.bblType - 'current' or 'max' for BBL demand type
+ * @param {number|null} filters.bblMin - Min BBL demand
+ * @param {number|null} filters.bblMax - Max BBL demand
+ * @returns {Array<Object>} Filtered ports
+ */
+export function applyDemandInputFilter(ports, filters) {
+  if (!ports || ports.length === 0) return [];
+  if (!filters) return ports;
+
+  const { teuType, teuMin, teuMax, bblType, bblMin, bblMax } = filters;
+
+  // Check if any TEU filter is set
+  const hasTeuFilter = teuMin !== null || teuMax !== null;
+
+  // Check if any BBL filter is set
+  const hasBblFilter = bblMin !== null || bblMax !== null;
+
+  // No filters set
+  if (!hasTeuFilter && !hasBblFilter) return ports;
+
+  return ports.filter(p => {
+    // TEU filters (Container demand)
+    if (hasTeuFilter) {
+      const demand = teuType === 'max'
+        ? calculatePortMaxCargoDemand(p)
+        : calculatePortCurrentCargoDemand(p);
+
+      if (demand === -1) return false;
+      if (teuMin !== null && demand < teuMin) return false;
+      if (teuMax !== null && demand > teuMax) return false;
+    }
+
+    // BBL filters (Tanker demand)
+    if (hasBblFilter) {
+      const demand = bblType === 'max'
+        ? calculatePortMaxOilDemand(p)
+        : calculatePortCurrentOilDemand(p);
+
+      if (demand === -1) return false;
+      if (bblMin !== null && demand < bblMin) return false;
+      if (bblMax !== null && demand > bblMax) return false;
+    }
+
+    return true;
+  });
+}

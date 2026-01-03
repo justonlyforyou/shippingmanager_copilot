@@ -16,8 +16,7 @@ import {
   filterVessels,
   filterPorts,
   getVesselFilterOptions,
-  getDemandFilterOptions,
-  applyDemandFilter
+  applyDemandInputFilter
 } from './filters.js';
 import { showSideNotification, isMobileDevice, escapeHtml, toGameCode } from '../utils.js';
 import { initForecastCalendar, updateEventDiscount } from '../forecast-calendar.js';
@@ -79,8 +78,16 @@ let currentPortPairGroups = null; // Port-pair groups from API (for route filter
 
 // Port scope and demand filter states (from filter modal)
 let currentPortScope = localStorage.getItem('harborMapPortScope') || 'my_ports'; // 'my_ports' or 'all_ports'
-let currentDemandMaxFilter = localStorage.getItem('harborMapDemandMax') || '';
-let currentDemandCurrentFilter = localStorage.getItem('harborMapDemandCurrent') || '';
+
+// Demand input filter states (null = no filter)
+let demandFilters = {
+  teuType: localStorage.getItem('harborMapTeuType') || 'current', // 'current' or 'max'
+  teuMin: localStorage.getItem('harborMapTeuMin') ? parseInt(localStorage.getItem('harborMapTeuMin'), 10) : null,
+  teuMax: localStorage.getItem('harborMapTeuMax') ? parseInt(localStorage.getItem('harborMapTeuMax'), 10) : null,
+  bblType: localStorage.getItem('harborMapBblType') || 'current', // 'current' or 'max'
+  bblMin: localStorage.getItem('harborMapBblMin') ? parseInt(localStorage.getItem('harborMapBblMin'), 10) : null,
+  bblMax: localStorage.getItem('harborMapBblMax') ? parseInt(localStorage.getItem('harborMapBblMax'), 10) : null
+};
 
 // Filter modal state
 let filterModalDragging = false;
@@ -2222,34 +2229,97 @@ function populateFilterModalDropdowns() {
     portScopeSelect.value = currentPortScope;
   }
 
-  // Demand filters (dynamic based on current port scope)
-  updateDemandFilterDropdowns();
+  // Populate demand filter input fields
+  populateDemandFilterInputs();
+
+  // Initialize collapsible sections
+  initCollapsibleSections();
 }
 
 /**
- * Updates demand filter dropdowns based on current port scope.
- * Populates the Max and Current demand dropdowns with options for the selected scope.
+ * Populates demand filter input fields with current values.
  */
-function updateDemandFilterDropdowns() {
-  const demandType = currentPortScope.startsWith('my_ports') ? 'my' : 'all';
+/**
+ * Formats a number with thousand separators.
+ * @param {number|string} value - The value to format
+ * @returns {string} Formatted string with thousand separators
+ */
+function formatThousandSep(value) {
+  if (value === null || value === undefined || value === '') return '';
+  const num = typeof value === 'string' ? parseInt(value.replace(/[^\d]/g, ''), 10) : value;
+  if (isNaN(num)) return '';
+  return num.toLocaleString('en-US');
+}
 
-  // Update Max Demand dropdown
-  const maxSelect = document.getElementById('harborFilterDemandMax');
-  if (maxSelect) {
-    const maxOptions = getDemandFilterOptions(`max_${demandType}`);
-    maxSelect.innerHTML = maxOptions.map(opt =>
-      `<option value="${opt.value}" ${opt.value === currentDemandMaxFilter ? 'selected' : ''}>${opt.label}</option>`
-    ).join('');
+/**
+ * Parses a formatted number string back to integer.
+ * @param {string} value - The formatted string
+ * @returns {number|null} Parsed integer or null
+ */
+function parseThousandSep(value) {
+  if (!value || value.trim() === '') return null;
+  const num = parseInt(value.replace(/[^\d]/g, ''), 10);
+  return isNaN(num) ? null : num;
+}
+
+function populateDemandFilterInputs() {
+  // TEU radio buttons
+  const teuCurrentRadio = document.querySelector('input[name="teuDemandType"][value="current"]');
+  const teuMaxRadio = document.querySelector('input[name="teuDemandType"][value="max"]');
+  if (teuCurrentRadio && teuMaxRadio) {
+    teuCurrentRadio.checked = demandFilters.teuType === 'current';
+    teuMaxRadio.checked = demandFilters.teuType === 'max';
   }
 
-  // Update Current Demand dropdown
-  const currentSelect = document.getElementById('harborFilterDemandCurrent');
-  if (currentSelect) {
-    const currentOptions = getDemandFilterOptions(`current_${demandType}`);
-    currentSelect.innerHTML = currentOptions.map(opt =>
-      `<option value="${opt.value}" ${opt.value === currentDemandCurrentFilter ? 'selected' : ''}>${opt.label}</option>`
-    ).join('');
+  // TEU min/max inputs
+  const teuMin = document.getElementById('harborFilterTeuMin');
+  const teuMax = document.getElementById('harborFilterTeuMax');
+  if (teuMin) teuMin.value = formatThousandSep(demandFilters.teuMin);
+  if (teuMax) teuMax.value = formatThousandSep(demandFilters.teuMax);
+
+  // BBL radio buttons
+  const bblCurrentRadio = document.querySelector('input[name="bblDemandType"][value="current"]');
+  const bblMaxRadio = document.querySelector('input[name="bblDemandType"][value="max"]');
+  if (bblCurrentRadio && bblMaxRadio) {
+    bblCurrentRadio.checked = demandFilters.bblType === 'current';
+    bblMaxRadio.checked = demandFilters.bblType === 'max';
   }
+
+  // BBL min/max inputs
+  const bblMin = document.getElementById('harborFilterBblMin');
+  const bblMax = document.getElementById('harborFilterBblMax');
+  if (bblMin) bblMin.value = formatThousandSep(demandFilters.bblMin);
+  if (bblMax) bblMax.value = formatThousandSep(demandFilters.bblMax);
+}
+
+/**
+ * Initializes collapsible section behavior for demand filter sections.
+ */
+function initCollapsibleSections() {
+  const collapseButtons = document.querySelectorAll('.harbor-filter-collapse-btn');
+
+  collapseButtons.forEach(btn => {
+    // Skip if already initialized
+    if (btn.dataset.collapseInit === 'true') return;
+    btn.dataset.collapseInit = 'true';
+
+    btn.addEventListener('click', () => {
+      const targetId = btn.dataset.target;
+      const content = document.getElementById(targetId);
+      const icon = btn.querySelector('.collapse-icon');
+
+      if (content) {
+        const isExpanded = content.classList.contains('expanded');
+        if (isExpanded) {
+          content.classList.remove('expanded');
+          if (icon) icon.textContent = '+';
+        } else {
+          content.classList.add('expanded');
+          if (icon) icon.textContent = '-';
+        }
+      }
+    });
+  });
 }
 
 /**
@@ -2300,21 +2370,11 @@ function initFilterModalDrag() {
   const routeSelect = document.getElementById('harborFilterRoute');
   const vesselSelect = document.getElementById('harborFilterVessel');
   const portScopeSelect = document.getElementById('harborFilterPortScope');
-  const demandMaxSelect = document.getElementById('harborFilterDemandMax');
-  const demandCurrentSelect = document.getElementById('harborFilterDemandCurrent');
 
-  // Port scope selector - updates demand dropdowns and applies filter
+  // Port scope selector - applies filter
   if (portScopeSelect) {
     portScopeSelect.addEventListener('change', async () => {
       currentPortScope = portScopeSelect.value;
-
-      // Clear demand filters when switching scope
-      currentDemandMaxFilter = '';
-      currentDemandCurrentFilter = '';
-
-      // Update demand dropdowns with new scope
-      updateDemandFilterDropdowns();
-
       await applyFilterModalSelections();
     });
   }
@@ -2325,8 +2385,7 @@ function initFilterModalDrag() {
       if (routeSelect.value) {
         // Reset other filters
         if (vesselSelect) vesselSelect.value = 'all_vessels';
-        if (demandMaxSelect) demandMaxSelect.value = '';
-        if (demandCurrentSelect) demandCurrentSelect.value = '';
+        clearDemandInputFields();
       }
       // Use setRouteFilter to properly open the route vessels panel
       await setRouteFilter(routeSelect.value);
@@ -2339,38 +2398,128 @@ function initFilterModalDrag() {
       if (vesselSelect.value && vesselSelect.value !== 'all_vessels') {
         // Reset other filters
         if (routeSelect) routeSelect.value = '';
-        if (demandMaxSelect) demandMaxSelect.value = '';
-        if (demandCurrentSelect) demandCurrentSelect.value = '';
+        clearDemandInputFields();
       }
       await applyFilterModalSelections();
     });
   }
 
-  // Demand Max filter - resets route, vessel, and other demand filter
-  if (demandMaxSelect) {
-    demandMaxSelect.addEventListener('change', async () => {
-      if (demandMaxSelect.value) {
-        // Reset other filters
-        if (routeSelect) routeSelect.value = '';
-        if (vesselSelect) vesselSelect.value = 'all_vessels';
-        if (demandCurrentSelect) demandCurrentSelect.value = '';
-      }
-      await applyFilterModalSelections();
-    });
-  }
+  // Demand filter input fields - debounced to avoid too many filter updates
+  initDemandInputListeners();
+}
 
-  // Demand Current filter - resets route, vessel, and other demand filter
-  if (demandCurrentSelect) {
-    demandCurrentSelect.addEventListener('change', async () => {
-      if (demandCurrentSelect.value) {
-        // Reset other filters
-        if (routeSelect) routeSelect.value = '';
-        if (vesselSelect) vesselSelect.value = 'all_vessels';
-        if (demandMaxSelect) demandMaxSelect.value = '';
-      }
+/**
+ * Clears all demand filter input fields and their stored values.
+ */
+function clearDemandInputFields() {
+  // Clear state (reset types to 'current', clear min/max values)
+  demandFilters = {
+    teuType: 'current',
+    teuMin: null,
+    teuMax: null,
+    bblType: 'current',
+    bblMin: null,
+    bblMax: null
+  };
+
+  // Clear localStorage
+  localStorage.removeItem('harborMapTeuType');
+  localStorage.removeItem('harborMapTeuMin');
+  localStorage.removeItem('harborMapTeuMax');
+  localStorage.removeItem('harborMapBblType');
+  localStorage.removeItem('harborMapBblMin');
+  localStorage.removeItem('harborMapBblMax');
+
+  // Clear input fields and reset radio buttons
+  populateDemandFilterInputs();
+}
+
+/**
+ * Initializes event listeners for demand filter input fields.
+ * Handles radio buttons for type selection and text inputs with thousand separators.
+ */
+function initDemandInputListeners() {
+  let debounceTimer = null;
+
+  // Helper to apply filters with debounce
+  const debouncedApply = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
       await applyFilterModalSelections();
+    }, 300);
+  };
+
+  // TEU radio buttons
+  const teuRadios = document.querySelectorAll('input[name="teuDemandType"]');
+  teuRadios.forEach(radio => {
+    if (radio.dataset.filterInit === 'true') return;
+    radio.dataset.filterInit = 'true';
+
+    radio.addEventListener('change', () => {
+      demandFilters.teuType = radio.value;
+      localStorage.setItem('harborMapTeuType', radio.value);
+      debouncedApply();
     });
-  }
+  });
+
+  // BBL radio buttons
+  const bblRadios = document.querySelectorAll('input[name="bblDemandType"]');
+  bblRadios.forEach(radio => {
+    if (radio.dataset.filterInit === 'true') return;
+    radio.dataset.filterInit = 'true';
+
+    radio.addEventListener('change', () => {
+      demandFilters.bblType = radio.value;
+      localStorage.setItem('harborMapBblType', radio.value);
+      debouncedApply();
+    });
+  });
+
+  // Text inputs with thousand separator formatting
+  const inputConfig = [
+    { id: 'harborFilterTeuMin', key: 'teuMin', storageKey: 'harborMapTeuMin' },
+    { id: 'harborFilterTeuMax', key: 'teuMax', storageKey: 'harborMapTeuMax' },
+    { id: 'harborFilterBblMin', key: 'bblMin', storageKey: 'harborMapBblMin' },
+    { id: 'harborFilterBblMax', key: 'bblMax', storageKey: 'harborMapBblMax' }
+  ];
+
+  inputConfig.forEach(({ id, key, storageKey }) => {
+    const input = document.getElementById(id);
+    if (!input) return;
+
+    if (input.dataset.filterInit === 'true') return;
+    input.dataset.filterInit = 'true';
+
+    input.addEventListener('input', () => {
+      // Get cursor position before formatting
+      const cursorPos = input.selectionStart;
+      const oldLength = input.value.length;
+
+      // Parse and format the value
+      const numValue = parseThousandSep(input.value);
+      const formatted = formatThousandSep(numValue);
+
+      // Update input with formatted value
+      input.value = formatted;
+
+      // Adjust cursor position based on length change
+      const newLength = formatted.length;
+      const newCursorPos = Math.max(0, cursorPos + (newLength - oldLength));
+      input.setSelectionRange(newCursorPos, newCursorPos);
+
+      // Update state
+      demandFilters[key] = numValue;
+
+      // Update localStorage
+      if (numValue !== null) {
+        localStorage.setItem(storageKey, numValue.toString());
+      } else {
+        localStorage.removeItem(storageKey);
+      }
+
+      debouncedApply();
+    });
+  });
 }
 
 /**
@@ -2413,20 +2562,16 @@ function onFilterModalDragEnd() {
  * @returns {Promise<void>}
  */
 async function applyFilterModalSelections() {
-  // Read values from modal dropdowns
+  // Read values from modal dropdowns (demand filters handled via input field listeners)
   const routeValue = document.getElementById('harborFilterRoute')?.value || '';
   const vesselValue = document.getElementById('harborFilterVessel')?.value || 'all_vessels';
   const portScopeValue = document.getElementById('harborFilterPortScope')?.value || 'my_ports';
-  const demandMaxValue = document.getElementById('harborFilterDemandMax')?.value || '';
-  const demandCurrentValue = document.getElementById('harborFilterDemandCurrent')?.value || '';
 
   // Update state and localStorage
   currentRouteFilter = routeValue || null;
   currentVesselFilter = vesselValue;
   currentPortScope = portScopeValue;
   currentPortFilter = portScopeValue; // Keep currentPortFilter in sync with currentPortScope
-  currentDemandMaxFilter = demandMaxValue;
-  currentDemandCurrentFilter = demandCurrentValue;
 
   if (currentRouteFilter) {
     localStorage.setItem('harborMapRouteFilter', currentRouteFilter);
@@ -2436,11 +2581,9 @@ async function applyFilterModalSelections() {
   localStorage.setItem('harborMapVesselFilter', currentVesselFilter);
   localStorage.setItem('harborMapPortScope', currentPortScope);
   localStorage.setItem('harborMapPortFilter', currentPortFilter);
-  localStorage.setItem('harborMapDemandMax', currentDemandMaxFilter);
-  localStorage.setItem('harborMapDemandCurrent', currentDemandCurrentFilter);
 
   logger.debug('[Harbor Map] Filter modal applied - Route:', currentRouteFilter, 'Vessel:', currentVesselFilter);
-  logger.debug('[Harbor Map] Port Scope:', currentPortScope, 'Demand Max:', currentDemandMaxFilter, 'Demand Current:', currentDemandCurrentFilter);
+  logger.debug('[Harbor Map] Port Scope:', currentPortScope);
 
   // Close panels and apply filters
   await closeAllPanels();
@@ -2460,16 +2603,15 @@ async function resetAllFilters() {
   currentVesselFilter = 'all_vessels';
   currentPortScope = 'my_ports';
   currentPortFilter = 'my_ports';
-  currentDemandMaxFilter = '';
-  currentDemandCurrentFilter = '';
+
+  // Clear demand input filters
+  clearDemandInputFields();
 
   // Update localStorage
   localStorage.removeItem('harborMapRouteFilter');
   localStorage.setItem('harborMapVesselFilter', currentVesselFilter);
   localStorage.setItem('harborMapPortScope', currentPortScope);
   localStorage.setItem('harborMapPortFilter', currentPortFilter);
-  localStorage.setItem('harborMapDemandMax', '');
-  localStorage.setItem('harborMapDemandCurrent', '');
 
   logger.debug('[Harbor Map] All filters reset to defaults');
 
@@ -2492,8 +2634,16 @@ async function applyFiltersAndRender(forceRender = false) {
   currentVesselFilter = localStorage.getItem('harborMapVesselFilter') || 'all_vessels';
   currentPortScope = localStorage.getItem('harborMapPortScope') || 'my_ports';
   currentPortFilter = localStorage.getItem('harborMapPortFilter') || 'my_ports';
-  currentDemandMaxFilter = localStorage.getItem('harborMapDemandMax') || '';
-  currentDemandCurrentFilter = localStorage.getItem('harborMapDemandCurrent') || '';
+
+  // Reload demand filter values from localStorage
+  demandFilters = {
+    teuType: localStorage.getItem('harborMapTeuType') || 'current',
+    teuMin: localStorage.getItem('harborMapTeuMin') ? parseInt(localStorage.getItem('harborMapTeuMin'), 10) : null,
+    teuMax: localStorage.getItem('harborMapTeuMax') ? parseInt(localStorage.getItem('harborMapTeuMax'), 10) : null,
+    bblType: localStorage.getItem('harborMapBblType') || 'current',
+    bblMin: localStorage.getItem('harborMapBblMin') ? parseInt(localStorage.getItem('harborMapBblMin'), 10) : null,
+    bblMax: localStorage.getItem('harborMapBblMax') ? parseInt(localStorage.getItem('harborMapBblMax'), 10) : null
+  };
 
   // Sync modal dropdown values with current filter state (if modal is open)
   const harborFilterVessel = document.getElementById('harborFilterVessel');
@@ -2518,18 +2668,17 @@ async function applyFiltersAndRender(forceRender = false) {
   // Apply vessel filter
   let filteredVessels = filterVessels(rawVessels, currentVesselFilter);
 
-  // Determine active demand filter (only one can be active at a time)
-  const activeDemandFilter = currentDemandMaxFilter || currentDemandCurrentFilter;
-
   // Apply port filter FIRST, then demand filter on top
   // Both filters are combined (AND logic) - port filter narrows down, demand filter narrows further
   let filteredPorts = filterPorts(rawPorts, rawVessels, currentPortFilter);
   console.log(`[Harbor Map] Applied port filter: ${currentPortFilter} -> ${filteredPorts.length} ports`);
 
-  if (activeDemandFilter) {
-    // Apply demand filter on already-filtered ports
-    filteredPorts = applyDemandFilter(filteredPorts, activeDemandFilter);
-    console.log(`[Harbor Map] Applied demand filter: ${activeDemandFilter} -> ${filteredPorts.length} ports`);
+  // Check if any demand filter is active
+  const hasDemandFilter = Object.values(demandFilters).some(v => v !== null);
+  if (hasDemandFilter) {
+    // Apply demand input filter on already-filtered ports
+    filteredPorts = applyDemandInputFilter(filteredPorts, demandFilters);
+    console.log(`[Harbor Map] Applied demand filter -> ${filteredPorts.length} ports`);
   }
 
   console.log(`[Harbor Map] Applied filters - Vessel Filter: ${currentVesselFilter}, Port Filter: ${currentPortFilter}`);

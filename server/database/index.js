@@ -767,12 +767,21 @@ function createAccountsSchema(db) {
       company_name TEXT NOT NULL,
       cookie TEXT NOT NULL,
       login_method TEXT NOT NULL,
+      host TEXT NOT NULL DEFAULT '0.0.0.0',
       port INTEGER NOT NULL,
       autostart INTEGER DEFAULT 1,
       timestamp INTEGER NOT NULL,
       last_updated TEXT
     )
   `);
+
+  // Migration: Add host column if it doesn't exist (for existing databases)
+  const columns = db.prepare("PRAGMA table_info(accounts)").all();
+  const hasHostColumn = columns.some(col => col.name === 'host');
+  if (!hasHostColumn) {
+    db.exec("ALTER TABLE accounts ADD COLUMN host TEXT NOT NULL DEFAULT '0.0.0.0'");
+    logger.info('[Database] Migration: Added host column to accounts table');
+  }
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS accounts_metadata (
@@ -805,8 +814,10 @@ function getAccountsDb() {
 
   if (isNew) {
     logger.info('[Database] Creating new accounts database');
-    createAccountsSchema(accountsDbConnection);
   }
+
+  // Always run schema creation/migration (handles both new and existing DBs)
+  createAccountsSchema(accountsDbConnection);
 
   return accountsDbConnection;
 }
@@ -844,6 +855,7 @@ function getAccount(userId) {
     companyName: row.company_name,
     cookie: row.cookie,
     loginMethod: row.login_method,
+    host: row.host,
     port: row.port,
     autostart: row.autostart === 1,
     timestamp: row.timestamp,
@@ -893,6 +905,32 @@ function setAccountPort(userId, port) {
     .run(port, new Date().toISOString(), String(userId));
   if (result.changes > 0) {
     logger.info(`[Database] Updated port for ${userId} to ${port}`);
+  }
+  return result.changes > 0;
+}
+
+/**
+ * Get account host
+ * @param {string} userId - User ID
+ * @returns {string|null} Host or null if not found
+ */
+function getAccountHost(userId) {
+  const db = getAccountsDb();
+  const row = db.prepare('SELECT host FROM accounts WHERE user_id = ?').get(String(userId));
+  return row ? row.host : null;
+}
+
+/**
+ * Update account host
+ * @param {string} userId - User ID
+ * @param {string} host - New host (IP address)
+ */
+function setAccountHost(userId, host) {
+  const db = getAccountsDb();
+  const result = db.prepare('UPDATE accounts SET host = ?, last_updated = ? WHERE user_id = ?')
+    .run(host, new Date().toISOString(), String(userId));
+  if (result.changes > 0) {
+    logger.info(`[Database] Updated host for ${userId} to ${host}`);
   }
   return result.changes > 0;
 }
@@ -1220,6 +1258,8 @@ module.exports = {
   getAllAccounts,
   getAccount,
   saveAccount,
+  getAccountHost,
+  setAccountHost,
   setAccountPort,
   setAccountAutostart,
   deleteAccount,

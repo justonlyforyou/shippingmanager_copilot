@@ -1402,6 +1402,43 @@
   margin-top: var(--spacing-16);
 }
 
+.capacity-input-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-8);
+  margin: var(--spacing-12) 0 var(--spacing-4) 0;
+}
+
+.capacity-input {
+  width: 140px;
+  padding: var(--spacing-8) var(--spacing-12);
+  background: var(--color-bg-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-6);
+  color: var(--color-info-light);
+  font-size: var(--font-size-18);
+  font-weight: var(--font-weight-bold);
+  text-align: center;
+  transition: border-color var(--transition-fast);
+}
+
+.capacity-input:focus {
+  border-color: var(--color-info);
+  outline: none;
+}
+
+.capacity-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capacity-unit {
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
 .slider-labels {
   display: flex;
   justify-content: space-between;
@@ -2371,4 +2408,141 @@ input[type="range"]::-moz-range-track {
   color: var(--color-text-muted);
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* ============================================
+   FLEET BUILDER (Build Ship Step 5)
+   ============================================ */
+
+.fleet-builder-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-12);
+}
+
+.fleet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: var(--spacing-8);
+  border-bottom: var(--border-default);
+}
+
+.fleet-header h3 {
+  font-size: var(--font-size-16);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+.fleet-add-btn {
+  padding: var(--spacing-6) var(--spacing-12);
+  background: var(--color-info);
+  color: var(--color-white);
+  border: none;
+  border-radius: var(--radius-6);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.fleet-add-btn:hover {
+  background: var(--color-info-dark);
+}
+
+.fleet-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-8);
+  max-height: 400px;
+  overflow-y: auto;
+  padding: var(--spacing-4);
+}
+
+.fleet-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 20px;
+  gap: var(--spacing-8);
+  align-items: stretch;
+  padding: var(--spacing-8);
+  background: var(--color-bg-primary);
+  border: var(--border-default);
+  border-radius: var(--radius-6);
+  transition: border-color var(--transition-fast);
+}
+
+.fleet-row:hover {
+  border-color: var(--color-info);
+}
+
+.fleet-port-select {
+  width: 100%;
+  padding: var(--spacing-8) var(--spacing-10);
+  background: var(--color-bg-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.fleet-port-select:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.fleet-name-input {
+  width: 100%;
+  padding: var(--spacing-8) var(--spacing-10);
+  background: var(--color-bg-secondary);
+  border: var(--border-default);
+  border-radius: var(--radius-4);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-13);
+  transition: border-color var(--transition-fast);
+}
+
+.fleet-name-input:focus {
+  outline: none;
+  border-color: var(--color-info);
+}
+
+.fleet-name-input::placeholder {
+  color: var(--color-text-tertiary);
+}
+
+.fleet-remove-btn {
+  width: 20px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--color-danger);
+  font-size: var(--font-size-12);
+  font-weight: var(--font-weight-bold);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.fleet-remove-btn:hover:not(:disabled) {
+  color: var(--color-danger-light);
+}
+
+.fleet-remove-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.fleet-info {
+  font-size: var(--font-size-12);
+  color: var(--color-text-secondary);
+  padding: var(--spacing-8);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-4);
+  text-align: center;
 }

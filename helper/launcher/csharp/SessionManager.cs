@@ -116,7 +116,7 @@ namespace ShippingManagerCoPilot.Launcher
                 connection.Open();
 
                 using var cmd = new SQLiteCommand(
-                    "SELECT user_id, company_name, cookie, login_method, port, autostart, timestamp FROM accounts ORDER BY timestamp DESC",
+                    "SELECT user_id, company_name, cookie, login_method, host, port, autostart, timestamp FROM accounts ORDER BY timestamp DESC",
                     connection);
 
                 using var reader = cmd.ExecuteReader();
@@ -127,8 +127,9 @@ namespace ShippingManagerCoPilot.Launcher
                     var companyName = reader.GetString(1);
                     var cookieRef = reader.GetString(2);
                     var loginMethod = reader.GetString(3);
-                    var port = reader.GetInt32(4);
-                    var autostart = reader.GetInt32(5) == 1;
+                    var host = reader.IsDBNull(4) ? "0.0.0.0" : reader.GetString(4);
+                    var port = reader.GetInt32(5);
+                    var autostart = reader.GetInt32(6) == 1;
 
                     // Decrypt cookie from Credential Manager (keytar-compatible)
                     var cookie = DecryptCookie(cookieRef, userId);
@@ -142,6 +143,7 @@ namespace ShippingManagerCoPilot.Launcher
                             CompanyName = companyName,
                             Cookie = null,
                             LoginMethod = loginMethod,
+                            Host = host,
                             Port = port,
                             Autostart = autostart,
                             Valid = false,
@@ -155,13 +157,14 @@ namespace ShippingManagerCoPilot.Launcher
                     var validation = await ValidateSessionCookieAsync(cookie);
                     if (validation != null)
                     {
-                        Logger.Info($"Valid session: {companyName} ({userId}) on port {port}");
+                        Logger.Info($"Valid session: {companyName} ({userId}) on {host}:{port}");
                         sessions.Add(new SessionInfo
                         {
                             UserId = userId,
                             CompanyName = companyName,
                             Cookie = cookie,
                             LoginMethod = loginMethod,
+                            Host = host,
                             Port = port,
                             Autostart = autostart,
                             Valid = true
@@ -176,6 +179,7 @@ namespace ShippingManagerCoPilot.Launcher
                             CompanyName = companyName,
                             Cookie = cookie,
                             LoginMethod = loginMethod,
+                            Host = host,
                             Port = port,
                             Autostart = autostart,
                             Valid = false,
@@ -481,7 +485,7 @@ namespace ShippingManagerCoPilot.Launcher
                 connection.Open();
 
                 using var cmd = new SQLiteCommand(
-                    "SELECT user_id, company_name, cookie, login_method, port, autostart, timestamp FROM accounts WHERE user_id = @userId",
+                    "SELECT user_id, company_name, cookie, login_method, host, port, autostart, timestamp FROM accounts WHERE user_id = @userId",
                     connection);
                 cmd.Parameters.AddWithValue("@userId", userId);
 
@@ -497,8 +501,9 @@ namespace ShippingManagerCoPilot.Launcher
                         CompanyName = reader.GetString(1),
                         Cookie = cookie,
                         LoginMethod = reader.GetString(3),
-                        Port = reader.GetInt32(4),
-                        Autostart = reader.GetInt32(5) == 1,
+                        Host = reader.IsDBNull(4) ? "0.0.0.0" : reader.GetString(4),
+                        Port = reader.GetInt32(5),
+                        Autostart = reader.GetInt32(6) == 1,
                         Valid = cookie != null
                     };
                 }

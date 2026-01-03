@@ -3087,11 +3087,13 @@ async function updateManagementTabVisibility() {
     const membersResponse = await fetchAllianceMembers();
     const membersData = membersResponse.members || membersResponse;
     const currentUserId = membersResponse.current_user_id;
-    const currentUserRole = membersData.find(m => m.user_id === currentUserId)?.role || 'member';
+    const currentMember = membersData.find(m => m.user_id === currentUserId);
 
-    // Only show Management tab and Welcome Command Settings for CEO, COO, Management, and Interim CEO roles
+    // Use has_management_role flag from API if available (most reliable for interim CEO)
+    // Fallback to role string check for backwards compatibility
     const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
-    const isAllowed = allowedRoles.includes(currentUserRole);
+    const isAllowed = currentMember?.has_management_role === true ||
+                      allowedRoles.includes(currentMember?.role || 'member');
 
     // Show/hide Management tab
     if (isAllowed) {

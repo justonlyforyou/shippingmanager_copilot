@@ -343,9 +343,16 @@ router.post('/settings', async (req, res) => {
           const response = await apiCall('/alliance/get-alliance-members', 'POST', {});
           const members = response?.data?.members || response?.members || [];
           const member = members.find(m => m.user_id === userId);
-          const role = member?.role || 'member';
-          const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
-          isManagement = allowedRoles.includes(role);
+
+          // Use has_management_role flag from API if available (most reliable)
+          if (member?.has_management_role === true) {
+            isManagement = true;
+          } else {
+            // Fallback to role string check
+            const role = member?.role || 'member';
+            const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
+            isManagement = allowedRoles.includes(role);
+          }
         } catch (error) {
           logger.debug('[Settings] Error checking management role:', error);
           isManagement = false; // Fail-secure: deny access on error

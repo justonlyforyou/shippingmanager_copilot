@@ -139,6 +139,13 @@ async function hasManagementRole(checkUserId) {
         const response = await apiCall('/alliance/get-alliance-members', 'POST', {});
         const members = response?.data?.members || response?.members || [];
         const member = members.find(m => m.user_id === parseInt(checkUserId));
+
+        // Use has_management_role flag from API if available (most reliable)
+        if (member?.has_management_role === true) {
+            return true;
+        }
+
+        // Fallback to role string check
         const role = member?.role || 'member';
         const allowedRoles = ['ceo', 'coo', 'management', 'interim_ceo'];
         return allowedRoles.includes(role);

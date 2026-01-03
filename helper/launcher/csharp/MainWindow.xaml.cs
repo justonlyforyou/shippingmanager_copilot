@@ -49,7 +49,7 @@ namespace ShippingManagerCoPilot.Launcher
                     CompanyName = instance.Session.CompanyName,
                     LoginMethod = instance.Session.LoginMethod,
                     Port = instance.Port,
-                    Url = $"https://localhost:{instance.Port}",
+                    Url = instance.Session.Url,
                     Icon = isSteam ? "\U0001F3AE" : "\U0001F310",  // 🎮 or 🌐 emoji
                     IconColor = isSteam ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x66, 0xc0, 0xf4)) : new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x3b, 0x82, 0xf6)),
                     Autostart = autostart,
@@ -213,8 +213,7 @@ namespace ShippingManagerCoPilot.Launcher
         {
             foreach (var kvp in App.Instance.ServerManager.Servers)
             {
-                var url = $"https://localhost:{kvp.Value.Port}";
-                OpenUrl(url);
+                OpenUrl(kvp.Value.Session.Url);
             }
         }
 

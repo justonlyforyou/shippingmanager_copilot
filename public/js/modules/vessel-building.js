@@ -240,14 +240,12 @@ const buildState = {
   currentStep: 1,
   vesselType: 'container',
   capacity: 2000,
-  port: null,
   engine: 'mih_x1',
   engineKW: 2500,
   antifouling: null,
   bulbous: false,
   propellers: '4_blade_propeller',
   enhancedThrusters: false,
-  vesselName: '',
   hullColor: '#b30000',
   deckColor: '#272525',
   bridgeColor: '#dbdbdb',
@@ -256,7 +254,9 @@ const buildState = {
   containerColor3: '#670000',
   containerColor4: '#777777',
   nameColor: '#ffffff',
-  customImage: null
+  customImage: null,
+  // Fleet: array of vessels to build (each with port and name)
+  fleet: [{ port: null, name: '' }]
 };
 
 // ============================================================================
@@ -455,8 +455,10 @@ function calculateSpeedForEngine(capacity, vesselType, engineKW) {
 function updateStatsPreview() {
   document.getElementById('previewType').textContent = buildState.vesselType ? (buildState.vesselType === 'container' ? 'Container' : 'Tanker') : '-';
 
-  const portLabel = buildState.port ? SHIPYARD_PORTS.find(p => p.value === buildState.port)?.label || buildState.port : '-';
-  document.getElementById('previewPort').textContent = portLabel;
+  // Show fleet count instead of single port
+  const validVessels = buildState.fleet.filter(v => v.port && v.name.trim());
+  const fleetLabel = validVessels.length > 0 ? `${validVessels.length} vessel${validVessels.length > 1 ? 's' : ''}` : '-';
+  document.getElementById('previewPort').textContent = fleetLabel;
 
   const engineLabel = buildState.engine ? ENGINES.find(e => e.type === buildState.engine)?.name || buildState.engine : '-';
   const engineKW = buildState.engineKW ? ` (${formatNumber(buildState.engineKW)} kW)` : '';
@@ -547,7 +549,9 @@ function updateStatsPreview() {
     buildTime = perkStats.buildTime;
   }
 
-  const price = calculatePrice(buildState);
+  const pricePerVessel = calculatePrice(buildState);
+  const vesselCount = Math.max(1, validVessels.length);
+  const totalPrice = pricePerVessel * vesselCount;
 
   const config = CAPACITY_RANGES[buildState.vesselType];
   const unit = config.unit === 'TEU' ? 'TEU' : 'BBL';
@@ -559,16 +563,22 @@ function updateStatsPreview() {
   document.getElementById('previewFuel').textContent = `${Math.round(fuel)} kg/nm`;
   document.getElementById('previewCO2').textContent = `${co2.toFixed(2)} ${co2Unit}`;
   document.getElementById('previewBuildTime').textContent = formatBuildTime(Math.round(buildTime));
-  document.getElementById('previewPrice').textContent = `$${formatNumber(Math.round(price))}`;
 
-  // Disable submit button if not enough cash
+  // Show price with multiplier if building multiple vessels
+  if (vesselCount > 1) {
+    document.getElementById('previewPrice').textContent = `${vesselCount}x $${formatNumber(Math.round(pricePerVessel))} = $${formatNumber(Math.round(totalPrice))}`;
+  } else {
+    document.getElementById('previewPrice').textContent = `$${formatNumber(Math.round(pricePerVessel))}`;
+  }
+
+  // Disable submit button if not enough cash for at least one vessel
   const submitBtn = document.getElementById('buildSubmitBtn');
   if (submitBtn) {
     const bunkerState = getCurrentBunkerState();
     const currentCash = bunkerState?.currentCash || 0;
-    const canAfford = currentCash >= Math.round(price);
+    const canAfford = currentCash >= Math.round(pricePerVessel);
     submitBtn.disabled = !canAfford;
-    submitBtn.title = canAfford ? '' : `Not enough cash. Need $${formatNumber(Math.round(price))}, have $${formatNumber(currentCash)}`;
+    submitBtn.title = canAfford ? '' : `Not enough cash. Need $${formatNumber(Math.round(pricePerVessel))} per vessel, have $${formatNumber(currentCash)}`;
   }
 }
 
@@ -577,7 +587,7 @@ function updateStatsPreview() {
 // ============================================================================
 
 /**
- * Render Step 1: Basics (Type, Port, Name)
+ * Render Step 1: Basics (Type, Capacity)
  */
 function renderStep1() {
   const config = buildState.vesselType ? CAPACITY_RANGES[buildState.vesselType] : CAPACITY_RANGES.container;
@@ -614,6 +624,10 @@ function renderStep1() {
         <div class="capacity-header">
           <label class="basics-label">Capacity</label>
         </div>
+        <div class="capacity-input-row">
+          <input type="text" id="capacityInput" class="capacity-input" value="${formatNumber(buildState.capacity || config.min)}" ${!buildState.vesselType ? 'disabled' : ''}>
+          <span class="capacity-unit">${config.unit}</span>
+        </div>
         <div class="capacity-slider-container">
           <input type="range" id="capacitySlider" min="${config.min}" max="${config.max}" value="${buildState.capacity || config.min}" step="${config.min < 10000 ? 100 : 1000}" ${!buildState.vesselType ? 'disabled' : ''}>
           <div class="slider-labels">
@@ -621,21 +635,6 @@ function renderStep1() {
             <span>${formatNumber(config.max)} ${config.unit}</span>
           </div>
         </div>
-      </div>
-
-      <div class="basics-section">
-        <label class="basics-label" for="portSelect">Delivery Port</label>
-        <select id="portSelect" class="build-select">
-          <option value="" ${!buildState.port ? 'selected' : ''}>-- Select Port --</option>
-          ${SHIPYARD_PORTS.map(port =>
-            `<option value="${port.value}" ${buildState.port === port.value ? 'selected' : ''}>${port.label}</option>`
-          ).join('')}
-        </select>
-      </div>
-
-      <div class="basics-section">
-        <label class="basics-label" for="vesselNameInput">Vessel Name</label>
-        <input type="text" id="vesselNameInput" class="build-input" placeholder="Enter vessel name..." value="${buildState.vesselName || ''}" maxlength="50">
       </div>
     </div>
   `;
@@ -682,31 +681,45 @@ function renderStep1() {
   });
 
   const capacitySlider = content.querySelector('#capacitySlider');
-  if (capacitySlider) {
+  const capacityInput = content.querySelector('#capacityInput');
+
+  if (capacitySlider && capacityInput) {
+    // Slider changes -> update input
     capacitySlider.addEventListener('input', (e) => {
       buildState.capacity = parseInt(e.target.value);
+      capacityInput.value = formatNumber(buildState.capacity);
       updateStatsPreview();
     });
+
+    // Input changes -> update slider
+    capacityInput.addEventListener('input', (e) => {
+      // Remove formatting (commas, dots, spaces) to get raw number
+      const rawValue = e.target.value.replace(/[,.\s]/g, '');
+      const numValue = parseInt(rawValue);
+
+      if (!isNaN(numValue)) {
+        const config = CAPACITY_RANGES[buildState.vesselType];
+        // Clamp to valid range
+        const clampedValue = Math.max(config.min, Math.min(config.max, numValue));
+        buildState.capacity = clampedValue;
+        capacitySlider.value = clampedValue;
+        updateStatsPreview();
+      }
+    });
+
+    // Format on blur
+    capacityInput.addEventListener('blur', () => {
+      capacityInput.value = formatNumber(buildState.capacity);
+    });
   }
-
-  const portSelect = content.querySelector('#portSelect');
-  portSelect.addEventListener('change', (e) => {
-    buildState.port = e.target.value;
-    updateStatsPreview();
-  });
-
-  const nameInput = content.querySelector('#vesselNameInput');
-  nameInput.addEventListener('input', (e) => {
-    buildState.vesselName = e.target.value;
-  });
 
   updateStatsPreview();
 }
 
 /**
- * Render Step 3: Engine Selection
+ * Render Step 2: Engine Selection
  */
-function renderStep3() {
+function renderStep2() {
   if (!buildState.engine) {
     const defaultEngine = ENGINES.find(e => e.default);
     buildState.engine = defaultEngine.type;
@@ -778,9 +791,9 @@ function renderStep3() {
 }
 
 /**
- * Render Step 4: Perks Selection
+ * Render Step 3: Perks Selection
  */
-function renderStep4() {
+function renderStep3() {
   const config = CAPACITY_RANGES[buildState.vesselType];
   const basePrice = interpolate(
     buildState.capacity,
@@ -876,9 +889,9 @@ function renderStep4() {
 }
 
 /**
- * Render Step 5: Appearance Customization
+ * Render Step 4: Appearance Customization
  */
-function renderStep5() {
+function renderStep4() {
   const content = document.getElementById('buildStepContent');
   content.innerHTML = `
     <div class="build-step-container">
@@ -997,7 +1010,7 @@ function renderStep5() {
         ctx.drawImage(img, 0, 0, width, height);
 
         buildState.customImage = canvas.toDataURL('image/png');
-        renderStep5(); // Re-render to show image
+        renderStep4(); // Re-render to show image
         showSideNotification('Image uploaded', 'success');
       };
       img.src = event.target.result;
@@ -1007,13 +1020,87 @@ function renderStep5() {
 
   removeBtn?.addEventListener('click', () => {
     buildState.customImage = null;
-    renderStep5(); // Re-render to remove image
+    renderStep4(); // Re-render to remove image
   });
 
   // Only update SVG preview if no custom image
   if (!buildState.customImage) {
     updateSvgPreview();
   }
+}
+
+/**
+ * Render Step 5: Fleet Builder
+ */
+function renderStep5() {
+  const content = document.getElementById('buildStepContent');
+
+  const fleetRows = buildState.fleet.map((vessel, index) => `
+    <div class="fleet-row" data-index="${index}">
+      <select class="fleet-port-select" data-index="${index}">
+        <option value="">-- Select Port --</option>
+        ${SHIPYARD_PORTS.map(port =>
+          `<option value="${port.value}" ${vessel.port === port.value ? 'selected' : ''}>${port.label}</option>`
+        ).join('')}
+      </select>
+      <input type="text" class="fleet-name-input" data-index="${index}" placeholder="Vessel name..." value="${vessel.name}" maxlength="50">
+      <button type="button" class="fleet-remove-btn" data-index="${index}" ${buildState.fleet.length <= 1 ? 'disabled' : ''}>X</button>
+    </div>
+  `).join('');
+
+  content.innerHTML = `
+    <div class="build-step-container">
+      <div class="fleet-builder-section">
+        <div class="fleet-header">
+          <label class="basics-label">Vessels to Build</label>
+          <button type="button" class="fleet-add-btn" id="addVesselBtn">+ Add Vessel</button>
+        </div>
+        <div class="fleet-list" id="fleetList">
+          ${fleetRows}
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Event listeners for port selects
+  content.querySelectorAll('.fleet-port-select').forEach(select => {
+    select.addEventListener('change', (e) => {
+      const index = parseInt(e.target.dataset.index);
+      buildState.fleet[index].port = e.target.value;
+      updateStatsPreview();
+    });
+  });
+
+  // Event listeners for name inputs
+  content.querySelectorAll('.fleet-name-input').forEach(input => {
+    input.addEventListener('input', (e) => {
+      const index = parseInt(e.target.dataset.index);
+      buildState.fleet[index].name = e.target.value;
+      updateStatsPreview();
+    });
+  });
+
+  // Event listeners for remove buttons
+  content.querySelectorAll('.fleet-remove-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.target.dataset.index);
+      if (buildState.fleet.length > 1) {
+        buildState.fleet.splice(index, 1);
+        renderStep5();
+        updateStatsPreview();
+      }
+    });
+  });
+
+  // Add vessel button
+  const addBtn = content.querySelector('#addVesselBtn');
+  addBtn.addEventListener('click', () => {
+    buildState.fleet.push({ port: null, name: '' });
+    renderStep5();
+    updateStatsPreview();
+  });
+
+  updateStatsPreview();
 }
 
 /**
@@ -1050,7 +1137,8 @@ function updateSvgPreview() {
  * Render current step
  */
 function renderCurrentStep() {
-  const stepFunctions = [null, renderStep1, renderStep3, renderStep4, renderStep5];
+  // Steps: 1=Type/Capacity, 2=Engine, 3=Perks, 4=Appearance, 5=Fleet
+  const stepFunctions = [null, renderStep1, renderStep2, renderStep3, renderStep4, renderStep5];
   stepFunctions[buildState.currentStep]();
 
   document.querySelectorAll('.build-step-dot').forEach((step, index) => {
@@ -1064,8 +1152,8 @@ function renderCurrentStep() {
   const submitBtn = document.getElementById('buildSubmitBtn');
 
   prevBtn.classList.toggle('hidden', buildState.currentStep === 1);
-  nextBtn.classList.toggle('hidden', buildState.currentStep === 4);
-  submitBtn.classList.toggle('hidden', buildState.currentStep !== 4);
+  nextBtn.classList.toggle('hidden', buildState.currentStep === 5);
+  submitBtn.classList.toggle('hidden', buildState.currentStep !== 5);
 }
 
 /**
@@ -1076,12 +1164,8 @@ function nextStep() {
     showSideNotification('Please select a vessel type', 'error');
     return;
   }
-  if (buildState.currentStep === 1 && !buildState.port) {
-    showSideNotification('Please select a delivery port', 'error');
-    return;
-  }
 
-  if (buildState.currentStep < 4) {
+  if (buildState.currentStep < 5) {
     buildState.currentStep++;
     renderCurrentStep();
   }
@@ -1098,171 +1182,225 @@ function prevStep() {
 }
 
 /**
- * Submit build request
+ * Submit build request for fleet
  */
 async function submitBuild() {
-  if (!buildState.vesselName.trim()) {
-    showSideNotification('Please enter a vessel name', 'error');
+  // Validate fleet - all vessels need port and name
+  const validVessels = buildState.fleet.filter(v => v.port && v.name.trim());
+
+  if (validVessels.length === 0) {
+    showSideNotification('Please add at least one vessel with port and name', 'error');
+    return;
+  }
+
+  // Check for incomplete vessels
+  const incompleteCount = buildState.fleet.length - validVessels.length;
+  if (incompleteCount > 0) {
+    showSideNotification(`${incompleteCount} vessel(s) incomplete - need port and name`, 'error');
     return;
   }
 
   const baseStats = calculateBaseStats(buildState.vesselType, buildState.capacity);
   const stats = applyPerkEffects(baseStats, buildState);
-  const price = calculatePrice(buildState);
+  const pricePerVessel = calculatePrice(buildState);
+  const totalPrice = pricePerVessel * validVessels.length;
+
+  // Build confirmation message
+  const vesselNames = validVessels.map(v => v.name).join(', ');
+  const confirmMessage = validVessels.length === 1
+    ? `Build ${validVessels[0].name}?`
+    : `Build ${validVessels.length} vessels?`;
 
   const confirmed = await showConfirmDialog({
-    title: 'Confirm Vessel Build',
-    message: `Build ${buildState.vesselName}?`,
+    title: validVessels.length === 1 ? 'Confirm Vessel Build' : 'Confirm Fleet Build',
+    message: confirmMessage,
     details: [
       { label: 'Type', value: buildState.vesselType === 'container' ? 'Container' : 'Tanker' },
       { label: 'Capacity', value: `${formatNumber(buildState.capacity)} ${CAPACITY_RANGES[buildState.vesselType].unit}` },
       { label: 'Engine', value: ENGINES.find(e => e.type === buildState.engine).name },
-      { label: 'Total Price', value: `$${formatNumber(Math.round(price))}` },
-      { label: 'Build Time', value: formatBuildTime(Math.round(stats.buildTime)) }
+      { label: 'Vessels', value: validVessels.length === 1 ? validVessels[0].name : `${validVessels.length} (${vesselNames})` },
+      { label: 'Total Price', value: validVessels.length === 1 ? `$${formatNumber(Math.round(pricePerVessel))}` : `${validVessels.length}x $${formatNumber(Math.round(pricePerVessel))} = $${formatNumber(Math.round(totalPrice))}` }
     ],
-    confirmText: 'Build Vessel',
+    confirmText: validVessels.length === 1 ? 'Build Vessel' : 'Build Fleet',
     cancelText: 'Cancel'
   });
 
   if (!confirmed) return;
 
-  try {
-    const response = await fetch('/api/vessel/build-vessel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: buildState.vesselName,
-        ship_yard: buildState.port,
-        vessel_model: buildState.vesselType,
-        engine_type: buildState.engine,
-        engine_kw: buildState.engineKW,
-        capacity: buildState.capacity,
-        antifouling_model: buildState.antifouling,
-        bulbous: buildState.bulbous ? 1 : 0,
-        enhanced_thrusters: buildState.enhancedThrusters ? 1 : 0,
-        range: Math.round(stats.range),
-        speed: Math.round(stats.speed * 10) / 10,
-        fuel_consumption: Math.round(stats.fuel),
-        propeller_types: buildState.propellers,
-        hull_color: buildState.hullColor,
-        deck_color: buildState.deckColor,
-        bridge_color: buildState.bridgeColor,
-        container_color_1: buildState.containerColor1,
-        container_color_2: buildState.containerColor2,
-        container_color_3: buildState.containerColor3,
-        container_color_4: buildState.containerColor4,
-        name_color: buildState.nameColor,
-        custom_image: buildState.customImage,
-        build_price: Math.round(price)
-      })
-    });
+  // Build vessels sequentially
+  let successCount = 0;
+  let failedCount = 0;
+  let stoppedDueToMoney = false;
+  const builtVesselIds = []; // Collect vessel IDs for fast delivery
 
-    const data = await response.json();
+  // Show single progress notification for multiple vessels
+  if (validVessels.length > 1) {
+    showSideNotification(`Building ${validVessels.length} vessels...`, 'info');
+  }
 
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to build vessel');
+  for (let i = 0; i < validVessels.length; i++) {
+    const vessel = validVessels[i];
+
+    // Check if we have enough cash (get fresh bunker state)
+    const bunkerState = getCurrentBunkerState();
+    const currentCash = bunkerState?.currentCash || 0;
+
+    if (currentCash < pricePerVessel) {
+      stoppedDueToMoney = true;
+      logger.info(`[Build] Stopped at vessel ${i + 1}/${validVessels.length} - not enough cash ($${formatNumber(currentCash)} < $${formatNumber(pricePerVessel)})`);
+      break;
     }
 
-    // NOTE: Success notification is shown via WebSocket (user_action_notification)
-    // from server/routes/game/vessel.js - no duplicate notification here
+    try {
+      const response = await fetch('/api/vessel/build-vessel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: vessel.name,
+          ship_yard: vessel.port,
+          vessel_model: buildState.vesselType,
+          engine_type: buildState.engine,
+          engine_kw: buildState.engineKW,
+          capacity: buildState.capacity,
+          antifouling_model: buildState.antifouling,
+          bulbous: buildState.bulbous ? 1 : 0,
+          enhanced_thrusters: buildState.enhancedThrusters ? 1 : 0,
+          range: Math.round(stats.range),
+          speed: Math.round(stats.speed * 10) / 10,
+          fuel_consumption: Math.round(stats.fuel),
+          propeller_types: buildState.propellers,
+          hull_color: buildState.hullColor,
+          deck_color: buildState.deckColor,
+          bridge_color: buildState.bridgeColor,
+          container_color_1: buildState.containerColor1,
+          container_color_2: buildState.containerColor2,
+          container_color_3: buildState.containerColor3,
+          container_color_4: buildState.containerColor4,
+          name_color: buildState.nameColor,
+          custom_image: buildState.customImage,
+          build_price: Math.round(pricePerVessel)
+        })
+      });
 
-    closeBuildShipModal();
+      const data = await response.json();
 
-    if (window.refreshVesselList) {
-      window.refreshVesselList();
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to build vessel');
+      }
+
+      successCount++;
+      logger.info(`[Build] Successfully built ${vessel.name} (${successCount}/${validVessels.length})`);
+
+      // Collect vessel ID for fast delivery
+      if (data.vessel_id) {
+        builtVesselIds.push(data.vessel_id);
+      }
+
+    } catch (error) {
+      failedCount++;
+      logger.error(`[Build] Failed to build ${vessel.name}:`, error.message);
+
+      // If first vessel fails, stop entirely
+      if (i === 0) {
+        showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');
+        return;
+      }
     }
+  }
 
-    if (window.updateVesselCount) {
-      await window.updateVesselCount();
-    }
+  // Close modal and refresh
+  closeBuildShipModal();
 
-    // Refresh harbor map to include new vessel in rawVessels
-    if (window.harborMap && window.harborMap.forceRefresh) {
-      await window.harborMap.forceRefresh();
-    }
+  if (window.refreshVesselList) {
+    window.refreshVesselList();
+  }
 
-    // Offer fast delivery via Bug-Using if we have the vessel ID
-    logger.debug('[Build] Response data:', data);
-    logger.debug('[Build] Vessel ID from response:', data.vessel_id);
+  if (window.updateVesselCount) {
+    await window.updateVesselCount();
+  }
 
-    if (!data.vessel_id) {
-      console.warn('[Build] No vessel_id returned - fast delivery check skipped');
-    } else {
-      try {
-        // Show loading notification - backend already waited for vessel registration
-        showSideNotification('Checking fast delivery options...', 'info');
+  if (window.harborMap && window.harborMap.forceRefresh) {
+    await window.harborMap.forceRefresh();
+  }
 
-        // Fetch real drydock price from API
-        const drydockStatusResponse = await fetch('/api/maintenance/get-drydock-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            vessel_ids: JSON.stringify([data.vessel_id]),
-            speed: 'maximum',
-            maintenance_type: 'major'
-          })
-        });
+  // Show final result
+  if (stoppedDueToMoney) {
+    showSideNotification(`Built ${successCount} of ${validVessels.length} vessels. Stopped: not enough cash.`, 'warning');
+  } else if (failedCount > 0) {
+    showSideNotification(`Built ${successCount} of ${validVessels.length} vessels. ${failedCount} failed.`, 'warning');
+  } else if (successCount > 1) {
+    showSideNotification(`Successfully built ${successCount} vessels!`, 'success');
+  }
+  // Single vessel success notification comes from WebSocket
 
-        logger.debug('[Build] Drydock status response:', drydockStatusResponse.status);
+  // Offer fast delivery via Bug-Using if we have vessel IDs
+  if (builtVesselIds.length > 0) {
+    try {
+      showSideNotification('Checking fast delivery options...', 'info');
 
-        if (drydockStatusResponse.ok) {
-          const drydockStatus = await drydockStatusResponse.json();
-          logger.debug('[Build] Drydock status:', drydockStatus);
-          const vesselDrydock = drydockStatus.vessels?.[0];
-          const drydockCost = vesselDrydock?.cost;
-          logger.debug('[Build] Drydock cost:', drydockCost, 'Vessel data:', vesselDrydock);
+      // Fetch drydock price from API for all built vessels
+      const drydockStatusResponse = await fetch('/api/maintenance/get-drydock-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          vessel_ids: JSON.stringify(builtVesselIds),
+          speed: 'maximum',
+          maintenance_type: 'major'
+        })
+      });
 
-          if (drydockCost > 0) {
-            // Ask user if they want fast delivery
-            const vesselType = vesselDrydock?.vessel_type || 'Vessel';
-            const useFastDelivery = await showConfirmDialog({
-              title: 'Fast Delivery Available',
-              message: 'Use Bug for fast delivery?',
-              infoPopup: 'By triggering drydock immediately after build, delivery time is reduced to 60 minutes (the drydock duration). This is a known game exploit. If you skip this now, you can activate it later via the vessels menu by sending the ship to drydock (wrench icon).',
-              details: [
-                { label: 'Vessel', value: vesselType },
-                { label: 'Drydock Cost', value: `$${formatNumber(drydockCost)}` },
-                { label: 'Delivery Time', value: '60 minutes instead of normal build time' }
-              ],
-              confirmText: 'Yes, use Fast Delivery',
-              cancelText: 'No, normal delivery'
+      if (drydockStatusResponse.ok) {
+        const drydockStatus = await drydockStatusResponse.json();
+        logger.debug('[Build] Drydock status:', drydockStatus);
+
+        // Calculate total drydock cost
+        const vessels = drydockStatus.vessels || [];
+        const totalDrydockCost = vessels.reduce((sum, v) => sum + (v.cost || 0), 0);
+
+        if (totalDrydockCost > 0) {
+          const vesselCount = builtVesselIds.length;
+          const useFastDelivery = await showConfirmDialog({
+            title: 'Fast Delivery Available',
+            message: vesselCount === 1 ? 'Use Bug for fast delivery?' : `Use Bug for fast delivery on ${vesselCount} vessels?`,
+            infoPopup: 'By triggering drydock immediately after build, delivery time is reduced to 60 minutes (the drydock duration). This is a known game exploit. If you skip this now, you can activate it later via the vessels menu by sending the ship to drydock (wrench icon).',
+            details: [
+              { label: 'Vessels', value: `${vesselCount}` },
+              { label: 'Total Drydock Cost', value: `$${formatNumber(totalDrydockCost)}` },
+              { label: 'Delivery Time', value: '60 minutes instead of normal build time' }
+            ],
+            confirmText: 'Yes, use Fast Delivery',
+            cancelText: 'No, normal delivery'
+          });
+
+          if (useFastDelivery) {
+            const drydockResponse = await fetch('/api/maintenance/bulk-drydock', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                vessel_ids: JSON.stringify(builtVesselIds),
+                speed: 'maximum',
+                maintenance_type: 'major'
+              })
             });
 
-            // useFastDelivery is boolean (no checkboxes used)
-            const confirmed = useFastDelivery;
-
-            if (confirmed) {
-              const drydockResponse = await fetch('/api/maintenance/bulk-drydock', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  vessel_ids: JSON.stringify([data.vessel_id]),
-                  speed: 'maximum',
-                  maintenance_type: 'major'
-                })
-              });
-
-              if (drydockResponse.ok) {
-                showSideNotification('Fast delivery activated - vessel will arrive in 60 minutes', 'success');
-                // Notify vessel-management to refresh pending view if active
-                window.dispatchEvent(new CustomEvent('drydock-completed'));
-              } else {
-                const drydockError = await drydockResponse.json();
-                console.error('[Build] Drydock trigger failed:', drydockError);
-                showSideNotification('Fast delivery failed - vessel will arrive normally', 'warning');
-              }
+            if (drydockResponse.ok) {
+              const msg = vesselCount === 1
+                ? 'Fast delivery activated - vessel will arrive in 60 minutes'
+                : `Fast delivery activated - ${vesselCount} vessels will arrive in 60 minutes`;
+              showSideNotification(msg, 'success');
+              window.dispatchEvent(new CustomEvent('drydock-completed'));
+            } else {
+              const drydockError = await drydockResponse.json();
+              console.error('[Build] Drydock trigger failed:', drydockError);
+              showSideNotification('Fast delivery failed - vessels will arrive normally', 'warning');
             }
           }
         }
-      } catch (fastDeliveryErr) {
-        console.error('[Build] Fast delivery check error:', fastDeliveryErr);
-        // Silent fail - vessel was built successfully, just fast delivery option failed
       }
+    } catch (fastDeliveryErr) {
+      console.error('[Build] Fast delivery check error:', fastDeliveryErr);
+      // Silent fail - vessels were built successfully, just fast delivery option failed
     }
-
-  } catch (error) {
-    console.error('[Build] Error:', error);
-    showSideNotification(`Error: ${escapeHtml(error.message)}`, 'error');
   }
 }
 
@@ -1299,14 +1437,13 @@ export async function openBuildShipModal() {
   buildState.currentStep = 1;
   buildState.vesselType = 'container';
   buildState.capacity = 2000;
-  buildState.port = null;
   buildState.engine = null;
   buildState.engineKW = null;
   buildState.antifouling = null;
   buildState.bulbous = false;
   buildState.propellers = '4_blade_propeller';
   buildState.enhancedThrusters = false;
-  buildState.vesselName = '';
+  buildState.fleet = [{ port: null, name: '' }];
   buildState.hullColor = '#b30000';
   buildState.deckColor = '#272525';
   buildState.bridgeColor = '#dbdbdb';

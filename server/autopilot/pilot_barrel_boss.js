@@ -72,25 +72,32 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       ? settings.fuelThreshold
       : settings.autoRebuyFuelThreshold;
 
-    // ========== NORMAL MODE: Price below threshold - fill bunker ==========
-    if (prices.fuel <= threshold) {
-      // Check for emergency buy first
-      if (settings.autoRebuyFuelEmergency) {
-        const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
-        const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
-        const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
+    // ========== EMERGENCY MODE: Check FIRST, independent of price threshold ==========
+    if (settings.autoRebuyFuelEmergency) {
+      const emergencyBelowThreshold = settings.autoRebuyFuelEmergencyBelow;
+      const emergencyShipsRequired = settings.autoRebuyFuelEmergencyShips;
+      const emergencyMaxPrice = settings.autoRebuyFuelEmergencyMaxPrice;
 
-        if (bunker.fuel < emergencyBelowThreshold) {
-          const vessels = await gameapi.fetchVessels();
-          const shipsAtPort = vessels.filter(v => v.status === 'port').length;
+      if (bunker.fuel < emergencyBelowThreshold && prices.fuel <= emergencyMaxPrice) {
+        const vessels = await gameapi.fetchVessels();
+        const shipsAtPort = vessels.filter(v => v.status === 'port').length;
 
-          if (shipsAtPort >= emergencyShipsRequired && prices.fuel <= emergencyMaxPrice) {
-            isEmergencyBuy = true;
-            logger.info(`[Barrel Boss] EMERGENCY: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port`);
+        if (shipsAtPort >= emergencyShipsRequired) {
+          isEmergencyBuy = true;
+          logger.info(`[Barrel Boss] EMERGENCY: Bunker=${bunker.fuel.toFixed(1)}t < ${emergencyBelowThreshold}t, ${shipsAtPort} ships at port, price $${prices.fuel}/t <= max $${emergencyMaxPrice}/t`);
+
+          if (availableSpace < 0.5) {
+            logger.debug('[Barrel Boss] Emergency: Bunker full');
+            return;
           }
+
+          amountToBuy = Math.min(Math.ceil(availableSpace), maxAffordable);
         }
       }
+    }
 
+    // ========== NORMAL MODE: Price below threshold - fill bunker ==========
+    if (!isEmergencyBuy && prices.fuel <= threshold) {
       if (availableSpace < 0.5) {
         logger.debug('[Barrel Boss] Bunker full');
         return;
@@ -100,7 +107,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       logger.debug(`[Barrel Boss] Normal: Price $${prices.fuel}/t <= threshold $${threshold}/t - filling bunker`);
 
     // ========== INTELLIGENT MODE: Price above threshold but vessels need fuel ==========
-    } else if (settings.intelligentRebuyFuel) {
+    } else if (!isEmergencyBuy && settings.intelligentRebuyFuel) {
       const maxPrice = settings.intelligentRebuyFuelMaxPrice;
 
       if (prices.fuel > maxPrice) {
@@ -140,7 +147,7 @@ async function autoRebuyFuel(bunkerState = null, autopilotPaused, broadcastToUse
       }
 
     // ========== NO MODE ACTIVE: Price too high ==========
-    } else {
+    } else if (!isEmergencyBuy) {
       logger.debug(`[Barrel Boss] Price $${prices.fuel}/t > threshold $${threshold}/t and intelligent rebuy disabled - skipping`);
       return;
     }

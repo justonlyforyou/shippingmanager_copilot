@@ -295,7 +295,7 @@ namespace ShippingManagerCoPilot.Launcher
         {
             if (_servers.TryGetValue(userId, out var instance))
             {
-                return $"https://localhost:{instance.Port}";
+                return instance.Session.Url;
             }
             return null;
         }

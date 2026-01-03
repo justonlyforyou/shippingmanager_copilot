@@ -5785,6 +5785,14 @@
   },
   {
     "type": "method",
+    "name": "applyDemandInputFilter",
+    "longname": "module:harbor-map/filters.applyDemandInputFilter",
+    "url": "module-harbor-map_filters.html#.applyDemandInputFilter",
+    "description": "<p>Applies demand filters using input field values (min/max ranges).\nFilters ports based on Container (TEU) and/or Tanker (BBL) demand ranges.\nType selection (current/max) determines which demand value to check.</p>",
+    "parent": "module:harbor-map/filters"
+  },
+  {
+    "type": "method",
     "name": "calculatePortCurrentCargoDemand",
     "longname": "module:harbor-map/filters.calculatePortCurrentCargoDemand",
     "url": "module-harbor-map_filters.html#.calculatePortCurrentCargoDemand",
@@ -6113,6 +6121,14 @@
   },
   {
     "type": "method",
+    "name": "clearDemandInputFields",
+    "longname": "module:harbor-map/map-controller~clearDemandInputFields",
+    "url": "module-harbor-map_map-controller.html#~clearDemandInputFields",
+    "description": "<p>Clears all demand filter input fields and their stored values.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
     "name": "closeFilterModal",
     "longname": "module:harbor-map/map-controller~closeFilterModal",
     "url": "module-harbor-map_map-controller.html#~closeFilterModal",
@@ -6129,6 +6145,14 @@
   },
   {
     "type": "method",
+    "name": "formatThousandSep",
+    "longname": "module:harbor-map/map-controller~formatThousandSep",
+    "url": "module-harbor-map_map-controller.html#~formatThousandSep",
+    "description": "<p>Formats a number with thousand separators.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
     "name": "getVesselType",
     "longname": "module:harbor-map/map-controller~getVesselType",
     "url": "module-harbor-map_map-controller.html#~getVesselType",
@@ -6141,6 +6165,22 @@
     "longname": "module:harbor-map/map-controller~hideRouteVesselsPanel",
     "url": "module-harbor-map_map-controller.html#~hideRouteVesselsPanel",
     "description": "<p>Hides the route vessels panel</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "initCollapsibleSections",
+    "longname": "module:harbor-map/map-controller~initCollapsibleSections",
+    "url": "module-harbor-map_map-controller.html#~initCollapsibleSections",
+    "description": "<p>Initializes collapsible section behavior for demand filter sections.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "initDemandInputListeners",
+    "longname": "module:harbor-map/map-controller~initDemandInputListeners",
+    "url": "module-harbor-map_map-controller.html#~initDemandInputListeners",
+    "description": "<p>Initializes event listeners for demand filter input fields.\nHandles radio buttons for type selection and text inputs with thousand separators.</p>",
     "parent": "module:harbor-map/map-controller"
   },
   {
@@ -6173,6 +6213,14 @@
     "longname": "module:harbor-map/map-controller~openFilterModal",
     "url": "module-harbor-map_map-controller.html#~openFilterModal",
     "description": "<p>Opens the filter modal panel.\nPopulates dropdowns with current filter values and initializes drag behavior.</p>",
+    "parent": "module:harbor-map/map-controller"
+  },
+  {
+    "type": "method",
+    "name": "parseThousandSep",
+    "longname": "module:harbor-map/map-controller~parseThousandSep",
+    "url": "module-harbor-map_map-controller.html#~parseThousandSep",
+    "description": "<p>Parses a formatted number string back to integer.</p>",
     "parent": "module:harbor-map/map-controller"
   },
   {
@@ -6213,14 +6261,6 @@
     "longname": "module:harbor-map/map-controller~toggleWeatherLayer",
     "url": "module-harbor-map_map-controller.html#~toggleWeatherLayer",
     "description": "<p>Toggles weather overlay (Rain Radar or Cloud Cover)</p>",
-    "parent": "module:harbor-map/map-controller"
-  },
-  {
-    "type": "method",
-    "name": "updateDemandFilterDropdowns",
-    "longname": "module:harbor-map/map-controller~updateDemandFilterDropdowns",
-    "url": "module-harbor-map_map-controller.html#~updateDemandFilterDropdowns",
-    "description": "<p>Updates demand filter dropdowns based on current port scope.\nPopulates the Max and Current demand dropdowns with options for the selected scope.</p>",
     "parent": "module:harbor-map/map-controller"
   },
   {
@@ -8705,6 +8745,14 @@
   },
   {
     "type": "method",
+    "name": "migrateHostColumn",
+    "longname": "module:server/config~migrateHostColumn",
+    "url": "module-server_config.html#~migrateHostColumn",
+    "description": "<p>Run database migration to add host column if it doesn't exist.\nThis must run before reading host from database.</p>",
+    "parent": "module:server/config"
+  },
+  {
+    "type": "method",
     "name": "setSessionCookie",
     "longname": "module:server/config~setSessionCookie",
     "url": "module-server_config.html#~setSessionCookie",
@@ -9617,6 +9665,14 @@
   },
   {
     "type": "method",
+    "name": "getAccountHost",
+    "longname": "module:server/database~getAccountHost",
+    "url": "module-server_database.html#~getAccountHost",
+    "description": "<p>Get account host</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
     "name": "getAccountsDb",
     "longname": "module:server/database~getAccountsDb",
     "url": "module-server_database.html#~getAccountsDb",
@@ -9805,6 +9861,14 @@
     "longname": "module:server/database~setAccountAutostart",
     "url": "module-server_database.html#~setAccountAutostart",
     "description": "<p>Update account autostart setting</p>",
+    "parent": "module:server/database"
+  },
+  {
+    "type": "method",
+    "name": "setAccountHost",
+    "longname": "module:server/database~setAccountHost",
+    "url": "module-server_database.html#~setAccountHost",
+    "description": "<p>Update account host</p>",
     "parent": "module:server/database"
   },
   {
@@ -13012,7 +13076,15 @@
     "name": "renderStep1",
     "longname": "module:vessel-building~renderStep1",
     "url": "module-vessel-building.html#~renderStep1",
-    "description": "<p>Render Step 1: Basics (Type, Port, Name)</p>",
+    "description": "<p>Render Step 1: Basics (Type, Capacity)</p>",
+    "parent": "module:vessel-building"
+  },
+  {
+    "type": "method",
+    "name": "renderStep2",
+    "longname": "module:vessel-building~renderStep2",
+    "url": "module-vessel-building.html#~renderStep2",
+    "description": "<p>Render Step 2: Engine Selection</p>",
     "parent": "module:vessel-building"
   },
   {
@@ -13020,7 +13092,7 @@
     "name": "renderStep3",
     "longname": "module:vessel-building~renderStep3",
     "url": "module-vessel-building.html#~renderStep3",
-    "description": "<p>Render Step 3: Engine Selection</p>",
+    "description": "<p>Render Step 3: Perks Selection</p>",
     "parent": "module:vessel-building"
   },
   {
@@ -13028,7 +13100,7 @@
     "name": "renderStep4",
     "longname": "module:vessel-building~renderStep4",
     "url": "module-vessel-building.html#~renderStep4",
-    "description": "<p>Render Step 4: Perks Selection</p>",
+    "description": "<p>Render Step 4: Appearance Customization</p>",
     "parent": "module:vessel-building"
   },
   {
@@ -13036,7 +13108,7 @@
     "name": "renderStep5",
     "longname": "module:vessel-building~renderStep5",
     "url": "module-vessel-building.html#~renderStep5",
-    "description": "<p>Render Step 5: Appearance Customization</p>",
+    "description": "<p>Render Step 5: Fleet Builder</p>",
     "parent": "module:vessel-building"
   },
   {
@@ -13044,7 +13116,7 @@
     "name": "submitBuild",
     "longname": "module:vessel-building~submitBuild",
     "url": "module-vessel-building.html#~submitBuild",
-    "description": "<p>Submit build request</p>",
+    "description": "<p>Submit build request for fleet</p>",
     "parent": "module:vessel-building"
   },
   {

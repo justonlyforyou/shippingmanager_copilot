@@ -339,6 +339,67 @@ function getPortFromDatabase() {
   return startupSettings.port;
 }
 
+/**
+ * Get host from accounts database for the selected user.
+ * Falls back to 0.0.0.0 if no user selected or not found.
+ * @returns {string} Host/IP address
+ */
+/**
+ * Run database migration to add host column if it doesn't exist.
+ * This must run before reading host from database.
+ * @param {Database} db - SQLite database instance
+ */
+function migrateHostColumn(db) {
+  const columns = db.prepare("PRAGMA table_info(accounts)").all();
+  const hasHostColumn = columns.some(col => col.name === 'host');
+  if (!hasHostColumn) {
+    db.exec("ALTER TABLE accounts ADD COLUMN host TEXT NOT NULL DEFAULT '0.0.0.0'");
+    console.log('[Config] Migration: Added host column to accounts table');
+  }
+}
+
+function getHostFromDatabase() {
+  const selectedUserId = process.env.SELECTED_USER_ID;
+  if (!selectedUserId) {
+    throw new Error('SELECTED_USER_ID not set - cannot determine host');
+  }
+
+  // Get database path
+  const isPkg = isPackaged();
+  let dbPath;
+  if (isPkg) {
+    if (process.platform === 'win32') {
+      dbPath = path.join(os.homedir(), 'AppData', 'Local', 'ShippingManagerCoPilot', 'userdata', 'database', 'accounts.db');
+    } else if (process.platform === 'darwin') {
+      dbPath = path.join(os.homedir(), 'Library', 'Application Support', 'ShippingManagerCoPilot', 'userdata', 'database', 'accounts.db');
+    } else {
+      dbPath = path.join(os.homedir(), '.ShippingManagerCoPilot', 'userdata', 'database', 'accounts.db');
+    }
+  } else {
+    dbPath = path.join(__dirname, '..', 'userdata', 'database', 'accounts.db');
+  }
+
+  if (!fs.existsSync(dbPath)) {
+    throw new Error(`Database not found: ${dbPath}`);
+  }
+
+  // Open database with write access to run migration if needed
+  const Database = require('better-sqlite3');
+  const db = new Database(dbPath);
+
+  // Run migration to ensure host column exists
+  migrateHostColumn(db);
+
+  const row = db.prepare('SELECT host FROM accounts WHERE user_id = ?').get(selectedUserId);
+  db.close();
+
+  if (!row) {
+    throw new Error(`Account not found for user_id: ${selectedUserId}`);
+  }
+
+  return row.host;
+}
+
 const config = {
   /**
    * HTTPS server port.
@@ -349,11 +410,13 @@ const config = {
 
   /**
    * Server bind address.
-   * Priority: process.env.HOST (from launcher) > settings.json
-   * NO fallbacks - must come from settings.json or launcher env
-   * @constant {string}
+   * Read from accounts.db for SELECTED_USER_ID.
+   * Use getter to avoid evaluation at module load time.
+   * @returns {string}
    */
-  HOST: process.env.HOST || startupSettings.host,  // startupSettings.host is validated, no fallback needed
+  get HOST() {
+    return getHostFromDatabase();
+  },
 
   /**
    * Base URL for Shipping Manager game API. All proxy requests are sent to this endpoint.

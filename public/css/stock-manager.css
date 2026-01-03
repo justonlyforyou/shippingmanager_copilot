@@ -59,7 +59,7 @@
   padding: var(--spacing-8);
   max-height: calc(100vh - 200px);
   overflow-y: auto;
-  overflow-x: visible;
+  overflow-x: hidden;
 }
 
 .stock-company-content {
@@ -448,7 +448,7 @@
 /* Investments Table */
 .stock-investments,
 .stock-investors {
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 /* Market List Container */
@@ -830,6 +830,7 @@
   isolation: isolate;
   position: relative;
   z-index: 1;
+  overflow: hidden;
 }
 
 /* Ensure chart container has proper stacking */
