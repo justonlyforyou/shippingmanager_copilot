@@ -2,7 +2,7 @@
 
 All notable changes to Shipping Manager CoPilot will be documented in this file.
 
-## [0.1.7.6] - 2026-01-03
+## [0.1.7.7] - 2026-01-03
 
 ### Database
 - **Host/IP now stored per-account** instead of globally
@@ -40,6 +40,15 @@ All notable changes to Shipping Manager CoPilot will be documented in this file.
 - **Fixed horizontal scrollbar** appearing unnecessarily
   - Added overflow hidden to modal window and investments list
 
+### UI Fixes
+- **Settings dialog** fixed null reference error
+  - Removed reference to obsolete `minVesselUtilization` element
+  - Now correctly handles `minCargoUtilization` and `harborFeeWarningThreshold`
+
+---
+
+## [0.1.7.6] - 2026-01-02
+
 ### Autopilot
 - **Intelligent Rebuy restructured** to work ON TOP of normal mode (not replace it)
   - Normal mode: Price <= threshold -> fill bunker completely
@@ -57,9 +66,6 @@ All notable changes to Shipping Manager CoPilot will be documented in this file.
 - Added reason code no_vessels_processed when vessels found but none departed
 
 ### UI Fixes
-- **Settings dialog** fixed null reference error
-  - Removed reference to obsolete `minVesselUtilization` element
-  - Now correctly handles `minCargoUtilization` and `harborFeeWarningThreshold`
 - **CEO level star badge** now uses correct XP progress formula
   - Was: current_xp / next_level_xp (wrong)
   - Now: (current_xp - level_start_xp) / (next_level_xp - level_start_xp)
